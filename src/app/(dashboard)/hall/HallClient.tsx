@@ -197,11 +197,16 @@ export function HallClient({ initialActivities, initialNotices, userName }: Prop
         <CardContent>
           <div className="grid grid-cols-5 gap-2">
             {['Seg', 'Ter', 'Qua', 'Qui', 'Sex'].map((day, i) => {
-              const jsDay = new Date().getDay() // 0=Dom
-              const dayMap = [1, 2, 3, 4, 5]
-              const diff = dayMap[i] - jsDay
-              const date = new Date(Date.now() + diff * 86400000)
-              const isToday = dayMap[i] === jsDay
+              const now = new Date()
+              const jsDay = now.getDay() // 0=Dom, 1=Seg...6=Sáb
+              // Quantos dias até a segunda-feira desta semana
+              const daysToMonday = jsDay === 0 ? -6 : 1 - jsDay
+              const monday = new Date(now)
+              monday.setDate(monday.getDate() + daysToMonday)
+              const date = new Date(monday)
+              date.setDate(monday.getDate() + i)
+              const todayStr = now.toDateString()
+              const isToday = date.toDateString() === todayStr
               return (
                 <div key={day} className={`rounded-xl p-3 text-center border transition-colors ${
                   isToday ? 'bg-primary-900 text-white border-primary-900' : 'bg-muted border-border hover:bg-muted/80'

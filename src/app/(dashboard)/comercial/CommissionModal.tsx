@@ -30,7 +30,9 @@ export function CommissionModal({ lead, currentUser, onClose }: Props) {
     setLoading(true)
     await supabase.from('commissions').insert({
       seller_id: lead.assigned_to ?? currentUser.id,
+      seller_name: lead.assigned_name ?? currentUser.name,
       lead_id: lead.id,
+      lead_name: lead.name,
       amount: finalAmount,
       percentage: parseFloat(percentage || '0'),
       status: 'pendente',
