@@ -63,16 +63,41 @@ const NOTICE_COLORS: Record<string, string> = {
   urgent: 'border-red-200 bg-red-50',
 }
 
-function greeting(): string {
+function computeGreeting(): string {
   const h = new Date().getHours()
   if (h < 12) return 'Bom dia'
   if (h < 18) return 'Boa tarde'
   return 'Boa noite'
 }
 
+function computeWeekDays(): { label: string; date: number; isToday: boolean }[] {
+  const now = new Date()
+  const jsDay = now.getDay()
+  const daysToMonday = jsDay === 0 ? -6 : 1 - jsDay
+  const monday = new Date(now)
+  monday.setDate(monday.getDate() + daysToMonday)
+  const todayStr = now.toDateString()
+  return ['Seg', 'Ter', 'Qua', 'Qui', 'Sex'].map((label, i) => {
+    const d = new Date(monday)
+    d.setDate(monday.getDate() + i)
+    return { label, date: d.getDate(), isToday: d.toDateString() === todayStr }
+  })
+}
+
 export function HallClient({ initialActivities, initialNotices, userName }: Props) {
   const [activities, setActivities] = useState<Activity[]>(initialActivities)
   const [notices, setNotices] = useState<Notice[]>(initialNotices)
+  const [greeting, setGreeting] = useState('')
+  const [today, setToday] = useState('')
+  const [weekDays, setWeekDays] = useState<{ label: string; date: number; isToday: boolean }[]>([])
+
+  useEffect(() => {
+    setGreeting(computeGreeting())
+    setToday(new Date().toLocaleDateString('pt-BR', {
+      weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
+    }))
+    setWeekDays(computeWeekDays())
+  }, [])
 
   // Supabase Realtime
   useEffect(() => {
@@ -95,17 +120,13 @@ export function HallClient({ initialActivities, initialNotices, userName }: Prop
     return () => { supabase.removeChannel(channel) }
   }, [])
 
-  const today = new Date().toLocaleDateString('pt-BR', {
-    weekday: 'long', day: 'numeric', month: 'long', year: 'numeric'
-  })
-
   return (
     <div className="p-6 max-w-7xl mx-auto space-y-6">
 
       {/* Saudação */}
       <div>
         <h1 className="text-2xl font-bold text-primary-900">
-          {greeting()}, {userName}
+          {greeting ? `${greeting}, ${userName}` : userName}
         </h1>
         <p className="text-muted-foreground mt-0.5 capitalize text-sm">{today}</p>
       </div>
@@ -196,26 +217,19 @@ export function HallClient({ initialActivities, initialNotices, userName }: Prop
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-5 gap-2">
-            {['Seg', 'Ter', 'Qua', 'Qui', 'Sex'].map((day, i) => {
-              const now = new Date()
-              const jsDay = now.getDay() // 0=Dom, 1=Seg...6=Sáb
-              // Quantos dias até a segunda-feira desta semana
-              const daysToMonday = jsDay === 0 ? -6 : 1 - jsDay
-              const monday = new Date(now)
-              monday.setDate(monday.getDate() + daysToMonday)
-              const date = new Date(monday)
-              date.setDate(monday.getDate() + i)
-              const todayStr = now.toDateString()
-              const isToday = date.toDateString() === todayStr
-              return (
-                <div key={day} className={`rounded-xl p-3 text-center border transition-colors ${
-                  isToday ? 'bg-primary-900 text-white border-primary-900' : 'bg-muted border-border hover:bg-muted/80'
-                }`}>
-                  <p className={`text-xs font-medium ${isToday ? 'text-primary-200' : 'text-muted-foreground'}`}>{day}</p>
-                  <p className={`text-xl font-bold mt-1 ${isToday ? 'text-white' : 'text-foreground'}`}>{date.getDate()}</p>
-                </div>
-              )
-            })}
+            {(weekDays.length > 0
+              ? weekDays
+              : ['Seg', 'Ter', 'Qua', 'Qui', 'Sex'].map(label => ({ label, date: 0, isToday: false }))
+            ).map(({ label, date, isToday }) => (
+              <div key={label} className={`rounded-xl p-3 text-center border transition-colors ${
+                isToday ? 'bg-primary-900 text-white border-primary-900' : 'bg-muted border-border hover:bg-muted/80'
+              }`}>
+                <p className={`text-xs font-medium ${isToday ? 'text-primary-200' : 'text-muted-foreground'}`}>{label}</p>
+                <p className={`text-xl font-bold mt-1 ${isToday ? 'text-white' : 'text-foreground'}`}>
+                  {date || '—'}
+                </p>
+              </div>
+            ))}
           </div>
         </CardContent>
       </Card>
