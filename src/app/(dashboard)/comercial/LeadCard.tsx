@@ -4,7 +4,7 @@ import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { cn } from '@/lib/utils'
 import { getScoreInfo } from '@/lib/utils/score'
-import type { Lead } from './KanbanBoard'
+import type { Lead } from './types'
 
 interface Props {
   lead: Lead

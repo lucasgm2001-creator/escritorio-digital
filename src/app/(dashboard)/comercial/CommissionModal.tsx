@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import type { Lead } from './KanbanBoard'
+import type { Lead } from './types'
 
 interface Props {
   lead: Lead

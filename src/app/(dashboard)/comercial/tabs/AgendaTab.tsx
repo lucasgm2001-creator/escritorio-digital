@@ -2,8 +2,8 @@
 
 import { useState } from 'react'
 import { getScoreInfo } from '@/lib/utils/score'
-import type { Lead } from '../KanbanBoard'
-import { ALL_COLUMNS } from '../KanbanBoard'
+import type { Lead } from '../types'
+import { ALL_COLUMNS } from '../types'
 
 interface Props { leads: Lead[] }
 

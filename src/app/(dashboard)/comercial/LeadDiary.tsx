@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { getScoreInfo } from '@/lib/utils/score'
 import { timeAgo } from '@/lib/utils'
-import type { Lead } from './KanbanBoard'
+import type { Lead } from './types'
 
 interface Interaction {
   id: string

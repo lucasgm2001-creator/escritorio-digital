@@ -1,7 +1,7 @@
 'use client'
 
-import type { Lead } from '../KanbanBoard'
-import { MAIN_FLOW, SECONDARY_FLOW } from '../KanbanBoard'
+import type { Lead } from '../types'
+import { MAIN_FLOW, SECONDARY_FLOW } from '../types'
 
 interface Props { leads: Lead[] }
 
