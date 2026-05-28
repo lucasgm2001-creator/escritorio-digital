@@ -17,6 +17,7 @@ interface Client {
   start_date?: string
   end_date?: string
   assigned_name?: string
+  jobs?: string[]
   created_at: string
 }
 
@@ -32,6 +33,8 @@ export function ClientesClient({ initialClients, currentUser }: Props) {
   const [newOpen, setNewOpen] = useState(false)
   const [form, setForm] = useState({ name: '', company: '', email: '', phone: '', plan_weekly: '140' })
   const [loading, setLoading] = useState(false)
+  const [editingJobsId, setEditingJobsId] = useState<string | null>(null)
+  const [jobInput, setJobInput] = useState('')
 
   const supabase = createClient()
 
@@ -67,6 +70,21 @@ export function ClientesClient({ initialClients, currentUser }: Props) {
       setForm({ name: '', company: '', email: '', phone: '', plan_weekly: '140' })
     }
     setLoading(false)
+  }
+
+  const handleAddJob = async (client: Client) => {
+    const job = jobInput.trim()
+    if (!job) return
+    const jobs = [...(client.jobs ?? []), job]
+    await supabase.from('clients').update({ jobs }).eq('id', client.id)
+    setClients(prev => prev.map(c => c.id === client.id ? { ...c, jobs } : c))
+    setJobInput('')
+  }
+
+  const handleRemoveJob = async (client: Client, idx: number) => {
+    const jobs = (client.jobs ?? []).filter((_, i) => i !== idx)
+    await supabase.from('clients').update({ jobs }).eq('id', client.id)
+    setClients(prev => prev.map(c => c.id === client.id ? { ...c, jobs } : c))
   }
 
   const handleInativar = async (client: Client) => {
@@ -137,26 +155,74 @@ export function ClientesClient({ initialClients, currentUser }: Props) {
               <p className="text-sm text-muted-foreground text-center py-4">Nenhum cliente ativo.</p>
             )}
             {ativos.map(client => (
-              <div key={client.id} className="flex items-center gap-4 p-3 rounded-lg border border-border hover:bg-muted/30 transition-colors">
-                <div className="w-9 h-9 rounded-full bg-primary-100 flex items-center justify-center shrink-0">
-                  <span className="text-sm font-bold text-primary-700">{client.name[0]}</span>
+              <div key={client.id} className="rounded-lg border border-border hover:bg-muted/30 transition-colors">
+                <div className="flex items-center gap-4 p-3">
+                  <div className="w-9 h-9 rounded-full bg-primary-100 flex items-center justify-center shrink-0">
+                    <span className="text-sm font-bold text-primary-700">{client.name[0]}</span>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="font-medium text-foreground text-sm">{client.name}</p>
+                    {client.company && <p className="text-xs text-muted-foreground">{client.company}</p>}
+                  </div>
+                  <Badge variant="success" className="text-xs shrink-0">
+                    {formatCurrency(client.plan_weekly, 'en-US', 'USD')}/sem
+                  </Badge>
+                  {client.start_date && (
+                    <span className="text-xs text-muted-foreground shrink-0 hidden md:block">
+                      desde {formatDate(client.start_date)}
+                    </span>
+                  )}
+                  <button
+                    onClick={() => setEditingJobsId(editingJobsId === client.id ? null : client.id)}
+                    className="text-xs text-slate-400 hover:text-slate-600 transition-colors shrink-0"
+                    title="Gerenciar jobs"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                    </svg>
+                  </button>
+                  <button onClick={() => handleInativar(client)}
+                    className="text-xs text-red-500 hover:text-red-700 transition-colors shrink-0">
+                    Inativar
+                  </button>
                 </div>
-                <div className="flex-1 min-w-0">
-                  <p className="font-medium text-foreground text-sm">{client.name}</p>
-                  {client.company && <p className="text-xs text-muted-foreground">{client.company}</p>}
-                </div>
-                <Badge variant="success" className="text-xs shrink-0">
-                  {formatCurrency(client.plan_weekly, 'en-US', 'USD')}/sem
-                </Badge>
-                {client.start_date && (
-                  <span className="text-xs text-muted-foreground shrink-0 hidden md:block">
-                    desde {formatDate(client.start_date)}
-                  </span>
+                {/* Jobs panel */}
+                {editingJobsId === client.id && (
+                  <div className="px-4 pb-3 border-t border-border/50 pt-3">
+                    <p className="text-xs font-semibold text-slate-600 mb-2">Jobs / Serviços ativos</p>
+                    <div className="flex flex-wrap gap-1.5 mb-2">
+                      {(client.jobs ?? []).map((job, idx) => (
+                        <span key={idx} className="inline-flex items-center gap-1 bg-primary-50 text-primary-700 border border-primary-200 rounded-full px-2.5 py-0.5 text-xs font-medium">
+                          {job}
+                          <button onClick={() => handleRemoveJob(client, idx)} className="text-primary-400 hover:text-primary-700 transition-colors ml-0.5">
+                            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                          </button>
+                        </span>
+                      ))}
+                      {(client.jobs ?? []).length === 0 && (
+                        <span className="text-xs text-muted-foreground">Nenhum job cadastrado.</span>
+                      )}
+                    </div>
+                    <div className="flex gap-2">
+                      <input
+                        value={jobInput}
+                        onChange={e => setJobInput(e.target.value)}
+                        onKeyDown={e => e.key === 'Enter' && (e.preventDefault(), handleAddJob(client))}
+                        placeholder="Ex: Gestão de tráfego, Social media..."
+                        className="flex-1 border border-border rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:border-primary-400"
+                      />
+                      <button
+                        onClick={() => handleAddJob(client)}
+                        disabled={!jobInput.trim()}
+                        className="px-3 py-1.5 bg-primary-900 text-white rounded-lg text-xs font-semibold hover:bg-primary-800 disabled:opacity-40 transition-colors"
+                      >
+                        Adicionar
+                      </button>
+                    </div>
+                  </div>
                 )}
-                <button onClick={() => handleInativar(client)}
-                  className="text-xs text-red-500 hover:text-red-700 transition-colors shrink-0">
-                  Inativar
-                </button>
               </div>
             ))}
           </div>

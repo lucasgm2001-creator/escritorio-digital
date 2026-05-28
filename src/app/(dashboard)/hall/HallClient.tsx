@@ -1,11 +1,18 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { timeAgo } from '@/lib/utils'
 import type { Activity, Notice } from '@/types'
+
+interface Stats {
+  totalLeads: number
+  activeClients: number
+  mrr: number
+  pendingTasks: number
+}
 
 interface Props {
   initialActivities: Activity[]
@@ -13,6 +20,7 @@ interface Props {
   userName: string
   userRole: string
   userId: string
+  stats: Stats
 }
 
 const ACTIVITY_ICONS: Record<string, React.ReactNode> = {
@@ -84,12 +92,25 @@ function computeWeekDays(): { label: string; date: number; isToday: boolean }[] 
   })
 }
 
-export function HallClient({ initialActivities, initialNotices, userName }: Props) {
+function fmt(v: number) {
+  if (v >= 1_000_000) return `R$ ${(v / 1_000_000).toFixed(1)}M`
+  if (v >= 1_000) return `R$ ${(v / 1_000).toFixed(0)}k`
+  return `R$ ${v.toLocaleString('pt-BR')}`
+}
+
+export function HallClient({ initialActivities, initialNotices, userName, userRole, userId, stats }: Props) {
   const [activities, setActivities] = useState<Activity[]>(initialActivities)
   const [notices, setNotices] = useState<Notice[]>(initialNotices)
   const [greeting, setGreeting] = useState('')
   const [today, setToday] = useState('')
   const [weekDays, setWeekDays] = useState<{ label: string; date: number; isToday: boolean }[]>([])
+  const [onlineCount, setOnlineCount] = useState(1)
+  const [showNoticeForm, setShowNoticeForm] = useState(false)
+  const [noticeForm, setNoticeForm] = useState({ title: '', content: '', priority: 'info' as 'info' | 'warning' | 'urgent' })
+  const [savingNotice, setSavingNotice] = useState(false)
+  const channelRef = useRef<ReturnType<ReturnType<typeof createClient>['channel']> | null>(null)
+
+  const canPostNotice = userRole === 'admin' || userRole === 'financeiro'
 
   useEffect(() => {
     setGreeting(computeGreeting())
@@ -99,50 +120,90 @@ export function HallClient({ initialActivities, initialNotices, userName }: Prop
     setWeekDays(computeWeekDays())
   }, [])
 
-  // Supabase Realtime
   useEffect(() => {
     const supabase = createClient()
 
-    const channel = supabase
+    // Realtime: activities + notices
+    const dataChannel = supabase
       .channel('hall-realtime')
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'activities' },
-        (payload) => {
-          setActivities(prev => [payload.new as Activity, ...prev.slice(0, 19)])
-        }
+        (payload) => setActivities(prev => [payload.new as Activity, ...prev.slice(0, 19)])
       )
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'notices' },
-        (payload) => {
-          setNotices(prev => [payload.new as Notice, ...prev.slice(0, 4)])
-        }
+        (payload) => setNotices(prev => [payload.new as Notice, ...prev.slice(0, 9)])
       )
       .subscribe()
 
-    return () => { supabase.removeChannel(channel) }
-  }, [])
+    // Presence: contador de usuários online
+    const presenceChannel = supabase.channel('hall-presence', {
+      config: { presence: { key: userId } },
+    })
+    presenceChannel
+      .on('presence', { event: 'sync' }, () => {
+        const state = presenceChannel.presenceState()
+        setOnlineCount(Object.keys(state).length)
+      })
+      .subscribe(async (status) => {
+        if (status === 'SUBSCRIBED') {
+          await presenceChannel.track({ user_id: userId, name: userName, online_at: new Date().toISOString() })
+        }
+      })
+
+    channelRef.current = presenceChannel
+
+    return () => {
+      supabase.removeChannel(dataChannel)
+      supabase.removeChannel(presenceChannel)
+    }
+  }, [userId, userName])
+
+  const handlePostNotice = async () => {
+    if (!noticeForm.title.trim() || !noticeForm.content.trim()) return
+    setSavingNotice(true)
+    const supabase = createClient()
+    await supabase.from('notices').insert({
+      title: noticeForm.title.trim(),
+      content: noticeForm.content.trim(),
+      priority: noticeForm.priority,
+      author_id: userId,
+      author_name: userName,
+    })
+    setNoticeForm({ title: '', content: '', priority: 'info' })
+    setShowNoticeForm(false)
+    setSavingNotice(false)
+  }
+
+  const statCards = [
+    { label: 'Total de Leads',    value: stats.totalLeads.toString(),     sub: 'no pipeline',        color: 'text-blue-600' },
+    { label: 'Clientes Ativos',   value: stats.activeClients.toString(),   sub: 'contratos ativos',   color: 'text-green-600' },
+    { label: 'MRR Semanal',       value: fmt(stats.mrr),                   sub: 'receita semanal × 4', color: 'text-indigo-600' },
+    { label: 'Tarefas Pendentes', value: stats.pendingTasks.toString(),    sub: 'aguardando ação',    color: 'text-amber-600' },
+  ]
 
   return (
     <div className="p-6 max-w-7xl mx-auto space-y-6">
 
-      {/* Saudação */}
-      <div>
-        <h1 className="text-2xl font-bold text-primary-900">
-          {greeting ? `${greeting}, ${userName}` : userName}
-        </h1>
-        <p className="text-muted-foreground mt-0.5 capitalize text-sm">{today}</p>
+      {/* Header — saudação + online */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-primary-900">
+            {greeting ? `${greeting}, ${userName}` : userName}
+          </h1>
+          <p className="text-muted-foreground mt-0.5 capitalize text-sm">{today}</p>
+        </div>
+        <div className="flex items-center gap-2 bg-green-50 border border-green-200 rounded-full px-3 py-1.5">
+          <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
+          <span className="text-xs font-medium text-green-700">{onlineCount} online agora</span>
+        </div>
       </div>
 
       {/* Stat cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        {[
-          { label: 'Total de Leads', value: '—', sub: 'Sincronizando...', color: 'text-blue-600' },
-          { label: 'Clientes Ativos', value: '—', sub: 'Sincronizando...', color: 'text-green-600' },
-          { label: 'MRR Semanal', value: '—', sub: 'Sincronizando...', color: 'text-indigo-600' },
-          { label: 'Tarefas Pendentes', value: '—', sub: 'Sincronizando...', color: 'text-amber-600' },
-        ].map(stat => (
+        {statCards.map(stat => (
           <Card key={stat.label} className="shadow-card hover:shadow-card-hover transition-shadow">
             <CardContent className="pt-5">
               <p className="text-sm text-muted-foreground">{stat.label}</p>
-              <p className={`text-2xl font-bold mt-1 ${stat.color}`}>{stat.value}</p>
+              <p className={`text-2xl font-bold mt-1 tabular-nums ${stat.color}`}>{stat.value}</p>
               <p className="text-xs text-muted-foreground mt-1">{stat.sub}</p>
             </CardContent>
           </Card>
@@ -164,7 +225,7 @@ export function HallClient({ initialActivities, initialNotices, userName }: Prop
               <p className="text-sm text-muted-foreground py-4 text-center">Nenhuma atividade ainda.</p>
             ) : activities.map((activity) => (
               <div key={activity.id} className="flex items-start gap-3 py-2.5 border-b border-border last:border-0">
-                <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${ACTIVITY_COLORS[activity.type]}`}>
+                <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${ACTIVITY_COLORS[activity.type] ?? 'bg-slate-50 text-slate-600'}`}>
                   {ACTIVITY_ICONS[activity.type]}
                 </div>
                 <div className="flex-1 min-w-0">
@@ -187,16 +248,77 @@ export function HallClient({ initialActivities, initialNotices, userName }: Prop
         {/* Mural de avisos */}
         <Card className="shadow-card">
           <CardHeader className="pb-3">
-            <CardTitle className="text-primary-900 text-base">Mural de Avisos</CardTitle>
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-primary-900 text-base">Mural de Avisos</CardTitle>
+              {canPostNotice && (
+                <button
+                  onClick={() => setShowNoticeForm(!showNoticeForm)}
+                  className="flex items-center gap-1 text-xs text-primary-700 hover:text-primary-900 transition-colors font-medium"
+                >
+                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                  </svg>
+                  Postar
+                </button>
+              )}
+            </div>
           </CardHeader>
           <CardContent className="space-y-3">
+            {/* Formulário de novo aviso */}
+            {showNoticeForm && canPostNotice && (
+              <div className="bg-slate-50 rounded-xl border border-slate-200 p-3 space-y-2.5 mb-4">
+                <input
+                  value={noticeForm.title}
+                  onChange={e => setNoticeForm(p => ({ ...p, title: e.target.value }))}
+                  placeholder="Título do aviso"
+                  className="w-full border border-border rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-primary-400 bg-white"
+                />
+                <textarea
+                  value={noticeForm.content}
+                  onChange={e => setNoticeForm(p => ({ ...p, content: e.target.value }))}
+                  placeholder="Mensagem..."
+                  rows={2}
+                  className="w-full border border-border rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-primary-400 resize-none bg-white"
+                />
+                <div className="flex items-center gap-2">
+                  <div className="flex gap-1 flex-1">
+                    {(['info', 'warning', 'urgent'] as const).map(p => (
+                      <button
+                        key={p}
+                        onClick={() => setNoticeForm(prev => ({ ...prev, priority: p }))}
+                        className={`flex-1 py-1 rounded-md text-xs font-medium border transition-all ${
+                          noticeForm.priority === p
+                            ? p === 'info' ? 'bg-blue-100 text-blue-700 border-blue-300'
+                              : p === 'warning' ? 'bg-amber-100 text-amber-700 border-amber-300'
+                              : 'bg-red-100 text-red-700 border-red-300'
+                            : 'bg-white text-slate-500 border-slate-200'
+                        }`}
+                      >
+                        {p === 'info' ? 'Info' : p === 'warning' ? 'Atenção' : 'Urgente'}
+                      </button>
+                    ))}
+                  </div>
+                  <button
+                    onClick={handlePostNotice}
+                    disabled={savingNotice || !noticeForm.title.trim()}
+                    className="px-3 py-1 bg-primary-900 text-white rounded-lg text-xs font-semibold hover:bg-primary-800 disabled:opacity-50 transition-colors"
+                  >
+                    {savingNotice ? '...' : 'Publicar'}
+                  </button>
+                </div>
+              </div>
+            )}
+
             {notices.length === 0 ? (
               <p className="text-sm text-muted-foreground py-4 text-center">Nenhum aviso.</p>
             ) : notices.map((notice) => (
-              <div key={notice.id} className={`rounded-lg border p-3 ${NOTICE_COLORS[notice.priority]}`}>
+              <div key={notice.id} className={`rounded-lg border p-3 ${NOTICE_COLORS[notice.priority] ?? 'border-border bg-muted'}`}>
                 <div className="flex items-center justify-between mb-1">
                   <p className="text-sm font-semibold text-foreground">{notice.title}</p>
-                  <Badge variant={notice.priority === 'info' ? 'default' : notice.priority === 'warning' ? 'warning' : 'destructive'} className="text-xs">
+                  <Badge
+                    variant={notice.priority === 'info' ? 'default' : notice.priority === 'warning' ? 'warning' : 'destructive'}
+                    className="text-xs"
+                  >
                     {notice.priority === 'info' ? 'Info' : notice.priority === 'warning' ? 'Atenção' : 'Urgente'}
                   </Badge>
                 </div>
@@ -210,7 +332,7 @@ export function HallClient({ initialActivities, initialNotices, userName }: Prop
         </Card>
       </div>
 
-      {/* Agenda da semana */}
+      {/* Semana atual */}
       <Card className="shadow-card">
         <CardHeader className="pb-3">
           <CardTitle className="text-primary-900 text-base">Semana Atual</CardTitle>
