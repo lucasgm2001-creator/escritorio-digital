@@ -22,9 +22,9 @@ interface Props {
 }
 
 const STATUS_CONFIG = {
-  pendente: { label: 'Pendente', bg: 'bg-amber-50',  text: 'text-amber-600',  border: 'border-amber-200' },
-  aprovada: { label: 'Aprovada', bg: 'bg-blue-50',   text: 'text-blue-600',   border: 'border-blue-200'  },
-  paga:     { label: 'Paga',     bg: 'bg-emerald-50', text: 'text-emerald-600', border: 'border-emerald-200' },
+  pendente: { label: 'Pendente', bg: 'bg-amber-900/30',   text: 'text-amber-400',   border: 'border-amber-800/50' },
+  aprovada: { label: 'Aprovada', bg: 'bg-blue-900/30',    text: 'text-blue-400',    border: 'border-blue-800/50'  },
+  paga:     { label: 'Paga',     bg: 'bg-emerald-900/30', text: 'text-emerald-400', border: 'border-emerald-800/50' },
 } as const
 
 export function ComissoesTab({ currentUser }: Props) {
@@ -67,7 +67,7 @@ export function ComissoesTab({ currentUser }: Props) {
   const fmt = (v: number) => `R$ ${v.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`
 
   return (
-    <div className="p-6 space-y-5 overflow-auto h-full">
+    <div className="p-6 space-y-5 overflow-auto h-full bg-background">
       {/* Summary */}
       <div className="grid grid-cols-3 gap-4">
         <div className="bg-[#161b22] rounded-xl border border-[#2d3748] p-5 shadow-sm">
@@ -75,17 +75,17 @@ export function ComissoesTab({ currentUser }: Props) {
           <p className="text-2xl font-bold text-foreground mt-1 tabular-nums">{fmt(total)}</p>
           <p className="text-xs text-muted-foreground mt-0.5">{commissions.length} registros</p>
         </div>
-        <div className="bg-amber-50 rounded-xl border border-amber-200 p-5">
-          <p className="text-xs text-amber-600 font-medium">A Pagar</p>
-          <p className="text-2xl font-bold text-amber-700 mt-1 tabular-nums">{fmt(pendente)}</p>
-          <p className="text-xs text-amber-500 mt-0.5">
+        <div className="stat-card before:bg-amber-500">
+          <p className="text-xs text-amber-400 font-medium">A Pagar</p>
+          <p className="text-2xl font-bold text-amber-300 mt-1 tabular-nums">{fmt(pendente)}</p>
+          <p className="text-xs text-muted-foreground mt-0.5">
             {commissions.filter(c => c.status === 'pendente').length} pendentes
           </p>
         </div>
-        <div className="bg-emerald-50 rounded-xl border border-emerald-200 p-5">
-          <p className="text-xs text-emerald-600 font-medium">Pago</p>
-          <p className="text-2xl font-bold text-emerald-700 mt-1 tabular-nums">{fmt(pago)}</p>
-          <p className="text-xs text-emerald-500 mt-0.5">
+        <div className="stat-card before:bg-emerald-500">
+          <p className="text-xs text-emerald-400 font-medium">Pago</p>
+          <p className="text-2xl font-bold text-emerald-300 mt-1 tabular-nums">{fmt(pago)}</p>
+          <p className="text-xs text-muted-foreground mt-0.5">
             {commissions.filter(c => c.status === 'paga').length} pagos
           </p>
         </div>
@@ -162,7 +162,7 @@ export function ComissoesTab({ currentUser }: Props) {
                           <select
                             value={c.status}
                             onChange={e => handleStatusChange(c.id, e.target.value as Commission['status'])}
-                            className="text-xs border border-[#2d3748] rounded-lg px-2.5 py-1 focus:outline-none focus:border-primary-600 bg-white"
+                            className="text-xs border border-[#2d3748] rounded-lg px-2.5 py-1 focus:outline-none focus:border-primary-600 bg-[#1e2533] text-foreground"
                           >
                             <option value="pendente">Pendente</option>
                             <option value="aprovada">Aprovada</option>

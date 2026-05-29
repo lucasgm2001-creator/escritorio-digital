@@ -43,16 +43,14 @@ export function KanbanBoard({ initialLeads, currentUser }: { initialLeads: Lead[
     setTimeout(() => setToast(null), 4000)
   }
 
-  const canSeeVendedores = currentUser.role === 'admin' || currentUser.role === 'financeiro'
-
   const TABS: { key: Tab; label: string }[] = [
-    { key: 'funil',         label: 'Funil' },
-    { key: 'pipeline',      label: 'Pipeline' },
-    { key: 'metricas',      label: 'Métricas' },
-    { key: 'agenda',        label: 'Agenda' },
-    { key: 'comissoes',     label: 'Comissões' },
-    { key: 'apresentacao',  label: 'Apresentação' },
-    ...(canSeeVendedores ? [{ key: 'vendedores' as Tab, label: 'Vendedores' }] : []),
+    { key: 'funil',        label: 'Funil' },
+    { key: 'pipeline',     label: 'Pipeline' },
+    { key: 'metricas',     label: 'Métricas' },
+    { key: 'agenda',       label: 'Agenda' },
+    { key: 'vendedores',   label: 'Vendedores' },
+    { key: 'comissoes',    label: 'Comissões' },
+    { key: 'apresentacao', label: 'Apresentação' },
   ]
 
   const sensors = useSensors(
@@ -228,7 +226,7 @@ export function KanbanBoard({ initialLeads, currentUser }: { initialLeads: Lead[
         {tab === 'agenda'       && <AgendaTab leads={filteredLeads} />}
         {tab === 'comissoes'    && <ComissoesTab currentUser={currentUser} />}
         {tab === 'apresentacao' && <ApresentacaoTab />}
-        {tab === 'vendedores'   && canSeeVendedores && <VendedoresTab currentUser={currentUser} />}
+        {tab === 'vendedores'   && <VendedoresTab currentUser={currentUser} />}
       </div>
 
       {/* Modals */}
