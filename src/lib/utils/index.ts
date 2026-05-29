@@ -27,6 +27,13 @@ export function formatDateTime(date: string | Date, locale = 'pt-BR') {
   }).format(new Date(date))
 }
 
+export function capitalizeName(name: string): string {
+  return name
+    .split(' ')
+    .map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
+    .join(' ')
+}
+
 export function timeAgo(date: string | Date): string {
   const seconds = Math.floor((new Date().getTime() - new Date(date).getTime()) / 1000)
   if (seconds < 60) return 'agora mesmo'

@@ -13,7 +13,7 @@ interface Props {
 }
 
 function getInitials(name: string): string {
-  return name.split(' ').slice(0, 2).map(n => n[0]).join('').toUpperCase()
+  return name.split(' ').slice(0, 2).map(n => n[0] ?? '').join('').toUpperCase()
 }
 
 function formatValue(val: number): string {
@@ -21,6 +21,13 @@ function formatValue(val: number): string {
   if (val >= 1_000)     return `R$ ${(val / 1_000).toFixed(0)}k`
   if (val > 0)          return `R$ ${val.toLocaleString('pt-BR')}`
   return ''
+}
+
+const PRIORIDADE_COLORS: Record<string, string> = {
+  baixa:   'text-slate-400 border-slate-700/60',
+  media:   'text-blue-400 border-blue-800/50',
+  alta:    'text-amber-400 border-amber-800/50',
+  urgente: 'text-red-400 border-red-800/50',
 }
 
 export function LeadCard({ lead, isDragging, onClick }: Props) {
@@ -38,7 +45,7 @@ export function LeadCard({ lead, isDragging, onClick }: Props) {
   const style = {
     transform: CSS.Transform.toString(transform),
     transition,
-    opacity: isSortableDragging ? 0.3 : (isClient ? 0.55 : 1),
+    opacity: isSortableDragging ? 0.3 : (isClient ? 0.6 : 1),
   }
 
   return (
@@ -49,12 +56,13 @@ export function LeadCard({ lead, isDragging, onClick }: Props) {
       {...listeners}
       onClick={onClick}
       className={cn(
-        'bg-white rounded-xl border border-slate-200 p-3 cursor-pointer select-none',
-        'shadow-sm hover:shadow-md hover:border-slate-300 transition-all duration-150',
-        isDragging && 'shadow-xl rotate-1 scale-105',
+        'bg-[#1e2533] rounded-xl border border-[#2d3748] p-3 cursor-pointer select-none',
+        'hover:border-[#3d4f6a] hover:bg-[#222c3d] transition-all duration-150',
+        'shadow-card',
+        isDragging && 'shadow-card-hover rotate-1 scale-105 border-primary-700/60',
       )}
     >
-      {/* Top row: score badge + value + client badge */}
+      {/* Top row */}
       <div className="flex items-center gap-1.5 mb-2 flex-wrap">
         <span className={cn(
           'inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold border',
@@ -64,8 +72,17 @@ export function LeadCard({ lead, isDragging, onClick }: Props) {
           {scoreInfo.faixa}
         </span>
 
+        {lead.prioridade && lead.prioridade !== 'media' && (
+          <span className={cn(
+            'inline-flex text-[9px] font-bold px-1.5 py-0.5 rounded border capitalize',
+            PRIORIDADE_COLORS[lead.prioridade] ?? ''
+          )}>
+            {lead.prioridade}
+          </span>
+        )}
+
         {isClient && (
-          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-700 border border-emerald-200 text-[10px] font-bold">
+          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-emerald-900/40 text-emerald-400 border border-emerald-800/50 text-[10px] font-bold">
             <svg className="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
             </svg>
@@ -74,41 +91,44 @@ export function LeadCard({ lead, isDragging, onClick }: Props) {
         )}
 
         {formattedValue && (
-          <span className="ml-auto text-[10px] font-bold text-slate-600 tabular-nums">
+          <span className="ml-auto text-[10px] font-bold text-muted-foreground tabular-nums">
             {formattedValue}
           </span>
         )}
       </div>
 
       {/* Name + company */}
-      <p className="font-semibold text-slate-800 text-sm leading-snug truncate">{lead.name}</p>
+      <p className="font-semibold text-foreground text-sm leading-snug truncate">{lead.name}</p>
       {lead.company && (
-        <p className="text-[11px] text-slate-400 truncate mt-0.5">{lead.company}</p>
+        <p className="text-[11px] text-muted-foreground truncate mt-0.5">{lead.company}</p>
+      )}
+      {lead.nicho && (
+        <p className="text-[10px] text-primary-400/70 truncate mt-0.5">{lead.nicho}</p>
       )}
 
       {/* Score bar */}
       <div className="mt-2.5">
-        <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden">
+        <div className="w-full h-1 bg-[#2d3748] rounded-full overflow-hidden">
           <div
             className={cn('h-full rounded-full transition-all', scoreInfo.dot)}
             style={{ width: `${scorePct}%` }}
           />
         </div>
         <div className="flex items-center justify-between mt-1">
-          <span className="text-[10px] text-slate-400">
+          <span className="text-[10px] text-muted-foreground">
             {lead.operation === 'eua' ? '🇺🇸 EUA' : '🇧🇷 BR'}
           </span>
-          <span className="text-[10px] text-slate-400 tabular-nums font-medium">{lead.score}</span>
+          <span className="text-[10px] text-muted-foreground tabular-nums font-medium">{lead.score}</span>
         </div>
       </div>
 
       {/* Assigned avatar */}
       {lead.assigned_name && (
-        <div className="flex items-center gap-1.5 mt-2 pt-2 border-t border-slate-100">
-          <div className="w-5 h-5 rounded-full bg-primary-100 flex items-center justify-center flex-none shadow-sm">
-            <span className="text-[9px] font-bold text-primary-700">{getInitials(lead.assigned_name)}</span>
+        <div className="flex items-center gap-1.5 mt-2 pt-2 border-t border-[#2d3748]/60">
+          <div className="w-4.5 h-4.5 w-[18px] h-[18px] rounded-md bg-primary-900/60 border border-primary-800/40 flex items-center justify-center flex-none">
+            <span className="text-[9px] font-bold text-primary-300">{getInitials(lead.assigned_name)}</span>
           </div>
-          <span className="text-[10px] text-slate-400 truncate">{lead.assigned_name}</span>
+          <span className="text-[10px] text-muted-foreground truncate">{lead.assigned_name}</span>
         </div>
       )}
     </div>

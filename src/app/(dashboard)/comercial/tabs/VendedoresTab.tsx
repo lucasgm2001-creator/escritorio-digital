@@ -76,21 +76,21 @@ export function VendedoresTab({ currentUser }: Props) {
 
       {/* Add form */}
       {addOpen && (
-        <div className="bg-slate-50 border border-slate-200 rounded-xl p-5 shadow-sm">
-          <h4 className="text-sm font-semibold text-slate-700 mb-4">Adicionar Vendedor</h4>
+        <div className="bg-[#161b22] border border-[#2d3748] rounded-xl p-5">
+          <h4 className="text-sm font-semibold text-foreground mb-4">Adicionar Vendedor</h4>
           <div className="grid grid-cols-3 gap-3">
             {[
-              { key: 'name',  label: 'Nome *',  type: 'text',  placeholder: 'Nome completo' },
-              { key: 'email', label: 'Email',   type: 'email', placeholder: 'email@exemplo.com' },
-              { key: 'phone', label: 'Telefone',type: 'tel',   placeholder: '(11) 99999-9999' },
+              { key: 'name',  label: 'Nome *',   type: 'text',  placeholder: 'Nome completo' },
+              { key: 'email', label: 'Email',    type: 'email', placeholder: 'email@exemplo.com' },
+              { key: 'phone', label: 'Telefone', type: 'tel',   placeholder: '(11) 99999-9999' },
             ].map(f => (
               <div key={f.key}>
-                <label className="block text-xs font-medium text-slate-600 mb-1.5">{f.label}</label>
+                <label className="block text-xs font-medium text-muted-foreground mb-1.5">{f.label}</label>
                 <input
                   type={f.type}
                   value={form[f.key as keyof typeof form]}
                   onChange={e => setForm(p => ({ ...p, [f.key]: e.target.value }))}
-                  className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-primary-400 focus:ring-1 focus:ring-primary-200 bg-white"
+                  className="w-full bg-[#1e2533] border border-[#2d3748] rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary-600"
                   placeholder={f.placeholder}
                 />
               </div>
@@ -99,14 +99,14 @@ export function VendedoresTab({ currentUser }: Props) {
           <div className="flex gap-2 mt-4">
             <button
               onClick={() => { setAddOpen(false); setForm({ name: '', email: '', phone: '' }) }}
-              className="px-4 py-2 border border-slate-200 text-slate-600 rounded-lg text-sm hover:bg-slate-100 transition-colors"
+              className="px-4 py-2 border border-[#2d3748] text-muted-foreground rounded-lg text-sm hover:bg-[#1e2533] transition-colors"
             >
               Cancelar
             </button>
             <button
               onClick={handleAdd}
               disabled={saving || !form.name.trim()}
-              className="px-4 py-2 bg-primary-900 text-white rounded-lg text-sm font-semibold hover:bg-primary-800 transition-colors disabled:opacity-50 shadow-sm"
+              className="px-4 py-2 bg-primary-600 text-white rounded-lg text-sm font-semibold hover:bg-primary-500 transition-colors disabled:opacity-50 shadow-glow-sm"
             >
               {saving ? 'Salvando...' : 'Adicionar'}
             </button>
@@ -115,52 +115,45 @@ export function VendedoresTab({ currentUser }: Props) {
       )}
 
       {/* Table */}
-      <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+      <div className="bg-[#161b22] rounded-xl border border-[#2d3748] overflow-hidden">
         {loading ? (
-          <div className="p-10 text-center text-slate-400 text-sm">Carregando...</div>
+          <div className="p-10 text-center text-muted-foreground text-sm">Carregando...</div>
         ) : sellers.length === 0 ? (
-          <div className="p-10 text-center text-slate-400 text-sm">Nenhum vendedor cadastrado</div>
+          <div className="p-10 text-center text-muted-foreground text-sm">Nenhum vendedor cadastrado</div>
         ) : (
           <table className="w-full text-sm">
             <thead>
-              <tr className="bg-slate-50 border-b border-slate-200">
-                <th className="text-left text-xs text-slate-500 font-semibold px-4 py-3 uppercase tracking-wide">Vendedor</th>
-                <th className="text-left text-xs text-slate-500 font-semibold px-4 py-3 uppercase tracking-wide">Email</th>
-                <th className="text-left text-xs text-slate-500 font-semibold px-4 py-3 uppercase tracking-wide">Telefone</th>
-                <th className="text-right text-xs text-slate-500 font-semibold px-4 py-3 uppercase tracking-wide">Leads</th>
-                <th className="text-right text-xs text-slate-500 font-semibold px-4 py-3 uppercase tracking-wide">Conv.</th>
-                <th className="text-right text-xs text-slate-500 font-semibold px-4 py-3 uppercase tracking-wide">Vendas</th>
-                <th className="text-left text-xs text-slate-500 font-semibold px-4 py-3 uppercase tracking-wide">Status</th>
-                <th className="text-left text-xs text-slate-500 font-semibold px-4 py-3 uppercase tracking-wide">Ações</th>
+              <tr className="bg-[#0d1117]/50 border-b border-[#2d3748]">
+                {['Vendedor','Email','Telefone','Leads','Conv.','Vendas','Status','Ações'].map(h => (
+                  <th key={h} className={`text-xs text-muted-foreground font-semibold px-4 py-3 uppercase tracking-wide ${h === 'Leads' || h === 'Conv.' || h === 'Vendas' ? 'text-right' : 'text-left'}`}>{h}</th>
+                ))}
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100">
+            <tbody className="divide-y divide-[#2d3748]/60">
               {sellers.map(s => (
-                <tr key={s.id} className={`hover:bg-slate-50 transition-colors ${s.status === 'inativo' ? 'opacity-60' : ''}`}>
+                <tr key={s.id} className={`hover:bg-[#1a2133]/60 transition-colors ${s.status === 'inativo' ? 'opacity-50' : ''}`}>
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-2.5">
-                      <div className="w-8 h-8 rounded-full bg-primary-100 flex items-center justify-center flex-none shadow-sm">
-                        <span className="text-xs font-bold text-primary-700">{s.name[0]}</span>
+                      <div className="w-8 h-8 rounded-lg bg-primary-900/40 border border-primary-800/40 flex items-center justify-center flex-none">
+                        <span className="text-xs font-bold text-primary-400">{s.name[0]}</span>
                       </div>
-                      <span className="font-semibold text-slate-800">{s.name}</span>
+                      <span className="font-semibold text-foreground">{s.name}</span>
                     </div>
                   </td>
-                  <td className="px-4 py-3 text-slate-500 text-xs">{s.email ?? '—'}</td>
-                  <td className="px-4 py-3 text-slate-500 text-xs">{s.phone ?? '—'}</td>
-                  <td className="px-4 py-3 text-right font-medium text-slate-700 tabular-nums">{s.leads_assigned}</td>
-                  <td className="px-4 py-3 text-right text-slate-600 tabular-nums">
+                  <td className="px-4 py-3 text-muted-foreground text-xs">{s.email ?? '—'}</td>
+                  <td className="px-4 py-3 text-muted-foreground text-xs">{s.phone ?? '—'}</td>
+                  <td className="px-4 py-3 text-right font-medium text-foreground tabular-nums">{s.leads_assigned}</td>
+                  <td className="px-4 py-3 text-right text-muted-foreground tabular-nums">
                     {(s.conversion_rate * 100).toFixed(1)}%
                   </td>
-                  <td className="px-4 py-3 text-right font-semibold text-slate-800 tabular-nums">
-                    {s.total_sales > 0
-                      ? `R$ ${s.total_sales.toLocaleString('pt-BR', { minimumFractionDigits: 0 })}`
-                      : '—'}
+                  <td className="px-4 py-3 text-right font-semibold text-foreground tabular-nums">
+                    {s.total_sales > 0 ? `R$ ${s.total_sales.toLocaleString('pt-BR')}` : '—'}
                   </td>
                   <td className="px-4 py-3">
                     <span className={`text-[11px] px-2 py-1 rounded-full border font-medium ${
                       s.status === 'ativo'
-                        ? 'bg-emerald-50 text-emerald-600 border-emerald-200'
-                        : 'bg-slate-100 text-slate-500 border-slate-200'
+                        ? 'bg-emerald-900/30 text-emerald-400 border-emerald-800/50'
+                        : 'bg-slate-800/40 text-slate-400 border-slate-700/50'
                     }`}>
                       {s.status === 'ativo' ? 'Ativo' : 'Inativo'}
                     </span>
@@ -168,7 +161,7 @@ export function VendedoresTab({ currentUser }: Props) {
                   <td className="px-4 py-3">
                     <button
                       onClick={() => handleToggle(s.id, s.status)}
-                      className="text-xs text-slate-500 hover:text-slate-800 underline underline-offset-2 transition-colors"
+                      className="text-xs text-muted-foreground hover:text-foreground underline underline-offset-2 transition-colors"
                     >
                       {s.status === 'ativo' ? 'Desativar' : 'Ativar'}
                     </button>

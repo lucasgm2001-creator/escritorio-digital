@@ -47,7 +47,7 @@ export function AgendaTab({ leads }: Props) {
           <input
             value={search}
             onChange={e => setSearch(e.target.value)}
-            className="w-full pl-9 pr-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-primary-400 focus:ring-1 focus:ring-primary-200 bg-white shadow-sm"
+            className="w-full pl-9 pr-3 py-2 border border-[#2d3748] rounded-lg text-sm focus:outline-none focus:border-primary-600 bg-[#1e2533] text-foreground"
             placeholder="Buscar nome, empresa ou telefone..."
           />
         </div>
@@ -62,31 +62,31 @@ export function AgendaTab({ leads }: Props) {
           ))}
         </select>
 
-        <span className="text-sm text-slate-400 ml-auto">{filtered.length} contatos</span>
+        <span className="text-sm text-muted-foreground ml-auto">{filtered.length} contatos</span>
       </div>
 
       {/* List */}
-      <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+      <div className="bg-[#161b22] rounded-xl border border-[#2d3748] overflow-hidden">
         {filtered.length === 0 ? (
           <div className="p-10 text-center">
-            <div className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center mx-auto mb-3">
+            <div className="w-10 h-10 rounded-full bg-[#1e2533] flex items-center justify-center mx-auto mb-3">
               <svg className="w-5 h-5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
               </svg>
             </div>
-            <p className="text-sm text-slate-400">
+            <p className="text-sm text-muted-foreground">
               {withPhone.length === 0 ? 'Nenhum lead com telefone cadastrado' : 'Nenhum contato encontrado'}
             </p>
           </div>
         ) : (
-          <div className="divide-y divide-slate-100">
+          <div className="divide-y divide-[#2d3748]/60">
             {/* Table header */}
-            <div className="grid grid-cols-[auto_1fr_auto_auto_auto] gap-4 items-center px-4 py-2.5 bg-slate-50 border-b border-slate-200">
+            <div className="grid grid-cols-[auto_1fr_auto_auto_auto] gap-4 items-center px-4 py-2.5 bg-[#0d1117]/50 border-b border-[#2d3748]">
               <div className="w-9" />
-              <span className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Lead</span>
-              <span className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Score</span>
-              <span className="text-xs font-semibold text-slate-500 uppercase tracking-wide hidden md:block">Responsável</span>
-              <span className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Contato</span>
+              <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Lead</span>
+              <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Score</span>
+              <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide hidden md:block">Responsável</span>
+              <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Contato</span>
             </div>
 
             {filtered.map(lead => {
@@ -94,17 +94,17 @@ export function AgendaTab({ leads }: Props) {
               return (
                 <div
                   key={lead.id}
-                  className="grid grid-cols-[auto_1fr_auto_auto_auto] gap-4 items-center px-4 py-3 hover:bg-slate-50 transition-colors"
+                  className="grid grid-cols-[auto_1fr_auto_auto_auto] gap-4 items-center px-4 py-3 hover:bg-[#1a2133]/60 transition-colors"
                 >
                   {/* Avatar */}
-                  <div className="w-9 h-9 rounded-full bg-primary-100 flex items-center justify-center flex-none shadow-sm">
-                    <span className="text-xs font-bold text-primary-700">{lead.name[0]}</span>
+                  <div className="w-9 h-9 rounded-full bg-primary-900/30 border border-primary-800/40 flex items-center justify-center flex-none">
+                    <span className="text-xs font-bold text-primary-400">{lead.name[0]}</span>
                   </div>
 
                   {/* Name + company */}
                   <div className="min-w-0">
-                    <p className="text-sm font-semibold text-slate-800 truncate">{lead.name}</p>
-                    <p className="text-xs text-slate-400 truncate">
+                    <p className="text-sm font-semibold text-foreground truncate">{lead.name}</p>
+                    <p className="text-xs text-muted-foreground truncate">
                       {lead.company ?? lead.phone}
                     </p>
                   </div>
@@ -115,7 +115,7 @@ export function AgendaTab({ leads }: Props) {
                   </span>
 
                   {/* Seller */}
-                  <span className="text-xs text-slate-400 hidden md:block whitespace-nowrap">
+                  <span className="text-xs text-muted-foreground hidden md:block whitespace-nowrap">
                     {lead.assigned_name ?? '—'}
                   </span>
 

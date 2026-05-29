@@ -70,10 +70,10 @@ export function ComissoesTab({ currentUser }: Props) {
     <div className="p-6 space-y-5 overflow-auto h-full">
       {/* Summary */}
       <div className="grid grid-cols-3 gap-4">
-        <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-sm">
-          <p className="text-xs text-slate-500 font-medium">Total de Comissões</p>
-          <p className="text-2xl font-bold text-slate-900 mt-1 tabular-nums">{fmt(total)}</p>
-          <p className="text-xs text-slate-400 mt-0.5">{commissions.length} registros</p>
+        <div className="bg-[#161b22] rounded-xl border border-[#2d3748] p-5 shadow-sm">
+          <p className="text-xs text-muted-foreground font-medium">Total de Comissões</p>
+          <p className="text-2xl font-bold text-foreground mt-1 tabular-nums">{fmt(total)}</p>
+          <p className="text-xs text-muted-foreground mt-0.5">{commissions.length} registros</p>
         </div>
         <div className="bg-amber-50 rounded-xl border border-amber-200 p-5">
           <p className="text-xs text-amber-600 font-medium">A Pagar</p>
@@ -92,20 +92,20 @@ export function ComissoesTab({ currentUser }: Props) {
       </div>
 
       {/* Table */}
-      <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-        <div className="flex items-center justify-between px-4 py-3.5 border-b border-slate-200">
-          <h3 className="font-semibold text-slate-800 text-sm">
+      <div className="bg-[#161b22] rounded-xl border border-[#2d3748] shadow-sm overflow-hidden">
+        <div className="flex items-center justify-between px-4 py-3.5 border-b border-[#2d3748]">
+          <h3 className="font-semibold text-foreground text-sm">
             {canManageAll ? 'Todas as Comissões' : 'Minhas Comissões'}
           </h3>
-          <div className="flex gap-1 bg-slate-100 rounded-lg p-1">
+          <div className="flex gap-1 bg-[#1e2533] rounded-lg p-1">
             {(['todos', 'pendente', 'aprovada', 'paga'] as const).map(s => (
               <button
                 key={s}
                 onClick={() => setStatusFilter(s)}
                 className={`px-2.5 py-1 rounded-md text-xs font-medium transition-all capitalize ${
                   statusFilter === s
-                    ? 'bg-white text-slate-900 shadow-sm'
-                    : 'text-slate-500 hover:text-slate-700'
+                    ? 'bg-[#161b22] text-foreground shadow-sm'
+                    : 'text-muted-foreground hover:text-muted-foreground'
                 }`}
               >
                 {s === 'todos' ? 'Todos' : STATUS_CONFIG[s].label}
@@ -115,41 +115,41 @@ export function ComissoesTab({ currentUser }: Props) {
         </div>
 
         {loading ? (
-          <div className="p-10 text-center text-slate-400 text-sm">Carregando...</div>
+          <div className="p-10 text-center text-muted-foreground text-sm">Carregando...</div>
         ) : filtered.length === 0 ? (
-          <div className="p-10 text-center text-slate-400 text-sm">
+          <div className="p-10 text-center text-muted-foreground text-sm">
             {commissions.length === 0 ? 'Nenhuma comissão registrada' : 'Nenhuma comissão com este filtro'}
           </div>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="bg-slate-50 border-b border-slate-200">
+                <tr className="bg-[#0d1117]/50 border-b border-[#2d3748]">
                   {canManageAll && (
-                    <th className="text-left text-xs text-slate-500 font-semibold px-4 py-3 uppercase tracking-wide">Vendedor</th>
+                    <th className="text-left text-xs text-muted-foreground font-semibold px-4 py-3 uppercase tracking-wide">Vendedor</th>
                   )}
-                  <th className="text-left text-xs text-slate-500 font-semibold px-4 py-3 uppercase tracking-wide">Lead</th>
-                  <th className="text-right text-xs text-slate-500 font-semibold px-4 py-3 uppercase tracking-wide">%</th>
-                  <th className="text-right text-xs text-slate-500 font-semibold px-4 py-3 uppercase tracking-wide">Valor</th>
-                  <th className="text-left text-xs text-slate-500 font-semibold px-4 py-3 uppercase tracking-wide">Vencimento</th>
-                  <th className="text-left text-xs text-slate-500 font-semibold px-4 py-3 uppercase tracking-wide">Status</th>
+                  <th className="text-left text-xs text-muted-foreground font-semibold px-4 py-3 uppercase tracking-wide">Lead</th>
+                  <th className="text-right text-xs text-muted-foreground font-semibold px-4 py-3 uppercase tracking-wide">%</th>
+                  <th className="text-right text-xs text-muted-foreground font-semibold px-4 py-3 uppercase tracking-wide">Valor</th>
+                  <th className="text-left text-xs text-muted-foreground font-semibold px-4 py-3 uppercase tracking-wide">Vencimento</th>
+                  <th className="text-left text-xs text-muted-foreground font-semibold px-4 py-3 uppercase tracking-wide">Status</th>
                   {canManageAll && (
-                    <th className="text-left text-xs text-slate-500 font-semibold px-4 py-3 uppercase tracking-wide">Alterar</th>
+                    <th className="text-left text-xs text-muted-foreground font-semibold px-4 py-3 uppercase tracking-wide">Alterar</th>
                   )}
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100">
+              <tbody className="divide-y divide-[#2d3748]/60">
                 {filtered.map(c => {
                   const s = STATUS_CONFIG[c.status]
                   return (
-                    <tr key={c.id} className="hover:bg-slate-50 transition-colors">
+                    <tr key={c.id} className="hover:bg-[#0d1117]/50 transition-colors">
                       {canManageAll && (
-                        <td className="px-4 py-3 text-slate-700 font-medium">{c.seller_name ?? '—'}</td>
+                        <td className="px-4 py-3 text-muted-foreground font-medium">{c.seller_name ?? '—'}</td>
                       )}
-                      <td className="px-4 py-3 text-slate-600">{c.lead_name ?? '—'}</td>
-                      <td className="px-4 py-3 text-right text-slate-500 tabular-nums">{c.percentage}%</td>
-                      <td className="px-4 py-3 text-right font-bold text-slate-800 tabular-nums">{fmt(c.amount)}</td>
-                      <td className="px-4 py-3 text-slate-500 text-xs">
+                      <td className="px-4 py-3 text-muted-foreground">{c.lead_name ?? '—'}</td>
+                      <td className="px-4 py-3 text-right text-muted-foreground tabular-nums">{c.percentage}%</td>
+                      <td className="px-4 py-3 text-right font-bold text-foreground tabular-nums">{fmt(c.amount)}</td>
+                      <td className="px-4 py-3 text-muted-foreground text-xs">
                         {c.due_date ? new Date(c.due_date).toLocaleDateString('pt-BR') : '—'}
                       </td>
                       <td className="px-4 py-3">
@@ -162,7 +162,7 @@ export function ComissoesTab({ currentUser }: Props) {
                           <select
                             value={c.status}
                             onChange={e => handleStatusChange(c.id, e.target.value as Commission['status'])}
-                            className="text-xs border border-slate-200 rounded-lg px-2.5 py-1 focus:outline-none focus:border-primary-400 bg-white"
+                            className="text-xs border border-[#2d3748] rounded-lg px-2.5 py-1 focus:outline-none focus:border-primary-600 bg-white"
                           >
                             <option value="pendente">Pendente</option>
                             <option value="aprovada">Aprovada</option>

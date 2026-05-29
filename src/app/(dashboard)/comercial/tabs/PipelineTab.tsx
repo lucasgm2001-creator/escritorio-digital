@@ -46,18 +46,18 @@ export function PipelineTab({ leads }: Props) {
           { label: 'Ticket Médio',   value: fmt(avgTicket),     sub: 'por lead' },
           { label: 'Vendas Feitas',  value: fmt(leads.filter(l => l.status === 'fechado').reduce((s, l) => s + (l.value || 0), 0)), sub: `${leads.filter(l => l.status === 'fechado').length} contratos` },
         ].map(kpi => (
-          <div key={kpi.label} className="bg-white rounded-xl border border-slate-200 p-5 shadow-sm">
-            <p className="text-xs text-slate-500 font-medium">{kpi.label}</p>
-            <p className="text-2xl font-bold text-slate-900 mt-1">{kpi.value}</p>
-            <p className="text-xs text-slate-400 mt-0.5">{kpi.sub}</p>
+          <div key={kpi.label} className="bg-[#161b22] rounded-xl border border-[#2d3748] p-5 shadow-sm">
+            <p className="text-xs text-muted-foreground font-medium">{kpi.label}</p>
+            <p className="text-2xl font-bold text-foreground mt-1">{kpi.value}</p>
+            <p className="text-xs text-muted-foreground mt-0.5">{kpi.sub}</p>
           </div>
         ))}
       </div>
 
       <div className="grid grid-cols-2 gap-5">
         {/* By stage */}
-        <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-sm">
-          <h3 className="font-semibold text-slate-800 mb-4 text-sm">Valor por Estágio</h3>
+        <div className="bg-[#161b22] rounded-xl border border-[#2d3748] p-5 shadow-sm">
+          <h3 className="font-semibold text-foreground mb-4 text-sm">Valor por Estágio</h3>
           <div className="space-y-3">
             {byStage.map(stage => (
               <div key={stage.key}>
@@ -65,11 +65,11 @@ export function PipelineTab({ leads }: Props) {
                   <div className="flex items-center gap-1.5">
                     <div className={`w-2 h-2 rounded-full ${stage.dotColor}`} />
                     <span className={`text-xs font-medium ${stage.textColor}`}>{stage.label}</span>
-                    <span className="text-[10px] text-slate-400">({stage.count})</span>
+                    <span className="text-[10px] text-muted-foreground">({stage.count})</span>
                   </div>
-                  <span className="text-xs font-semibold text-slate-700 tabular-nums">{fmt(stage.value)}</span>
+                  <span className="text-xs font-semibold text-muted-foreground tabular-nums">{fmt(stage.value)}</span>
                 </div>
-                <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
+                <div className="h-2 bg-[#1e2533] rounded-full overflow-hidden">
                   <div
                     className={`h-full rounded-full transition-all ${stage.dotColor}`}
                     style={{ width: `${(stage.value / maxStageValue) * 100}%` }}
@@ -78,30 +78,30 @@ export function PipelineTab({ leads }: Props) {
               </div>
             ))}
             {byStage.length === 0 && (
-              <p className="text-sm text-slate-400 text-center py-4">Nenhum dado disponível</p>
+              <p className="text-sm text-muted-foreground text-center py-4">Nenhum dado disponível</p>
             )}
           </div>
         </div>
 
         {/* By seller */}
-        <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-sm">
-          <h3 className="font-semibold text-slate-800 mb-4 text-sm">Valor por Vendedor</h3>
+        <div className="bg-[#161b22] rounded-xl border border-[#2d3748] p-5 shadow-sm">
+          <h3 className="font-semibold text-foreground mb-4 text-sm">Valor por Vendedor</h3>
           <div className="space-y-3">
             {bySeller.map(seller => (
               <div key={seller.name}>
                 <div className="flex items-center justify-between mb-1.5">
                   <div className="flex items-center gap-2">
-                    <div className="w-6 h-6 rounded-full bg-primary-100 flex items-center justify-center flex-none">
-                      <span className="text-[9px] font-bold text-primary-700">
+                    <div className="w-6 h-6 rounded-full bg-primary-900/30 flex items-center justify-center flex-none">
+                      <span className="text-[9px] font-bold text-primary-400">
                         {seller.name.split(' ')[0][0]}
                       </span>
                     </div>
-                    <span className="text-xs font-medium text-slate-700">{seller.name}</span>
-                    <span className="text-[10px] text-slate-400">({seller.count})</span>
+                    <span className="text-xs font-medium text-muted-foreground">{seller.name}</span>
+                    <span className="text-[10px] text-muted-foreground">({seller.count})</span>
                   </div>
-                  <span className="text-xs font-semibold text-slate-700 tabular-nums">{fmt(seller.value)}</span>
+                  <span className="text-xs font-semibold text-muted-foreground tabular-nums">{fmt(seller.value)}</span>
                 </div>
-                <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
+                <div className="h-2 bg-[#1e2533] rounded-full overflow-hidden">
                   <div
                     className="h-full rounded-full bg-primary-400 transition-all"
                     style={{ width: `${(seller.value / maxSellerValue) * 100}%` }}
@@ -110,7 +110,7 @@ export function PipelineTab({ leads }: Props) {
               </div>
             ))}
             {bySeller.length === 0 && (
-              <p className="text-sm text-slate-400 text-center py-4">Nenhum dado disponível</p>
+              <p className="text-sm text-muted-foreground text-center py-4">Nenhum dado disponível</p>
             )}
           </div>
         </div>

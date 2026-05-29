@@ -21,8 +21,7 @@ function formatValue(val: number): string {
 
 export function KanbanColumn({ column, leads, onLeadClick }: Props) {
   const { isOver, setNodeRef } = useDroppable({ id: column.key })
-
-  const totalValue = leads.reduce((sum, l) => sum + (l.value || 0), 0)
+  const totalValue   = leads.reduce((sum, l) => sum + (l.value || 0), 0)
   const displayValue = formatValue(totalValue)
 
   return (
@@ -35,19 +34,19 @@ export function KanbanColumn({ column, leads, onLeadClick }: Props) {
       )}>
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-1.5">
-            <div className={cn('w-2 h-2 rounded-full flex-none', column.dotColor)} />
+            <div className={cn('w-1.5 h-1.5 rounded-full flex-none', column.dotColor)} />
             <span className={cn('text-xs font-semibold truncate', column.textColor)}>
               {column.label}
             </span>
             <span className={cn(
-              'text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-white/80 tabular-nums',
+              'text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-black/20 tabular-nums',
               column.textColor,
             )}>
               {leads.length}
             </span>
           </div>
           {displayValue && (
-            <p className="text-[10px] text-slate-400 mt-0.5 pl-3.5 truncate font-medium tabular-nums">
+            <p className="text-[10px] text-muted-foreground mt-0.5 pl-3 truncate font-medium tabular-nums">
               {displayValue}
             </p>
           )}
@@ -62,7 +61,7 @@ export function KanbanColumn({ column, leads, onLeadClick }: Props) {
           'min-h-[180px]',
           isOver
             ? cn('border-dashed', column.borderColor, column.bgColor)
-            : 'bg-white/60 border-slate-200/80 backdrop-blur-sm',
+            : 'bg-[#161b22]/80 border-[#2d3748]/60',
         )}
         style={{ maxHeight: 'calc(55vh - 130px)' }}
       >
@@ -70,7 +69,7 @@ export function KanbanColumn({ column, leads, onLeadClick }: Props) {
           {leads.length === 0 ? (
             <div className={cn(
               'flex items-center justify-center h-16 text-xs rounded-lg border border-dashed',
-              isOver ? cn(column.textColor, column.borderColor) : 'text-slate-300 border-slate-200',
+              isOver ? cn(column.textColor, column.borderColor) : 'text-muted-foreground/40 border-[#2d3748]/40',
             )}>
               {isOver ? 'Soltar aqui' : 'Vazio'}
             </div>

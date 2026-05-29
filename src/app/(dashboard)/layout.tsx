@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { DashboardShell } from '@/components/layout/DashboardShell'
+import { capitalizeName } from '@/lib/utils'
 
 const PAGE_TITLES: Record<string, string> = {
   '/hall':           'Hall',
@@ -26,7 +27,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
 
   return (
     <DashboardShell
-      userName={profile?.name ?? user.email?.split('@')[0] ?? 'Usuário'}
+      userName={capitalizeName(profile?.name ?? user.email?.split('@')[0] ?? 'Usuário')}
       userRole={profile?.role ?? 'admin'}
       pageTitles={PAGE_TITLES}
     >

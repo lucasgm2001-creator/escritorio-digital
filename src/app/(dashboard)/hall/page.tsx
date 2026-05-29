@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { HallClient } from './HallClient'
+import { capitalizeName } from '@/lib/utils'
 
 export default async function HallPage() {
   const supabase = createClient()
@@ -24,7 +25,7 @@ export default async function HallPage() {
     <HallClient
       initialActivities={activities ?? []}
       initialNotices={notices ?? []}
-      userName={profile?.name ?? user?.email?.split('@')[0] ?? 'Usuário'}
+      userName={capitalizeName(profile?.name ?? user?.email?.split('@')[0] ?? 'Usuário')}
       userRole={profile?.role ?? 'admin'}
       userId={user?.id ?? ''}
     />
