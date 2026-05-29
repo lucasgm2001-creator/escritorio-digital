@@ -10,7 +10,7 @@ export function VendedoresTab({ currentUser }: Props) {
   const [sellers, setSellers] = useState<Seller[]>([])
   const [loading, setLoading] = useState(true)
   const [addOpen, setAddOpen] = useState(false)
-  const [form, setForm] = useState({ name: '', email: '', phone: '' })
+  const [form, setForm] = useState({ name: '', email: '', cargo: '' })
   const [saving, setSaving] = useState(false)
 
   const supabase = createClient()
@@ -30,7 +30,7 @@ export function VendedoresTab({ currentUser }: Props) {
     const { data } = await supabase.from('sellers').insert({
       name: form.name.trim(),
       email: form.email.trim() || null,
-      phone: form.phone.trim() || null,
+      cargo: form.cargo.trim() || null,
       status: 'ativo',
       total_sales: 0,
       total_commissions: 0,
@@ -39,7 +39,7 @@ export function VendedoresTab({ currentUser }: Props) {
     }).select().single()
 
     if (data) setSellers(prev => [...prev, data as Seller])
-    setForm({ name: '', email: '', phone: '' })
+    setForm({ name: '', email: '', cargo: '' })
     setAddOpen(false)
     setSaving(false)
   }
@@ -74,42 +74,55 @@ export function VendedoresTab({ currentUser }: Props) {
         )}
       </div>
 
-      {/* Add form */}
+      {/* Modal overlay */}
       {addOpen && (
-        <div className="bg-[#161b22] border border-[#2d3748] rounded-xl p-5">
-          <h4 className="text-sm font-semibold text-foreground mb-4">Adicionar Vendedor</h4>
-          <div className="grid grid-cols-3 gap-3">
-            {[
-              { key: 'name',  label: 'Nome *',   type: 'text',  placeholder: 'Nome completo' },
-              { key: 'email', label: 'Email',    type: 'email', placeholder: 'email@exemplo.com' },
-              { key: 'phone', label: 'Telefone', type: 'tel',   placeholder: '(11) 99999-9999' },
-            ].map(f => (
-              <div key={f.key}>
-                <label className="block text-xs font-medium text-muted-foreground mb-1.5">{f.label}</label>
-                <input
-                  type={f.type}
-                  value={form[f.key as keyof typeof form]}
-                  onChange={e => setForm(p => ({ ...p, [f.key]: e.target.value }))}
-                  className="w-full bg-[#1e2533] border border-[#2d3748] rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary-600"
-                  placeholder={f.placeholder}
-                />
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-[#161b22] border border-[#2d3748] rounded-2xl shadow-card-hover w-full max-w-sm animate-slide-up">
+            <div className="flex items-center justify-between p-5 border-b border-[#2d3748]">
+              <h2 className="font-bold text-foreground text-base">Adicionar Vendedor</h2>
+              <button
+                onClick={() => { setAddOpen(false); setForm({ name: '', email: '', cargo: '' }) }}
+                className="text-muted-foreground hover:text-foreground transition-colors"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            <div className="p-5 space-y-4">
+              {[
+                { key: 'name',  label: 'Nome *',       type: 'text',  placeholder: 'Nome completo' },
+                { key: 'email', label: 'E-mail',       type: 'email', placeholder: 'email@exemplo.com' },
+                { key: 'cargo', label: 'Cargo / Perfil', type: 'text', placeholder: 'Ex: SDR, Closer, Account...' },
+              ].map(f => (
+                <div key={f.key}>
+                  <label className="block text-xs font-medium text-muted-foreground mb-1.5">{f.label}</label>
+                  <input
+                    type={f.type}
+                    value={form[f.key as keyof typeof form]}
+                    onChange={e => setForm(p => ({ ...p, [f.key]: e.target.value }))}
+                    onKeyDown={e => e.key === 'Enter' && f.key === 'cargo' && handleAdd()}
+                    className="w-full bg-[#1e2533] border border-[#2d3748] rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary-600"
+                    placeholder={f.placeholder}
+                  />
+                </div>
+              ))}
+              <div className="flex gap-3 pt-1">
+                <button
+                  onClick={() => { setAddOpen(false); setForm({ name: '', email: '', cargo: '' }) }}
+                  className="flex-1 border border-[#2d3748] text-muted-foreground py-2.5 rounded-lg text-sm hover:bg-[#1e2533] transition-colors"
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={handleAdd}
+                  disabled={saving || !form.name.trim()}
+                  className="flex-1 bg-primary-600 text-white py-2.5 rounded-lg text-sm font-semibold hover:bg-primary-500 transition-colors disabled:opacity-50 shadow-glow-sm"
+                >
+                  {saving ? 'Salvando...' : 'Adicionar'}
+                </button>
               </div>
-            ))}
-          </div>
-          <div className="flex gap-2 mt-4">
-            <button
-              onClick={() => { setAddOpen(false); setForm({ name: '', email: '', phone: '' }) }}
-              className="px-4 py-2 border border-[#2d3748] text-muted-foreground rounded-lg text-sm hover:bg-[#1e2533] transition-colors"
-            >
-              Cancelar
-            </button>
-            <button
-              onClick={handleAdd}
-              disabled={saving || !form.name.trim()}
-              className="px-4 py-2 bg-primary-600 text-white rounded-lg text-sm font-semibold hover:bg-primary-500 transition-colors disabled:opacity-50 shadow-glow-sm"
-            >
-              {saving ? 'Salvando...' : 'Adicionar'}
-            </button>
+            </div>
           </div>
         </div>
       )}
@@ -124,7 +137,7 @@ export function VendedoresTab({ currentUser }: Props) {
           <table className="w-full text-sm">
             <thead>
               <tr className="bg-[#0d1117]/50 border-b border-[#2d3748]">
-                {['Vendedor','Email','Telefone','Leads','Conv.','Vendas','Status','Ações'].map(h => (
+                {['Vendedor','E-mail','Cargo','Leads','Conv.','Vendas','Status','Ações'].map(h => (
                   <th key={h} className={`text-xs text-muted-foreground font-semibold px-4 py-3 uppercase tracking-wide ${h === 'Leads' || h === 'Conv.' || h === 'Vendas' ? 'text-right' : 'text-left'}`}>{h}</th>
                 ))}
               </tr>
@@ -141,7 +154,7 @@ export function VendedoresTab({ currentUser }: Props) {
                     </div>
                   </td>
                   <td className="px-4 py-3 text-muted-foreground text-xs">{s.email ?? '—'}</td>
-                  <td className="px-4 py-3 text-muted-foreground text-xs">{s.phone ?? '—'}</td>
+                  <td className="px-4 py-3 text-muted-foreground text-xs">{(s as unknown as Record<string, string>).cargo ?? '—'}</td>
                   <td className="px-4 py-3 text-right font-medium text-foreground tabular-nums">{s.leads_assigned}</td>
                   <td className="px-4 py-3 text-right text-muted-foreground tabular-nums">
                     {(s.conversion_rate * 100).toFixed(1)}%

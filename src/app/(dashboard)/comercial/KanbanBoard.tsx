@@ -48,9 +48,9 @@ export function KanbanBoard({ initialLeads, currentUser }: { initialLeads: Lead[
     { key: 'pipeline',     label: 'Pipeline' },
     { key: 'metricas',     label: 'Métricas' },
     { key: 'agenda',       label: 'Agenda' },
-    { key: 'vendedores',   label: 'Vendedores' },
     { key: 'comissoes',    label: 'Comissões' },
     { key: 'apresentacao', label: 'Apresentação' },
+    { key: 'vendedores',   label: 'Vendedores' },
   ]
 
   const sensors = useSensors(
