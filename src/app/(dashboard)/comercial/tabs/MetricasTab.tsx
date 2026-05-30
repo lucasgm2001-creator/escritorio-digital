@@ -88,8 +88,8 @@ export function MetricasTab({ leads }: Props) {
           <h3 className="font-semibold text-foreground mb-4 text-sm">Leads por Origem</h3>
           <div className="space-y-3">
             {[
-              { label: '🇧🇷 Brasil', count: brasil, barClass: 'bg-green-500' },
-              { label: '🇺🇸 EUA',    count: eua,    barClass: 'bg-blue-500' },
+              { label: 'Brasil', count: brasil, barClass: 'bg-green-500' },
+              { label: 'EUA',    count: eua,    barClass: 'bg-blue-500' },
             ].map(item => (
               <div key={item.label}>
                 <div className="flex items-center justify-between mb-1.5">

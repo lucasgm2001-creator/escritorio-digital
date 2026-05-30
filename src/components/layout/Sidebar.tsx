@@ -14,7 +14,7 @@ interface NavItem {
 
 const icons = {
   hall: (
-    <svg className="w-4.5 h-4.5 w-[18px] h-[18px] shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <svg className="w-[18px] h-[18px] shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
     </svg>
   ),
@@ -65,10 +65,12 @@ interface SidebarProps {
   open: boolean
   onToggle: () => void
   userRole?: string
+  mobileClose?: () => void
 }
 
-export function Sidebar({ open, onToggle, userRole = '' }: SidebarProps) {
+export function Sidebar({ open, onToggle, userRole = '', mobileClose }: SidebarProps) {
   const pathname = usePathname()
+  const isMobileDrawer = !!mobileClose
 
   const visibleItems = NAV_ITEMS.filter(item =>
     !item.roles || item.roles.length === 0 || item.roles.includes(userRole)
@@ -82,7 +84,7 @@ export function Sidebar({ open, onToggle, userRole = '' }: SidebarProps) {
       className={cn(
         'flex flex-col h-screen transition-all duration-200 ease-in-out shrink-0 relative z-30',
         'bg-gradient-sidebar border-r border-[rgba(255,255,255,0.05)]',
-        open ? 'w-56' : 'w-[60px]'
+        isMobileDrawer ? 'w-56' : open ? 'w-56' : 'w-[60px]'
       )}
     >
       {/* Logo */}
@@ -92,44 +94,59 @@ export function Sidebar({ open, onToggle, userRole = '' }: SidebarProps) {
             <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
           </svg>
         </div>
-        {open && (
-          <div className="ml-2.5 overflow-hidden">
+        {(open || isMobileDrawer) && (
+          <div className="ml-2.5 overflow-hidden flex-1">
             <span className="font-bold text-white text-sm tracking-tight whitespace-nowrap">DR Growth</span>
             <p className="text-[10px] text-slate-500 whitespace-nowrap leading-none mt-0.5">Escritório Digital</p>
           </div>
+        )}
+        {isMobileDrawer && (
+          <button onClick={mobileClose}
+            className="ml-auto p-1.5 rounded-lg hover:bg-[rgba(255,255,255,0.06)] transition-colors text-slate-500 hover:text-slate-300"
+            aria-label="Fechar menu">
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
         )}
       </div>
 
       {/* Nav */}
       <nav className="flex-1 py-3 px-2 space-y-0.5 overflow-hidden overflow-y-auto">
-        {mainItems.map(item => <NavLink key={item.href} item={item} pathname={pathname} open={open} />)}
+        {mainItems.map(item => (
+          <NavLink key={item.href} item={item} pathname={pathname} open={open || isMobileDrawer} />
+        ))}
 
         {systemItems.length > 0 && (
           <>
-            {open && (
+            {(open || isMobileDrawer) && (
               <div className="px-2 pt-4 pb-1">
                 <p className="text-[10px] uppercase tracking-wider text-slate-600 font-semibold">Sistema</p>
               </div>
             )}
-            {!open && <div className="my-2 mx-2 border-t border-[rgba(255,255,255,0.06)]" />}
-            {systemItems.map(item => <NavLink key={item.href} item={item} pathname={pathname} open={open} />)}
+            {!(open || isMobileDrawer) && <div className="my-2 mx-2 border-t border-[rgba(255,255,255,0.06)]" />}
+            {systemItems.map(item => (
+              <NavLink key={item.href} item={item} pathname={pathname} open={open || isMobileDrawer} />
+            ))}
           </>
         )}
       </nav>
 
-      {/* Toggle */}
-      <button
-        onClick={onToggle}
-        className="m-2 p-2 rounded-lg hover:bg-[rgba(255,255,255,0.06)] transition-colors text-slate-500 hover:text-slate-300 flex items-center justify-center"
-        aria-label={open ? 'Fechar sidebar' : 'Abrir sidebar'}
-      >
-        <svg
-          className={cn('w-4 h-4 transition-transform duration-200', open ? 'rotate-180' : '')}
-          fill="none" stroke="currentColor" viewBox="0 0 24 24"
+      {/* Toggle (only on desktop) */}
+      {!isMobileDrawer && (
+        <button
+          onClick={onToggle}
+          className="m-2 p-2 rounded-lg hover:bg-[rgba(255,255,255,0.06)] transition-colors text-slate-500 hover:text-slate-300 flex items-center justify-center"
+          aria-label={open ? 'Fechar sidebar' : 'Abrir sidebar'}
         >
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M9 5l7 7-7 7" />
-        </svg>
-      </button>
+          <svg
+            className={cn('w-4 h-4 transition-transform duration-200', open ? 'rotate-180' : '')}
+            fill="none" stroke="currentColor" viewBox="0 0 24 24"
+          >
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M9 5l7 7-7 7" />
+          </svg>
+        </button>
+      )}
     </aside>
   )
 }
@@ -142,7 +159,7 @@ function NavLink({ item, pathname, open }: { item: NavItem; pathname: string; op
       <Link
         href={item.href}
         className={cn(
-          'flex items-center gap-2.5 px-2.5 py-2 rounded-lg transition-all duration-150 text-sm',
+          'flex items-center gap-2.5 px-2.5 py-2 rounded-lg transition-all duration-150 text-sm min-h-[44px] md:min-h-0',
           active
             ? 'bg-primary-600/20 text-primary-300 font-medium'
             : 'text-slate-400 hover:bg-[rgba(255,255,255,0.05)] hover:text-slate-200'

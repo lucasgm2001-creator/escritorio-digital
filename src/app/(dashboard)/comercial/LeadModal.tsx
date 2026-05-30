@@ -255,7 +255,7 @@ export function LeadModal({ onClose, onCreated, currentUser }: Props) {
                       : 'border-border text-muted-foreground hover:border-primary-300'
                   }`}
                 >
-                  {op === 'brasil' ? '🇧🇷 Brasil' : '🇺🇸 EUA'}
+                  {op === 'brasil' ? 'Brasil' : 'EUA'}
                 </button>
               ))}
             </div>

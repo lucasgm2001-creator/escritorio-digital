@@ -18,12 +18,11 @@ import { AgendaTab } from './tabs/AgendaTab'
 import { ComissoesTab } from './tabs/ComissoesTab'
 import { VendedoresTab } from './tabs/VendedoresTab'
 import { ApresentacaoTab } from './tabs/ApresentacaoTab'
-import { FixoTab } from './tabs/FixoTab'
 import { MAIN_FLOW, SECONDARY_FLOW, ALL_COLUMNS } from './types'
 import type { Lead, LeadStatus } from './types'
 export type { LeadStatus, Lead, ColumnConfig } from './types'
 
-type Tab = 'funil' | 'pipeline' | 'metricas' | 'agenda' | 'comissoes' | 'vendedores' | 'apresentacao' | 'fixo'
+type Tab = 'funil' | 'pipeline' | 'metricas' | 'agenda' | 'comissoes' | 'vendedores' | 'apresentacao'
 type OperationFilter = 'todos' | 'brasil' | 'eua'
 
 interface CurrentUser { id: string; name: string; role: string }
@@ -53,7 +52,6 @@ export function KanbanBoard({ initialLeads, currentUser }: { initialLeads: Lead[
     { key: 'comissoes',    label: 'Comissões' },
     { key: 'apresentacao', label: 'Apresentação' },
     { key: 'vendedores',   label: 'Vendedores' },
-    { key: 'fixo',         label: 'Fixo' },
   ]
 
   const sensors = useSensors(
@@ -129,7 +127,7 @@ export function KanbanBoard({ initialLeads, currentUser }: { initialLeads: Lead[
                       : 'text-muted-foreground hover:text-foreground'
                   }`}
                 >
-                  {op === 'todos' ? 'Todos' : op === 'brasil' ? '🇧🇷 Brasil' : '🇺🇸 EUA'}
+                  {op === 'todos' ? 'Todos' : op === 'brasil' ? 'Brasil' : 'EUA'}
                 </button>
               ))}
             </div>
@@ -157,8 +155,8 @@ export function KanbanBoard({ initialLeads, currentUser }: { initialLeads: Lead[
       <div className="flex-1 overflow-hidden">
         {tab === 'funil' && (
           <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
-            <div className="h-full overflow-auto p-5 bg-[#0d1117]">
-              <div className="grid grid-cols-5 gap-3 relative" style={{ minWidth: 900 }}>
+            <div className="h-full overflow-auto p-5 bg-[#0d1117] overscroll-x-contain">
+              <div className="grid grid-cols-5 gap-3 relative" style={{ minWidth: 860 }}>
                 {/* Row 1: Main flow */}
                 {MAIN_FLOW.map((col, idx) => (
                   <div key={col.key} className="relative">
@@ -218,7 +216,6 @@ export function KanbanBoard({ initialLeads, currentUser }: { initialLeads: Lead[
         {tab === 'comissoes'    && <ComissoesTab currentUser={currentUser} />}
         {tab === 'apresentacao' && <ApresentacaoTab />}
         {tab === 'vendedores'   && <VendedoresTab currentUser={currentUser} />}
-        {tab === 'fixo'         && <FixoTab currentUser={currentUser} />}
       </div>
 
       {/* Modals */}

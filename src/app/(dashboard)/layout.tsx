@@ -11,6 +11,7 @@ const PAGE_TITLES: Record<string, string> = {
   '/trafego':        'Tráfego',
   '/administrativo': 'Administrativo',
   '/configuracoes':  'Configurações',
+  '/perfil':         'Meu Perfil',
 }
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
@@ -21,7 +22,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
 
   const { data: profile } = await supabase
     .from('profiles')
-    .select('name, role')
+    .select('name, role, avatar_url')
     .eq('id', user.id)
     .single()
 
@@ -29,6 +30,8 @@ export default async function DashboardLayout({ children }: { children: React.Re
     <DashboardShell
       userName={capitalizeName(profile?.name ?? user.email?.split('@')[0] ?? 'Usuário')}
       userRole={profile?.role ?? 'admin'}
+      userId={user.id}
+      avatarUrl={profile?.avatar_url ?? null}
       pageTitles={PAGE_TITLES}
     >
       {children}

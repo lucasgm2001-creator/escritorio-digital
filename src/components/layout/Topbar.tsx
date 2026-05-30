@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import Image from 'next/image'
 import { signOut } from '@/lib/supabase/auth-actions'
 
 interface TopbarProps {
@@ -11,12 +12,14 @@ interface TopbarProps {
   userName?: string
   userInitial?: string
   userRole?: string
+  userId?: string
+  avatarUrl?: string | null
 }
 
 const ROLE_LABELS: Record<string, string> = {
-  admin: 'Administrador',
-  comercial: 'Comercial',
-  trafego: 'Tráfego',
+  admin:      'Administrador',
+  comercial:  'Comercial',
+  trafego:    'Tráfego',
   financeiro: 'Financeiro',
 }
 
@@ -39,7 +42,22 @@ function LiveClock({ timezone, flag }: { timezone: string; flag: string }) {
   )
 }
 
-export function Topbar({ title, onMenuToggle, userName = 'Usuário', userInitial = 'U', userRole = '' }: TopbarProps) {
+function UserAvatar({ avatarUrl, userInitial }: { avatarUrl?: string | null; userInitial: string }) {
+  if (avatarUrl) {
+    return (
+      <div className="w-7 h-7 rounded-lg overflow-hidden shadow-glow-sm shrink-0">
+        <Image src={avatarUrl} alt="Avatar" width={28} height={28} className="w-full h-full object-cover" />
+      </div>
+    )
+  }
+  return (
+    <div className="w-7 h-7 rounded-lg bg-primary-600 flex items-center justify-center shadow-glow-sm shrink-0">
+      <span className="text-xs font-bold text-white">{userInitial}</span>
+    </div>
+  )
+}
+
+export function Topbar({ title, onMenuToggle, userName = 'Usuário', userInitial = 'U', userRole = '', avatarUrl }: TopbarProps) {
   const [dropdownOpen, setDropdownOpen] = useState(false)
   const [isLoggingOut, setIsLoggingOut] = useState(false)
   const router = useRouter()
@@ -47,19 +65,11 @@ export function Topbar({ title, onMenuToggle, userName = 'Usuário', userInitial
   const handleLogout = async () => {
     setDropdownOpen(false)
     setIsLoggingOut(true)
-
     try {
-      // Chama a Server Action de logout
       await signOut()
-      // Se chegou aqui, o signOut não fez redirect (possível erro)
-      // Fallback: redireciona manualmente
       window.location.href = '/login'
     } catch {
-      // signOut() faz redirect(), que lança uma exceção
-      // Se chegarmos aqui, tenta redirecionar manualmente
-      setTimeout(() => {
-        window.location.href = '/login'
-      }, 100)
+      setTimeout(() => { window.location.href = '/login' }, 100)
     }
   }
 
@@ -67,7 +77,7 @@ export function Topbar({ title, onMenuToggle, userName = 'Usuário', userInitial
     <header className="h-14 border-b border-[#2d3748] bg-[#0d1117] flex items-center px-4 gap-4 shrink-0">
       <button
         onClick={onMenuToggle}
-        className="p-1.5 rounded-lg hover:bg-[#1e2533] transition-colors text-slate-500 hover:text-slate-300"
+        className="p-1.5 rounded-lg hover:bg-[#1e2533] transition-colors text-slate-500 hover:text-slate-300 min-w-[36px] min-h-[36px] flex items-center justify-center"
         aria-label="Alternar menu"
       >
         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -80,19 +90,17 @@ export function Topbar({ title, onMenuToggle, userName = 'Usuário', userInitial
       <div className="ml-auto flex items-center gap-4">
         {/* Clocks */}
         <div className="hidden sm:flex items-center gap-4 border-r border-[#2d3748] pr-4">
-          <LiveClock timezone="America/Sao_Paulo" flag="🇧🇷" />
-          <LiveClock timezone="America/New_York" flag="🇺🇸" />
+          <LiveClock timezone="America/Sao_Paulo" flag="BR" />
+          <LiveClock timezone="America/New_York" flag="EUA" />
         </div>
 
         {/* Avatar + dropdown */}
         <div className="relative">
           <button
             onClick={() => setDropdownOpen(!dropdownOpen)}
-            className="flex items-center gap-2.5 p-1.5 rounded-lg hover:bg-[#1e2533] transition-colors"
+            className="flex items-center gap-2.5 p-1.5 rounded-lg hover:bg-[#1e2533] transition-colors min-h-[44px]"
           >
-            <div className="w-7 h-7 rounded-lg bg-primary-600 flex items-center justify-center shadow-glow-sm">
-              <span className="text-xs font-bold text-white">{userInitial}</span>
-            </div>
+            <UserAvatar avatarUrl={avatarUrl} userInitial={userInitial} />
             <div className="hidden md:block text-left">
               <p className="text-sm font-medium text-foreground leading-none">{userName}</p>
               <p className="text-[11px] text-muted-foreground mt-0.5">{ROLE_LABELS[userRole] ?? userRole}</p>
@@ -113,7 +121,7 @@ export function Topbar({ title, onMenuToggle, userName = 'Usuário', userInitial
 
                 <button
                   onClick={() => { setDropdownOpen(false); router.push('/perfil') }}
-                  className="w-full text-left px-3 py-2.5 text-sm text-foreground hover:bg-[#2d3748] transition-colors flex items-center gap-2.5"
+                  className="w-full text-left px-3 py-2.5 text-sm text-foreground hover:bg-[#2d3748] transition-colors flex items-center gap-2.5 min-h-[44px]"
                 >
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75}
@@ -124,7 +132,7 @@ export function Topbar({ title, onMenuToggle, userName = 'Usuário', userInitial
                 <button
                   onClick={handleLogout}
                   disabled={isLoggingOut}
-                  className="w-full text-left px-3 py-2.5 text-sm text-red-400 hover:bg-red-900/20 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2.5"
+                  className="w-full text-left px-3 py-2.5 text-sm text-red-400 hover:bg-red-900/20 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2.5 min-h-[44px]"
                 >
                   {isLoggingOut ? (
                     <span className="w-4 h-4 border-2 border-red-400/30 border-t-red-400 rounded-full animate-spin" />

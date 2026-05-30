@@ -76,7 +76,8 @@ export function AgentChat() {
       {/* Header */}
       <div className="p-4 border-b border-[#2d3748]">
         <h2 className="text-lg font-semibold text-foreground flex items-center gap-2">
-          <span>🤖</span> Agente IA
+          <svg className="w-4 h-4 text-primary-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17H3a2 2 0 01-2-2V5a2 2 0 012-2h14a2 2 0 012 2v10a2 2 0 01-2 2h-2" /></svg>
+          Agente IA
         </h2>
         <p className="text-xs text-muted-foreground mt-1">
           Faça perguntas sobre leads, clientes, campanhas e pagamentos

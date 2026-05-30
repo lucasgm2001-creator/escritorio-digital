@@ -116,7 +116,7 @@ export function LeadCard({ lead, isDragging, onClick }: Props) {
         </div>
         <div className="flex items-center justify-between mt-1">
           <span className="text-[10px] text-muted-foreground">
-            {lead.operation === 'eua' ? '🇺🇸 EUA' : '🇧🇷 BR'}
+            {lead.operation === 'eua' ? 'EUA' : 'BR'}
           </span>
           <span className="text-[10px] text-muted-foreground tabular-nums font-medium">{lead.score}</span>
         </div>
