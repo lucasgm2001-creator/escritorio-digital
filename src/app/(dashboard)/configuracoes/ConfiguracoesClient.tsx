@@ -1,8 +1,108 @@
 'use client'
 
-import { useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { ThemeSelector } from '@/components/ThemeSelector'
+
+type Theme = 'light' | 'dark' | 'auto'
+
+type ThemeItem = {
+  label: string
+  desc: string
+  status: string
+  isTheme: true
+}
+
+type ConfigItem = {
+  label: string
+  desc: string
+  status: string
+}
+
+type ConfigItemWithContent = ConfigItem & {
+  expandable: true
+  content: React.ReactNode
+}
+
+type MenuItem = ThemeItem | ConfigItem | ConfigItemWithContent
+
+const isDarkByTime = (): boolean => {
+  const hour = new Date().getHours()
+  return hour >= 18 || hour < 6
+}
+
+function ThemeSelectorInline() {
+  const [theme, setTheme] = useState<Theme>('auto')
+  const [mounted, setMounted] = useState(false)
+
+  const applyTheme = useCallback((t: Theme) => {
+    const html = document.documentElement
+    const isDark = t === 'dark' || (t === 'auto' && isDarkByTime())
+
+    if (isDark) {
+      html.style.colorScheme = 'dark'
+      html.classList.add('dark')
+      document.body.style.backgroundColor = '#0d1117'
+      document.body.style.color = '#e6edf3'
+    } else {
+      html.style.colorScheme = 'light'
+      html.classList.remove('dark')
+      document.body.style.backgroundColor = '#ffffff'
+      document.body.style.color = '#24292f'
+    }
+  }, [])
+
+  useEffect(() => {
+    setMounted(true)
+    try {
+      const saved = localStorage.getItem('theme') as Theme | null
+      if (saved) {
+        setTheme(saved)
+        applyTheme(saved)
+      } else {
+        applyTheme('auto')
+      }
+    } catch (error) {
+      console.error('localStorage not available:', error)
+      applyTheme('auto')
+    }
+  }, [applyTheme])
+
+  const handleThemeChange = (newTheme: Theme) => {
+    setTheme(newTheme)
+    try {
+      localStorage.setItem('theme', newTheme)
+      applyTheme(newTheme)
+    } catch (error) {
+      console.error('Failed to save theme preference:', error)
+      applyTheme(newTheme)
+    }
+  }
+
+  if (!mounted) return null
+
+  return (
+    <div className="flex gap-2">
+      {[
+        { id: 'light' as Theme, label: '☀️ Claro', icon: '☀️' },
+        { id: 'dark', label: '🌙 Escuro', icon: '🌙' },
+        { id: 'auto', label: '💻 Automático', icon: '💻' },
+      ].map(opt => (
+        <button
+          key={opt.id}
+          onClick={() => handleThemeChange(opt.id as Theme)}
+          className={`flex items-center gap-1.5 px-3 py-2 rounded-lg border transition-all text-sm ${
+            theme === opt.id
+              ? 'bg-primary-600 border-primary-600 text-white shadow-md'
+              : 'bg-[#1e2533] border-[#2d3748] text-muted-foreground hover:border-primary-600'
+          }`}
+        >
+          <span>{opt.icon}</span>
+          <span className="font-medium">{opt.label.split(' ')[1]}</span>
+        </button>
+      ))}
+    </div>
+  )
+}
 
 export function ConfiguracoesClient() {
   const [expandedSection, setExpandedSection] = useState<string | null>(null)
@@ -15,8 +115,7 @@ export function ConfiguracoesClient() {
           label: 'Tema',
           desc: 'Escolha entre claro, escuro ou automático (18h-06h)',
           status: 'configurável',
-          expandable: true,
-          content: <ThemeSelector />,
+          isTheme: true,
         },
         { label: 'Idioma', desc: 'Português (Brasil)', status: 'ativo' },
       ],
@@ -65,45 +164,59 @@ export function ConfiguracoesClient() {
             <CardTitle className="text-sm">{section.title}</CardTitle>
           </CardHeader>
           <CardContent className="space-y-0 divide-y divide-[#2d3748]/60">
-            {section.items.map(item => (
+            {section.items.map((item: MenuItem) => (
               <div key={item.label}>
-                <button
-                  onClick={() => {
-                    if ('expandable' in item && item.expandable) {
-                      setExpandedSection(expandedSection === item.label ? null : item.label)
-                    }
-                  }}
-                  className={`w-full flex items-center justify-between py-3.5 first:pt-0 last:pb-0 ${
-                    'expandable' in item && item.expandable ? 'cursor-pointer hover:bg-[#1a2533]/50 px-3 -mx-3 rounded' : ''
-                  } transition-colors`}
-                >
-                  <div className="text-left">
-                    <p className="text-sm font-medium text-foreground">{item.label}</p>
-                    <p className="text-xs text-muted-foreground mt-0.5">{item.desc}</p>
+                {'isTheme' in item && item.isTheme === true ? (
+                  <div className="flex items-center justify-between py-4 first:pt-0 last:pb-0">
+                    <div className="text-left flex-1">
+                      <p className="text-sm font-medium text-foreground">{item.label}</p>
+                      <p className="text-xs text-muted-foreground mt-0.5">{item.desc}</p>
+                    </div>
+                    <div className="ml-4">
+                      <ThemeSelectorInline />
+                    </div>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <span
-                      className={`text-[11px] px-2.5 py-1 rounded-full border font-semibold capitalize ${statusColors[item.status] ?? 'border-[#2d3748] bg-[#1e2533] text-muted-foreground'}`}
+                ) : (
+                  <>
+                    <button
+                      onClick={() => {
+                        if ('expandable' in item && item.expandable) {
+                          setExpandedSection(expandedSection === item.label ? null : item.label)
+                        }
+                      }}
+                      className={`w-full flex items-center justify-between py-3.5 first:pt-0 last:pb-0 ${
+                        'expandable' in item && item.expandable ? 'cursor-pointer hover:bg-[#1a2533]/50 px-3 -mx-3 rounded' : ''
+                      } transition-colors`}
                     >
-                      {item.status}
-                    </span>
-                    {('expandable' in item && item.expandable) && (
-                      <svg
-                        className={`w-4 h-4 text-muted-foreground transition-transform ${expandedSection === item.label ? 'rotate-180' : ''}`}
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 14l-7 7m0 0l-7-7m7 7V3" />
-                      </svg>
-                    )}
-                  </div>
-                </button>
+                      <div className="text-left">
+                        <p className="text-sm font-medium text-foreground">{item.label}</p>
+                        <p className="text-xs text-muted-foreground mt-0.5">{item.desc}</p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span
+                          className={`text-[11px] px-2.5 py-1 rounded-full border font-semibold capitalize ${statusColors[item.status] ?? 'border-[#2d3748] bg-[#1e2533] text-muted-foreground'}`}
+                        >
+                          {item.status}
+                        </span>
+                        {('expandable' in item && item.expandable) && (
+                          <svg
+                            className={`w-4 h-4 text-muted-foreground transition-transform ${expandedSection === item.label ? 'rotate-180' : ''}`}
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
+                          >
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 14l-7 7m0 0l-7-7m7 7V3" />
+                          </svg>
+                        )}
+                      </div>
+                    </button>
 
-                {expandedSection === item.label && 'content' in item && (
-                  <div className="py-4 px-3 bg-[#1a2533]/30 rounded-lg border border-[#2d3748]/50 mt-2">
-                    {item.content}
-                  </div>
+                    {expandedSection === item.label && 'content' in item && (
+                      <div className="py-4 px-3 bg-[#1a2533]/30 rounded-lg border border-[#2d3748]/50 mt-2">
+                        {item.content}
+                      </div>
+                    )}
+                  </>
                 )}
               </div>
             ))}

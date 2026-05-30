@@ -4,17 +4,15 @@ import { useCallback, useEffect, useState } from 'react'
 
 type Theme = 'light' | 'dark' | 'auto'
 
+const isDarkByTime = (): boolean => {
+  const hour = new Date().getHours()
+  return hour >= 18 || hour < 6
+}
+
 export function ThemeSelector() {
   const [theme, setTheme] = useState<Theme>('auto')
   const [mounted, setMounted] = useState(false)
   const [currentHour, setCurrentHour] = useState<number>(0)
-
-  // Determinar se deve ser dark baseado na hora: 18:00 até 05:59
-  const isDarkByTime = (): boolean => {
-    const now = new Date()
-    const hour = now.getHours()
-    return hour >= 18 || hour < 6
-  }
 
   const applyTheme = useCallback((t: Theme) => {
     const html = document.documentElement
@@ -31,7 +29,7 @@ export function ThemeSelector() {
       document.body.style.backgroundColor = '#ffffff'
       document.body.style.color = '#24292f'
     }
-  }, [isDarkByTime])
+  }, [])
 
   useEffect(() => {
     setMounted(true)
