@@ -21,6 +21,19 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="pt-BR">
+      <head>
+        {/* Aplica o tema salvo antes do React hidratar — evita flash de tema errado */}
+        <script dangerouslySetInnerHTML={{ __html: `
+(function(){try{
+  var t=localStorage.getItem('theme');
+  var h=new Date().getHours();
+  var dark=t==='dark'||((!t||t==='auto')&&(h>=18||h<6));
+  var el=document.documentElement;
+  if(dark){el.classList.add('dark');el.classList.remove('light');}
+  else{el.classList.add('light');el.classList.remove('dark');}
+}catch(e){}}())
+        `}} />
+      </head>
       <body className={`${geistSans.variable} ${geistMono.variable} font-sans antialiased`}>
         {children}
       </body>

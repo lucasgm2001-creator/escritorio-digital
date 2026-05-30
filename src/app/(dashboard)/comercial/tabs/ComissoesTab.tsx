@@ -249,7 +249,7 @@ export function ComissoesTab({ currentUser }: Props) {
                 className={`px-2.5 py-1 rounded-md text-xs font-medium transition-all capitalize ${
                   statusFilter === s
                     ? 'bg-[#161b22] text-foreground shadow-sm'
-                    : 'text-muted-foreground hover:text-muted-foreground'
+                    : 'text-muted-foreground hover:text-foreground'
                 }`}
               >
                 {s === 'todos' ? 'Todos' : STATUS_CONFIG[s].label}

@@ -173,6 +173,18 @@ html.light {
   .animate-glow     { animation: glowPulse 2s ease-in-out infinite; }
 }
 
+/* ─── Light theme — Tailwind semantic classes (cores baked-in no config) ── */
+/* Necessário porque tailwind.config.ts tem hex hardcoded, não CSS variables */
+html.light .text-foreground       { color: var(--foreground)       !important; }
+html.light .text-muted-foreground { color: var(--muted-foreground) !important; }
+html.light .text-card-foreground  { color: var(--card-foreground)  !important; }
+html.light .bg-background         { background-color: var(--background) !important; }
+html.light .bg-muted              { background-color: var(--muted)      !important; }
+html.light .bg-input              { background-color: var(--input)      !important; }
+html.light .bg-card               { background-color: var(--card)       !important; }
+html.light .border-border         { border-color: var(--border-solid)   !important; }
+html.light .border-input          { border-color: var(--border-solid)   !important; }
+
 /* ─── Light theme — override hardcoded dark Tailwind classes ── */
 
 /* Layout shells */
@@ -209,6 +221,15 @@ html.light [class*="hover:bg-[#1e2533]"]:hover { background-color: var(--input) 
 html.light [class*="hover:bg-[#2d3748]"]:hover { background-color: var(--muted)       !important; }
 html.light [class*="hover:bg-[#1a2133]"]:hover { background-color: rgba(0,0,0,0.04)   !important; }
 html.light [class*="hover:bg-[rgba(255"]:hover  { background-color: rgba(0,0,0,0.03)   !important; }
+
+/* Progress bar tracks e superfícies com bg-[#2d3748] */
+html.light [class*="bg-[#2d3748]"]             { background-color: rgba(0,0,0,0.08) !important; }
+/* hover darker subtle backgrounds */
+html.light [class*="bg-[#262d35]"]             { background-color: var(--muted) !important; }
+
+/* stat-card — sombra mais leve no tema claro */
+html.light .stat-card             { box-shadow: 0 2px 12px rgba(0,0,0,0.06); }
+html.light .stat-card:hover       { box-shadow: 0 4px 20px rgba(0,0,0,0.10); }
 
 /* Dark scroll */
 html.light ::-webkit-scrollbar-thumb       { background: #d1d5db; }
