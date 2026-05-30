@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 
 type Theme = 'light' | 'dark' | 'auto'
 
@@ -16,7 +16,7 @@ export function ThemeSelector() {
     return hour >= 18 || hour < 6
   }
 
-  const applyTheme = (t: Theme) => {
+  const applyTheme = useCallback((t: Theme) => {
     const html = document.documentElement
     const isDark = t === 'dark' || (t === 'auto' && isDarkByTime())
 
@@ -31,7 +31,7 @@ export function ThemeSelector() {
       document.body.style.backgroundColor = '#ffffff'
       document.body.style.color = '#24292f'
     }
-  }
+  }, [isDarkByTime])
 
   useEffect(() => {
     setMounted(true)
@@ -62,7 +62,7 @@ export function ThemeSelector() {
     }, 60000) // Verificar a cada minuto
 
     return () => clearInterval(interval)
-  }, [])
+  }, [applyTheme])
 
   const handleThemeChange = (newTheme: Theme) => {
     setTheme(newTheme)
