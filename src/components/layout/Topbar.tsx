@@ -4,6 +4,8 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { signOut } from '@/lib/supabase/auth-actions'
 
+type Theme = 'light' | 'dark' | 'auto'
+
 interface TopbarProps {
   title: string
   onMenuToggle: () => void
@@ -42,7 +44,46 @@ function LiveClock({ timezone, flag }: { timezone: string; flag: string }) {
 export function Topbar({ title, onMenuToggle, userName = 'Usuário', userInitial = 'U', userRole = '' }: TopbarProps) {
   const [dropdownOpen, setDropdownOpen] = useState(false)
   const [isLoggingOut, setIsLoggingOut] = useState(false)
+  const [theme, setTheme] = useState<Theme>('auto')
+  const [mounted, setMounted] = useState(false)
   const router = useRouter()
+
+  useEffect(() => {
+    setMounted(true)
+    try {
+      const saved = localStorage.getItem('theme') as Theme | null
+      if (saved) setTheme(saved)
+    } catch (error) {
+      console.error('Failed to read theme:', error)
+    }
+  }, [])
+
+  const handleThemeChange = (newTheme: Theme) => {
+    setTheme(newTheme)
+    try {
+      localStorage.setItem('theme', newTheme)
+      // Aplicar tema
+      const html = document.documentElement
+      const isDarkByTime = () => {
+        const hour = new Date().getHours()
+        return hour >= 18 || hour < 6
+      }
+      const isDark = newTheme === 'dark' || (newTheme === 'auto' && isDarkByTime())
+      if (isDark) {
+        html.style.colorScheme = 'dark'
+        html.classList.add('dark')
+        document.body.style.backgroundColor = '#0d1117'
+        document.body.style.color = '#e6edf3'
+      } else {
+        html.style.colorScheme = 'light'
+        html.classList.remove('dark')
+        document.body.style.backgroundColor = '#ffffff'
+        document.body.style.color = '#24292f'
+      }
+    } catch (error) {
+      console.error('Failed to save theme:', error)
+    }
+  }
 
   const handleLogout = async () => {
     setDropdownOpen(false)
@@ -105,11 +146,46 @@ export function Topbar({ title, onMenuToggle, userName = 'Usuário', userInitial
           {dropdownOpen && (
             <>
               <div className="fixed inset-0 z-10" onClick={() => setDropdownOpen(false)} />
-              <div className="absolute right-0 top-11 z-20 w-48 bg-[#1e2533] border border-[#2d3748] rounded-xl shadow-card-hover py-1 overflow-hidden animate-fade-in">
+              <div className="absolute right-0 top-11 z-20 w-56 bg-[#1e2533] border border-[#2d3748] rounded-xl shadow-card-hover py-1 overflow-hidden animate-fade-in">
                 <div className="px-3 py-2.5 border-b border-[#2d3748]">
                   <p className="text-sm font-semibold text-foreground">{userName}</p>
                   <p className="text-xs text-muted-foreground">{ROLE_LABELS[userRole] ?? userRole}</p>
                 </div>
+
+                {/* Tema Selector */}
+                {mounted && (
+                  <div className="px-3 py-2.5 border-b border-[#2d3748] space-y-2">
+                    <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Tema</p>
+                    <div className="grid grid-cols-3 gap-1">
+                      {[
+                        { id: 'light' as Theme, label: '☀️', title: 'Claro' },
+                        { id: 'auto' as Theme, label: '🔄', title: 'Automático' },
+                        { id: 'dark' as Theme, label: '🌙', title: 'Escuro' },
+                      ].map(opt => (
+                        <button
+                          key={opt.id}
+                          onClick={() => handleThemeChange(opt.id)}
+                          title={opt.title}
+                          className={`py-2 px-2 rounded-lg border transition-all text-lg flex items-center justify-center ${
+                            theme === opt.id
+                              ? 'bg-primary-600 border-primary-600 shadow-md'
+                              : 'bg-[#161b22] border-[#2d3748] hover:border-primary-600'
+                          }`}
+                        >
+                          {opt.label}
+                        </button>
+                      ))}
+                    </div>
+                    <p className="text-[10px] text-muted-foreground/70">
+                      {theme === 'auto'
+                        ? '🔄 Alterna 18h-06h escuro'
+                        : theme === 'light'
+                          ? '☀️ Claro'
+                          : '🌙 Escuro'}
+                    </p>
+                  </div>
+                )}
+
                 <button
                   onClick={() => { setDropdownOpen(false); router.push('/perfil') }}
                   className="w-full text-left px-3 py-2.5 text-sm text-foreground hover:bg-[#2d3748] transition-colors flex items-center gap-2.5"
