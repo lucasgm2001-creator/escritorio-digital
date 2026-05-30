@@ -25,8 +25,18 @@ export async function signIn(email: string, password: string) {
 
 export async function signOut() {
   const supabase = createClient()
-  await supabase.auth.signOut()
+
+  // Faz logout no Supabase (limpa a sessão e cookies)
+  const { error } = await supabase.auth.signOut()
+
+  if (error) {
+    console.error('Erro ao fazer logout:', error)
+  }
+
+  // Limpa cache de todo o app
   revalidatePath('/', 'layout')
+
+  // Redireciona obrigatoriamente para /login
   redirect('/login')
 }
 

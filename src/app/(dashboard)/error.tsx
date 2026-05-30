@@ -13,6 +13,16 @@ export default function DashboardError({
     console.error('[Dashboard error]', error)
   }, [error])
 
+  // Não expor mensagens técnicas de erro ao usuário
+  const isSensitiveError = (msg: string) => {
+    const sensitiveKeywords = ['RLS', 'database', 'SQL', 'policy', 'unauthorized', 'JWT', 'role', 'Supabase']
+    return sensitiveKeywords.some(keyword => msg?.includes(keyword))
+  }
+
+  const safeMessage = isSensitiveError(error?.message || '')
+    ? 'Ocorreu um erro no sistema. Tente novamente mais tarde.'
+    : 'Ocorreu um erro inesperado nesta página.'
+
   return (
     <div className="flex flex-col items-center justify-center h-full min-h-[60vh] gap-6 p-8">
       <div className="w-14 h-14 rounded-full bg-red-50 border border-red-200 flex items-center justify-center">
@@ -23,9 +33,7 @@ export default function DashboardError({
       </div>
       <div className="text-center">
         <h2 className="text-lg font-semibold text-slate-800 mb-1">Algo deu errado</h2>
-        <p className="text-sm text-slate-500 max-w-sm">
-          {error.message || 'Ocorreu um erro inesperado nesta página.'}
-        </p>
+        <p className="text-sm text-slate-500 max-w-sm">{safeMessage}</p>
       </div>
       <button
         onClick={reset}

@@ -11,9 +11,24 @@ export class FinanceiroAgent {
     const despesas = payments.filter(p => p.type === 'despesa').reduce((sum, p) => sum + p.amount, 0)
     const summary = `Receitas: R$${receitas.toFixed(2)} | Despesas: R$${despesas.toFixed(2)} | Saldo: R$${(receitas - despesas).toFixed(2)}`
 
+    // Sanitizar dados sensíveis
+    const safePayments = payments.slice(0, 10).map(p => ({
+      id: p.id,
+      description: (p.description || '').replace(/[\r\n`{}]/g, ' ').slice(0, 100),
+      type: (p.type || '').replace(/[\r\n`{}]/g, ' '),
+      amount: Math.max(0, p.amount || 0),
+      status: (p.status || '').replace(/[\r\n`{}]/g, ' '),
+    }))
+
     const { text } = await generateText({
       model: anthropic('claude-sonnet-4-6'),
-      prompt: `Analise este fluxo financeiro e forneça insights: ${JSON.stringify({ receitas, despesas, payments: payments.slice(0, 10) })}. Responda em português com 3 insights e 3 recomendações.`,
+      system: 'Você é um analista financeiro. Analise fluxos de caixa e forneça insights estratégicos. Responda em português.',
+      messages: [
+        {
+          role: 'user',
+          content: `Analise este fluxo financeiro: Receitas: R$${receitas.toFixed(2)}, Despesas: R$${despesas.toFixed(2)}, Saldo: R$${(receitas - despesas).toFixed(2)}. Dados detalhados: ${JSON.stringify(safePayments)}. Forneça 3 insights e 3 recomendações.`,
+        },
+      ],
       maxOutputTokens: 500,
     })
 

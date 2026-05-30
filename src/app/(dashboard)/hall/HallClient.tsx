@@ -5,7 +5,10 @@ import { createClient } from '@/lib/supabase/client'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { timeAgo } from '@/lib/utils'
+import { AgentChat } from './AgentChat'
 import type { Activity, Notice } from '@/types'
+
+type Tab = 'activities' | 'agent'
 
 interface Props {
   initialActivities: Activity[]
@@ -61,6 +64,7 @@ function computeWeekDays() {
 }
 
 export function HallClient({ initialActivities, initialNotices, userName, userRole, userId }: Props) {
+  const [activeTab, setActiveTab] = useState<Tab>('activities')
   const [activities, setActivities] = useState<Activity[]>(initialActivities)
   const [notices, setNotices]       = useState<Notice[]>(initialNotices)
   const [greeting, setGreeting]     = useState('')
@@ -125,99 +129,125 @@ export function HallClient({ initialActivities, initialNotices, userName, userRo
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
-        {/* Feed de atividades */}
-        <Card className="lg:col-span-2">
-          <CardHeader className="pb-3">
-            <CardTitle className="flex items-center gap-2 text-sm">
-              Atividades Recentes
-              <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-0 divide-y divide-[#2d3748]/60">
-            {activities.length === 0 ? (
-              <p className="text-sm text-muted-foreground py-6 text-center">Nenhuma atividade ainda.</p>
-            ) : activities.map(a => (
-              <div key={a.id} className="flex items-start gap-3 py-3 first:pt-0 last:pb-0">
-                <div className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${ACTIVITY_COLORS[a.type] ?? 'bg-slate-800/60 text-slate-400'}`}>
-                  {ACTIVITY_ICONS[a.type]}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm text-foreground leading-snug">{a.description}</p>
-                  <div className="flex items-center gap-1.5 mt-0.5">
-                    {a.user_name && <><p className="text-xs text-muted-foreground">{a.user_name}</p><span className="text-muted-foreground/50 text-xs">·</span></>}
-                    <p className="text-xs text-muted-foreground">{timeAgo(a.created_at)}</p>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </CardContent>
-        </Card>
-
-        {/* Mural de Avisos */}
-        <Card>
-          <CardHeader className="pb-3">
-            <div className="flex items-center justify-between">
-              <CardTitle className="text-sm">Mural de Avisos</CardTitle>
-              {canPostNotice && (
-                <button
-                  onClick={() => setShowNoticeForm(!showNoticeForm)}
-                  className="text-xs text-primary-400 hover:text-primary-300 transition-colors font-medium flex items-center gap-1"
-                >
-                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                  </svg>
-                  Postar
-                </button>
-              )}
-            </div>
-          </CardHeader>
-          <CardContent className="space-y-2.5">
-            {showNoticeForm && (
-              <div className="bg-[#1e2533] border border-[#2d3748] rounded-xl p-3 space-y-2 mb-3">
-                <input value={noticeForm.title} onChange={e => setNoticeForm(p => ({ ...p, title: e.target.value }))}
-                  placeholder="Título" className="w-full bg-[#161b22] border border-[#2d3748] rounded-lg px-3 py-1.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary-600" />
-                <textarea value={noticeForm.content} onChange={e => setNoticeForm(p => ({ ...p, content: e.target.value }))}
-                  placeholder="Mensagem..." rows={2}
-                  className="w-full bg-[#161b22] border border-[#2d3748] rounded-lg px-3 py-1.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary-600 resize-none" />
-                <div className="flex gap-1.5">
-                  {(['info', 'warning', 'urgent'] as const).map(p => (
-                    <button key={p} onClick={() => setNoticeForm(prev => ({ ...prev, priority: p }))}
-                      className={`flex-1 py-1 rounded-md text-xs font-medium border transition-all ${
-                        noticeForm.priority === p
-                          ? p === 'info' ? 'bg-blue-900/40 text-blue-400 border-blue-800/50'
-                            : p === 'warning' ? 'bg-amber-900/40 text-amber-400 border-amber-800/50'
-                            : 'bg-red-900/40 text-red-400 border-red-800/50'
-                          : 'bg-transparent text-muted-foreground border-[#2d3748]'
-                      }`}>
-                      {p === 'info' ? 'Info' : p === 'warning' ? 'Atenção' : 'Urgente'}
-                    </button>
-                  ))}
-                  <button onClick={handlePostNotice} disabled={savingNotice || !noticeForm.title.trim()}
-                    className="px-3 py-1 bg-primary-600 text-white rounded-lg text-xs font-semibold hover:bg-primary-500 disabled:opacity-50 transition-colors">
-                    {savingNotice ? '...' : 'OK'}
-                  </button>
-                </div>
-              </div>
-            )}
-            {notices.length === 0
-              ? <p className="text-sm text-muted-foreground py-6 text-center">Nenhum aviso.</p>
-              : notices.map(n => (
-                <div key={n.id} className={`rounded-xl border p-3 ${NOTICE_BORDER[n.priority] ?? 'border-[#2d3748]'}`}>
-                  <div className="flex items-center justify-between mb-1">
-                    <p className="text-sm font-semibold text-foreground">{n.title}</p>
-                    <Badge variant={n.priority === 'info' ? 'default' : n.priority === 'warning' ? 'warning' : 'destructive'} className="text-[10px]">
-                      {n.priority === 'info' ? 'Info' : n.priority === 'warning' ? 'Atenção' : 'Urgente'}
-                    </Badge>
-                  </div>
-                  <p className="text-xs text-muted-foreground">{n.content}</p>
-                  {n.author_name && <p className="text-xs text-muted-foreground/60 mt-1">— {n.author_name} · {timeAgo(n.created_at)}</p>}
-                </div>
-              ))
-            }
-          </CardContent>
-        </Card>
+      {/* Abas */}
+      <div className="flex gap-2 border-b border-[#2d3748]">
+        {[
+          { id: 'activities' as Tab, label: '📊 Atividades', count: activities.length },
+          { id: 'agent' as Tab, label: '🤖 Agente', count: 0 },
+        ].map(tab => (
+          <button
+            key={tab.id}
+            onClick={() => setActiveTab(tab.id)}
+            className={`px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
+              activeTab === tab.id
+                ? 'border-primary-600 text-primary-400'
+                : 'border-transparent text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            {tab.label}
+          </button>
+        ))}
       </div>
+
+      {activeTab === 'activities' && (
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+          <Card className="lg:col-span-2">
+            <CardHeader className="pb-3">
+              <CardTitle className="flex items-center gap-2 text-sm">
+                Atividades Recentes
+                <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-0 divide-y divide-[#2d3748]/60">
+              {activities.length === 0 ? (
+                <p className="text-sm text-muted-foreground py-6 text-center">Nenhuma atividade ainda.</p>
+              ) : activities.map(a => (
+                <div key={a.id} className="flex items-start gap-3 py-3 first:pt-0 last:pb-0">
+                  <div className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${ACTIVITY_COLORS[a.type] ?? 'bg-slate-800/60 text-slate-400'}`}>
+                    {ACTIVITY_ICONS[a.type]}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm text-foreground leading-snug">{a.description}</p>
+                    <div className="flex items-center gap-1.5 mt-0.5">
+                      {a.user_name && <><p className="text-xs text-muted-foreground">{a.user_name}</p><span className="text-muted-foreground/50 text-xs">·</span></>}
+                      <p className="text-xs text-muted-foreground">{timeAgo(a.created_at)}</p>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="pb-3">
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-sm">Mural de Avisos</CardTitle>
+                {canPostNotice && (
+                  <button
+                    onClick={() => setShowNoticeForm(!showNoticeForm)}
+                    className="text-xs text-primary-400 hover:text-primary-300 transition-colors font-medium flex items-center gap-1"
+                  >
+                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                    </svg>
+                    Postar
+                  </button>
+                )}
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-2.5">
+              {showNoticeForm && (
+                <div className="bg-[#1e2533] border border-[#2d3748] rounded-xl p-3 space-y-2 mb-3">
+                  <input value={noticeForm.title} onChange={e => setNoticeForm(p => ({ ...p, title: e.target.value }))}
+                    placeholder="Título" className="w-full bg-[#161b22] border border-[#2d3748] rounded-lg px-3 py-1.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary-600" />
+                  <textarea value={noticeForm.content} onChange={e => setNoticeForm(p => ({ ...p, content: e.target.value }))}
+                    placeholder="Mensagem..." rows={2}
+                    className="w-full bg-[#161b22] border border-[#2d3748] rounded-lg px-3 py-1.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary-600 resize-none" />
+                  <div className="flex gap-1.5">
+                    {(['info', 'warning', 'urgent'] as const).map(p => (
+                      <button key={p} onClick={() => setNoticeForm(prev => ({ ...prev, priority: p }))}
+                        className={`flex-1 py-1 rounded-md text-xs font-medium border transition-all ${
+                          noticeForm.priority === p
+                            ? p === 'info' ? 'bg-blue-900/40 text-blue-400 border-blue-800/50'
+                              : p === 'warning' ? 'bg-amber-900/40 text-amber-400 border-amber-800/50'
+                              : 'bg-red-900/40 text-red-400 border-red-800/50'
+                            : 'bg-transparent text-muted-foreground border-[#2d3748]'
+                        }`}>
+                        {p === 'info' ? 'Info' : p === 'warning' ? 'Atenção' : 'Urgente'}
+                      </button>
+                    ))}
+                    <button onClick={handlePostNotice} disabled={savingNotice || !noticeForm.title.trim()}
+                      className="px-3 py-1 bg-primary-600 text-white rounded-lg text-xs font-semibold hover:bg-primary-500 disabled:opacity-50 transition-colors">
+                      {savingNotice ? '...' : 'OK'}
+                    </button>
+                  </div>
+                </div>
+              )}
+              {notices.length === 0
+                ? <p className="text-sm text-muted-foreground py-6 text-center">Nenhum aviso.</p>
+                : notices.map(n => (
+                  <div key={n.id} className={`rounded-xl border p-3 ${NOTICE_BORDER[n.priority] ?? 'border-[#2d3748]'}`}>
+                    <div className="flex items-center justify-between mb-1">
+                      <p className="text-sm font-semibold text-foreground">{n.title}</p>
+                      <Badge variant={n.priority === 'info' ? 'default' : n.priority === 'warning' ? 'warning' : 'destructive'} className="text-[10px]">
+                        {n.priority === 'info' ? 'Info' : n.priority === 'warning' ? 'Atenção' : 'Urgente'}
+                      </Badge>
+                    </div>
+                    <p className="text-xs text-muted-foreground">{n.content}</p>
+                    {n.author_name && <p className="text-xs text-muted-foreground/60 mt-1">— {n.author_name} · {timeAgo(n.created_at)}</p>}
+                  </div>
+                ))
+              }
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {activeTab === 'agent' && (
+        <div className="lg:col-span-2 h-[600px] rounded-lg border border-[#2d3748] bg-[#0d1117] overflow-hidden">
+          <AgentChat />
+        </div>
+      )}
 
       {/* Semana Atual */}
       <Card>

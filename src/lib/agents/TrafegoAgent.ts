@@ -12,9 +12,26 @@ export class TrafegoAgent {
     const totalConversions = campaigns.reduce((sum, c) => sum + c.conversions, 0)
     const summary = `${campaigns.length} campanhas | R$${totalBudget.toFixed(0)} investidos | ${totalLeads} leads | ${totalConversions} conversões`
 
+    // Sanitizar dados de campanhas
+    const safeCampaigns = campaigns.map(c => ({
+      id: c.id,
+      name: (c.name || '').replace(/[\r\n`{}]/g, ' ').slice(0, 100),
+      budget: Math.max(0, c.budget || 0),
+      spent: Math.max(0, c.spent || 0),
+      leads: Math.max(0, c.leads || 0),
+      conversions: Math.max(0, c.conversions || 0),
+      status: (c.status || '').replace(/[\r\n`{}]/g, ' '),
+    }))
+
     const { text } = await generateText({
       model: anthropic('claude-sonnet-4-6'),
-      prompt: `Analise o desempenho dessas campanhas de tráfego pago: ${JSON.stringify(campaigns)}. Responda em português com 3 insights sobre performance e 3 otimizações recomendadas.`,
+      system: 'Você é um especialista em tráfego pago. Analise campanhas e forneça insights e otimizações. Responda em português.',
+      messages: [
+        {
+          role: 'user',
+          content: `Analise o desempenho dessas campanhas de tráfego pago: ${JSON.stringify(safeCampaigns)}. Forneça 3 insights sobre performance e 3 otimizações recomendadas.`,
+        },
+      ],
       maxOutputTokens: 500,
     })
 

@@ -49,6 +49,7 @@ export function ClientesClient({ initialClients, currentUser }: Props) {
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [activities, setActivities] = useState<Activity[]>([])
   const [loadingActivities, setLoadingActivities] = useState(false)
+  const [lastCreateTime, setLastCreateTime] = useState<number>(0) // Rate limiting
 
   const supabase = createClient()
 
@@ -69,6 +70,13 @@ export function ClientesClient({ initialClients, currentUser }: Props) {
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault()
+
+    // Rate limiting: máximo 1 criação por segundo
+    const now = Date.now()
+    if (now - lastCreateTime < 1000) {
+      return
+    }
+
     setLoading(true)
     const { data, error } = await supabase.from('clients').insert({
       name: form.name,
@@ -83,6 +91,7 @@ export function ClientesClient({ initialClients, currentUser }: Props) {
 
     if (!error && data) {
       setClients(prev => [data as Client, ...prev])
+      setLastCreateTime(Date.now()) // Rate limiting
       await supabase.from('activities').insert({
         type: 'client',
         description: `Novo cliente ativo: ${form.name}`,

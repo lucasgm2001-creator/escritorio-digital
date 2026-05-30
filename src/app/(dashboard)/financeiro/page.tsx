@@ -1,8 +1,23 @@
+import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { FinanceiroClient } from './FinanceiroClient'
 
 export default async function FinanceiroPage() {
   const supabase = createClient()
+
+  // Verificar autenticação e autorização
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) redirect('/login')
+
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('role')
+    .eq('id', user.id)
+    .single()
+
+  if (profile?.role !== 'financeiro' && profile?.role !== 'admin') {
+    redirect('/hall')
+  }
 
   // Busca todos os pagamentos
   const { data: payments } = await supabase
@@ -44,6 +59,7 @@ export default async function FinanceiroPage() {
       stats={{ receitas: totalReceitas, despesas: totalDespesas, saldo, pendentes: totalPendentes }}
       serie={serie}
       payments={all}
+      userRole={profile?.role}
     />
   )
 }

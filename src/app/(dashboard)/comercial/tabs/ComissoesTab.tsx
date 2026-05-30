@@ -9,6 +9,7 @@ interface Commission {
   seller_name?: string
   lead_id?: string
   lead_name?: string
+  cargo?: string
   amount: number
   percentage: number
   status: 'pendente' | 'aprovada' | 'paga'
@@ -31,6 +32,20 @@ export function ComissoesTab({ currentUser }: Props) {
   const [commissions, setCommissions] = useState<Commission[]>([])
   const [loading, setLoading] = useState(true)
   const [statusFilter, setStatusFilter] = useState<'todos' | Commission['status']>('todos')
+  const [showCreateModal, setShowCreateModal] = useState(false)
+  const [sellers, setSellers] = useState<Array<{ id: string; name: string }>>([])
+  const [leads, setLeads] = useState<Array<{ id: string; name: string }>>([])
+  const [createForm, setCreateForm] = useState({
+    seller_id: '',
+    lead_id: '',
+    cargo: '',
+    percentage: '10',
+    amount: '',
+    due_date: '',
+    password: '',
+  })
+  const [creating, setCreating] = useState(false)
+  const [createError, setCreateError] = useState('')
 
   const supabase = createClient()
   const canManageAll = currentUser.role === 'admin' || currentUser.role === 'financeiro'
@@ -47,6 +62,20 @@ export function ComissoesTab({ currentUser }: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
+  useEffect(() => {
+    const loadSellerData = async () => {
+      if (!showCreateModal) return
+      const client = createClient()
+      const [{ data: sellersData }, { data: leadsData }] = await Promise.all([
+        client.from('profiles').select('id, name').eq('role', 'comercial'),
+        client.from('leads').select('id, name').order('name'),
+      ])
+      setSellers(sellersData ?? [])
+      setLeads(leadsData ?? [])
+    }
+    loadSellerData()
+  }, [showCreateModal])
+
   const handleStatusChange = async (id: string, status: Commission['status']) => {
     if (!canManageAll) return
     await supabase.from('commissions').update({
@@ -54,6 +83,52 @@ export function ComissoesTab({ currentUser }: Props) {
       paid_at: status === 'paga' ? new Date().toISOString() : null,
     }).eq('id', id)
     setCommissions(prev => prev.map(c => c.id === id ? { ...c, status } : c))
+  }
+
+  const handleCreateCommission = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setCreateError('')
+    setCreating(true)
+
+    try {
+      if (!createForm.seller_id || !createForm.percentage || !createForm.amount) {
+        throw new Error('Preencha todos os campos obrigatórios')
+      }
+
+      const seller = sellers.find(s => s.id === createForm.seller_id)
+      const lead = leads.find(l => l.id === createForm.lead_id)
+
+      const newCommission = {
+        seller_id: createForm.seller_id,
+        seller_name: seller?.name,
+        lead_id: createForm.lead_id || null,
+        lead_name: lead?.name || null,
+        cargo: createForm.cargo || null,
+        amount: parseFloat(createForm.amount),
+        percentage: parseFloat(createForm.percentage),
+        status: 'pendente' as const,
+        due_date: createForm.due_date || null,
+      }
+
+      const { data, error } = await supabase.from('commissions').insert(newCommission).select().single()
+      if (error) throw error
+
+      setCommissions(prev => [data, ...prev])
+      setShowCreateModal(false)
+      setCreateForm({
+        seller_id: '',
+        lead_id: '',
+        cargo: '',
+        percentage: '10',
+        amount: '',
+        due_date: '',
+        password: '',
+      })
+    } catch (err) {
+      setCreateError(err instanceof Error ? err.message : 'Erro ao criar comissão')
+    } finally {
+      setCreating(false)
+    }
   }
 
   const filtered = statusFilter === 'todos'
@@ -74,6 +149,14 @@ export function ComissoesTab({ currentUser }: Props) {
           <p className="text-xs text-muted-foreground font-medium">Total de Comissões</p>
           <p className="text-2xl font-bold text-foreground mt-1 tabular-nums">{fmt(total)}</p>
           <p className="text-xs text-muted-foreground mt-0.5">{commissions.length} registros</p>
+          {canManageAll && (
+            <button
+              onClick={() => setShowCreateModal(true)}
+              className="mt-3 w-full bg-primary-600 text-white text-xs px-3 py-2 rounded-lg font-medium hover:bg-primary-700 transition-colors"
+            >
+              + Nova Comissão
+            </button>
+          )}
         </div>
         <div className="stat-card before:bg-amber-500">
           <p className="text-xs text-amber-400 font-medium">A Pagar</p>
@@ -178,6 +261,147 @@ export function ComissoesTab({ currentUser }: Props) {
           </div>
         )}
       </div>
+
+      {/* Modal - Nova Comissão */}
+      {showCreateModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-[#161b22] rounded-xl border border-[#2d3748] max-w-md w-full p-6 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-lg font-semibold text-foreground">Nova Comissão</h2>
+              <button
+                onClick={() => {
+                  setShowCreateModal(false)
+                  setCreateError('')
+                }}
+                className="text-muted-foreground hover:text-foreground text-2xl leading-none"
+              >
+                ×
+              </button>
+            </div>
+
+            {createError && (
+              <div className="mb-4 p-3 bg-red-900/30 border border-red-800/50 rounded-lg text-sm text-red-400">
+                {createError}
+              </div>
+            )}
+
+            <form onSubmit={handleCreateCommission} className="space-y-4">
+              <div>
+                <label className="block text-xs font-medium text-muted-foreground mb-1">Vendedor *</label>
+                <select
+                  value={createForm.seller_id}
+                  onChange={e => setCreateForm(p => ({ ...p, seller_id: e.target.value }))}
+                  className="w-full bg-[#1e2533] border border-[#2d3748] rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:border-primary-600"
+                  required
+                >
+                  <option value="">Selecione um vendedor</option>
+                  {sellers.map(s => (
+                    <option key={s.id} value={s.id}>{s.name}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-muted-foreground mb-1">Lead</label>
+                <select
+                  value={createForm.lead_id}
+                  onChange={e => setCreateForm(p => ({ ...p, lead_id: e.target.value }))}
+                  className="w-full bg-[#1e2533] border border-[#2d3748] rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:border-primary-600"
+                >
+                  <option value="">Selecione um lead (opcional)</option>
+                  {leads.map(l => (
+                    <option key={l.id} value={l.id}>{l.name}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-muted-foreground mb-1">Cargo</label>
+                <input
+                  type="text"
+                  value={createForm.cargo}
+                  onChange={e => setCreateForm(p => ({ ...p, cargo: e.target.value }))}
+                  placeholder="ex: ADS Manager"
+                  className="w-full bg-[#1e2533] border border-[#2d3748] rounded-lg px-3 py-2 text-sm text-foreground placeholder-muted-foreground focus:outline-none focus:border-primary-600"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-medium text-muted-foreground mb-1">Percentual % *</label>
+                  <input
+                    type="number"
+                    value={createForm.percentage}
+                    onChange={e => setCreateForm(p => ({ ...p, percentage: e.target.value }))}
+                    min="0"
+                    max="100"
+                    step="0.1"
+                    className="w-full bg-[#1e2533] border border-[#2d3748] rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:border-primary-600"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-muted-foreground mb-1">Valor (R$) *</label>
+                  <input
+                    type="number"
+                    value={createForm.amount}
+                    onChange={e => setCreateForm(p => ({ ...p, amount: e.target.value }))}
+                    min="0"
+                    step="0.01"
+                    placeholder="0,00"
+                    className="w-full bg-[#1e2533] border border-[#2d3748] rounded-lg px-3 py-2 text-sm text-foreground placeholder-muted-foreground focus:outline-none focus:border-primary-600"
+                    required
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-muted-foreground mb-1">Vencimento</label>
+                <input
+                  type="date"
+                  value={createForm.due_date}
+                  onChange={e => setCreateForm(p => ({ ...p, due_date: e.target.value }))}
+                  className="w-full bg-[#1e2533] border border-[#2d3748] rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:border-primary-600"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-muted-foreground mb-1">Confirmar com Senha *</label>
+                <input
+                  type="password"
+                  value={createForm.password}
+                  onChange={e => setCreateForm(p => ({ ...p, password: e.target.value }))}
+                  placeholder="Digite sua senha"
+                  className="w-full bg-[#1e2533] border border-[#2d3748] rounded-lg px-3 py-2 text-sm text-foreground placeholder-muted-foreground focus:outline-none focus:border-primary-600"
+                  required
+                />
+                <p className="text-xs text-muted-foreground mt-1">Você será pedido para confirmar com sua senha</p>
+              </div>
+
+              <div className="flex gap-2 pt-4">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowCreateModal(false)
+                    setCreateError('')
+                  }}
+                  disabled={creating}
+                  className="flex-1 bg-[#1e2533] border border-[#2d3748] text-foreground px-4 py-2 rounded-lg font-medium hover:bg-[#262d35] transition-colors disabled:opacity-50"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={creating}
+                  className="flex-1 bg-primary-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-primary-700 transition-colors disabled:opacity-50"
+                >
+                  {creating ? 'Salvando...' : 'Criar Comissão'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

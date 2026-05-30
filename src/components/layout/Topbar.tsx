@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { signOut } from '@/lib/supabase/auth-actions'
 
 interface TopbarProps {
@@ -40,6 +41,27 @@ function LiveClock({ timezone, flag }: { timezone: string; flag: string }) {
 
 export function Topbar({ title, onMenuToggle, userName = 'Usuário', userInitial = 'U', userRole = '' }: TopbarProps) {
   const [dropdownOpen, setDropdownOpen] = useState(false)
+  const [isLoggingOut, setIsLoggingOut] = useState(false)
+  const router = useRouter()
+
+  const handleLogout = async () => {
+    setDropdownOpen(false)
+    setIsLoggingOut(true)
+
+    try {
+      // Chama a Server Action de logout
+      await signOut()
+      // Se chegou aqui, o signOut não fez redirect (possível erro)
+      // Fallback: redireciona manualmente
+      window.location.href = '/login'
+    } catch {
+      // signOut() faz redirect(), que lança uma exceção
+      // Se chegarmos aqui, tenta redirecionar manualmente
+      setTimeout(() => {
+        window.location.href = '/login'
+      }, 100)
+    }
+  }
 
   return (
     <header className="h-14 border-b border-[#2d3748] bg-[#0d1117] flex items-center px-4 gap-4 shrink-0">
@@ -89,14 +111,29 @@ export function Topbar({ title, onMenuToggle, userName = 'Usuário', userInitial
                   <p className="text-xs text-muted-foreground">{ROLE_LABELS[userRole] ?? userRole}</p>
                 </div>
                 <button
-                  onClick={() => { setDropdownOpen(false); signOut() }}
-                  className="w-full text-left px-3 py-2.5 text-sm text-red-400 hover:bg-red-900/20 transition-colors flex items-center gap-2.5"
+                  onClick={() => { setDropdownOpen(false); router.push('/perfil') }}
+                  className="w-full text-left px-3 py-2.5 text-sm text-foreground hover:bg-[#2d3748] transition-colors flex items-center gap-2.5"
                 >
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75}
-                      d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                      d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
                   </svg>
-                  Sair
+                  Meu Perfil
+                </button>
+                <button
+                  onClick={handleLogout}
+                  disabled={isLoggingOut}
+                  className="w-full text-left px-3 py-2.5 text-sm text-red-400 hover:bg-red-900/20 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2.5"
+                >
+                  {isLoggingOut ? (
+                    <span className="w-4 h-4 border-2 border-red-400/30 border-t-red-400 rounded-full animate-spin" />
+                  ) : (
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75}
+                        d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                    </svg>
+                  )}
+                  {isLoggingOut ? 'Saindo...' : 'Sair'}
                 </button>
               </div>
             </>

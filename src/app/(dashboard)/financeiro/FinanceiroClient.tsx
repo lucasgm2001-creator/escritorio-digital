@@ -23,6 +23,7 @@ interface Props {
   stats: { receitas: number; despesas: number; saldo: number; pendentes: number }
   serie: SeriePoint[]
   payments: Payment[]
+  userRole?: string
 }
 
 function fmtBRL(v: number) {
@@ -120,12 +121,24 @@ function CashFlowChart({ serie }: { serie: SeriePoint[] }) {
   )
 }
 
-export function FinanceiroClient({ stats, serie, payments }: Props) {
+export function FinanceiroClient({ stats, serie, payments, userRole }: Props) {
   const [showModal, setShowModal] = useState(false)
   const [form, setForm] = useState(MODAL_EMPTY)
   const [saving, setSaving] = useState(false)
   const [list, setList] = useState<Payment[]>(payments)
   const [filter, setFilter] = useState<'todos' | 'receita' | 'despesa'>('todos')
+
+  // Verificar se usuário tem acesso ao módulo financeiro
+  if (userRole !== 'financeiro' && userRole !== 'admin') {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-center">
+          <h1 className="text-2xl font-bold text-foreground mb-2">Acesso Negado</h1>
+          <p className="text-muted-foreground">Você não tem permissão para acessar o módulo financeiro.</p>
+        </div>
+      </div>
+    )
+  }
 
   const supabase = createClient()
 

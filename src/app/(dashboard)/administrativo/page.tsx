@@ -1,8 +1,23 @@
+import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { AdminClient } from './AdminClient'
 
 export default async function AdministrativoPage() {
   const supabase = createClient()
+
+  // Verificar autenticação e autorização
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) redirect('/login')
+
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('role')
+    .eq('id', user.id)
+    .single()
+
+  if (profile?.role !== 'admin') {
+    redirect('/hall')
+  }
 
   const [
     { data: profiles },
@@ -23,6 +38,7 @@ export default async function AdministrativoPage() {
       profiles={profiles ?? []}
       stats={{ totalLeads: totalLeads ?? 0, totalClients: totalClients ?? 0, totalSellers: totalSellers ?? 0 }}
       recentActivities={recentActivities ?? []}
+      userRole={profile?.role}
     />
   )
 }

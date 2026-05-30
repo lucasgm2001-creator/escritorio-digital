@@ -2,6 +2,7 @@
 
 import { useState, useRef } from 'react'
 import { timeAgo, formatDate } from '@/lib/utils'
+import { ThemeSelector } from '@/components/ThemeSelector'
 
 interface Profile { id: string; name: string; role: string; email?: string; created_at: string }
 interface Activity { id: string; type: string; description: string; user_name?: string; created_at: string }
@@ -12,9 +13,10 @@ interface Props {
   profiles: Profile[]
   stats: Stats
   recentActivities: Activity[]
+  userRole?: string
 }
 
-type Tab = 'equipe' | 'atividades' | 'documentos' | 'financeiro'
+type Tab = 'equipe' | 'atividades' | 'documentos' | 'financeiro' | 'configuracoes'
 
 const ROLE_LABEL: Record<string, string> = {
   admin: 'Administrador', comercial: 'Comercial',
@@ -43,6 +45,7 @@ const TABS: { key: Tab; label: string }[] = [
   { key: 'atividades',  label: 'Atividades' },
   { key: 'documentos',  label: 'Documentos' },
   { key: 'financeiro',  label: 'Financeiro Interno' },
+  { key: 'configuracoes', label: 'Configurações' },
 ]
 
 // Dummy financeiro data
@@ -55,10 +58,22 @@ const EXPENSE_ITEMS = [
   { desc: 'Outros', amount: 0, note: '' },
 ]
 
-export function AdminClient({ profiles, stats, recentActivities }: Props) {
+export function AdminClient({ profiles, stats, recentActivities, userRole }: Props) {
   const [tab, setTab] = useState<Tab>('equipe')
   const [docs, setDocs] = useState<DocFile[]>([])
   const fileRef = useRef<HTMLInputElement>(null)
+
+  // Verificar se usuário é admin
+  if (userRole !== 'admin') {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-center">
+          <h1 className="text-2xl font-bold text-foreground mb-2">Acesso Negado</h1>
+          <p className="text-muted-foreground">Você não tem permissão para acessar esta área.</p>
+        </div>
+      </div>
+    )
+  }
 
   const handleUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files
@@ -317,6 +332,36 @@ export function AdminClient({ profiles, stats, recentActivities }: Props) {
               <p className="text-xs text-muted-foreground">
                 Esta seção será expandida com integração ao módulo Financeiro e ao Supabase em versões futuras.
               </p>
+            </div>
+          </div>
+        )}
+
+        {/* === CONFIGURAÇÕES === */}
+        {tab === 'configuracoes' && (
+          <div className="space-y-6 animate-fade-in max-w-md">
+            <div>
+              <h3 className="text-sm font-semibold text-foreground mb-4">Aparência</h3>
+              <ThemeSelector />
+            </div>
+
+            <div className={card}>
+              <div className="px-4 py-3 border-b border-[#2d3748]">
+                <h3 className="text-sm font-semibold text-foreground">Informações do Sistema</h3>
+              </div>
+              <div className="divide-y divide-[#2d3748]/60">
+                <div className="px-4 py-3">
+                  <p className="text-xs text-muted-foreground">Versão</p>
+                  <p className="text-sm text-foreground font-medium mt-1">PATCH 0.1</p>
+                </div>
+                <div className="px-4 py-3">
+                  <p className="text-xs text-muted-foreground">Ambiente</p>
+                  <p className="text-sm text-foreground font-medium mt-1">{process.env.NODE_ENV === 'production' ? 'Produção' : 'Desenvolvimento'}</p>
+                </div>
+                <div className="px-4 py-3">
+                  <p className="text-xs text-muted-foreground">Data</p>
+                  <p className="text-sm text-foreground font-medium mt-1">{new Date().toLocaleDateString('pt-BR')}</p>
+                </div>
+              </div>
             </div>
           </div>
         )}

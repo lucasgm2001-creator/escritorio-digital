@@ -9,9 +9,25 @@ export class ComercialAgent {
   async analyzeLeads(leads: Lead[]): Promise<AgentAnalysis> {
     const summary = `Total: ${leads.length} leads | Fechados: ${leads.filter(l => l.status === 'fechado').length} | Em negociação: ${leads.filter(l => l.status === 'proposta').length}`
 
+    // Sanitizar dados sensíveis
+    const safeLeads = leads.slice(0, 10).map(l => ({
+      id: l.id,
+      name: (l.name || '').replace(/[\r\n`{}]/g, ' ').slice(0, 50),
+      company: (l.company || '').replace(/[\r\n`{}]/g, ' ').slice(0, 50),
+      score: Math.min(1000, Math.max(0, l.score || 0)),
+      status: (l.status || '').replace(/[\r\n`{}]/g, ' '),
+      value: l.value || 0,
+    }))
+
     const { text } = await generateText({
       model: anthropic('claude-sonnet-4-6'),
-      prompt: `Analise estes leads comerciais e forneça insights estratégicos: ${JSON.stringify(leads.slice(0, 10))}. Responda em português com 3 insights e 3 recomendações objetivas.`,
+      system: 'Você é um agente comercial expert. Analise os leads e forneça insights estratégicos. Responda em português com 3 insights e 3 recomendações objetivas.',
+      messages: [
+        {
+          role: 'user',
+          content: `Analise estes leads comerciais: ${JSON.stringify(safeLeads)}`,
+        },
+      ],
       maxOutputTokens: 500,
     })
 
@@ -29,9 +45,20 @@ export class ComercialAgent {
   }
 
   async suggestFollowUp(lead: Lead): Promise<string> {
+    // Sanitizar dados do lead
+    const sanitize = (s: string) => (s || '').replace(/[\r\n`{}]/g, ' ').slice(0, 100)
+    const safeName = sanitize(lead.name)
+    const safeStatus = sanitize(lead.status)
+
     const { text } = await generateText({
       model: anthropic('claude-sonnet-4-6'),
-      prompt: `Sugira uma mensagem de follow-up para o lead: ${lead.name}, status: ${lead.status}. Seja breve e objetivo, em português.`,
+      system: 'Você é um assistente comercial. Sugira mensagens de follow-up profissionais e objetivo em português.',
+      messages: [
+        {
+          role: 'user',
+          content: `Sugira uma mensagem de follow-up para o lead: ${safeName}, status: ${safeStatus}. Seja breve e objetivo.`,
+        },
+      ],
       maxOutputTokens: 200,
     })
     return text

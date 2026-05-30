@@ -1,27 +1,75 @@
 import { generateText } from 'ai'
 import { anthropic } from '@ai-sdk/anthropic'
 import { NextResponse } from 'next/server'
+import { requireAuth } from '@/lib/supabase/require-auth'
+import { checkRateLimit } from '@/lib/rate-limit'
+
+const MAX_TEXT_LENGTH = 2000
 
 export async function POST(req: Request) {
-  const { text } = await req.json()
+  // Verificar autenticação
+  const authResult = await requireAuth()
+  if ('error' in authResult) {
+    return authResult.error
+  }
+
+  // Verificar rate limiting (20 req/min por usuário)
+  if (!checkRateLimit(authResult.user.id)) {
+    return NextResponse.json(
+      { error: 'Muitas requisições. Aguarde um momento.' },
+      { status: 429 }
+    )
+  }
 
   try {
+    const body = await req.json()
+
+    // Validar campo text
+    if (typeof body.text !== 'string' || !body.text.trim()) {
+      return NextResponse.json(
+        { error: 'Campo text é obrigatório e deve ser uma string' },
+        { status: 400 }
+      )
+    }
+
+    if (body.text.length > MAX_TEXT_LENGTH) {
+      return NextResponse.json(
+        { error: `Campo text não pode exceder ${MAX_TEXT_LENGTH} caracteres` },
+        { status: 400 }
+      )
+    }
+
+    const { text } = body
+
     const { text: result } = await generateText({
       model: anthropic('claude-haiku-4-5-20251001'),
-      prompt: `Extraia os dados do lead abaixo e retorne APENAS um JSON válido com as chaves: name, company, email, phone, notes. Se não encontrar, use string vazia.
-
-Texto: ${text}
-
-Responda apenas com o JSON, sem explicações.`,
+      system: 'Extraia os dados do lead abaixo e retorne APENAS um JSON válido com as chaves: name, company, email, phone, notes. Se não encontrar, use string vazia. Responda apenas com o JSON, sem explicações.',
+      messages: [
+        {
+          role: 'user',
+          content: text,
+        },
+      ],
       maxOutputTokens: 300,
     })
 
-    const jsonMatch = result.match(/\{[\s\S]*\}/)
-    if (!jsonMatch) return NextResponse.json({ lead: null })
+    const jsonMatch = result.match(/^\s*\{[\s\S]*\}\s*$/)
+    if (!jsonMatch) {
+      return NextResponse.json({ lead: null })
+    }
 
-    const lead = JSON.parse(jsonMatch[0])
+    let lead
+    try {
+      lead = JSON.parse(jsonMatch[0])
+    } catch {
+      return NextResponse.json({ lead: null })
+    }
     return NextResponse.json({ lead })
   } catch {
-    return NextResponse.json({ lead: null })
+    console.error('[parse-lead] Failed to parse')
+    return NextResponse.json(
+      { lead: null },
+      { status: 500 }
+    )
   }
 }
