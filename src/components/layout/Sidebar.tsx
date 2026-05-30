@@ -83,12 +83,12 @@ export function Sidebar({ open, onToggle, userRole = '', mobileClose }: SidebarP
     <aside
       className={cn(
         'flex flex-col h-screen transition-all duration-200 ease-in-out shrink-0 relative z-30',
-        'bg-gradient-sidebar border-r border-[rgba(255,255,255,0.05)]',
+        'bg-sidebar border-r border-sidebar-border/10',
         isMobileDrawer ? 'w-56' : open ? 'w-56' : 'w-[60px]'
       )}
     >
       {/* Logo */}
-      <div className="flex items-center h-14 px-3.5 border-b border-[rgba(255,255,255,0.05)] overflow-hidden">
+      <div className="flex items-center h-14 px-3.5 border-b border-sidebar-border/10 overflow-hidden">
         <div className="w-7 h-7 rounded-lg bg-primary-600 flex items-center justify-center shrink-0 shadow-glow-sm">
           <svg className="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 24 24">
             <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
@@ -96,13 +96,13 @@ export function Sidebar({ open, onToggle, userRole = '', mobileClose }: SidebarP
         </div>
         {(open || isMobileDrawer) && (
           <div className="ml-2.5 overflow-hidden flex-1">
-            <span className="font-bold text-white text-sm tracking-tight whitespace-nowrap">DR Growth</span>
-            <p className="text-[10px] text-slate-500 whitespace-nowrap leading-none mt-0.5">Escritório Digital</p>
+            <span className="font-bold text-sidebar-foreground text-sm tracking-tight whitespace-nowrap">DR Growth</span>
+            <p className="text-[10px] text-sidebar-muted whitespace-nowrap leading-none mt-0.5">Escritório Digital</p>
           </div>
         )}
         {isMobileDrawer && (
           <button onClick={mobileClose}
-            className="ml-auto p-1.5 rounded-lg hover:bg-[rgba(255,255,255,0.06)] transition-colors text-slate-500 hover:text-slate-300"
+            className="ml-auto p-1.5 rounded-lg hover:bg-sidebar-accent/10 transition-colors text-sidebar-muted hover:text-sidebar-foreground"
             aria-label="Fechar menu">
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -121,10 +121,10 @@ export function Sidebar({ open, onToggle, userRole = '', mobileClose }: SidebarP
           <>
             {(open || isMobileDrawer) && (
               <div className="px-2 pt-4 pb-1">
-                <p className="text-[10px] uppercase tracking-wider text-slate-600 font-semibold">Sistema</p>
+                <p className="text-[10px] uppercase tracking-wider text-sidebar-muted font-semibold">Sistema</p>
               </div>
             )}
-            {!(open || isMobileDrawer) && <div className="my-2 mx-2 border-t border-[rgba(255,255,255,0.06)]" />}
+            {!(open || isMobileDrawer) && <div className="my-2 mx-2 border-t border-sidebar-border/10" />}
             {systemItems.map(item => (
               <NavLink key={item.href} item={item} pathname={pathname} open={open || isMobileDrawer} />
             ))}
@@ -136,7 +136,7 @@ export function Sidebar({ open, onToggle, userRole = '', mobileClose }: SidebarP
       {!isMobileDrawer && (
         <button
           onClick={onToggle}
-          className="m-2 p-2 rounded-lg hover:bg-[rgba(255,255,255,0.06)] transition-colors text-slate-500 hover:text-slate-300 flex items-center justify-center"
+          className="m-2 p-2 rounded-lg hover:bg-sidebar-accent/10 transition-colors text-sidebar-muted hover:text-sidebar-foreground flex items-center justify-center"
           aria-label={open ? 'Fechar sidebar' : 'Abrir sidebar'}
         >
           <svg

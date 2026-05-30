@@ -2,40 +2,67 @@
 @tailwind components;
 @tailwind utilities;
 
-/* ─── CSS Variables ─────────────────────────────────────────── */
+/* ════════════════════════════════════════════════════════════════
+   PALETA DE TEMAS — variáveis em canais RGB (R G B), sem vírgula.
+   Formato exigido para que rgb(var(--x) / <alpha-value>) suporte
+   modificadores de opacidade do Tailwind (ex: bg-card/50).
+   :root = tema escuro (padrão).  html.light = tema claro.
+   ════════════════════════════════════════════════════════════════ */
 :root {
-  --background:       #0d1117;
-  --foreground:       #e6edf3;
-  --card:             #161b27;
-  --card-foreground:  #e6edf3;
-  --muted:            #161b22;
-  --muted-foreground: #7d8590;
-  --border:           rgba(255,255,255,0.06);
-  --border-solid:     #2d3748;
-  --input:            #1e2533;
-  --ring:             #6366f1;
-  --primary:          #6366f1;
-  --brand:            #0f2044;
-  --radius:           0.75rem;
-  --glow-primary:     rgba(99,102,241,0.35);
+  /* Superfícies / texto */
+  --c-background:         13 17 23;     /* #0d1117 */
+  --c-foreground:         230 237 243;  /* #e6edf3 */
+  --c-card:               22 27 39;     /* #161b27 */
+  --c-card-foreground:    230 237 243;
+  --c-muted:              22 27 34;     /* #161b22 */
+  --c-muted-foreground:   125 133 144;  /* #7d8590 */
+  --c-border:             45 55 72;     /* #2d3748 */
+  --c-input:              30 37 51;     /* #1e2533 */
+  --c-popover:            30 37 51;     /* #1e2533 */
+  --c-popover-foreground: 230 237 243;
+  --c-accent:             30 37 51;     /* #1e2533 */
+  --c-accent-foreground:  230 237 243;
+  --c-ring:               99 102 241;   /* #6366f1 */
+
+  /* Sidebar */
+  --c-sidebar:            15 17 23;     /* #0f1117 */
+  --c-sidebar-foreground: 237 242 247;  /* #edf2f7 */
+  --c-sidebar-muted:      125 133 144;  /* #7d8590 */
+  --c-sidebar-border:     255 255 255;  /* usado com baixa opacidade */
+  --c-sidebar-accent:     129 140 248;  /* #818cf8 */
+
+  --radius:        0.75rem;
+  --glow-primary:  rgba(99,102,241,0.35);
+  --shadow-card:   0 4px 24px rgba(0,0,0,0.30);
+  --shadow-hover:  0 8px 32px rgba(0,0,0,0.40), 0 0 0 1px rgba(99,102,241,0.15);
 }
 
-/* Light theme variables */
+/* ─── Tema claro ─────────────────────────────────────────────── */
 html.light {
-  --background:       #ffffff;
-  --foreground:       #24292f;
-  --card:             #f6f8fa;
-  --card-foreground:  #24292f;
-  --muted:            #eaeef2;
-  --muted-foreground: #57606a;
-  --border:           rgba(0,0,0,0.06);
-  --border-solid:     #d0d7de;
-  --input:            #f6f8fa;
-  --ring:             #6366f1;
-  --primary:          #6366f1;
-  --brand:            #0f2044;
-  --radius:           0.75rem;
-  --glow-primary:     rgba(99,102,241,0.15);
+  --c-background:         246 248 250;  /* #f6f8fa  (canvas levemente cinza) */
+  --c-foreground:         31 35 40;     /* #1f2328  texto escuro legível */
+  --c-card:               255 255 255;  /* #ffffff  cartões brancos sobre o canvas */
+  --c-card-foreground:    31 35 40;
+  --c-muted:              234 238 242;  /* #eaeef2 */
+  --c-muted-foreground:   87 96 106;    /* #57606a */
+  --c-border:             208 215 222;  /* #d0d7de */
+  --c-input:              255 255 255;  /* #ffffff  com borda */
+  --c-popover:            255 255 255;
+  --c-popover-foreground: 31 35 40;
+  --c-accent:             234 238 242;  /* #eaeef2 */
+  --c-accent-foreground:  31 35 40;
+  --c-ring:               99 102 241;
+
+  /* Sidebar clara */
+  --c-sidebar:            241 245 249;  /* #f1f5f9 */
+  --c-sidebar-foreground: 30 41 59;     /* #1e293b */
+  --c-sidebar-muted:      100 116 139;  /* #64748b */
+  --c-sidebar-border:     0 0 0;        /* usado com baixa opacidade */
+  --c-sidebar-accent:     79 70 229;    /* #4f46e5  indigo mais escuro p/ contraste em fundo claro */
+
+  --glow-primary:  rgba(99,102,241,0.12);
+  --shadow-card:   0 1px 3px rgba(27,31,36,0.08), 0 1px 2px rgba(27,31,36,0.06);
+  --shadow-hover:  0 4px 16px rgba(27,31,36,0.10), 0 0 0 1px rgba(99,102,241,0.12);
 }
 
 /* ─── Base ───────────────────────────────────────────────────── */
@@ -45,22 +72,25 @@ html.light {
   html { -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility; }
 
   body {
-    background-color: var(--background);
-    color: var(--foreground);
+    background-color: rgb(var(--c-background));
+    color: rgb(var(--c-foreground));
     font-feature-settings: "rlig" 1, "calt" 1;
   }
 
-  /* Dark scrollbar */
-  ::-webkit-scrollbar         { width: 5px; height: 5px; }
-  ::-webkit-scrollbar-track   { background: transparent; }
-  ::-webkit-scrollbar-thumb   { background: #2d3748; border-radius: 4px; }
-  ::-webkit-scrollbar-thumb:hover { background: #4a5568; }
+  ::selection { background: rgba(99,102,241,0.30); }
 
+  /* Scrollbar — adapta ao tema */
+  ::-webkit-scrollbar         { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track   { background: transparent; }
+  ::-webkit-scrollbar-thumb   { background: rgb(var(--c-border)); border-radius: 4px; }
+  ::-webkit-scrollbar-thumb:hover { background: rgb(var(--c-muted-foreground)); }
+
+  /* Inputs herdam tokens do tema por padrão */
   input, textarea, select {
-    background-color: var(--input);
-    color: var(--foreground);
+    background-color: rgb(var(--c-input));
+    color: rgb(var(--c-foreground));
   }
-  input::placeholder, textarea::placeholder { color: var(--muted-foreground); }
+  input::placeholder, textarea::placeholder { color: rgb(var(--c-muted-foreground)); }
 }
 
 /* ─── Keyframes ──────────────────────────────────────────────── */
@@ -78,12 +108,12 @@ html.light {
 /* ─── Components ─────────────────────────────────────────────── */
 @layer components {
 
-  /* Stat card with accent left bar */
+  /* Stat card com barra de destaque à esquerda */
   .stat-card {
     @apply relative overflow-hidden rounded-xl border p-5 transition-all duration-200;
-    background: var(--card);
-    border-color: var(--border);
-    box-shadow: 0 4px 24px rgba(0,0,0,0.3);
+    background: rgb(var(--c-card));
+    border-color: rgb(var(--c-border));
+    box-shadow: var(--shadow-card);
   }
   .stat-card::before {
     content: '';
@@ -93,23 +123,21 @@ html.light {
     border-radius: 4px 0 0 4px;
   }
   .stat-card:hover {
-    border-color: rgba(99,102,241,0.25);
-    box-shadow: 0 4px 32px rgba(0,0,0,0.4);
+    border-color: rgba(99,102,241,0.30);
+    box-shadow: var(--shadow-hover);
     transform: translateY(-1px);
   }
-  .stat-number {
-    animation: countUp 0.5s ease-out both;
-  }
+  .stat-number { animation: countUp 0.5s ease-out both; }
 
-  /* Glass panel */
+  /* Glass panel — usa a superfície do tema */
   .glass-card {
-    background: rgba(22,27,39,0.85);
+    background: rgb(var(--c-card) / 0.85);
     backdrop-filter: blur(16px);
-    border: 1px solid var(--border);
-    box-shadow: 0 4px 24px rgba(0,0,0,0.3);
+    border: 1px solid rgb(var(--c-border));
+    box-shadow: var(--shadow-card);
   }
 
-  /* Gradient text (page titles) */
+  /* Texto em gradiente (títulos) */
   .text-gradient {
     background: linear-gradient(135deg, #818cf8 0%, #c084fc 100%);
     -webkit-background-clip: text;
@@ -117,7 +145,7 @@ html.light {
     background-clip: text;
   }
 
-  /* Primary button with gradient */
+  /* Botão primário com gradiente */
   .btn-primary {
     background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
     box-shadow: 0 0 0 rgba(99,102,241,0);
@@ -129,40 +157,13 @@ html.light {
   }
   .btn-primary:active { transform: translateY(0); }
 
-  /* Sidebar nav item active */
-  .nav-item-active {
-    background: linear-gradient(90deg, rgba(99,102,241,0.15) 0%, rgba(99,102,241,0.05) 100%);
-    border-left: 2px solid #6366f1;
-    color: #a5b4fc;
-  }
-  .nav-item-active svg { color: #818cf8; }
-
-  /* Nav item inactive */
-  .nav-item {
-    border-left: 2px solid transparent;
-    transition: all 0.15s ease;
-    color: #7d8590;
-  }
-  .nav-item:hover {
-    background: rgba(255,255,255,0.04);
-    color: #c9d1d9;
-  }
-
-  /* Page enter animation */
-  .page-enter {
-    animation: slideUp 0.25s ease-out both;
-  }
-
-  /* Tab transition */
-  .tab-content {
-    animation: fadeIn 0.15s ease-out both;
-  }
+  .page-enter  { animation: slideUp 0.25s ease-out both; }
+  .tab-content { animation: fadeIn 0.15s ease-out both; }
 }
 
 /* ─── Utilities ──────────────────────────────────────────────── */
 @layer utilities {
   .text-balance { text-wrap: balance; }
-
   .glow-primary { box-shadow: 0 0 20px var(--glow-primary); }
   .glow-sm      { box-shadow: 0 0 10px var(--glow-primary); }
 
@@ -173,70 +174,110 @@ html.light {
   .animate-glow     { animation: glowPulse 2s ease-in-out infinite; }
 }
 
-/* ─── Light theme — Tailwind semantic classes (cores baked-in no config) ── */
-/* Necessário porque tailwind.config.ts tem hex hardcoded, não CSS variables */
-html.light .text-foreground       { color: var(--foreground)       !important; }
-html.light .text-muted-foreground { color: var(--muted-foreground) !important; }
-html.light .text-card-foreground  { color: var(--card-foreground)  !important; }
-html.light .bg-background         { background-color: var(--background) !important; }
-html.light .bg-muted              { background-color: var(--muted)      !important; }
-html.light .bg-input              { background-color: var(--input)      !important; }
-html.light .bg-card               { background-color: var(--card)       !important; }
-html.light .border-border         { border-color: var(--border-solid)   !important; }
-html.light .border-input          { border-color: var(--border-solid)   !important; }
+/* ════════════════════════════════════════════════════════════════
+   CAMADA DE COMPATIBILIDADE — tema claro
+   Mapeia as cores hardcoded (#hex em classes arbitrárias) ainda
+   espalhadas pelos componentes para os tokens do tema claro.
+   Usa [class~="..."] (match de token exato) para BG, evitando que
+   variantes hover:bg-[...] sejam afetadas no estado de repouso.
+   ════════════════════════════════════════════════════════════════ */
 
-/* ─── Light theme — override hardcoded dark Tailwind classes ── */
+/* — Superfícies (background-color) — */
+html.light [class~="bg-[#0d1117]"]              { background-color: rgb(var(--c-background)) !important; }
+html.light [class~="bg-[#161b22]"],
+html.light [class~="bg-[#161b27]"],
+html.light [class~="bg-[#222c3d]"]              { background-color: rgb(var(--c-card)) !important; }
+html.light [class~="bg-[#1e2533]"]              { background-color: rgb(var(--c-input)) !important; }
+html.light [class~="bg-[#1a2133]"],
+html.light [class~="bg-[#1a2533]"]              { background-color: rgba(0,0,0,0.03) !important; }
+html.light [class~="bg-[#252d3d]"],
+html.light [class~="bg-[#262d35]"],
+html.light [class~="bg-[#2a3444]"]              { background-color: rgb(var(--c-muted)) !important; }
+html.light [class~="bg-[#2d3748]"],
+html.light [class~="bg-[#3d4f6a]"]              { background-color: rgba(0,0,0,0.08) !important; }
 
-/* Layout shells */
-html.light body          { background-color: var(--background); color: var(--foreground); }
-html.light header        { background-color: var(--background) !important; border-color: var(--border-solid) !important; }
-html.light aside         { background: linear-gradient(180deg, #f1f5f9 0%, #e2e8f0 100%) !important; border-color: rgba(0,0,0,0.08) !important; }
+/* Variantes de opacidade comuns (ex.: bg-[#0d1117]/50, /80) */
+html.light [class*="bg-[#0d1117]/"]             { background-color: rgb(var(--c-background)) !important; }
+html.light [class*="bg-[#161b22]/"]             { background-color: rgb(var(--c-card)) !important; }
+html.light [class*="bg-[#1a2133]/"]             { background-color: rgba(0,0,0,0.03) !important; }
 
-/* Sidebar nav links */
-html.light aside a                              { color: #475569; }
-html.light aside a:hover                        { background-color: rgba(0,0,0,0.04) !important; color: #1e293b; }
-html.light aside .text-slate-500                { color: #94a3b8 !important; }
-html.light aside .text-slate-600                { color: #64748b !important; }
+/* — Hover de superfícies (só no :hover) — */
+html.light [class~="hover:bg-[#1e2533]"]:hover,
+html.light [class~="hover:bg-[#2d3748]"]:hover,
+html.light [class~="hover:bg-[#252d3d]"]:hover,
+html.light [class~="hover:bg-[#2a3444]"]:hover,
+html.light [class~="hover:bg-[#262d35]"]:hover  { background-color: rgb(var(--c-muted)) !important; }
+html.light [class~="hover:bg-[#1a2133]"]:hover,
+html.light [class~="hover:bg-[#1a2533]"]:hover  { background-color: rgba(0,0,0,0.05) !important; }
 
-/* Dark backgrounds → CSS variables */
-html.light [class*="bg-[#0d1117]"]             { background-color: var(--background)  !important; }
-html.light [class*="bg-[#161b22]"]             { background-color: var(--card)        !important; }
-html.light [class*="bg-[#161b27]"]             { background-color: var(--card)        !important; }
-html.light [class*="bg-[#1e2533]"]             { background-color: var(--input)       !important; }
-html.light [class*="bg-[#252d3d]"]             { background-color: var(--muted)       !important; }
-html.light [class*="bg-[#1a2133]"]             { background-color: rgba(0,0,0,0.03)   !important; }
-html.light [class*="bg-[#1a2533]"]             { background-color: rgba(0,0,0,0.03)   !important; }
-html.light [class*="bg-gradient-card"]         { background: var(--card)              !important; }
-html.light [class*="bg-gradient-hero"]         { background: var(--background)        !important; }
-html.light [class*="bg-gradient-sidebar"]      { background: linear-gradient(180deg, #f1f5f9 0%, #e2e8f0 100%) !important; }
+/* — Bordas (substring p/ cobrir variantes /60 /50 etc.) — */
+html.light [class*="border-[#2d3748]"]          { border-color: rgb(var(--c-border)) !important; }
+html.light [class*="border-[#3d4f6a]"]          { border-color: rgba(0,0,0,0.18) !important; }
+html.light [class*="border-[#1a2133]"]          { border-color: rgba(0,0,0,0.06) !important; }
+html.light [class*="border-[rgba(255"]          { border-color: rgba(0,0,0,0.08) !important; }
+html.light [class~="hover:border-[#3d4f6a]"]:hover { border-color: rgba(0,0,0,0.28) !important; }
 
-/* Dark borders → CSS variables */
-html.light [class*="border-[#2d3748]"]         { border-color: var(--border-solid)    !important; }
-html.light [class*="border-[#3d4f6a]"]         { border-color: rgba(0,0,0,0.15)       !important; }
-html.light [class*="border-[rgba(255"]         { border-color: rgba(0,0,0,0.08)       !important; }
-html.light [class*="divide-[#2d3748]"]         > * + * { border-color: var(--border-solid) !important; }
+/* — Divisores — */
+html.light [class*="divide-[#2d3748]"] > * + *  { border-color: rgb(var(--c-border)) !important; }
 
-/* Hover states using dark arbitrary values */
-html.light [class*="hover:bg-[#1e2533]"]:hover { background-color: var(--input)       !important; }
-html.light [class*="hover:bg-[#2d3748]"]:hover { background-color: var(--muted)       !important; }
-html.light [class*="hover:bg-[#1a2133]"]:hover { background-color: rgba(0,0,0,0.04)   !important; }
-html.light [class*="hover:bg-[rgba(255"]:hover  { background-color: rgba(0,0,0,0.03)   !important; }
+/* — Textos slate fixos (sidebar e legados) que ficariam ilegíveis no claro — */
+html.light .text-slate-200,
+html.light .text-slate-300                       { color: #334155 !important; }
+html.light .text-slate-400                       { color: #57606a !important; }
+html.light .text-slate-500                       { color: #64748b !important; }
+html.light .text-slate-600                       { color: #64748b !important; }
 
-/* Progress bar tracks e superfícies com bg-[#2d3748] */
-html.light [class*="bg-[#2d3748]"]             { background-color: rgba(0,0,0,0.08) !important; }
-/* hover darker subtle backgrounds */
-html.light [class*="bg-[#262d35]"]             { background-color: var(--muted) !important; }
+/* Mantém branco legível: NÃO sobrescrever text-white em superfícies coloridas
+   (botões primários) — eles permanecem corretos nos dois temas. */
 
-/* stat-card — sombra mais leve no tema claro */
-html.light .stat-card             { box-shadow: 0 2px 12px rgba(0,0,0,0.06); }
-html.light .stat-card:hover       { box-shadow: 0 4px 20px rgba(0,0,0,0.10); }
+/* ════════════════════════════════════════════════════════════════
+   PILLS / BADGES DE STATUS — tema claro
+   No escuro usam fundo translúcido escuro (bg-COR-900/20..40) + texto
+   claro (text-COR-300/400). No claro isso fica ilegível, então:
+     • fundo  → tom claro da cor (-100/-50)
+     • texto  → tom escuro saturado (-700)
+     • borda  → tom claro (-200)
+   Apenas opacidades /20 /30 /40 (pills). Fundos sólidos /60 /90
+   (toasts) ficam intactos pois mantêm texto claro.
+   ════════════════════════════════════════════════════════════════ */
 
-/* Dark scroll */
-html.light ::-webkit-scrollbar-thumb       { background: #d1d5db; }
-html.light ::-webkit-scrollbar-thumb:hover { background: #9ca3af; }
+/* fundos translúcidos → tom claro */
+html.light [class*="bg-green-900/2"],  html.light [class*="bg-green-900/3"],  html.light [class*="bg-green-900/4"]   { background-color: #dcfce7 !important; }
+html.light [class*="bg-emerald-900/2"],html.light [class*="bg-emerald-900/3"],html.light [class*="bg-emerald-900/4"] { background-color: #d1fae5 !important; }
+html.light [class*="bg-amber-900/2"],  html.light [class*="bg-amber-900/3"],  html.light [class*="bg-amber-900/4"]   { background-color: #fef3c7 !important; }
+html.light [class*="bg-yellow-900/2"], html.light [class*="bg-yellow-900/3"], html.light [class*="bg-yellow-900/4"]  { background-color: #fef9c3 !important; }
+html.light [class*="bg-orange-900/2"], html.light [class*="bg-orange-900/3"], html.light [class*="bg-orange-900/4"]  { background-color: #ffedd5 !important; }
+html.light [class*="bg-red-900/2"],    html.light [class*="bg-red-900/3"],    html.light [class*="bg-red-900/4"]     { background-color: #fee2e2 !important; }
+html.light [class*="bg-rose-900/2"],   html.light [class*="bg-rose-900/3"],   html.light [class*="bg-rose-900/4"]    { background-color: #ffe4e6 !important; }
+html.light [class*="bg-blue-900/2"],   html.light [class*="bg-blue-900/3"],   html.light [class*="bg-blue-900/4"]    { background-color: #dbeafe !important; }
+html.light [class*="bg-indigo-900/2"], html.light [class*="bg-indigo-900/3"], html.light [class*="bg-indigo-900/4"]  { background-color: #e0e7ff !important; }
+html.light [class*="bg-purple-900/2"], html.light [class*="bg-purple-900/3"], html.light [class*="bg-purple-900/4"]  { background-color: #f3e8ff !important; }
+html.light [class*="bg-primary-900/2"],html.light [class*="bg-primary-900/3"],html.light [class*="bg-primary-900/4"] { background-color: #e0e7ff !important; }
+html.light [class*="bg-slate-800/"],   html.light [class*="bg-slate-900/"]                                          { background-color: #e2e8f0 !important; }
 
-/* glass-card in light mode */
-html.light .glass-card {
-  background: rgba(246,248,250,0.95) !important;
-  border-color: rgba(0,0,0,0.08) !important;
-}
+/* texto saturado escuro */
+html.light .text-green-400,   html.light .text-green-300    { color: #15803d !important; }
+html.light .text-emerald-400, html.light .text-emerald-300  { color: #047857 !important; }
+html.light .text-amber-400,   html.light .text-amber-300    { color: #b45309 !important; }
+html.light .text-yellow-400,  html.light .text-yellow-300   { color: #a16207 !important; }
+html.light .text-orange-400,  html.light .text-orange-300   { color: #c2410c !important; }
+html.light .text-red-400,     html.light .text-red-300      { color: #b91c1c !important; }
+html.light .text-rose-400,    html.light .text-rose-300     { color: #be123c !important; }
+html.light .text-blue-400,    html.light .text-blue-300     { color: #1d4ed8 !important; }
+html.light .text-indigo-400,  html.light .text-indigo-300   { color: #4338ca !important; }
+html.light .text-purple-400,  html.light .text-purple-300   { color: #7e22ce !important; }
+html.light .text-primary-400, html.light .text-primary-300  { color: #4338ca !important; }
+
+/* bordas translúcidas → tom claro */
+html.light [class*="border-green-800/"]   { border-color: #bbf7d0 !important; }
+html.light [class*="border-emerald-800/"] { border-color: #a7f3d0 !important; }
+html.light [class*="border-amber-800/"]   { border-color: #fde68a !important; }
+html.light [class*="border-yellow-800/"]  { border-color: #fef08a !important; }
+html.light [class*="border-orange-800/"]  { border-color: #fed7aa !important; }
+html.light [class*="border-red-800/"]     { border-color: #fecaca !important; }
+html.light [class*="border-rose-800/"]    { border-color: #fecdd3 !important; }
+html.light [class*="border-blue-800/"]    { border-color: #bfdbfe !important; }
+html.light [class*="border-indigo-800/"]  { border-color: #c7d2fe !important; }
+html.light [class*="border-purple-800/"]  { border-color: #e9d5ff !important; }
+html.light [class*="border-primary-800/"] { border-color: #c7d2fe !important; }
+html.light [class*="border-slate-700/"]   { border-color: #cbd5e1 !important; }

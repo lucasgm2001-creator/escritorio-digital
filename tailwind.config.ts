@@ -10,13 +10,13 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        // DR Growth brand (sidebar / identity)
+        // DR Growth brand (identity) — fixo nos dois temas
         brand: {
           DEFAULT: '#0f2044',
           900: '#0f2044',
           950: '#09152d',
         },
-        // Interactive primary — indigo accent
+        // Interactive primary — indigo accent (fixo nos dois temas)
         primary: {
           DEFAULT: '#6366f1',
           50:  '#eef2ff',
@@ -32,16 +32,26 @@ const config: Config = {
           950: '#1e1b4b',
         },
         secondary: { DEFAULT: '#8b5cf6', foreground: '#ffffff' },
-        // Dark surface tokens
-        background:  '#0d1117',
-        foreground:  '#e6edf3',
-        muted:       { DEFAULT: '#161b22', foreground: '#7d8590' },
-        border:      '#2d3748',
-        input:       '#1e2533',
-        ring:        '#6366f1',
-        card:        { DEFAULT: '#161b27', foreground: '#e6edf3' },
-        popover:     { DEFAULT: '#1e2533', foreground: '#e6edf3' },
-        accent:      { DEFAULT: '#1e2533', foreground: '#e6edf3' },
+        // ── Tokens semânticos theme-aware ──
+        // Canais RGB definidos em globals.css (:root = dark, html.light = claro).
+        // rgb(var() / <alpha-value>) permite modificadores de opacidade (ex: bg-card/50, text-muted-foreground/60).
+        background:  'rgb(var(--c-background) / <alpha-value>)',
+        foreground:  'rgb(var(--c-foreground) / <alpha-value>)',
+        muted:       { DEFAULT: 'rgb(var(--c-muted) / <alpha-value>)',    foreground: 'rgb(var(--c-muted-foreground) / <alpha-value>)' },
+        border:      'rgb(var(--c-border) / <alpha-value>)',
+        input:       'rgb(var(--c-input) / <alpha-value>)',
+        ring:        'rgb(var(--c-ring) / <alpha-value>)',
+        card:        { DEFAULT: 'rgb(var(--c-card) / <alpha-value>)',     foreground: 'rgb(var(--c-card-foreground) / <alpha-value>)' },
+        popover:     { DEFAULT: 'rgb(var(--c-popover) / <alpha-value>)',  foreground: 'rgb(var(--c-popover-foreground) / <alpha-value>)' },
+        accent:      { DEFAULT: 'rgb(var(--c-accent) / <alpha-value>)',   foreground: 'rgb(var(--c-accent-foreground) / <alpha-value>)' },
+        sidebar: {
+          DEFAULT:    'rgb(var(--c-sidebar) / <alpha-value>)',
+          foreground: 'rgb(var(--c-sidebar-foreground) / <alpha-value>)',
+          muted:      'rgb(var(--c-sidebar-muted) / <alpha-value>)',
+          border:     'rgb(var(--c-sidebar-border) / <alpha-value>)',
+          accent:     'rgb(var(--c-sidebar-accent) / <alpha-value>)',
+        },
+        // Status colors — fixos nos dois temas (texto sempre branco sobre eles)
         destructive: { DEFAULT: '#ef4444', foreground: '#ffffff' },
         success:     { DEFAULT: '#22c55e', foreground: '#ffffff' },
         warning:     { DEFAULT: '#f59e0b', foreground: '#ffffff' },

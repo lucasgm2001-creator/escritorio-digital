@@ -55,7 +55,7 @@ export function AgendaTab({ leads }: Props) {
         <select
           value={stageFilter}
           onChange={e => setStageFilter(e.target.value)}
-          className="border border-[var(--border-solid)] rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-primary-600 bg-[var(--input)] text-foreground"
+          className="border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-primary-600 bg-input text-foreground"
         >
           {stages.map(s => (
             <option key={s.key} value={s.key}>{s.label}</option>
