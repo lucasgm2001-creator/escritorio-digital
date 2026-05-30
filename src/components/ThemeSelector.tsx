@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
+import { Sun, Moon, Monitor } from 'lucide-react'
 
 type Theme = 'light' | 'dark' | 'auto'
 
@@ -21,13 +22,11 @@ export function ThemeSelector() {
     if (isDark) {
       html.style.colorScheme = 'dark'
       html.classList.add('dark')
-      document.body.style.backgroundColor = '#0d1117'
-      document.body.style.color = '#e6edf3'
+      html.classList.remove('light')
     } else {
       html.style.colorScheme = 'light'
+      html.classList.add('light')
       html.classList.remove('dark')
-      document.body.style.backgroundColor = '#ffffff'
-      document.body.style.color = '#24292f'
     }
   }, [])
 
@@ -82,23 +81,26 @@ export function ThemeSelector() {
       <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Tema</p>
       <div className="grid grid-cols-3 gap-2">
         {[
-          { id: 'light' as Theme, label: '☀️ Claro', icon: '☀️' },
-          { id: 'auto', label: '🔄 Automático', icon: '🔄' },
-          { id: 'dark', label: '🌙 Escuro', icon: '🌙' },
-        ].map(opt => (
-          <button
-            key={opt.id}
-            onClick={() => handleThemeChange(opt.id as Theme)}
-            className={`flex flex-col items-center justify-center gap-2 px-3 py-3 rounded-lg border transition-all ${
-              theme === opt.id
-                ? 'bg-primary-600 border-primary-600 text-white shadow-md'
-                : 'bg-[#1e2533] border-[#2d3748] text-muted-foreground hover:border-primary-600'
-            }`}
-          >
-            <span className="text-2xl">{opt.icon}</span>
-            <span className="text-xs font-medium">{opt.label.split(' ')[1]}</span>
-          </button>
-        ))}
+          { id: 'light' as Theme, label: 'Claro', Icon: Sun },
+          { id: 'auto', label: 'Automático', Icon: Monitor },
+          { id: 'dark', label: 'Escuro', Icon: Moon },
+        ].map(opt => {
+          const Icon = opt.Icon
+          return (
+            <button
+              key={opt.id}
+              onClick={() => handleThemeChange(opt.id as Theme)}
+              className={`flex flex-col items-center justify-center gap-2 px-3 py-3 rounded-lg border transition-all ${
+                theme === opt.id
+                  ? 'bg-primary-600 border-primary-600 text-white shadow-md'
+                  : 'bg-[#1e2533] border-[#2d3748] text-muted-foreground hover:border-primary-600 hover:bg-[#252d3d]'
+              }`}
+            >
+              <Icon className="w-[18px] h-[18px]" strokeWidth={1.5} />
+              <span className="text-xs font-medium">{opt.label}</span>
+            </button>
+          )
+        })}
       </div>
 
       {/* Info box */}
@@ -109,13 +111,13 @@ export function ThemeSelector() {
               <span className="font-medium text-blue-400">Automático:</span> Alterna conforme hora do dia
               <br />
               <span className="text-[10px] text-muted-foreground/70">
-                🌙 18:00 - 06:00 = Escuro | ☀️ 06:00 - 18:00 = Claro
+                Escuro 18:00 - 06:00 | Claro 06:00 - 18:00
               </span>
             </>
           ) : theme === 'light' ? (
-            <span className="text-blue-400">☀️ Tema claro ativado</span>
+            <span className="text-blue-400">Tema claro ativado</span>
           ) : (
-            <span className="text-amber-400">🌙 Tema escuro ativado</span>
+            <span className="text-amber-400">Tema escuro ativado</span>
           )}
         </p>
 
@@ -127,7 +129,7 @@ export function ThemeSelector() {
             <p>
               <span className="font-medium">Modo ativo:</span>{' '}
               <span className={isDarkNow ? 'text-amber-400' : 'text-blue-400'}>
-                {isDarkNow ? '🌙 Escuro' : '☀️ Claro'}
+                {isDarkNow ? 'Escuro' : 'Claro'}
               </span>
             </p>
           </div>

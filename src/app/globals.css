@@ -20,6 +20,24 @@
   --glow-primary:     rgba(99,102,241,0.35);
 }
 
+/* Light theme variables */
+html.light {
+  --background:       #ffffff;
+  --foreground:       #24292f;
+  --card:             #f6f8fa;
+  --card-foreground:  #24292f;
+  --muted:            #eaeef2;
+  --muted-foreground: #57606a;
+  --border:           rgba(0,0,0,0.06);
+  --border-solid:     #d0d7de;
+  --input:            #f6f8fa;
+  --ring:             #6366f1;
+  --primary:          #6366f1;
+  --brand:            #0f2044;
+  --radius:           0.75rem;
+  --glow-primary:     rgba(99,102,241,0.15);
+}
+
 /* ─── Base ───────────────────────────────────────────────────── */
 @layer base {
   * { box-sizing: border-box; }
