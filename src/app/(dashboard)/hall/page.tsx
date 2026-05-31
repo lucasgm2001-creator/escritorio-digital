@@ -26,7 +26,7 @@ export default async function HallPage() {
       initialActivities={activities ?? []}
       initialNotices={notices ?? []}
       userName={capitalizeName(profile?.name ?? user?.email?.split('@')[0] ?? 'Usuário')}
-      userRole={profile?.role ?? 'admin'}
+      userRole={profile?.role ?? ''}
       userId={user?.id ?? ''}
     />
   )

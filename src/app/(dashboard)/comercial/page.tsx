@@ -19,7 +19,7 @@ export default async function ComercialPage() {
     .single()
 
   // Role real do banco — sem fallback genérico que pode esconder permissões
-  const role = profile?.role ?? user?.user_metadata?.role ?? ''
+  const role = profile?.role ?? ''
 
   return (
     <KanbanBoard
