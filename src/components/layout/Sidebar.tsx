@@ -72,9 +72,19 @@ export function Sidebar({ open, onToggle, userRole = '', mobileClose }: SidebarP
   const pathname = usePathname()
   const isMobileDrawer = !!mobileClose
 
-  const visibleItems = NAV_ITEMS.filter(item =>
-    !item.roles || item.roles.length === 0 || item.roles.includes(userRole)
+  // Itens sem restrição de role (roles ausente ou vazio) são sempre públicos.
+  const isPublic = (item: NavItem) => !item.roles || item.roles.length === 0
+
+  let visibleItems = NAV_ITEMS.filter(item =>
+    isPublic(item) || item.roles!.includes(userRole)
   )
+
+  // Degradação elegante: se o role vier desconhecido/vazio e nada além do
+  // público sobrar, garantimos pelo menos os itens públicos (nunca um menu
+  // totalmente vazio). O caminho crítico para não perder o role está no layout.
+  if (visibleItems.length === 0) {
+    visibleItems = NAV_ITEMS.filter(isPublic)
+  }
 
   const mainItems   = visibleItems.filter(i => i.group === 'main')
   const systemItems = visibleItems.filter(i => i.group === 'system')
