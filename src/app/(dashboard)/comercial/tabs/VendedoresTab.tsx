@@ -378,7 +378,10 @@ export function VendedoresTab({ currentUser }: Props) {
           .order('name')
 
         if (error) {
-          setFetchError(error.code === '42P01' ? 'Tabela sellers não encontrada. Rode a migration 005 no Supabase.' : null)
+          setFetchError(error.code === '42P01'
+            ? 'Tabela sellers não encontrada. Rode a migration 005 no Supabase.'
+            : `Erro ao carregar vendedores: ${error.message}`
+          )
           setSellers([])
         } else {
           setSellers((data ?? []) as SellerRow[])
@@ -404,7 +407,7 @@ export function VendedoresTab({ currentUser }: Props) {
     try {
       const supabase = createClient()
       const { data, error } = await supabase.from('sellers').insert({
-        name: form.name.trim(), email: form.email.trim() || null, telefone: form.telefone.trim() || null,
+        name: form.name.trim(), email: form.email.trim() || null, phone: form.telefone.trim() || null,
         cargo: form.cargo.trim() || null, monthly_goal: monthlyGoalNum, default_commission: commissionNum,
         status: 'ativo', total_sales: 0, total_commissions: 0, leads_assigned: 0, conversion_rate: 0,
       }).select('id, name, email, cargo, monthly_goal, default_commission, fixed_salary, start_date, observations, status, leads_assigned, conversion_rate, total_sales, created_at').single()
@@ -517,6 +520,13 @@ export function VendedoresTab({ currentUser }: Props) {
           <div className="flex items-center justify-center gap-3 py-16 text-muted-foreground text-sm">
             <span className="w-5 h-5 border-2 border-muted-foreground/20 border-t-primary-500 rounded-full animate-spin" />
             Carregando...
+          </div>
+        ) : sellers.length === 0 ? (
+          <div className="py-16 text-center bg-[#161b22] border border-[#2d3748] rounded-xl">
+            <svg className="w-10 h-10 mx-auto mb-3 text-muted-foreground/20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
+            </svg>
+            <p className="text-sm text-muted-foreground font-medium">Nenhum vendedor cadastrado</p>
           </div>
         ) : sellers.map(s => (
           <div key={s.id} onClick={() => setSelectedSeller(s)}
