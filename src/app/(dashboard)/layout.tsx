@@ -29,7 +29,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
   return (
     <DashboardShell
       userName={capitalizeName(profile?.name ?? user.email?.split('@')[0] ?? 'Usuário')}
-      userRole={profile?.role ?? 'admin'}
+      userRole={profile?.role ?? ''}
       userId={user.id}
       avatarUrl={profile?.avatar_url ?? null}
       pageTitles={PAGE_TITLES}
