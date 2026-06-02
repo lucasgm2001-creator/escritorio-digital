@@ -6,6 +6,19 @@ Categorias: 🐛 Fix · 🔄 Mudança · ✨ Novidade
 
 ---
 
+🐛 Fix — sidebar mostrava só o Hall para todos (inclusive admin). Causa:
+`avatar_url` no select do `layout.tsx` (coluna ainda inexistente, migration
+pendente) derrubava a query inteira no PostgREST + erro engolido (não
+desestruturado) + fallback do role para `''`, que no filtro de NAV_ITEMS só
+deixava passar o Hall. Corrigido em camadas: (1) `layout.tsx` busca só
+`name, role` com erro desestruturado e `redirect('/login')` em falha — nunca
+renderiza com role vazio; `avatar_url` vai numa query separada e opcional
+(try/catch → null). (2) `Sidebar.tsx` trata role inválido/ausente como erro de
+sessão explícito (estado "Sessão inválida" + re-login), em vez de degradar para
+o menu só-Hall. (3) Migration das colunas e consolidação do role: aplicar no
+Supabase (Camada 3, manual). Helper `scripts/check-profiles.ts` para verificar
+os roles via service-role.
+
 🐛 Fix — scheduler do SuperAgent expunha IA cara a qualquer usuário logado.
 Causa: rota protegida só por `requireAuth()`, sem secret de cron. Corrigido
 exigindo `CRON_SECRET` como porta principal (comparação em tempo constante via

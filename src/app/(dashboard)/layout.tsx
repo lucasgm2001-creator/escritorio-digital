@@ -20,33 +20,40 @@ export default async function DashboardLayout({ children }: { children: React.Re
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
-  // Caminho crítico: só colunas garantidas (name, role). Mantemos esta query
-  // separada das colunas opcionais para que um problema de schema nunca colapse
-  // o role do usuário e derrube as permissões do shell inteiro.
+  // Caminho crítico de auth: só colunas garantidas (name, role). Falha ALTO —
+  // nunca renderizamos o shell com role vazio (causa do menu só-Hall).
   const { data: profile, error: profileError } = await supabase
     .from('profiles')
     .select('name, role')
     .eq('id', user.id)
     .single()
 
-  if (profileError) {
-    console.error('[dashboard layout] falha ao carregar name/role do perfil:', profileError.message)
+  if (profileError || !profile) {
+    console.error('[dashboard/layout] profile fetch failed:', profileError)
+    redirect('/login')
   }
 
-  // avatar_url é opcional (pode não existir antes da migration 010). Busca
-  // best-effort: qualquer erro aqui vira avatar nulo, sem afetar o role.
-  const { data: avatarRow } = await supabase
-    .from('profiles')
-    .select('avatar_url')
-    .eq('id', user.id)
-    .single()
+  // avatar_url é opcional (pode não existir antes da migration 010/011).
+  // Best-effort e isolada: qualquer erro de schema vira avatar nulo, sem
+  // nunca afetar o role acima.
+  let avatarUrl: string | null = null
+  try {
+    const { data: extra } = await supabase
+      .from('profiles')
+      .select('avatar_url')
+      .eq('id', user.id)
+      .single()
+    avatarUrl = extra?.avatar_url ?? null
+  } catch {
+    avatarUrl = null
+  }
 
   return (
     <DashboardShell
-      userName={capitalizeName(profile?.name ?? user.email?.split('@')[0] ?? 'Usuário')}
-      userRole={profile?.role ?? ''}
+      userName={capitalizeName(profile.name ?? user.email?.split('@')[0] ?? 'Usuário')}
+      userRole={profile.role}
       userId={user.id}
-      avatarUrl={avatarRow?.avatar_url ?? null}
+      avatarUrl={avatarUrl}
       pageTitles={PAGE_TITLES}
     >
       {children}
