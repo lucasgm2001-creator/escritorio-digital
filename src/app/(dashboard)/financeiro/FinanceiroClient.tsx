@@ -171,14 +171,14 @@ export function FinanceiroClient({ stats, serie, payments, userRole }: Props) {
   const inputCls = 'w-full bg-[#1e2533] border border-[#2d3748] rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary-600'
 
   return (
-    <div className="p-6 max-w-7xl mx-auto space-y-5 animate-fade-in">
+    <div className="p-4 sm:p-6 max-w-7xl mx-auto space-y-5 animate-fade-in">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-foreground tracking-tight">Financeiro</h1>
           <p className="text-muted-foreground text-sm mt-0.5">Fluxo de caixa e receitas</p>
         </div>
         <button onClick={() => setShowModal(true)}
-          className="flex items-center gap-2 bg-primary-600 hover:bg-primary-500 text-white px-4 py-2 rounded-lg text-sm font-semibold transition-colors shadow-glow-sm">
+          className="flex items-center gap-2 bg-primary-600 hover:bg-primary-500 text-white px-4 py-2 min-h-[44px] rounded-lg text-sm font-semibold transition-colors shadow-glow-sm">
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
           </svg>
@@ -289,8 +289,8 @@ export function FinanceiroClient({ stats, serie, payments, userRole }: Props) {
 
       {/* Modal */}
       {showModal && (
-        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-[#161b22] border border-[#2d3748] rounded-2xl shadow-card-hover w-full max-w-md animate-slide-up">
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-end sm:items-center justify-center z-50 p-0 sm:p-4">
+          <div className="bg-[#161b22] border border-[#2d3748] rounded-t-2xl sm:rounded-2xl shadow-card-hover w-full sm:max-w-md max-h-[92vh] overflow-y-auto animate-slide-up">
             <div className="flex items-center justify-between p-5 border-b border-[#2d3748]">
               <h2 className="font-bold text-foreground">Novo Lançamento</h2>
               <button onClick={() => setShowModal(false)} className="text-muted-foreground hover:text-foreground transition-colors">

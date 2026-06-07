@@ -38,9 +38,9 @@ export function PipelineTab({ leads }: Props) {
   const maxSellerValue = Math.max(...bySeller.map(s => s.value), 1)
 
   return (
-    <div className="p-6 space-y-5 overflow-auto h-full">
+    <div className="p-4 sm:p-6 space-y-5 overflow-auto h-full">
       {/* KPIs */}
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         {[
           { label: 'Pipeline Total', value: fmt(totalPipeline), sub: `${leads.length} leads` },
           { label: 'Ticket Médio',   value: fmt(avgTicket),     sub: 'por lead' },

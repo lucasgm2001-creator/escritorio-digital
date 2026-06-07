@@ -6,6 +6,27 @@ Categorias: 🐛 Fix · 🔄 Mudança · ✨ Novidade
 
 ---
 
+🔄 Mudança — responsividade mobile do dashboard (testado a 375px/390px).
+PRINCIPAL: o Kanban do Comercial usava `grid grid-cols-5` fixo (~860px) e
+ficava ilegível no celular. Agora, abaixo de `lg`, o funil vira um scroll
+horizontal com snap (`flex` + colunas `w-[82vw] max-w-[300px] snap-start`),
+escondendo os conectores em seta (que só fazem sentido na grade de desktop);
+em `lg+` o funil posicional de 5 colunas é mantido idêntico. O DOM é único
+(não duplica os droppables do dnd-kit). POLIMENTO geral: (1) grids fixos
+`grid-cols-3/4/5` ganharam variante responsiva (`grid-cols-1 sm:grid-cols-3`,
+`grid-cols-2 lg:grid-cols-4`, etc.) em Admin, Pipeline, Métricas, Comissões,
+Clientes e form de Vendedores; (2) CTAs principais de cada página com alvo de
+toque mínimo de 44px (`min-h-[44px]`); (3) modais (Novo Lead, Nova Campanha,
+Novo Lançamento, Comissão, Cliente, Fixo) viram bottom-sheet no mobile
+(`items-end sm:items-center`, `p-0 sm:p-4`, `rounded-t-2xl sm:rounded-2xl`,
+`w-full sm:max-w-X`, `animate-slide-up`) — antes eram cards centralizados
+cortados; (4) tabelas densas (Admin, Vendedores, Fixo) envolvidas em
+`overflow-x-auto` com `min-w` para scroll horizontal; (5) calendário do Hall:
+visão semanal vira scroll horizontal com snap no mobile (cards `min-w-[72px]`),
+mensal mantém 7 colunas (padrão); (6) paddings de página reduzidos no mobile
+(`p-4 sm:p-6` / `p-3 sm:p-5`). O menu hambúrguer já cobria todas as rotas e
+fecha ao navegar (sem mudança).
+
 ✨ Novidade — exibição da logo customizada do sistema. O upload em
 /configuracoes gravava o arquivo no bucket público `assets`
 (`site-logo/logo.jpg`) com sucesso, mas a logo nunca aparecia: o cabeçalho da

@@ -113,8 +113,8 @@ export function KanbanBoard({ initialLeads, currentUser }: { initialLeads: Lead[
     <div className="flex flex-col h-full bg-background relative">
       {/* Header */}
       <div className="flex-none bg-[#0d1117] border-b border-[#2d3748]">
-        <div className="flex items-center justify-between px-6 pt-4 pb-3">
-          <div className="flex items-center gap-3">
+        <div className="flex items-center justify-between gap-2 flex-wrap px-4 sm:px-6 pt-4 pb-3">
+          <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
             <h1 className="font-bold text-foreground text-lg tracking-tight">Comercial</h1>
             <div className="flex gap-0.5 bg-[#161b22] rounded-lg p-0.5 border border-[#2d3748]">
               {(['todos', 'brasil', 'eua'] as OperationFilter[]).map(op => (
@@ -136,9 +136,9 @@ export function KanbanBoard({ initialLeads, currentUser }: { initialLeads: Lead[
 
           <button
             onClick={() => setNewLeadOpen(true)}
-            className="flex items-center gap-2 bg-primary-600 text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-primary-500 transition-colors shadow-glow-sm"
+            className="flex items-center gap-2 bg-primary-600 text-white px-4 py-2 min-h-[44px] rounded-lg text-sm font-semibold hover:bg-primary-500 transition-colors shadow-glow-sm"
           >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
             </svg>
             Novo Lead
@@ -155,14 +155,16 @@ export function KanbanBoard({ initialLeads, currentUser }: { initialLeads: Lead[
       <div className="flex-1 overflow-hidden">
         {tab === 'funil' && (
           <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
-            <div className="h-full overflow-auto p-5 bg-[#0d1117] overscroll-x-contain">
-              <div className="grid grid-cols-5 gap-3 relative" style={{ minWidth: 860 }}>
+            <div className="h-full overflow-auto p-3 sm:p-5 bg-[#0d1117] overscroll-x-contain snap-x snap-mandatory lg:snap-none">
+              {/* Mobile: scroll horizontal com snap (flex). Desktop (lg+): funil em grade
+                  posicional de 5 colunas com conectores. */}
+              <div className="flex lg:grid lg:grid-cols-5 gap-3 relative lg:min-w-[860px]">
                 {/* Row 1: Main flow */}
                 {MAIN_FLOW.map((col, idx) => (
-                  <div key={col.key} className="relative">
-                    {/* Horizontal right-arrow connector */}
+                  <div key={col.key} className="relative snap-start shrink-0 w-[82vw] max-w-[300px] lg:w-auto lg:max-w-none lg:shrink">
+                    {/* Horizontal right-arrow connector (só no funil de desktop) */}
                     {idx < MAIN_FLOW.length - 1 && (
-                      <div className="absolute top-[22px] -right-2 z-20 flex items-center gap-0">
+                      <div className="absolute top-[22px] -right-2 z-20 hidden lg:flex items-center gap-0">
                         <div className="w-1.5 h-px bg-[#3d4f6a]" />
                         <svg className="w-2.5 h-2.5 text-[#3d4f6a]" fill="currentColor" viewBox="0 0 20 20">
                           <path fillRule="evenodd" d="M10.293 3.293a1 1 0 011.414 0l6 6a1 1 0 010 1.414l-6 6a1 1 0 01-1.414-1.414L14.586 11H3a1 1 0 110-2h11.586l-4.293-4.293a1 1 0 010-1.414z" clipRule="evenodd" />
@@ -171,7 +173,7 @@ export function KanbanBoard({ initialLeads, currentUser }: { initialLeads: Lead[
                     )}
                     {/* Vertical down-arrow connector for Interagiu and Proposta */}
                     {(idx === 1 || idx === 3) && (
-                      <div className="absolute -bottom-3.5 left-1/2 -translate-x-1/2 z-20 flex flex-col items-center">
+                      <div className="absolute -bottom-3.5 left-1/2 -translate-x-1/2 z-20 hidden lg:flex flex-col items-center">
                         <div className="w-px h-2 bg-[#3d4f6a]" />
                         <svg className="w-2.5 h-2.5 text-[#3d4f6a] -mt-0.5" fill="currentColor" viewBox="0 0 20 20">
                           <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
@@ -190,11 +192,11 @@ export function KanbanBoard({ initialLeads, currentUser }: { initialLeads: Lead[
                 {SECONDARY_FLOW.map(col => (
                   <div
                     key={col.key}
-                    className="relative mt-4"
+                    className="relative snap-start shrink-0 w-[82vw] max-w-[300px] mt-0 lg:mt-4 lg:w-auto lg:max-w-none lg:shrink"
                     style={{ gridColumnStart: col.parentIndex + 1 }}
                   >
-                    {/* Vertical connector line up */}
-                    <div className="absolute -top-3.5 left-1/2 -translate-x-1/2 w-px h-3.5 bg-[#3d4f6a]" />
+                    {/* Vertical connector line up (só no funil de desktop) */}
+                    <div className="absolute -top-3.5 left-1/2 -translate-x-1/2 w-px h-3.5 bg-[#3d4f6a] hidden lg:block" />
                     <KanbanColumn
                       column={col}
                       leads={filteredLeads.filter(l => l.status === col.key)}

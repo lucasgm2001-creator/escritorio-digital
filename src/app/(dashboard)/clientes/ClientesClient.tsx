@@ -301,7 +301,7 @@ export function ClientesClient({ initialClients, currentUser }: Props) {
   )
 
   return (
-    <div className="p-6 max-w-7xl mx-auto space-y-5 animate-fade-in">
+    <div className="p-4 sm:p-6 max-w-7xl mx-auto space-y-5 animate-fade-in">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
@@ -309,7 +309,7 @@ export function ClientesClient({ initialClients, currentUser }: Props) {
           <p className="text-muted-foreground text-sm mt-0.5">Contratos ativos e histórico</p>
         </div>
         <button onClick={() => setNewOpen(true)}
-          className="flex items-center gap-2 bg-primary-600 text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-primary-500 transition-colors shadow-glow-sm">
+          className="flex items-center gap-2 bg-primary-600 text-white px-4 py-2 min-h-[44px] rounded-lg text-sm font-semibold hover:bg-primary-500 transition-colors shadow-glow-sm">
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
           </svg>
@@ -318,7 +318,7 @@ export function ClientesClient({ initialClients, currentUser }: Props) {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         {[
           { label: 'Contratos Ativos',   value: clients.filter(c => c.status === 'ativo').length, color: 'text-green-400',   accent: 'before:bg-green-500' },
           { label: 'MRR Total',          value: formatCurrency(mrr, 'en-US', 'USD'),              color: 'text-primary-400', accent: 'before:bg-primary-500' },
@@ -371,8 +371,8 @@ export function ClientesClient({ initialClients, currentUser }: Props) {
 
       {/* Modal novo cliente */}
       {newOpen && (
-        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-[#161b22] border border-[#2d3748] rounded-2xl shadow-card-hover w-full max-w-md animate-slide-up">
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-end sm:items-center justify-center z-50 p-0 sm:p-4">
+          <div className="bg-[#161b22] border border-[#2d3748] rounded-t-2xl sm:rounded-2xl shadow-card-hover w-full sm:max-w-md max-h-[92vh] overflow-y-auto animate-slide-up">
             <div className="flex items-center justify-between p-5 border-b border-[#2d3748]">
               <h2 className="font-bold text-foreground">Novo Cliente</h2>
               <button onClick={() => setNewOpen(false)} className="text-muted-foreground hover:text-foreground transition-colors">
@@ -426,8 +426,8 @@ export function ClientesClient({ initialClients, currentUser }: Props) {
 
       {/* Modal edição inline */}
       {editClient && (
-        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-[#161b22] border border-[#2d3748] rounded-2xl shadow-card-hover w-full max-w-md animate-slide-up">
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-end sm:items-center justify-center z-50 p-0 sm:p-4">
+          <div className="bg-[#161b22] border border-[#2d3748] rounded-t-2xl sm:rounded-2xl shadow-card-hover w-full sm:max-w-md max-h-[92vh] overflow-y-auto animate-slide-up">
             <div className="flex items-center justify-between p-5 border-b border-[#2d3748]">
               <h2 className="font-bold text-foreground">Editar Cliente</h2>
               <button onClick={() => setEditClient(null)} className="text-muted-foreground hover:text-foreground transition-colors">

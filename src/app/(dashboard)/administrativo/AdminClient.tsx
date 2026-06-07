@@ -118,12 +118,13 @@ export function AdminClient({ profiles, stats, recentActivities, userRole }: Pro
       </div>
 
       {/* Content */}
-      <div className="flex-1 overflow-auto p-6">
+      <div className="flex-1 overflow-auto p-4 sm:p-6">
         {/* === EQUIPE === */}
         {tab === 'equipe' && (
           <div className="space-y-4 animate-fade-in">
             <div className={card}>
-              <table className="w-full text-sm">
+              <div className="overflow-x-auto">
+              <table className="w-full text-sm min-w-[560px]">
                 <thead>
                   <tr className="border-b border-[#2d3748] bg-[#0d1117]/50">
                     {['Membro', 'E-mail', 'Cargo / Perfil', 'Acesso desde'].map(h => (
@@ -155,6 +156,7 @@ export function AdminClient({ profiles, stats, recentActivities, userRole }: Pro
                   ))}
                 </tbody>
               </table>
+              </div>
             </div>
           </div>
         )}
@@ -194,7 +196,7 @@ export function AdminClient({ profiles, stats, recentActivities, userRole }: Pro
             <div className="flex items-center justify-between">
               <p className="text-sm text-muted-foreground">Documentos internos — NF, contratos, relatórios</p>
               <button onClick={() => fileRef.current?.click()}
-                className="flex items-center gap-2 bg-primary-600 hover:bg-primary-500 text-white px-4 py-2 rounded-lg text-sm font-semibold transition-colors shadow-glow-sm">
+                className="flex items-center gap-2 bg-primary-600 hover:bg-primary-500 text-white px-4 py-2 min-h-[44px] rounded-lg text-sm font-semibold transition-colors shadow-glow-sm">
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
                 </svg>
@@ -216,7 +218,8 @@ export function AdminClient({ profiles, stats, recentActivities, userRole }: Pro
               </div>
             ) : (
               <div className={card}>
-                <table className="w-full text-sm">
+                <div className="overflow-x-auto">
+                <table className="w-full text-sm min-w-[640px]">
                   <thead>
                     <tr className="border-b border-[#2d3748] bg-[#0d1117]/50">
                       {['Arquivo', 'Tipo', 'Tamanho', 'Upload', 'Ações'].map(h => (
@@ -254,6 +257,7 @@ export function AdminClient({ profiles, stats, recentActivities, userRole }: Pro
                     ))}
                   </tbody>
                 </table>
+                </div>
               </div>
             )}
           </div>
@@ -264,7 +268,7 @@ export function AdminClient({ profiles, stats, recentActivities, userRole }: Pro
           <div className="space-y-5 animate-fade-in">
             <p className="text-sm text-muted-foreground">Resumo financeiro interno da empresa (separado do financeiro de clientes)</p>
 
-            <div className="grid grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               {[
                 { label: 'Entradas (MRR)',  value: '—', note: 'Sincronizar com Clientes', color: 'text-green-400', accent: 'before:bg-green-500' },
                 { label: 'Saídas previstas',value: '—', note: 'Atualizar manualmente', color: 'text-red-400', accent: 'before:bg-red-500' },

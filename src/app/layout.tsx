@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import localFont from 'next/font/local'
+import { Space_Grotesk, JetBrains_Mono, Inter } from 'next/font/google'
 import './globals.css'
 
 const geistSans = localFont({
@@ -12,6 +13,15 @@ const geistMono = localFont({
   variable: '--font-geist-mono',
   weight: '100 900',
 })
+
+// ── Design System "Bento Compacto" ──────────────────────────────────────────
+// Space Grotesk → títulos e números de métrica.  JetBrains Mono → valores
+// técnicos / labels uppercase / timestamps.  Inter → corpo de leitura.
+// Expostas como CSS vars; usadas via font-display/font-tech/font-body. NÃO
+// trocam a font-sans global (rollout escopado ao Hall por ora).
+const spaceGrotesk = Space_Grotesk({ subsets: ['latin'], variable: '--font-display', display: 'swap' })
+const jetbrainsMono = JetBrains_Mono({ subsets: ['latin'], variable: '--font-tech', display: 'swap' })
+const inter = Inter({ subsets: ['latin'], variable: '--font-body', display: 'swap' })
 
 export const metadata: Metadata = {
   title: 'Escritório Digital — DR Growth',
@@ -34,7 +44,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
 }catch(e){}}())
         `}} />
       </head>
-      <body className={`${geistSans.variable} ${geistMono.variable} font-sans antialiased`}>
+      <body className={`${geistSans.variable} ${geistMono.variable} ${spaceGrotesk.variable} ${jetbrainsMono.variable} ${inter.variable} font-sans antialiased`}>
         {children}
       </body>
     </html>

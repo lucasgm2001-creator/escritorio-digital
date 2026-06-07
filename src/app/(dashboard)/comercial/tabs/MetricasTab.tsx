@@ -40,9 +40,9 @@ export function MetricasTab({ leads }: Props) {
   const maxCount = Math.max(...FUNNEL_STAGES.map(s => leads.filter(l => l.status === s.key).length), 1)
 
   return (
-    <div className="p-6 space-y-5 overflow-auto h-full bg-background">
+    <div className="p-4 sm:p-6 space-y-5 overflow-auto h-full bg-background">
       {/* KPI cards */}
-      <div className="grid grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {[
           { label: 'Taxa de Conversão', value: `${convRate.toFixed(1)}%`,  sub: `${fechados} de ${total} leads`, valueClass: 'text-emerald-400', accent: 'before:bg-emerald-500' },
           { label: 'Taxa de Perda',     value: `${lossRate.toFixed(1)}%`,  sub: `${perdidos} perdidos`,          valueClass: 'text-rose-400',    accent: 'before:bg-rose-500' },
@@ -57,7 +57,7 @@ export function MetricasTab({ leads }: Props) {
         ))}
       </div>
 
-      <div className="grid grid-cols-3 gap-5">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
         {/* Funil */}
         <div className={card}>
           <h3 className="font-semibold text-foreground mb-4 text-sm">Funil por Etapa</h3>

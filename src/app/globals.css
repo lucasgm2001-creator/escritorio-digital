@@ -35,6 +35,21 @@
   --glow-primary:  rgba(99,102,241,0.35);
   --shadow-card:   0 4px 24px rgba(0,0,0,0.30);
   --shadow-hover:  0 8px 32px rgba(0,0,0,0.40), 0 0 0 1px rgba(99,102,241,0.15);
+
+  /* ── Design System "Bento Compacto" — ESCURO (padrão) ──
+     Acento verde-limão e neutros próprios, isolados dos tokens --c-* legados.
+     Só usados no piloto (Hall) + componentes bento por enquanto. */
+  --accent:          194 247 58;   /* #C2F73A */
+  --accent-dim:      155 201 31;   /* #9BC91F  (hover) */
+  --accent-ink:      10 12 16;     /* #0A0C10  (texto sobre o acento) */
+  --accent-fg:       194 247 58;   /* cor do TEXTO-acento: claro usa o dim */
+
+  --bento-bg:        12 14 18;     /* #0C0E12 */
+  --bento-panel:     21 24 30;     /* #15181E */
+  --bento-border:    35 40 48;     /* #232830 */
+  --bento-text:      255 255 255;  /* #FFFFFF */
+  --bento-dim:       200 204 210;  /* #C8CCD2 */
+  --bento-muted:     122 128 138;  /* #7A808A */
 }
 
 /* ─── Tema claro ─────────────────────────────────────────────── */
@@ -63,6 +78,17 @@ html.light {
   --glow-primary:  rgba(99,102,241,0.12);
   --shadow-card:   0 1px 3px rgba(27,31,36,0.08), 0 1px 2px rgba(27,31,36,0.06);
   --shadow-hover:  0 4px 16px rgba(27,31,36,0.10), 0 0 0 1px rgba(99,102,241,0.12);
+
+  /* ── Design System "Bento Compacto" — CLARO ──
+     Acento/ink permanecem (definidos no :root). No claro, o TEXTO-acento usa o
+     dim (#9BC91F) para contraste sobre fundos claros. */
+  --accent-fg:    155 201 31;   /* #9BC91F */
+  --bento-bg:     238 240 243;  /* #EEF0F3 */
+  --bento-panel:  255 255 255;  /* #FFFFFF */
+  --bento-border: 228 231 236;  /* #E4E7EC */
+  --bento-text:   20 23 29;     /* #14171D */
+  --bento-dim:    68 71 77;     /* #44474D */
+  --bento-muted:  136 141 150;  /* #888D96 */
 }
 
 /* ─── Base ───────────────────────────────────────────────────── */
@@ -99,6 +125,7 @@ html.light {
 @keyframes slideDown{ from { opacity: 0; transform: translateY(-6px) } to { opacity: 1; transform: translateY(0) } }
 @keyframes spin     { to { transform: rotate(360deg) } }
 @keyframes pulse    { 0%,100% { opacity: 1 } 50% { opacity: .5 } }
+@keyframes livePulse{ 0%,100% { opacity: 1 } 50% { opacity: .35 } }
 @keyframes countUp  { from { opacity: 0; transform: translateY(6px) } to { opacity: 1; transform: translateY(0) } }
 @keyframes glowPulse{
   0%,100% { box-shadow: 0 0 8px var(--glow-primary) }
@@ -172,6 +199,7 @@ html.light {
   .animate-fade-in  { animation: fadeIn 0.2s ease-out both; }
   .animate-slide-up { animation: slideUp 0.25s ease-out both; }
   .animate-glow     { animation: glowPulse 2s ease-in-out infinite; }
+  .animate-live     { animation: livePulse 1.6s ease-in-out infinite; }
 }
 
 /* ════════════════════════════════════════════════════════════════

@@ -121,7 +121,7 @@ export function FixoTab({ currentUser }: Props) {
   }
 
   return (
-    <div className="p-6 space-y-5 overflow-auto h-full bg-background animate-fade-in">
+    <div className="p-4 sm:p-6 space-y-5 overflow-auto h-full bg-background animate-fade-in">
       {/* Header */}
       <div>
         <h3 className="font-semibold text-foreground">Salários Fixos</h3>
@@ -143,7 +143,8 @@ export function FixoTab({ currentUser }: Props) {
             <p className="text-sm text-muted-foreground font-medium">Nenhum vendedor cadastrado</p>
           </div>
         ) : (
-          <table className="w-full text-sm">
+          <div className="overflow-x-auto">
+          <table className="w-full text-sm min-w-[640px]">
             <thead>
               <tr className="bg-[#0d1117]/50 border-b border-[#2d3748]">
                 {['Vendedor', 'Salário Fixo', 'Data de Início', 'Observações', 'Ações'].map(h => (
@@ -185,13 +186,14 @@ export function FixoTab({ currentUser }: Props) {
               ))}
             </tbody>
           </table>
+          </div>
         )}
       </div>
 
       {/* Edit Modal */}
       {editingId && (
-        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-[#161b22] border border-[#2d3748] rounded-2xl shadow-card-hover w-full max-w-sm animate-slide-up">
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-end sm:items-center justify-center z-50 p-0 sm:p-4">
+          <div className="bg-[#161b22] border border-[#2d3748] rounded-t-2xl sm:rounded-2xl shadow-card-hover w-full sm:max-w-sm max-h-[92vh] overflow-y-auto animate-slide-up">
             <div className="flex items-center justify-between p-5 border-b border-[#2d3748]">
               <h2 className="font-bold text-foreground text-base">Editar Salário Fixo</h2>
               <button

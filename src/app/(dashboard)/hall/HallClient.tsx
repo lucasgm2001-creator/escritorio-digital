@@ -443,13 +443,13 @@ function Calendar({ userId, events, onEventsChange }: CalendarProps) {
   const WeeklyView = () => {
     const days = getWeekDays(weekBase)
     return (
-      <div className="grid grid-cols-7 gap-2">
+      <div className="flex gap-2 overflow-x-auto pb-1 snap-x sm:grid sm:grid-cols-7 sm:overflow-visible sm:pb-0">
         {days.map(({ label, date, dateStr }) => {
           const dayEvents = eventsMap[dateStr] ?? []
           const isToday = dateStr === todayStr
           return (
             <button key={dateStr} onClick={() => { setDailyDate(date); setView('daily') }}
-              className={`rounded-xl p-3 border text-center transition-all hover:border-primary-600/60 cursor-pointer ${
+              className={`min-w-[72px] shrink-0 snap-start sm:min-w-0 sm:shrink rounded-xl p-3 border text-center transition-all hover:border-primary-600/60 cursor-pointer ${
                 isToday ? 'bg-primary-600/20 border-primary-600/40 shadow-glow-sm' : 'bg-[#1a2133] border-[#2d3748] hover:border-[#3d4f6a]'
               }`}>
               <p className={`text-xs font-medium ${isToday ? 'text-primary-400' : 'text-muted-foreground'}`}>{label}</p>

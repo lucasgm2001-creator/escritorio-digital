@@ -55,12 +55,38 @@ const config: Config = {
         destructive: { DEFAULT: '#ef4444', foreground: '#ffffff' },
         success:     { DEFAULT: '#22c55e', foreground: '#ffffff' },
         warning:     { DEFAULT: '#f59e0b', foreground: '#ffffff' },
+
+        // ── Design System "Bento Compacto" ──
+        // Acento verde-limão. `lime.fg` é a cor do TEXTO-acento (claro usa o dim).
+        lime: {
+          DEFAULT: 'rgb(var(--accent) / <alpha-value>)',
+          dim:     'rgb(var(--accent-dim) / <alpha-value>)',
+          ink:     'rgb(var(--accent-ink) / <alpha-value>)',
+          fg:      'rgb(var(--accent-fg) / <alpha-value>)',
+        },
+        // Neutros bento (theme-aware), isolados dos tokens --c-* legados.
+        bento: {
+          bg:     'rgb(var(--bento-bg) / <alpha-value>)',
+          panel:  'rgb(var(--bento-panel) / <alpha-value>)',
+          border: 'rgb(var(--bento-border) / <alpha-value>)',
+          text:   'rgb(var(--bento-text) / <alpha-value>)',
+          dim:    'rgb(var(--bento-dim) / <alpha-value>)',
+          muted:  'rgb(var(--bento-muted) / <alpha-value>)',
+        },
       },
       fontFamily: {
         sans: ['var(--font-geist-sans)', 'system-ui', 'sans-serif'],
         mono: ['var(--font-geist-mono)', 'monospace'],
+        // Bento Compacto
+        display: ['var(--font-display)', 'var(--font-geist-sans)', 'system-ui', 'sans-serif'],
+        tech:    ['var(--font-tech)', 'var(--font-geist-mono)', 'monospace'],
+        body:    ['var(--font-body)', 'var(--font-geist-sans)', 'system-ui', 'sans-serif'],
       },
-      borderRadius: { lg: '0.75rem', md: '0.5rem', sm: '0.375rem' },
+      borderRadius: {
+        lg: '0.75rem', md: '0.5rem', sm: '0.375rem',
+        // Bento Compacto: painéis 14px, frame de seção 22px, botões 10px
+        bento: '14px', frame: '22px', btn: '10px',
+      },
       boxShadow: {
         card:        '0 4px 24px rgba(0,0,0,0.3)',
         'card-hover':'0 8px 32px rgba(0,0,0,0.4), 0 0 0 1px rgba(99,102,241,0.15)',
@@ -84,6 +110,7 @@ const config: Config = {
         'glow-pulse': 'glowPulse 2s ease-in-out infinite',
         'spin':       'spin 1s linear infinite',
         'pulse-slow': 'pulse 3s cubic-bezier(0.4,0,.6,1) infinite',
+        'live':       'livePulse 1.6s ease-in-out infinite',
       },
       keyframes: {
         fadeIn:    { '0%': { opacity: '0' }, '100%': { opacity: '1' } },
@@ -94,6 +121,7 @@ const config: Config = {
           '0%,100%': { boxShadow: '0 0 8px rgba(99,102,241,0.35)' },
           '50%':     { boxShadow: '0 0 20px rgba(99,102,241,0.6)' },
         },
+        livePulse: { '0%,100%': { opacity: '1' }, '50%': { opacity: '0.35' } },
       },
     },
   },

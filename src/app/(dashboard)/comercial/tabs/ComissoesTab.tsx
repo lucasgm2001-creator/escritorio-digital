@@ -203,9 +203,9 @@ export function ComissoesTab({ currentUser }: Props) {
   const fmt = (v: number) => `R$ ${v.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`
 
   return (
-    <div className="p-6 space-y-5 overflow-auto h-full bg-background">
+    <div className="p-4 sm:p-6 space-y-5 overflow-auto h-full bg-background">
       {/* Summary */}
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <div className="bg-[#161b22] rounded-xl border border-[#2d3748] p-5 shadow-sm">
           <p className="text-xs text-muted-foreground font-medium">Total de Comissões</p>
           <p className="text-2xl font-bold text-foreground mt-1 tabular-nums">{fmt(total)}</p>
@@ -325,8 +325,8 @@ export function ComissoesTab({ currentUser }: Props) {
 
       {/* Modal - Nova Comissão */}
       {showCreateModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-[#161b22] rounded-xl border border-[#2d3748] max-w-md w-full p-6 max-h-[90vh] overflow-y-auto">
+        <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-50 p-0 sm:p-4">
+          <div className="bg-[#161b22] rounded-t-xl sm:rounded-xl border border-[#2d3748] w-full sm:max-w-md p-6 max-h-[90vh] overflow-y-auto animate-slide-up">
             <div className="flex items-center justify-between mb-6">
               <h2 className="text-lg font-semibold text-foreground">Nova Comissão</h2>
               <button

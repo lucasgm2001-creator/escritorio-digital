@@ -276,7 +276,7 @@ function SellerProfile({
                     <input value={comForm.description} onChange={e => setComForm(p => ({ ...p, description: e.target.value }))}
                       className={inputCls} placeholder="Ex: comissão por fechamento" />
                   </div>
-                  <div className="grid grid-cols-3 gap-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                     <div>
                       <label className="block text-xs font-medium text-muted-foreground mb-1">% Comissão</label>
                       <input type="number" value={comForm.percentage} onChange={e => setComForm(p => ({ ...p, percentage: e.target.value }))}
@@ -468,7 +468,8 @@ export function VendedoresTab({ currentUser }: Props) {
             <p className="text-sm text-muted-foreground font-medium">Nenhum vendedor cadastrado</p>
           </div>
         ) : (
-          <table className="w-full text-sm">
+          <div className="overflow-x-auto">
+          <table className="w-full text-sm min-w-[640px]">
             <thead>
               <tr className="bg-[#0d1117]/50 border-b border-[#2d3748]">
                 {['Vendedor','E-mail','Cargo','Meta','Conv.','Status',''].map(h => (
@@ -511,6 +512,7 @@ export function VendedoresTab({ currentUser }: Props) {
               ))}
             </tbody>
           </table>
+          </div>
         )}
       </div>
 
