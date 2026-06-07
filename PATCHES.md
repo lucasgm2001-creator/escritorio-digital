@@ -6,6 +6,42 @@ Categorias: 🐛 Fix · 🔄 Mudança · ✨ Novidade
 
 ---
 
+🔄 Mudança — PIVOT para app PESSOAL de uso único (só o Lucas). Decisão de
+produto: o sistema deixa de ser multi-área/multi-perfil e passa a focar no
+fluxo de trabalho de um único usuário. Isso também elimina a maior fonte de
+bugs recentes (papéis/roles, RLS por papel, layout que dependia do role).
+
+O QUE SAI:
+1. ÁREAS removidas por completo (rotas, páginas e componentes exclusivos):
+   Tráfego (`/trafego`), Administrativo (`/administrativo`) e Financeiro
+   (`/financeiro`). MANTIDAS: Hall, Comercial, Clientes, Configurações, Perfil.
+   As TABELAS de dados dessas áreas (campanhas, pagamentos etc.) NÃO foram
+   dropadas no banco — só a UI saiu, para permitir reativação futura.
+2. SISTEMA DE PAPÉIS removido: filtro de NAV_ITEMS por role na Sidebar, prop
+   `userRole` no layout/Shell/Topbar, gates `isAdmin` espalhados (passam a
+   sempre liberar), e `src/lib/supabase/rbac.ts` (já era código morto).
+   No banco, as policies de RLS baseadas em PAPEL são removidas por uma
+   migration nova (014); o RLS de PRIVACIDADE (só o usuário autenticado acessa)
+   é MANTIDO. A coluna `profiles.role` é mantida fisicamente (órfã, sem uso)
+   para evitar quebra de queries e facilitar rollback.
+3. CONFIGURAÇÕES: removido o gate admin-only da seção de logo (com 1 usuário
+   não faz sentido). Mantidos tema, logo do sistema e perfil pessoal.
+
+LOGIN MANTIDO: email+senha via Supabase Auth (o app vai pra internet, precisa
+proteger os dados). O middleware continua protegendo as rotas (logado vê,
+deslogado vai pro login) — só não há mais "níveis" de acesso.
+
+COMO REVERTER (se a empresa precisar reativar): os commits desta mudança ficam
+na branch `pivot-app-pessoal`. Para trazer uma área de volta, faça
+`git revert <hash>` dos commits abaixo (ou cherry-pick dos arquivos das pastas
+removidas a partir do commit ANTERIOR a eles):
+  - feat: remover áreas Tráfego/Administrativo/Financeiro → <hash-remocao-areas>
+  - refactor(auth): remover sistema de papéis (usuário único) → <hash-remocao-papeis>
+  - refactor(config): limpar Configurações para usuário único → <hash-config>
+  - DB: supabase/migrations/014_drop_role_system.sql
+
+---
+
 🔄 Mudança — responsividade mobile do dashboard (testado a 375px/390px).
 PRINCIPAL: o Kanban do Comercial usava `grid grid-cols-5` fixo (~860px) e
 ficava ilegível no celular. Agora, abaixo de `lg`, o funil vira um scroll
