@@ -35,9 +35,9 @@ COMO REVERTER (se a empresa precisar reativar): os commits desta mudança ficam
 na branch `pivot-app-pessoal`. Para trazer uma área de volta, faça
 `git revert <hash>` dos commits abaixo (ou cherry-pick dos arquivos das pastas
 removidas a partir do commit ANTERIOR a eles):
-  - feat: remover áreas Tráfego/Administrativo/Financeiro → <hash-remocao-areas>
-  - refactor(auth): remover sistema de papéis (usuário único) → <hash-remocao-papeis>
-  - refactor(config): limpar Configurações para usuário único → <hash-config>
+  - feat: remover áreas Tráfego/Administrativo/Financeiro → 72fcc33
+  - refactor(auth): remover sistema de papéis (usuário único) → 45e9438
+  - refactor(config): limpar Configurações para usuário único → adbd933
   - DB: supabase/migrations/014_drop_role_system.sql
 
 ---
