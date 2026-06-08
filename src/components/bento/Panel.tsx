@@ -13,6 +13,8 @@ const SPAN_CLS: Record<PanelSpan, string> = {
 
 interface PanelProps {
   span?: PanelSpan
+  /** Painel herói: ganha o filete de acento no topo. Use em UM bloco por tela. */
+  hero?: boolean
   /** Label de seção: uppercase, mono, muted, 10px. */
   label?: string
   /** Conteúdo no canto direito do cabeçalho (ex: botão, LiveDot). */
@@ -22,20 +24,25 @@ interface PanelProps {
   children: React.ReactNode
 }
 
-/** Card base do design system: bg --panel, borda 1px --border, radius 14px. */
-export function Panel({ span = '1', label, action, className, bodyClassName, children }: PanelProps) {
+/**
+ * Card base do design system "Bento Compacto". O acabamento (gradação sutil,
+ * borda, inset highlight no topo, radius 16px, filete do herói) vem da classe
+ * `.bento-fx` em globals.css — valores copiados de painel_padrao_tecnico.html.
+ */
+export function Panel({ span = '1', hero = false, label, action, className, bodyClassName, children }: PanelProps) {
   return (
     <section
       className={cn(
-        'flex flex-col min-w-0 rounded-bento border border-bento-border bg-bento-panel p-3.5',
+        'bento-fx flex flex-col min-w-0 p-5',
+        hero && 'is-hero',
         SPAN_CLS[span],
         className,
       )}
     >
       {(label || action) && (
-        <div className="flex items-center justify-between gap-2 mb-2.5 shrink-0">
+        <div className="flex items-center justify-between gap-2 mb-4 shrink-0">
           {label && (
-            <span className="font-tech text-[10px] uppercase tracking-wider text-bento-muted truncate">
+            <span className="font-tech text-[10px] uppercase tracking-[0.12em] text-bento-muted truncate">
               {label}
             </span>
           )}

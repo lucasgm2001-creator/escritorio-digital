@@ -6,6 +6,28 @@ Categorias: 🐛 Fix · 🔄 Mudança · ✨ Novidade
 
 ---
 
+✨ Novidade — refino de acabamento do design Bento Compacto (piloto no Hall).
+Eleva o Bento de "troca de paleta" para acabamento técnico de instrumento,
+SUTIL e ESTÁTICO. Valores de CSS copiados de painel_padrao_tecnico.html (fonte
+da verdade), funcionando nos dois temas (claro/escuro). Implementado em
+globals.css (classes `.bento-canvas/.bento-fx/.bento-metric/.bento-bars/
+.bento-track/.bento-fill/.bento-btn`) e nos componentes bento (Panel ganha
+profundidade + variante `hero` com filete de acento; Metric vai a 46px com
+tracking negativo + centavos apagados; Button ganha inset highlight + sombra
+colorida + active scale). Microdetalhes: (1) painéis com gradação sutil +
+borda + inset highlight no topo (não chapado); (2) grade finíssima de 28px no
+canvas (~0.015 escuro / 0.018 claro); (3) filete verde-limão só no painel
+herói; (4) hierarquia forte (número 46px Space Grotesk vs label 10px JetBrains
+Mono uppercase); (5) barras de proporção (trilho 3px) no resumo por tipo de
+atividade; (6) gráfico com baseline + eixo X mono + barra "hoje" no acento
+(eventos reais da semana); (7) botão com profundidade e resposta a toque.
+TUDO ESTÁTICO (sem animação ambiente; exceções: pulse sutil do "online" e
+hover/active de botões). Verde-limão pontual. Dados reais (eventos da semana,
+atividades hoje, online, proporção por tipo). Próximo: replicar em Comercial e
+Configurações.
+
+---
+
 🔄 Mudança — PIVOT para app PESSOAL de uso único (só o Lucas). Decisão de
 produto: o sistema deixa de ser multi-área/multi-perfil e passa a focar no
 fluxo de trabalho de um único usuário. Isso também elimina a maior fonte de

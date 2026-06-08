@@ -186,6 +186,91 @@ html.light {
 
   .page-enter  { animation: slideUp 0.25s ease-out both; }
   .tab-content { animation: fadeIn 0.15s ease-out both; }
+
+  /* ════════════════════════════════════════════════════════════════
+     BENTO COMPACTO — acabamento técnico (ESTÁTICO).
+     Valores copiados de painel_padrao_tecnico.html (fonte da verdade).
+     Profundidade via gradient/shadow/border; sem animação ambiente.
+     ════════════════════════════════════════════════════════════════ */
+
+  /* Canvas: grade finíssima de instrumento (~28px), quase imperceptível. */
+  .bento-canvas {
+    border-radius: 22px;
+    background-color: rgb(var(--bento-bg));
+    background-image:
+      linear-gradient(rgba(255,255,255,0.015) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255,255,255,0.015) 1px, transparent 1px);
+    background-size: 28px 28px;
+  }
+  html.light .bento-canvas {
+    background-image:
+      linear-gradient(rgba(0,0,0,0.018) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0,0,0,0.018) 1px, transparent 1px);
+  }
+
+  /* Painel: gradação sutil (não chapado) + borda + quina de cima pegando luz. */
+  .bento-fx {
+    position: relative;
+    overflow: hidden;
+    border-radius: 16px;
+    background: linear-gradient(160deg, #181c23 0%, #14171d 100%);
+    border: 1px solid #232830;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.04), 0 1px 2px rgba(0,0,0,0.30);
+  }
+  html.light .bento-fx {
+    background: linear-gradient(160deg, #ffffff 0%, #fafbfc 100%);
+    border: 1px solid #e4e7ec;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.80), 0 1px 3px rgba(0,0,0,0.04);
+  }
+
+  /* Filete de acento — SÓ no painel herói. */
+  .bento-fx.is-hero::before {
+    content: '';
+    position: absolute; top: 0; left: 20px; right: 20px; height: 2px;
+    background: linear-gradient(90deg, rgb(var(--accent)), transparent 70%);
+    opacity: 0.7; border-radius: 2px;
+  }
+
+  /* Métrica gigante (Space Grotesk) + centavos menores e apagados. */
+  .bento-metric {
+    font-family: var(--font-display), system-ui, sans-serif;
+    font-size: 46px; font-weight: 700; letter-spacing: -0.03em; line-height: 1;
+    color: rgb(var(--bento-text));
+  }
+  .bento-metric.sm { font-size: 30px; }
+  .bento-metric .cents { font-size: 0.52em; font-weight: 500; color: #6b7280; }
+  html.light .bento-metric .cents { color: #a0a4ab; }
+
+  /* Gráfico de barras: baseline 1px + barra "hoje/atual" no acento. */
+  .bento-bars { display: flex; align-items: flex-end; gap: 6px; position: relative; }
+  .bento-bars::after {
+    content: ''; position: absolute; left: 0; right: 0; bottom: 0; height: 1px;
+    background: rgba(255,255,255,0.06);
+  }
+  html.light .bento-bars::after { background: rgba(0,0,0,0.06); }
+  .bento-bar { flex: 1; border-radius: 4px 4px 0 0; background: #232830; }
+  html.light .bento-bar { background: #e0e3e8; }
+  .bento-bar.is-now {
+    background: linear-gradient(180deg, rgb(var(--accent)), rgb(var(--accent-dim)));
+    box-shadow: 0 0 14px rgba(194,247,58,0.35);
+  }
+
+  /* Barra de proporção (trilho 3px) sob itens de lista/funil. */
+  .bento-track { height: 3px; border-radius: 2px; overflow: hidden; background: rgba(255,255,255,0.06); }
+  html.light .bento-track { background: rgba(0,0,0,0.06); }
+  .bento-fill { height: 100%; border-radius: 2px; background: rgb(var(--accent)); }
+  .bento-fill.dim { background: rgb(var(--accent-dim)); }
+  .bento-fill.mut { background: #3a4150; }
+  html.light .bento-fill.mut { background: #c2c7d0; }
+
+  /* Botão primário com profundidade: inset highlight + sombra colorida discreta. */
+  .bento-btn {
+    background: rgb(var(--accent)); color: rgb(var(--accent-ink));
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.30), 0 2px 8px rgba(194,247,58,0.20);
+    transition: transform .12s ease, box-shadow .12s ease;
+  }
+  .bento-btn:hover { box-shadow: inset 0 1px 0 rgba(255,255,255,0.30), 0 4px 14px rgba(194,247,58,0.30); }
+  .bento-btn:active { transform: scale(0.98); }
 }
 
 /* ─── Utilities ──────────────────────────────────────────────── */
