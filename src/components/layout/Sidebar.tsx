@@ -80,8 +80,8 @@ export function Sidebar({ open, onToggle, logoUrl, mobileClose }: SidebarProps) 
             className="w-7 h-7 rounded-lg object-contain shrink-0"
           />
         ) : (
-          <div className="w-7 h-7 rounded-lg bg-primary-600 flex items-center justify-center shrink-0 shadow-glow-sm">
-            <svg className="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 24 24">
+          <div className="w-7 h-7 rounded-lg bg-lime flex items-center justify-center shrink-0">
+            <svg className="w-4 h-4 text-lime-ink" fill="currentColor" viewBox="0 0 24 24">
               <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
             </svg>
           </div>
@@ -153,18 +153,18 @@ function NavLink({ item, pathname, open }: { item: NavItem; pathname: string; op
         className={cn(
           'flex items-center gap-2.5 px-2.5 py-2 rounded-lg transition-all duration-150 text-sm min-h-[44px] md:min-h-0',
           active
-            ? 'bg-primary-600/20 text-primary-300 font-medium'
+            ? 'bg-lime/15 text-lime-fg font-medium'
             : 'text-slate-400 hover:bg-[rgba(255,255,255,0.05)] hover:text-slate-200'
         )}
       >
-        <span className={cn('shrink-0', active ? 'text-primary-400' : '')}>
+        <span className={cn('shrink-0', active ? 'text-lime-fg' : '')}>
           {item.icon}
         </span>
         {open && (
           <span className="whitespace-nowrap truncate">{item.label}</span>
         )}
         {active && open && (
-          <span className="ml-auto w-1.5 h-1.5 rounded-full bg-primary-500 shrink-0 shadow-glow-sm" />
+          <span className="ml-auto w-1.5 h-1.5 rounded-full bg-lime shrink-0" />
         )}
       </Link>
 

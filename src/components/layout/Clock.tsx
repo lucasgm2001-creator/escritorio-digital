@@ -22,7 +22,7 @@ function Clock({ timezone, label }: ClockProps) {
   return (
     <div className="text-center">
       <p className="text-xs text-muted-foreground mb-1">{label}</p>
-      <p className="text-2xl font-mono font-bold text-primary-900">{time}</p>
+      <p className="text-2xl font-mono font-bold text-bento-text">{time}</p>
     </div>
   )
 }

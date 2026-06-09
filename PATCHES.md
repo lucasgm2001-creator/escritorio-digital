@@ -6,6 +6,24 @@ Categorias: 🐛 Fix · 🔄 Mudança · ✨ Novidade
 
 ---
 
+✨ Novidade — de-roxo + audit de tema do app inteiro. Varredura por classes que
+ignoravam o tema/identidade e troca pelos tokens Bento (acento verde-limão).
+- ClientesClient: ClientRow extraído para escopo de módulo (corrige o MESMO bug
+  de foco do BUG 1 — o campo de "jobs" perdia o foco a cada tecla); de-roxo +
+  tokens bento.
+- AgentChat (Hall): balões, dots de loading, input e botão Enviar saem do roxo
+  para limão/bento.
+- PerfilClient: avatar, inputs e botão → limão/bento.
+- Shell: Sidebar (item ativo, logo), Topbar (avatar) → limão.
+- login: HÍBRIDO — mantém o fundo gradiente roxo (branding/primeira impressão),
+  mas botão "Entrar" e link "Esqueci minha senha" viram limão.
+- error.tsx: tinha light hardcode (bg-red-50/slate) → tokens bento.
+- Código morto deixado on-brand: ThemeSelector, Clock, ui/button, ui/badge.
+Cores SEMÂNTICAS (status, etapas do funil, score) preservadas. O único primary-*
+remanescente é o branding do login (fundo/labels), intencional.
+
+---
+
 ✨ Novidade — acabamento Bento no Comercial + correção de 3 bugs críticos nos
 modais. Propaga o design Bento Compacto (do Hall) para o Comercial: abas
 (DraggableTabs) e botão "Novo Lead" saem do roxo (`primary-*`) para o acento

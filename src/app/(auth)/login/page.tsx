@@ -109,7 +109,7 @@ export default function LoginPage() {
             <div className="text-right">
               <Link
                 href="/forgot-password"
-                className="text-sm text-primary-300 hover:text-white transition-colors"
+                className="text-sm text-lime-fg hover:text-lime transition-colors"
               >
                 Esqueci minha senha
               </Link>
@@ -126,10 +126,10 @@ export default function LoginPage() {
             <button
               type="submit"
               disabled={loading || !email || !password}
-              className="w-full bg-white text-primary-900 font-semibold rounded-xl py-3 hover:bg-primary-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+              className="w-full bg-lime text-lime-ink font-semibold rounded-xl py-3 hover:bg-lime-dim transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
             >
               {loading ? (
-                <span className="w-5 h-5 border-2 border-primary-900/30 border-t-primary-900 rounded-full animate-spin" />
+                <span className="w-5 h-5 border-2 border-lime-ink/30 border-t-lime-ink rounded-full animate-spin" />
               ) : 'Entrar'}
             </button>
           </form>

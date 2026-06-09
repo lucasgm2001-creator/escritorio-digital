@@ -69,7 +69,7 @@ export function PerfilClient({ userId, email, initialName, initialRole, initialP
   const [error, setError]     = useState('')
   const fileRef = useRef<HTMLInputElement>(null)
 
-  const inputCls = 'w-full bg-[#1e2533] border border-[#2d3748] rounded-lg px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary-600'
+  const inputCls = 'w-full bg-bento-bg border border-bento-border rounded-btn px-3 py-2.5 text-sm text-bento-text placeholder:text-bento-muted focus:outline-none focus:border-lime'
 
   const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -147,8 +147,8 @@ export function PerfilClient({ userId, email, initialName, initialRole, initialP
                   <Image src={avatarUrl} alt="Avatar" width={80} height={80} className="w-full h-full object-cover" />
                 </div>
               ) : (
-                <div className="w-20 h-20 rounded-2xl bg-primary-600 flex items-center justify-center border-2 border-[#2d3748]">
-                  <span className="text-2xl font-bold text-white">{name[0]?.toUpperCase() ?? 'U'}</span>
+                <div className="w-20 h-20 rounded-2xl bg-lime flex items-center justify-center border-2 border-bento-border">
+                  <span className="text-2xl font-bold text-lime-ink">{name[0]?.toUpperCase() ?? 'U'}</span>
                 </div>
               )}
               {uploading && (
@@ -164,7 +164,7 @@ export function PerfilClient({ userId, email, initialName, initialRole, initialP
               <button
                 onClick={() => fileRef.current?.click()}
                 disabled={uploading}
-                className="flex items-center gap-2 bg-[#1e2533] border border-[#2d3748] text-foreground px-4 py-2 rounded-lg text-sm hover:border-primary-600 transition-colors disabled:opacity-50 min-h-[44px]"
+                className="flex items-center gap-2 bg-bento-bg border border-bento-border text-bento-text px-4 py-2 rounded-btn text-sm hover:border-lime transition-colors disabled:opacity-50 min-h-[44px]"
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
@@ -215,7 +215,7 @@ export function PerfilClient({ userId, email, initialName, initialRole, initialP
           <button
             onClick={handleSave}
             disabled={saving}
-            className="w-full sm:w-auto bg-primary-600 text-white px-6 py-2.5 rounded-lg text-sm font-semibold hover:bg-primary-500 transition-colors disabled:opacity-50 shadow-glow-sm min-h-[44px]"
+            className="bento-btn w-full sm:w-auto px-6 py-2.5 rounded-btn text-sm font-semibold disabled:opacity-50 min-h-[44px]"
           >
             {saving ? 'Salvando...' : 'Salvar alterações'}
           </button>

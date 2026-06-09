@@ -43,8 +43,8 @@ function UserAvatar({ avatarUrl, userInitial }: { avatarUrl?: string | null; use
     )
   }
   return (
-    <div className="w-7 h-7 rounded-lg bg-primary-600 flex items-center justify-center shadow-glow-sm shrink-0">
-      <span className="text-xs font-bold text-white">{userInitial}</span>
+    <div className="w-7 h-7 rounded-lg bg-lime flex items-center justify-center shrink-0">
+      <span className="text-xs font-bold text-lime-ink">{userInitial}</span>
     </div>
   )
 }
