@@ -56,10 +56,9 @@ export function LeadCard({ lead, isDragging, onClick }: Props) {
       {...listeners}
       onClick={onClick}
       className={cn(
-        'bg-[#1e2533] rounded-xl border border-[#2d3748] p-3 cursor-pointer select-none',
-        'hover:border-[#3d4f6a] hover:bg-[#222c3d] transition-all duration-150',
-        'shadow-card',
-        isDragging && 'shadow-card-hover rotate-1 scale-105 border-primary-700/60',
+        'bento-fx p-3 cursor-pointer select-none',
+        'hover:border-lime/50 transition-colors duration-150',
+        isDragging && 'shadow-card-hover rotate-1 scale-105 border-lime',
       )}
     >
       {/* Top row */}
@@ -91,44 +90,44 @@ export function LeadCard({ lead, isDragging, onClick }: Props) {
         )}
 
         {formattedValue && (
-          <span className="ml-auto text-[10px] font-bold text-muted-foreground tabular-nums">
+          <span className="ml-auto font-tech text-[10px] font-bold text-bento-dim tabular-nums">
             {formattedValue}
           </span>
         )}
       </div>
 
       {/* Name + company */}
-      <p className="font-semibold text-foreground text-sm leading-snug truncate">{lead.name}</p>
+      <p className="font-semibold text-bento-text text-sm leading-snug truncate">{lead.name}</p>
       {lead.company && (
-        <p className="text-[11px] text-muted-foreground truncate mt-0.5">{lead.company}</p>
+        <p className="text-[11px] text-bento-muted truncate mt-0.5">{lead.company}</p>
       )}
       {lead.nicho && (
-        <p className="text-[10px] text-primary-400/70 truncate mt-0.5">{lead.nicho}</p>
+        <p className="text-[10px] text-bento-dim truncate mt-0.5">{lead.nicho}</p>
       )}
 
       {/* Score bar */}
       <div className="mt-2.5">
-        <div className="w-full h-1 bg-[#2d3748] rounded-full overflow-hidden">
+        <div className="w-full h-1 bg-bento-border rounded-full overflow-hidden">
           <div
             className={cn('h-full rounded-full transition-all', scoreInfo.dot)}
             style={{ width: `${scorePct}%` }}
           />
         </div>
         <div className="flex items-center justify-between mt-1">
-          <span className="text-[10px] text-muted-foreground">
+          <span className="font-tech text-[10px] text-bento-muted">
             {lead.operation === 'eua' ? 'EUA' : 'BR'}
           </span>
-          <span className="text-[10px] text-muted-foreground tabular-nums font-medium">{lead.score}</span>
+          <span className="font-tech text-[10px] text-bento-muted tabular-nums font-medium">{lead.score}</span>
         </div>
       </div>
 
       {/* Assigned avatar */}
       {lead.assigned_name && (
-        <div className="flex items-center gap-1.5 mt-2 pt-2 border-t border-[#2d3748]/60">
-          <div className="w-4.5 h-4.5 w-[18px] h-[18px] rounded-md bg-primary-900/60 border border-primary-800/40 flex items-center justify-center flex-none">
-            <span className="text-[9px] font-bold text-primary-300">{getInitials(lead.assigned_name)}</span>
+        <div className="flex items-center gap-1.5 mt-2 pt-2 border-t border-bento-border/60">
+          <div className="w-[18px] h-[18px] rounded-md bg-bento-bg border border-bento-border flex items-center justify-center flex-none">
+            <span className="text-[9px] font-bold text-bento-dim">{getInitials(lead.assigned_name)}</span>
           </div>
-          <span className="text-[10px] text-muted-foreground truncate">{lead.assigned_name}</span>
+          <span className="text-[10px] text-bento-muted truncate">{lead.assigned_name}</span>
         </div>
       )}
     </div>

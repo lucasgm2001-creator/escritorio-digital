@@ -207,14 +207,14 @@ export function ComissoesTab({ currentUser }: Props) {
     <div className="p-4 sm:p-6 space-y-5 overflow-auto h-full bg-background">
       {/* Summary */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <div className="bg-[#161b22] rounded-xl border border-[#2d3748] p-5 shadow-sm">
+        <div className="bento-fx p-5">
           <p className="text-xs text-muted-foreground font-medium">Total de Comissões</p>
           <p className="text-2xl font-bold text-foreground mt-1 tabular-nums">{fmt(total)}</p>
           <p className="text-xs text-muted-foreground mt-0.5">{commissions.length} registros</p>
           {canManageAll && (
             <button
               onClick={() => setShowCreateModal(true)}
-              className="mt-3 w-full bg-primary-600 text-white text-xs px-3 py-2 rounded-lg font-medium hover:bg-primary-700 transition-colors"
+              className="bento-btn mt-3 w-full text-xs px-3 py-2 rounded-btn font-medium min-h-0"
             >
               + Nova Comissão
             </button>
@@ -307,7 +307,7 @@ export function ComissoesTab({ currentUser }: Props) {
                           <select
                             value={c.status}
                             onChange={e => handleStatusChange(c.id, e.target.value as Commission['status'])}
-                            className="text-xs border border-[#2d3748] rounded-lg px-2.5 py-1 focus:outline-none focus:border-primary-600 bg-[#1e2533] text-foreground"
+                            className="text-xs border border-[#2d3748] rounded-lg px-2.5 py-1 focus:outline-none focus:border-lime bg-[#1e2533] text-foreground"
                           >
                             <option value="pendente">Pendente</option>
                             <option value="aprovada">Aprovada</option>
@@ -363,7 +363,7 @@ export function ComissoesTab({ currentUser }: Props) {
                 <select
                   value={createForm.seller_id}
                   onChange={e => setCreateForm(p => ({ ...p, seller_id: e.target.value }))}
-                  className="w-full bg-[#1e2533] border border-[#2d3748] rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:border-primary-600"
+                  className="w-full bg-[#1e2533] border border-[#2d3748] rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:border-lime"
                   required
                 >
                   <option value="">Selecione um vendedor</option>
@@ -378,7 +378,7 @@ export function ComissoesTab({ currentUser }: Props) {
                 <select
                   value={createForm.lead_id}
                   onChange={e => setCreateForm(p => ({ ...p, lead_id: e.target.value }))}
-                  className="w-full bg-[#1e2533] border border-[#2d3748] rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:border-primary-600"
+                  className="w-full bg-[#1e2533] border border-[#2d3748] rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:border-lime"
                 >
                   <option value="">Selecione um lead (opcional)</option>
                   {leads.map(l => (
@@ -394,7 +394,7 @@ export function ComissoesTab({ currentUser }: Props) {
                   value={createForm.cargo}
                   onChange={e => setCreateForm(p => ({ ...p, cargo: e.target.value }))}
                   placeholder="ex: ADS Manager"
-                  className="w-full bg-[#1e2533] border border-[#2d3748] rounded-lg px-3 py-2 text-sm text-foreground placeholder-muted-foreground focus:outline-none focus:border-primary-600"
+                  className="w-full bg-[#1e2533] border border-[#2d3748] rounded-lg px-3 py-2 text-sm text-foreground placeholder-muted-foreground focus:outline-none focus:border-lime"
                 />
               </div>
 
@@ -404,7 +404,7 @@ export function ComissoesTab({ currentUser }: Props) {
                   value={createForm.description}
                   onChange={e => setCreateForm(p => ({ ...p, description: e.target.value }))}
                   placeholder="ex: Comissão por lead qualificado"
-                  className="w-full bg-[#1e2533] border border-[#2d3748] rounded-lg px-3 py-2 text-sm text-foreground placeholder-muted-foreground focus:outline-none focus:border-primary-600"
+                  className="w-full bg-[#1e2533] border border-[#2d3748] rounded-lg px-3 py-2 text-sm text-foreground placeholder-muted-foreground focus:outline-none focus:border-lime"
                   rows={2}
                 />
               </div>
@@ -419,7 +419,7 @@ export function ComissoesTab({ currentUser }: Props) {
                     min="0"
                     max="100"
                     step="0.1"
-                    className="w-full bg-[#1e2533] border border-[#2d3748] rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:border-primary-600"
+                    className="w-full bg-[#1e2533] border border-[#2d3748] rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:border-lime"
                     required
                   />
                 </div>
@@ -432,7 +432,7 @@ export function ComissoesTab({ currentUser }: Props) {
                     min="0"
                     step="0.01"
                     placeholder="0,00"
-                    className="w-full bg-[#1e2533] border border-[#2d3748] rounded-lg px-3 py-2 text-sm text-foreground placeholder-muted-foreground focus:outline-none focus:border-primary-600"
+                    className="w-full bg-[#1e2533] border border-[#2d3748] rounded-lg px-3 py-2 text-sm text-foreground placeholder-muted-foreground focus:outline-none focus:border-lime"
                     required
                   />
                 </div>
@@ -444,7 +444,7 @@ export function ComissoesTab({ currentUser }: Props) {
                   type="date"
                   value={createForm.due_date}
                   onChange={e => setCreateForm(p => ({ ...p, due_date: e.target.value }))}
-                  className="w-full bg-[#1e2533] border border-[#2d3748] rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:border-primary-600"
+                  className="w-full bg-[#1e2533] border border-[#2d3748] rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:border-lime"
                 />
               </div>
 
@@ -455,7 +455,7 @@ export function ComissoesTab({ currentUser }: Props) {
                   value={createForm.password}
                   onChange={e => setCreateForm(p => ({ ...p, password: e.target.value }))}
                   placeholder="Digite sua senha"
-                  className="w-full bg-[#1e2533] border border-[#2d3748] rounded-lg px-3 py-2 text-sm text-foreground placeholder-muted-foreground focus:outline-none focus:border-primary-600"
+                  className="w-full bg-[#1e2533] border border-[#2d3748] rounded-lg px-3 py-2 text-sm text-foreground placeholder-muted-foreground focus:outline-none focus:border-lime"
                   required
                 />
                 <p className="text-xs text-muted-foreground mt-1">Você será pedido para confirmar com sua senha</p>
@@ -479,14 +479,14 @@ export function ComissoesTab({ currentUser }: Props) {
                     })
                   }}
                   disabled={creating}
-                  className="flex-1 bg-[#1e2533] border border-[#2d3748] text-foreground px-4 py-2 rounded-lg font-medium hover:bg-[#262d35] transition-colors disabled:opacity-50"
+                  className="flex-1 border border-bento-border text-bento-dim px-4 py-2 rounded-btn font-medium hover:border-lime hover:text-bento-text transition-colors disabled:opacity-50"
                 >
                   Cancelar
                 </button>
                 <button
                   type="submit"
                   disabled={creating}
-                  className="flex-1 bg-primary-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-primary-700 transition-colors disabled:opacity-50"
+                  className="bento-btn flex-1 px-4 py-2 rounded-btn font-medium disabled:opacity-50"
                 >
                   {creating ? 'Salvando...' : 'Criar Comissão'}
                 </button>

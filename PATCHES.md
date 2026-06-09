@@ -6,6 +6,30 @@ Categorias: 🐛 Fix · 🔄 Mudança · ✨ Novidade
 
 ---
 
+✨ Novidade — acabamento Bento no Comercial + correção de 3 bugs críticos nos
+modais. Propaga o design Bento Compacto (do Hall) para o Comercial: abas
+(DraggableTabs) e botão "Novo Lead" saem do roxo (`primary-*`) para o acento
+verde-limão (`.bento-btn`); filtro Brasil/EUA/Todos e cards de lead ganham
+acento limão + profundidade (`.bento-fx`); abas Pipeline/Métricas/Agenda usam
+painéis com profundidade; Comissões/Vendedores/Fixo e os modais ficam sem roxo.
+As cores SEMÂNTICAS de estágio do funil (azul/indigo/roxo/âmbar/esmeralda/rosa)
+são mantidas de propósito.
+
+BUGS corrigidos nos modais (Novo Lead, Comissão, Diário):
+- FOCO: o input perdia o foco a cada tecla porque o subcomponente `Field` era
+  definido DENTRO do `LeadModal` (recriado a cada render → input remontava).
+  Movido para escopo de módulo. (Os outros modais não tinham o padrão.)
+- TEMA: modais estavam presos no claro (`bg-white`/`slate-*`/`*-50` hardcoded),
+  texto quase invisível no dark. Retematizados com tokens bento (contraste nos
+  dois temas); emerald/azul/âmbar viram tons translúcidos semânticos.
+- ROXO: "Preencher com IA" e pills de prioridade saíram do indigo → acento/bento.
+
+Também (audit de tema): `lib/utils/score.ts` tinha TODOS os badges de score em
+tons claros (`bg-*-50`, `gray-100`) que quebravam no dark — reescritos
+dark-aware (aparecem no LeadCard e na Agenda).
+
+---
+
 ✨ Novidade — refino de acabamento do design Bento Compacto (piloto no Hall).
 Eleva o Bento de "troca de paleta" para acabamento técnico de instrumento,
 SUTIL e ESTÁTICO. Valores de CSS copiados de painel_padrao_tecnico.html (fonte

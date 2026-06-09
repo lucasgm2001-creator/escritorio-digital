@@ -70,7 +70,7 @@ export function ApresentacaoTab() {
         </div>
         <button
           onClick={() => inputRef.current?.click()}
-          className="flex items-center gap-2 bg-primary-600 hover:bg-primary-500 text-white px-4 py-2 min-h-[44px] rounded-lg text-sm font-semibold transition-colors shadow-glow-sm"
+          className="bento-btn flex items-center gap-2 px-4 py-2 min-h-[44px] rounded-btn text-sm font-semibold"
         >
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
@@ -95,10 +95,10 @@ export function ApresentacaoTab() {
         onClick={() => files.length === 0 && inputRef.current?.click()}
         className={`border-2 border-dashed rounded-2xl transition-all duration-200 ${
           dragging
-            ? 'border-primary-500 bg-primary-900/20 scale-[1.01]'
+            ? 'border-lime bg-lime/10 scale-[1.01]'
             : files.length === 0
-              ? 'border-[#2d3748] bg-[#1a2133]/50 hover:border-primary-700 hover:bg-primary-900/10 cursor-pointer'
-              : 'border-[#2d3748]/50 bg-transparent'
+              ? 'border-bento-border bg-bento-panel hover:border-lime hover:bg-lime/5 cursor-pointer'
+              : 'border-bento-border/50 bg-transparent'
         } ${files.length === 0 ? 'py-16' : 'p-0'}`}
       >
         {files.length === 0 && (
@@ -116,9 +116,9 @@ export function ApresentacaoTab() {
       {files.length > 0 && (
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
           {files.map(f => (
-            <div key={f.id} className="group relative bg-[#161b22] border border-[#2d3748] rounded-xl overflow-hidden hover:border-primary-700/50 transition-all duration-200 hover:shadow-glow-sm">
+            <div key={f.id} className="group relative bento-fx overflow-hidden hover:border-lime/50 transition-colors duration-200">
               {/* Preview */}
-              <div className="h-32 bg-[#0d1117] flex items-center justify-center overflow-hidden">
+              <div className="h-32 bg-bento-bg flex items-center justify-center overflow-hidden">
                 {f.type.startsWith('image/') ? (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img src={f.url} alt={f.name} className="w-full h-full object-cover" />
@@ -137,7 +137,7 @@ export function ApresentacaoTab() {
               <div className="absolute inset-0 bg-black/70 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
                 <button
                   onClick={() => setPresenting(f)}
-                  className="flex items-center gap-1.5 bg-primary-600 hover:bg-primary-500 text-white px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors"
+                  className="bento-btn flex items-center gap-1.5 px-3 py-1.5 rounded-btn text-xs font-semibold min-h-0"
                 >
                   <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
@@ -158,7 +158,7 @@ export function ApresentacaoTab() {
           {/* Add more */}
           <button
             onClick={() => inputRef.current?.click()}
-            className="h-full min-h-[170px] border-2 border-dashed border-[#2d3748] rounded-xl flex items-center justify-center hover:border-primary-700 hover:bg-primary-900/10 transition-all text-muted-foreground hover:text-primary-400"
+            className="h-full min-h-[170px] border-2 border-dashed border-bento-border rounded-xl flex items-center justify-center hover:border-lime hover:bg-lime/5 transition-all text-bento-muted hover:text-lime-fg"
           >
             <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M12 4v16m8-8H4" />
@@ -194,7 +194,7 @@ export function ApresentacaoTab() {
               <FileIcon type={presenting.type} />
               <p className="mt-4 text-sm">{presenting.name}</p>
               <a href={presenting.url} download={presenting.name}
-                className="mt-4 inline-flex items-center gap-2 bg-primary-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-primary-500 transition-colors">
+                className="bento-btn mt-4 inline-flex items-center gap-2 px-4 py-2 rounded-btn text-sm">
                 Baixar arquivo
               </a>
             </div>

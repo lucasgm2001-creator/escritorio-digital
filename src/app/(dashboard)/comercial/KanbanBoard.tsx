@@ -110,33 +110,33 @@ export function KanbanBoard({ initialLeads, currentUser }: { initialLeads: Lead[
   const activeLead = activeId ? leads.find(l => l.id === activeId) : null
 
   return (
-    <div className="flex flex-col h-full bg-background relative">
+    <div className="flex flex-col h-full bg-bento-bg relative font-body">
       {/* Header */}
-      <div className="flex-none bg-[#0d1117] border-b border-[#2d3748]">
+      <div className="flex-none bg-bento-bg border-b border-bento-border">
         <div className="flex items-center justify-between gap-2 flex-wrap px-4 sm:px-6 pt-4 pb-3">
           <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
-            <h1 className="font-bold text-foreground text-lg tracking-tight">Comercial</h1>
-            <div className="flex gap-0.5 bg-[#161b22] rounded-lg p-0.5 border border-[#2d3748]">
+            <h1 className="font-display font-bold text-bento-text text-lg tracking-tight">Comercial</h1>
+            <div className="flex gap-0.5 bg-bento-panel rounded-btn p-0.5 border border-bento-border">
               {(['todos', 'brasil', 'eua'] as OperationFilter[]).map(op => (
                 <button
                   key={op}
                   onClick={() => setFilter(op)}
-                  className={`px-2.5 py-1 rounded-md text-xs font-medium transition-all ${
+                  className={`px-2.5 py-1 rounded-md text-xs font-medium border transition-all ${
                     filter === op
-                      ? 'bg-[#1e2533] text-foreground border border-[#3d4f6a]'
-                      : 'text-muted-foreground hover:text-foreground'
+                      ? 'bg-lime/15 text-lime-fg border-lime/40'
+                      : 'border-transparent text-bento-muted hover:text-bento-text'
                   }`}
                 >
                   {op === 'todos' ? 'Todos' : op === 'brasil' ? 'Brasil' : 'EUA'}
                 </button>
               ))}
             </div>
-            <span className="text-xs text-muted-foreground font-medium">{filteredLeads.length} leads</span>
+            <span className="font-tech text-xs text-bento-muted font-medium tabular-nums">{filteredLeads.length} leads</span>
           </div>
 
           <button
             onClick={() => setNewLeadOpen(true)}
-            className="flex items-center gap-2 bg-primary-600 text-white px-4 py-2 min-h-[44px] rounded-lg text-sm font-semibold hover:bg-primary-500 transition-colors shadow-glow-sm"
+            className="bento-btn flex items-center justify-center gap-2 px-4 py-2 min-h-[44px] rounded-btn text-sm font-semibold w-full sm:w-auto"
           >
             <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -155,7 +155,7 @@ export function KanbanBoard({ initialLeads, currentUser }: { initialLeads: Lead[
       <div className="flex-1 overflow-hidden">
         {tab === 'funil' && (
           <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
-            <div className="h-full overflow-auto p-3 sm:p-5 bg-[#0d1117] overscroll-x-contain snap-x snap-mandatory lg:snap-none">
+            <div className="h-full overflow-auto p-3 sm:p-5 bg-bento-bg overscroll-x-contain snap-x snap-mandatory lg:snap-none">
               {/* Mobile: scroll horizontal com snap (flex). Desktop (lg+): funil em grade
                   posicional de 5 colunas com conectores. */}
               <div className="flex lg:grid lg:grid-cols-5 gap-3 relative lg:min-w-[860px]">
@@ -165,8 +165,8 @@ export function KanbanBoard({ initialLeads, currentUser }: { initialLeads: Lead[
                     {/* Horizontal right-arrow connector (só no funil de desktop) */}
                     {idx < MAIN_FLOW.length - 1 && (
                       <div className="absolute top-[22px] -right-2 z-20 hidden lg:flex items-center gap-0">
-                        <div className="w-1.5 h-px bg-[#3d4f6a]" />
-                        <svg className="w-2.5 h-2.5 text-[#3d4f6a]" fill="currentColor" viewBox="0 0 20 20">
+                        <div className="w-1.5 h-px bg-bento-border" />
+                        <svg className="w-2.5 h-2.5 text-bento-muted" fill="currentColor" viewBox="0 0 20 20">
                           <path fillRule="evenodd" d="M10.293 3.293a1 1 0 011.414 0l6 6a1 1 0 010 1.414l-6 6a1 1 0 01-1.414-1.414L14.586 11H3a1 1 0 110-2h11.586l-4.293-4.293a1 1 0 010-1.414z" clipRule="evenodd" />
                         </svg>
                       </div>
@@ -174,8 +174,8 @@ export function KanbanBoard({ initialLeads, currentUser }: { initialLeads: Lead[
                     {/* Vertical down-arrow connector for Interagiu and Proposta */}
                     {(idx === 1 || idx === 3) && (
                       <div className="absolute -bottom-3.5 left-1/2 -translate-x-1/2 z-20 hidden lg:flex flex-col items-center">
-                        <div className="w-px h-2 bg-[#3d4f6a]" />
-                        <svg className="w-2.5 h-2.5 text-[#3d4f6a] -mt-0.5" fill="currentColor" viewBox="0 0 20 20">
+                        <div className="w-px h-2 bg-bento-border" />
+                        <svg className="w-2.5 h-2.5 text-bento-muted -mt-0.5" fill="currentColor" viewBox="0 0 20 20">
                           <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
                         </svg>
                       </div>
@@ -196,7 +196,7 @@ export function KanbanBoard({ initialLeads, currentUser }: { initialLeads: Lead[
                     style={{ gridColumnStart: col.parentIndex + 1 }}
                   >
                     {/* Vertical connector line up (só no funil de desktop) */}
-                    <div className="absolute -top-3.5 left-1/2 -translate-x-1/2 w-px h-3.5 bg-[#3d4f6a] hidden lg:block" />
+                    <div className="absolute -top-3.5 left-1/2 -translate-x-1/2 w-px h-3.5 bg-bento-border hidden lg:block" />
                     <KanbanColumn
                       column={col}
                       leads={filteredLeads.filter(l => l.status === col.key)}

@@ -69,7 +69,7 @@ function SellerProfile({
   const [comError, setComError]        = useState('')
   const [activeTab, setActiveTab]      = useState<'info' | 'fixo' | 'comissoes'>('info')
 
-  const inputCls = 'w-full bg-[#1e2533] border border-[#2d3748] rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary-600'
+  const inputCls = 'w-full bg-[#1e2533] border border-[#2d3748] rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-lime'
 
   useEffect(() => {
     const supabase = createClient()
@@ -139,8 +139,8 @@ function SellerProfile({
         {/* Header */}
         <div className="flex items-center justify-between p-5 border-b border-[#2d3748] shrink-0">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-primary-900/40 border border-primary-800/40 flex items-center justify-center">
-              <span className="text-sm font-bold text-primary-400">{seller.name[0]}</span>
+            <div className="w-10 h-10 rounded-xl bg-lime/15 border border-lime/30 flex items-center justify-center">
+              <span className="text-sm font-bold text-lime-fg">{seller.name[0]}</span>
             </div>
             <div>
               <h2 className="font-bold text-foreground">{seller.name}</h2>
@@ -163,7 +163,7 @@ function SellerProfile({
           ].map(t => (
             <button key={t.key} onClick={() => setActiveTab(t.key)}
               className={`px-3 py-2.5 text-xs font-medium border-b-2 transition-colors ${
-                activeTab === t.key ? 'border-primary-600 text-primary-400' : 'border-transparent text-muted-foreground hover:text-foreground'
+                activeTab === t.key ? 'border-lime text-lime-fg' : 'border-transparent text-muted-foreground hover:text-foreground'
               }`}>
               {t.label}
             </button>
@@ -217,7 +217,7 @@ function SellerProfile({
                     placeholder="Ex: revisão em junho, vale refeição incluso..." />
                 </div>
                 <button onClick={handleSaveFixed} disabled={savingFixed}
-                  className="w-full bg-primary-600 text-white py-2.5 rounded-lg text-sm font-semibold hover:bg-primary-500 transition-colors disabled:opacity-50 shadow-glow-sm min-h-[44px]">
+                  className="w-full bento-btn py-2.5 rounded-lg text-sm font-semibold disabled:opacity-50 min-h-[44px]">
                   {savingFixed ? 'Salvando...' : 'Salvar Salário Fixo'}
                 </button>
               </div>
@@ -250,7 +250,7 @@ function SellerProfile({
               {/* Add commission (admin only) */}
               {isAdmin && (
                 <button onClick={() => setShowAddCom(!showAddCom)}
-                  className="flex items-center gap-2 bg-primary-600 text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-primary-500 transition-colors shadow-glow-sm min-h-[44px]">
+                  className="flex items-center gap-2 bento-btn px-4 py-2 rounded-lg text-sm font-semibold min-h-[44px]">
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
                   </svg>
@@ -296,7 +296,7 @@ function SellerProfile({
                       Cancelar
                     </button>
                     <button onClick={handleAddCommission} disabled={savingCom || !comForm.amount}
-                      className="flex-1 bg-primary-600 text-white py-2 rounded-lg text-sm font-semibold hover:bg-primary-500 transition-colors disabled:opacity-50 min-h-[44px]">
+                      className="flex-1 bento-btn py-2 rounded-lg text-sm font-semibold disabled:opacity-50 min-h-[44px]">
                       {savingCom ? 'Salvando...' : 'Adicionar'}
                     </button>
                   </div>
@@ -306,7 +306,7 @@ function SellerProfile({
               {/* Commission list */}
               {loadingCom ? (
                 <div className="flex items-center justify-center py-8 text-muted-foreground text-sm gap-2">
-                  <span className="w-4 h-4 border-2 border-muted-foreground/20 border-t-primary-500 rounded-full animate-spin" />
+                  <span className="w-4 h-4 border-2 border-muted-foreground/20 border-t-lime rounded-full animate-spin" />
                   Carregando...
                 </div>
               ) : commissions.length === 0 ? (
@@ -330,7 +330,7 @@ function SellerProfile({
                           </span>
                           {isAdmin && (
                             <select value={c.status} onChange={e => handleStatusChange(c.id, e.target.value as Commission['status'])}
-                              className="text-xs border border-[#2d3748] rounded-lg px-2 py-1 bg-[#1e2533] text-foreground focus:outline-none focus:border-primary-600">
+                              className="text-xs border border-[#2d3748] rounded-lg px-2 py-1 bg-[#1e2533] text-foreground focus:outline-none focus:border-lime">
                               <option value="pendente">Pendente</option>
                               <option value="aprovada">Aprovada</option>
                               <option value="paga">Paga</option>
@@ -364,7 +364,7 @@ export function VendedoresTab() {
   // App pessoal de usuário único: acesso total.
   const isAdmin = true
 
-  const inputCls = 'w-full bg-[#1e2533] border border-[#2d3748] rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary-600'
+  const inputCls = 'w-full bg-[#1e2533] border border-[#2d3748] rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-lime'
 
   useEffect(() => {
     const load = async () => {
@@ -438,7 +438,7 @@ export function VendedoresTab() {
         </div>
         {isAdmin && (
           <button onClick={() => setAddOpen(true)}
-            className="flex items-center gap-2 bg-primary-600 text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-primary-500 transition-colors shadow-glow-sm min-h-[44px]">
+            className="flex items-center gap-2 bento-btn px-4 py-2 rounded-lg text-sm font-semibold min-h-[44px]">
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
             </svg>
@@ -455,7 +455,7 @@ export function VendedoresTab() {
       <div className="hidden sm:block bg-[#161b22] rounded-xl border border-[#2d3748] overflow-hidden">
         {loading ? (
           <div className="flex items-center justify-center gap-3 py-16 text-muted-foreground text-sm">
-            <span className="w-5 h-5 border-2 border-muted-foreground/20 border-t-primary-500 rounded-full animate-spin" />
+            <span className="w-5 h-5 border-2 border-muted-foreground/20 border-t-lime rounded-full animate-spin" />
             Carregando...
           </div>
         ) : sellers.length === 0 ? (
@@ -481,8 +481,8 @@ export function VendedoresTab() {
                   onClick={() => setSelectedSeller(s)}>
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-2.5">
-                      <div className="w-8 h-8 rounded-lg bg-primary-900/40 border border-primary-800/40 flex items-center justify-center flex-none">
-                        <span className="text-xs font-bold text-primary-400">{s.name[0]}</span>
+                      <div className="w-8 h-8 rounded-lg bg-lime/15 border border-lime/30 flex items-center justify-center flex-none">
+                        <span className="text-xs font-bold text-lime-fg">{s.name[0]}</span>
                       </div>
                       <span className="font-semibold text-foreground">{s.name}</span>
                     </div>
@@ -518,7 +518,7 @@ export function VendedoresTab() {
       <div className="sm:hidden space-y-3">
         {loading ? (
           <div className="flex items-center justify-center gap-3 py-16 text-muted-foreground text-sm">
-            <span className="w-5 h-5 border-2 border-muted-foreground/20 border-t-primary-500 rounded-full animate-spin" />
+            <span className="w-5 h-5 border-2 border-muted-foreground/20 border-t-lime rounded-full animate-spin" />
             Carregando...
           </div>
         ) : sellers.length === 0 ? (
@@ -530,11 +530,11 @@ export function VendedoresTab() {
           </div>
         ) : sellers.map(s => (
           <div key={s.id} onClick={() => setSelectedSeller(s)}
-            className={`bg-[#161b22] border border-[#2d3748] rounded-xl p-4 cursor-pointer hover:border-primary-600/40 transition-colors ${s.status === 'inativo' ? 'opacity-50' : ''}`}>
+            className={`bg-[#161b22] border border-[#2d3748] rounded-xl p-4 cursor-pointer hover:border-lime/40 transition-colors ${s.status === 'inativo' ? 'opacity-50' : ''}`}>
             <div className="flex items-center justify-between mb-3">
               <div className="flex items-center gap-2.5">
-                <div className="w-9 h-9 rounded-xl bg-primary-900/40 border border-primary-800/40 flex items-center justify-center">
-                  <span className="text-sm font-bold text-primary-400">{s.name[0]}</span>
+                <div className="w-9 h-9 rounded-xl bg-lime/15 border border-lime/30 flex items-center justify-center">
+                  <span className="text-sm font-bold text-lime-fg">{s.name[0]}</span>
                 </div>
                 <div>
                   <p className="font-semibold text-foreground text-sm">{s.name}</p>
@@ -608,7 +608,7 @@ export function VendedoresTab() {
                   Cancelar
                 </button>
                 <button onClick={handleAdd} disabled={saving || !form.name.trim()}
-                  className="flex-1 bg-primary-600 text-white py-2.5 rounded-lg text-sm font-semibold hover:bg-primary-500 transition-colors disabled:opacity-50 shadow-glow-sm min-h-[44px]">
+                  className="flex-1 bento-btn py-2.5 rounded-lg text-sm font-semibold disabled:opacity-50 min-h-[44px]">
                   {saving ? 'Salvando...' : 'Adicionar'}
                 </button>
               </div>

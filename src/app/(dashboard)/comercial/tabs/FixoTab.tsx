@@ -95,7 +95,7 @@ export function FixoTab() {
     }
   }
 
-  const inputCls = 'w-full bg-[#1e2533] border border-[#2d3748] rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary-600'
+  const inputCls = 'w-full bg-[#1e2533] border border-[#2d3748] rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-lime'
 
   const fmt = (v: number) => `R$ ${v.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`
 
@@ -111,7 +111,7 @@ export function FixoTab() {
       <div className="bg-[#161b22] rounded-xl border border-[#2d3748] overflow-hidden">
         {loading ? (
           <div className="flex items-center justify-center gap-3 py-16 text-muted-foreground text-sm">
-            <span className="w-5 h-5 border-2 border-muted-foreground/20 border-t-primary-500 rounded-full animate-spin" />
+            <span className="w-5 h-5 border-2 border-muted-foreground/20 border-t-lime rounded-full animate-spin" />
             Carregando...
           </div>
         ) : sellers.length === 0 ? (
@@ -138,8 +138,8 @@ export function FixoTab() {
                 <tr key={s.id} className="hover:bg-[#1a2133]/60 transition-colors">
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-2.5">
-                      <div className="w-8 h-8 rounded-lg bg-primary-900/40 border border-primary-800/40 flex items-center justify-center flex-none">
-                        <span className="text-xs font-bold text-primary-400">{s.name[0]}</span>
+                      <div className="w-8 h-8 rounded-lg bg-lime/15 border border-lime/30 flex items-center justify-center flex-none">
+                        <span className="text-xs font-bold text-lime-fg">{s.name[0]}</span>
                       </div>
                       <span className="font-semibold text-foreground">{s.name}</span>
                     </div>
@@ -156,7 +156,7 @@ export function FixoTab() {
                   <td className="px-4 py-3">
                     <button
                       onClick={() => handleEdit(s)}
-                      className="text-xs text-primary-400 hover:text-primary-300 underline underline-offset-2 transition-colors"
+                      className="text-xs text-lime-fg hover:text-lime-fg underline underline-offset-2 transition-colors"
                     >
                       Editar
                     </button>
@@ -237,14 +237,14 @@ export function FixoTab() {
                     setForm({ fixed_salary: '', start_date: '', observations: '' })
                   }}
                   disabled={saving}
-                  className="flex-1 border border-[#2d3748] text-muted-foreground py-2.5 rounded-lg text-sm hover:bg-[#1e2533] transition-colors disabled:opacity-50"
+                  className="flex-1 border border-bento-border text-bento-dim py-2.5 rounded-btn text-sm hover:border-lime hover:text-bento-text transition-colors disabled:opacity-50"
                 >
                   Cancelar
                 </button>
                 <button
                   onClick={handleSave}
                   disabled={saving || !form.fixed_salary}
-                  className="flex-1 bg-primary-600 text-white py-2.5 rounded-lg text-sm font-semibold hover:bg-primary-500 transition-colors disabled:opacity-50 shadow-glow-sm"
+                  className="bento-btn flex-1 py-2.5 rounded-btn text-sm font-semibold disabled:opacity-50"
                 >
                   {saving ? 'Salvando...' : 'Salvar'}
                 </button>

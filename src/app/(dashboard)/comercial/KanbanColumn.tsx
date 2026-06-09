@@ -46,7 +46,7 @@ export function KanbanColumn({ column, leads, onLeadClick }: Props) {
             </span>
           </div>
           {displayValue && (
-            <p className="text-[10px] text-muted-foreground mt-0.5 pl-3 truncate font-medium tabular-nums">
+            <p className="font-tech text-[10px] text-bento-muted mt-0.5 pl-3 truncate font-medium tabular-nums">
               {displayValue}
             </p>
           )}
@@ -61,7 +61,7 @@ export function KanbanColumn({ column, leads, onLeadClick }: Props) {
           'min-h-[180px]',
           isOver
             ? cn('border-dashed', column.borderColor, column.bgColor)
-            : 'bg-[#161b22]/80 border-[#2d3748]/60',
+            : 'bg-bento-panel border-bento-border/60',
         )}
         style={{ maxHeight: 'calc(55vh - 130px)' }}
       >
@@ -69,7 +69,7 @@ export function KanbanColumn({ column, leads, onLeadClick }: Props) {
           {leads.length === 0 ? (
             <div className={cn(
               'flex items-center justify-center h-16 text-xs rounded-lg border border-dashed',
-              isOver ? cn(column.textColor, column.borderColor) : 'text-muted-foreground/40 border-[#2d3748]/40',
+              isOver ? cn(column.textColor, column.borderColor) : 'text-bento-muted/50 border-bento-border/50',
             )}>
               {isOver ? 'Soltar aqui' : 'Vazio'}
             </div>

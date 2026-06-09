@@ -10,6 +10,10 @@ interface Props {
   onClose: () => void
 }
 
+// Tokens bento, theme-aware. Emerald aqui é SEMÂNTICO (sucesso/venda) — mantido,
+// mas em tons translúcidos que a camada de compatibilidade resolve no claro.
+const inputCls = 'w-full bg-bento-bg border border-bento-border rounded-btn px-3 py-2 text-sm text-bento-text placeholder:text-bento-muted focus:outline-none focus:border-lime focus:ring-1 focus:ring-lime/30'
+
 export function CommissionModal({ lead, currentUser, onClose }: Props) {
   const [percentage, setPercentage] = useState('10')
   const [customAmount, setCustomAmount] = useState('')
@@ -48,19 +52,19 @@ export function CommissionModal({ lead, currentUser, onClose }: Props) {
 
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-end sm:items-center justify-center z-[60] p-0 sm:p-4">
-      <div className="bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl w-full sm:max-w-sm border border-slate-200 overflow-hidden animate-slide-up">
+      <div className="bento-fx rounded-t-frame sm:rounded-frame shadow-card-hover w-full sm:max-w-sm animate-slide-up">
         {/* Header */}
-        <div className="px-6 py-5 border-b border-slate-200 bg-gradient-to-r from-emerald-50 to-white">
+        <div className="px-6 py-5 border-b border-bento-border">
           <div className="flex items-center gap-3">
-            <div className="w-11 h-11 rounded-full bg-emerald-100 flex items-center justify-center shadow-sm">
-              <svg className="w-5 h-5 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <div className="w-11 h-11 rounded-full bg-emerald-900/30 flex items-center justify-center">
+              <svg className="w-5 h-5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
             </div>
             <div>
-              <h2 className="font-bold text-slate-900 text-base">Venda Concluída!</h2>
-              <p className="text-xs text-slate-500 mt-0.5">
-                <strong>{lead.name}</strong> agora é cliente
+              <h2 className="font-display font-bold text-bento-text text-base">Venda Concluída!</h2>
+              <p className="text-xs text-bento-muted mt-0.5">
+                <strong className="text-bento-dim">{lead.name}</strong> agora é cliente
               </p>
             </div>
           </div>
@@ -68,34 +72,34 @@ export function CommissionModal({ lead, currentUser, onClose }: Props) {
 
         {saved ? (
           <div className="p-8 text-center">
-            <div className="w-12 h-12 rounded-full bg-emerald-100 flex items-center justify-center mx-auto mb-3">
-              <svg className="w-6 h-6 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <div className="w-12 h-12 rounded-full bg-emerald-900/30 flex items-center justify-center mx-auto mb-3">
+              <svg className="w-6 h-6 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
               </svg>
             </div>
-            <p className="font-semibold text-emerald-700">Comissão registrada!</p>
-            <p className="text-xs text-slate-400 mt-1">{fmt(finalAmount)}</p>
+            <p className="font-semibold text-emerald-400">Comissão registrada!</p>
+            <p className="font-tech text-xs text-bento-muted mt-1">{fmt(finalAmount)}</p>
           </div>
         ) : (
           <div className="p-5 space-y-4">
-            <p className="text-sm text-slate-600">
+            <p className="text-sm text-bento-dim">
               Registre a comissão para{' '}
-              <span className="font-semibold text-slate-800">
+              <span className="font-semibold text-bento-text">
                 {lead.assigned_name ?? currentUser.name}
               </span>
               :
             </p>
 
             {baseValue > 0 && (
-              <div className="bg-slate-50 rounded-xl p-3 border border-slate-200">
-                <p className="text-[11px] text-slate-400 uppercase tracking-wide">Valor do Contrato</p>
-                <p className="text-xl font-bold text-slate-900 mt-0.5">{fmt(baseValue)}</p>
+              <div className="bg-bento-bg rounded-bento p-3 border border-bento-border">
+                <p className="font-tech text-[11px] text-bento-muted uppercase tracking-wide">Valor do Contrato</p>
+                <p className="font-display text-xl font-bold text-bento-text mt-0.5">{fmt(baseValue)}</p>
               </div>
             )}
 
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="block text-xs font-semibold text-slate-600 mb-1.5">
+                <label className="block text-xs font-semibold text-bento-dim mb-1.5">
                   % Comissão
                 </label>
                 <div className="relative">
@@ -103,61 +107,61 @@ export function CommissionModal({ lead, currentUser, onClose }: Props) {
                     type="number"
                     value={percentage}
                     onChange={e => { setPercentage(e.target.value); setCustomAmount('') }}
-                    className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-primary-400 focus:ring-1 focus:ring-primary-200 pr-7"
+                    className={`${inputCls} pr-7`}
                     placeholder="10"
                     min="0"
                     max="100"
                   />
-                  <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 text-xs">%</span>
+                  <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-bento-muted text-xs">%</span>
                 </div>
                 {baseValue > 0 && calculatedAmount > 0 && (
-                  <p className="text-[10px] text-slate-400 mt-1 tabular-nums">= {fmt(calculatedAmount)}</p>
+                  <p className="font-tech text-[10px] text-bento-muted mt-1 tabular-nums">= {fmt(calculatedAmount)}</p>
                 )}
               </div>
               <div>
-                <label className="block text-xs font-semibold text-slate-600 mb-1.5">
+                <label className="block text-xs font-semibold text-bento-dim mb-1.5">
                   Valor (R$)
                 </label>
                 <input
                   type="number"
                   value={customAmount || (calculatedAmount > 0 ? calculatedAmount.toFixed(2) : '')}
                   onChange={e => setCustomAmount(e.target.value)}
-                  className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-primary-400 focus:ring-1 focus:ring-primary-200"
+                  className={inputCls}
                   placeholder="0,00"
                 />
               </div>
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-slate-600 mb-1.5">
+              <label className="block text-xs font-semibold text-bento-dim mb-1.5">
                 Data de Vencimento
               </label>
               <input
                 type="date"
                 value={dueDate}
                 onChange={e => setDueDate(e.target.value)}
-                className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-primary-400 focus:ring-1 focus:ring-primary-200"
+                className={inputCls}
               />
             </div>
 
             {finalAmount > 0 && (
-              <div className="bg-emerald-50 rounded-xl px-4 py-3 border border-emerald-200 flex items-center justify-between">
-                <span className="text-xs text-emerald-700 font-medium">Comissão a registrar</span>
-                <span className="text-base font-bold text-emerald-800 tabular-nums">{fmt(finalAmount)}</span>
+              <div className="bg-emerald-900/30 rounded-bento px-4 py-3 border border-emerald-800/50 flex items-center justify-between">
+                <span className="text-xs text-emerald-400 font-medium">Comissão a registrar</span>
+                <span className="font-display text-base font-bold text-emerald-300 tabular-nums">{fmt(finalAmount)}</span>
               </div>
             )}
 
             <div className="flex gap-3 pt-1">
               <button
                 onClick={onClose}
-                className="flex-1 border border-slate-200 text-slate-600 py-2.5 rounded-xl text-sm font-medium hover:bg-slate-50 transition-colors"
+                className="flex-1 border border-bento-border text-bento-dim py-2.5 rounded-btn text-sm font-medium hover:border-lime hover:text-bento-text transition-colors"
               >
                 Pular
               </button>
               <button
                 onClick={handleSave}
                 disabled={loading || finalAmount <= 0}
-                className="flex-1 bg-primary-900 text-white py-2.5 rounded-xl text-sm font-semibold hover:bg-primary-800 active:bg-primary-950 transition-colors disabled:opacity-50 shadow-sm"
+                className="bento-btn flex-1 py-2.5 rounded-btn text-sm font-semibold disabled:opacity-50"
               >
                 {loading ? 'Salvando...' : 'Salvar Comissão'}
               </button>
