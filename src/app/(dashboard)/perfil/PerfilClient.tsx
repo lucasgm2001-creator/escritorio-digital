@@ -9,17 +9,9 @@ interface Props {
   userId: string
   email: string
   initialName: string
-  initialRole: string
   initialPhone: string
   initialCargo: string
   initialAvatarUrl: string | null
-}
-
-const ROLE_LABELS: Record<string, string> = {
-  admin:      'Administrador',
-  comercial:  'Comercial',
-  trafego:    'Tráfego',
-  financeiro: 'Financeiro',
 }
 
 async function resizeImage(file: File, maxKb = 200): Promise<Blob> {
@@ -58,7 +50,7 @@ async function resizeImage(file: File, maxKb = 200): Promise<Blob> {
   })
 }
 
-export function PerfilClient({ userId, email, initialName, initialRole, initialPhone, initialCargo, initialAvatarUrl }: Props) {
+export function PerfilClient({ userId, email, initialName, initialPhone, initialCargo, initialAvatarUrl }: Props) {
   const [name, setName]       = useState(initialName)
   const [phone, setPhone]     = useState(initialPhone)
   const [cargo, setCargo]     = useState(initialCargo)
@@ -199,13 +191,6 @@ export function PerfilClient({ userId, email, initialName, initialRole, initialP
             <div>
               <label className="block text-xs font-medium text-muted-foreground mb-1.5">Cargo</label>
               <input value={cargo} onChange={e => setCargo(e.target.value)} className={inputCls} placeholder="Ex: Gestor de Tráfego" />
-            </div>
-          </div>
-
-          <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Perfil de acesso</label>
-            <div className={`${inputCls} text-muted-foreground cursor-not-allowed`}>
-              {ROLE_LABELS[initialRole] ?? initialRole}
             </div>
           </div>
 

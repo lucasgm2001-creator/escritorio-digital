@@ -6,6 +6,15 @@ Categorias: 🐛 Fix · 🔄 Mudança · ✨ Novidade
 
 ---
 
+🔄 Mudança — remove o campo "Perfil de acesso" (role) da tela de Perfil.
+Resquício do sistema de papéis removido no pivot para app de usuário único:
+mostrava ROLE_LABELS[role] e não fazia mais sentido. Remove o campo, o tipo
+ROLE_LABELS e a prop initialRole do PerfilClient, e o `role` do select em
+perfil/page.tsx. (A coluna profiles.role segue existindo no banco — só não é
+mais exibida.)
+
+---
+
 ✨ Novidade — de-roxo + audit de tema do app inteiro. Varredura por classes que
 ignoravam o tema/identidade e troca pelos tokens Bento (acento verde-limão).
 - ClientesClient: ClientRow extraído para escopo de módulo (corrige o MESMO bug
