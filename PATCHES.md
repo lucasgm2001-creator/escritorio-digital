@@ -6,6 +6,20 @@ Categorias: 🐛 Fix · 🔄 Mudança · ✨ Novidade
 
 ---
 
+✨ Novidade — Vendedores reestruturado como perfil clicável (passo 2).
+- Lista vira cards clicáveis com 2 indicadores: Vendas + Comissão do mês (agregada
+  numa query só, por mês corrente).
+- Painel lateral (estilo detalhe do lead): foto (upload), KPIs no topo (vendas /
+  comissão paga+pendente / conversão) e 3 seções — Dados, Metas & Remuneração
+  (salário fixo + metas juntos) e Comissões (resumo + adicionar + mudar status).
+- Cadastro ganhou foto + contato (e-mail/telefone).
+- Foto no Supabase Storage (bucket `assets`, sellers/<id>.jpg, comprimida ≤150kb).
+  Requer coluna sellers.photo_url (add column if not exists, rodada em prod).
+- Tudo que grava usa o helper useSave (rollback + toast). Tema migrado p/ tokens
+  bento (saíram os #hex legados).
+
+---
+
 ✨ Novidade — país/fusos + melhorias do funil (publicados juntos).
 - Fusos: o Topbar mostra 4 relógios — Brasília (principal) + EUA Leste/Montanha/
   Oeste — usando fuso IANA (horário de verão dos EUA automático). Brasília a
