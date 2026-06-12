@@ -5,12 +5,22 @@ import { createClient } from '@/lib/supabase/client'
 import { cn } from '@/lib/utils'
 import type { Task, TaskPriority, LinkOption } from './types'
 
+export interface TaskPrefill {
+  title?: string
+  due_date?: string
+  due_time?: string
+  priority?: TaskPriority
+  link?: LinkOption | null
+}
+
 interface Props {
   onClose: () => void
   onSaved: (task: Task) => void
   currentUser: { id: string; name: string }
   linkOptions: LinkOption[]
   task?: Task | null            // presente = edição
+  prefill?: TaskPrefill | null  // presente = criação pré-preenchida (ex: por IA)
+  aiFilled?: boolean            // mostra o selo "preenchido por IA"
 }
 
 // Tokens bento, theme-aware. Foco em verde lima (acento estrutural do input).
@@ -35,18 +45,18 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
   )
 }
 
-export function TaskModal({ onClose, onSaved, currentUser, linkOptions, task }: Props) {
+export function TaskModal({ onClose, onSaved, currentUser, linkOptions, task, prefill, aiFilled }: Props) {
   const editing = !!task
-  const [title, setTitle]       = useState(task?.title ?? '')
+  const [title, setTitle]       = useState(task?.title ?? prefill?.title ?? '')
   const [notes, setNotes]       = useState(task?.notes ?? '')
-  const [dueDate, setDueDate]   = useState(task?.due_date ?? '')
-  const [dueTime, setDueTime]   = useState((task?.due_time ?? '').slice(0, 5))
-  const [priority, setPriority] = useState<TaskPriority>(task?.priority ?? 'normal')
+  const [dueDate, setDueDate]   = useState(task?.due_date ?? prefill?.due_date ?? '')
+  const [dueTime, setDueTime]   = useState((task?.due_time ?? prefill?.due_time ?? '').slice(0, 5))
+  const [priority, setPriority] = useState<TaskPriority>(task?.priority ?? prefill?.priority ?? 'normal')
   const [link, setLink]         = useState<LinkOption | null>(
     task?.linked_id && task?.linked_type
       ? linkOptions.find(o => o.id === task.linked_id)
         ?? { type: task.linked_type, id: task.linked_id, name: task.linked_name ?? 'Conectado' }
-      : null
+      : prefill?.link ?? null
   )
   const [linkQuery, setLinkQuery] = useState('')
   const [linkOpen, setLinkOpen]   = useState(false)
@@ -95,9 +105,19 @@ export function TaskModal({ onClose, onSaved, currentUser, linkOptions, task }: 
 
         {/* Header */}
         <div className="flex items-center justify-between p-5 border-b border-bento-border shrink-0">
-          <h2 className="font-display font-bold text-bento-text text-base">
-            {editing ? 'Editar tarefa' : 'Nova tarefa'}
-          </h2>
+          <div className="flex items-center gap-2">
+            <h2 className="font-display font-bold text-bento-text text-base">
+              {editing ? 'Editar tarefa' : 'Nova tarefa'}
+            </h2>
+            {aiFilled && !editing && (
+              <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded bg-lime/15 text-lime-fg">
+                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                </svg>
+                preenchido por IA
+              </span>
+            )}
+          </div>
           <button onClick={onClose} className="text-bento-muted hover:text-bento-text">
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -170,6 +190,7 @@ export function TaskModal({ onClose, onSaved, currentUser, linkOptions, task }: 
                     {link.type === 'lead' ? 'Lead' : 'Cliente'}
                   </span>
                   <span className="text-sm text-bento-text truncate">{link.name}</span>
+                  {link.detail && <span className="text-xs text-bento-muted truncate">· {link.detail}</span>}
                 </span>
                 <button type="button" onClick={() => { setLink(null); setLinkQuery('') }}
                   className="text-bento-muted hover:text-bento-text shrink-0">
@@ -203,6 +224,7 @@ export function TaskModal({ onClose, onSaved, currentUser, linkOptions, task }: 
                           {o.type === 'lead' ? 'Lead' : 'Cliente'}
                         </span>
                         <span className="text-sm text-bento-text truncate">{o.name}</span>
+                        {o.detail && <span className="text-xs text-bento-muted truncate">· {o.detail}</span>}
                       </button>
                     ))}
                   </div>

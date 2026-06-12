@@ -24,4 +24,14 @@ export interface LinkOption {
   id: string
   name: string
   phone?: string | null
+  detail?: string | null     // empresa/nicho — p/ diferenciar homônimos
+}
+
+// Saída do parser de linguagem natural (/api/tasks/parse).
+export interface ParsedTask {
+  title: string
+  due_date: string           // 'YYYY-MM-DD' ou ''
+  due_time: string           // 'HH:MM' ou ''
+  priority: TaskPriority
+  contact_name: string       // nome solto p/ casar com um LinkOption
 }

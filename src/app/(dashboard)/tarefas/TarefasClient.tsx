@@ -4,8 +4,36 @@ import { useState, useMemo } from 'react'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { cn } from '@/lib/utils'
-import { TaskModal } from './TaskModal'
-import type { Task, LinkOption } from './types'
+import { TaskModal, type TaskPrefill } from './TaskModal'
+import type { Task, LinkOption, ParsedTask } from './types'
+
+// Título a partir do texto digitado (rede de segurança local — espelha o servidor).
+// Garante que o título NUNCA fique vazio mesmo se a IA falhar/não responder.
+function cleanTitle(text: string): string {
+  let t = text
+    .replace(/\b(urgente|urgência|asap|importante|prioridade(?:\s+alta)?|pra ontem)\b/gi, '')
+    .replace(/\b(hoje|amanh[ãa]|depois de amanh[ãa]|segunda|ter[çc]a|quarta|quinta|sexta|s[áa]bado|domingo|semana que vem|pr[óo]xima semana)(?:-feira)?\b/gi, '')
+    .replace(/\b[àás]?\s*\d{1,2}\s*(?:h|hs|horas?|:\d{2})\b/gi, '')
+    .replace(/\b(de\s+)?(manh[ãa]|tarde|noite|meio-dia)\b/gi, '')
+    .replace(/[,;]+/g, ' ')
+    .replace(/\s{2,}/g, ' ')
+    .trim()
+  if (!t) t = text.trim()
+  return t.charAt(0).toUpperCase() + t.slice(1)
+}
+
+// Casa o nome solto que a IA extraiu com um lead/cliente existente.
+function matchContact(name: string, options: LinkOption[]): LinkOption | null {
+  const q = name.trim().toLowerCase()
+  if (!q) return null
+  const lc = options.map(o => ({ o, n: o.name.toLowerCase() }))
+  return (
+    lc.find(x => x.n === q) ??
+    lc.find(x => x.n.startsWith(q)) ??
+    lc.find(x => x.n.includes(q)) ??
+    lc.find(x => { const first = x.n.split(' ')[0]; return first === q || q.startsWith(first) })
+  )?.o ?? null
+}
 
 interface Props {
   initialTasks: Task[]
@@ -71,9 +99,20 @@ export function TarefasClient({ initialTasks, linkOptions, currentUser }: Props)
   const [tasks, setTasks] = useState<Task[]>(initialTasks)
   const [modalOpen, setModalOpen] = useState(false)
   const [editing, setEditing] = useState<Task | null>(null)
+  const [modalPrefill, setModalPrefill] = useState<TaskPrefill | null>(null)
+  const [modalAiFilled, setModalAiFilled] = useState(false)
+  const [modalKey, setModalKey] = useState(0)   // força remontagem por abertura
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [confirmId, setConfirmId] = useState<string | null>(null)
   const [showDone, setShowDone] = useState(false)
+  // IA: criar por texto
+  const [aiText, setAiText] = useState('')
+  const [aiLoading, setAiLoading] = useState(false)
+  const [aiError, setAiError] = useState('')
+  // IA: resumo do dia
+  const [summary, setSummary] = useState<string | null>(null)
+  const [summaryLoading, setSummaryLoading] = useState(false)
+  const [summaryOpen, setSummaryOpen] = useState(false)
 
   const supabase = createClient()
   const phoneById = useMemo(() => {
@@ -113,8 +152,70 @@ export function TarefasClient({ initialTasks, linkOptions, currentUser }: Props)
     setConfirmId(null)
     supabase.from('tasks').delete().eq('id', t.id)
   }
-  const openNew  = () => { setEditing(null); setModalOpen(true) }
-  const openEdit = (t: Task) => { setEditing(t); setModalOpen(true) }
+  const openNew  = () => { setModalKey(k => k + 1); setEditing(null); setModalPrefill(null); setModalAiFilled(false); setModalOpen(true) }
+  const openEdit = (t: Task) => { setModalKey(k => k + 1); setEditing(t); setModalPrefill(null); setModalAiFilled(false); setModalOpen(true) }
+  const openAI   = (prefill: TaskPrefill) => { setModalKey(k => k + 1); setEditing(null); setModalPrefill(prefill); setModalAiFilled(true); setModalOpen(true) }
+
+  // IA: interpreta o texto e abre o modal já preenchido (preview editável).
+  // NUNCA bloqueia: o modal sempre abre, e o título sempre vem preenchido —
+  // da IA quando disponível, ou do próprio texto digitado (fallback local).
+  const handleAiCreate = async () => {
+    const text = aiText.trim()
+    if (!text || aiLoading) return
+    setAiLoading(true); setAiError('')
+
+    const localTitle = cleanTitle(text)   // garantia: nunca vazio
+
+    try {
+      const now = new Date()
+      const todayLabel = now.toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' })
+      const res = await fetch('/api/tasks/parse', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text, today: toISO(now), todayLabel }),
+      })
+      const data = await res.json().catch(() => null)
+      const p = (data?.task ?? null) as ParsedTask | null
+      const prefill: TaskPrefill = {
+        title: (p?.title && p.title.trim()) ? p.title.trim() : localTitle,
+        due_date: p?.due_date || '',
+        due_time: p?.due_time || '',
+        priority: p?.priority ?? 'normal',
+        link: p?.contact_name ? matchContact(p.contact_name, linkOptions) : null,
+      }
+      setAiText('')
+      openAI(prefill)
+    } catch {
+      // Offline/erro: ainda abre o modal com o título do texto digitado.
+      setAiText('')
+      openAI({ title: localTitle, due_date: '', due_time: '', priority: 'normal', link: null })
+    } finally {
+      setAiLoading(false)
+    }
+  }
+
+  // IA: resumo do dia (hoje + atrasadas).
+  const handleSummary = async () => {
+    if (summaryLoading) return
+    setSummaryOpen(true); setSummaryLoading(true); setSummary(null)
+    try {
+      const compact = [
+        ...groups.atrasadas.map(t => ({ title: t.title, priority: t.priority, due_time: t.due_time, overdue: true })),
+        ...groups.hoje.map(t => ({ title: t.title, priority: t.priority, due_time: t.due_time, overdue: false })),
+      ]
+      const res = await fetch('/api/tasks/summary', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tasks: compact }),
+      })
+      const data = await res.json()
+      setSummary(res.ok ? (data.summary ?? '') : 'Não consegui gerar o resumo agora.')
+    } catch {
+      setSummary('Falha ao gerar o resumo.')
+    } finally {
+      setSummaryLoading(false)
+    }
+  }
 
   // ── Linha de tarefa (função inline → sem componente aninhado, sem bug de foco) ──
   const renderRow = (t: Task) => {
@@ -241,16 +342,71 @@ export function TarefasClient({ initialTasks, linkOptions, currentUser }: Props)
           <h1 className="font-display font-bold text-bento-text text-lg tracking-tight">Tarefas</h1>
           <span className="font-tech text-xs text-bento-muted tabular-nums">{pendingCount} pendentes</span>
         </div>
-        <button onClick={openNew}
-          className="bento-btn flex items-center justify-center gap-2 px-4 py-2 min-h-[44px] rounded-btn text-sm font-semibold w-full sm:w-auto">
-          <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-          </svg>
-          Nova tarefa
-        </button>
+        <div className="flex items-center gap-2 w-full sm:w-auto">
+          <button onClick={handleSummary} disabled={summaryLoading}
+            className="flex items-center justify-center gap-2 px-3 py-2 min-h-[44px] rounded-btn text-sm font-medium border border-bento-border text-bento-dim hover:border-lime hover:text-bento-text transition-colors disabled:opacity-50 flex-1 sm:flex-none">
+            <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M13 10V3L4 14h7v7l9-11h-7z" />
+            </svg>
+            {summaryLoading ? 'Resumindo...' : 'Resumo do dia'}
+          </button>
+          <button onClick={openNew}
+            className="bento-btn flex items-center justify-center gap-2 px-4 py-2 min-h-[44px] rounded-btn text-sm font-semibold flex-1 sm:flex-none">
+            <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+            </svg>
+            Nova tarefa
+          </button>
+        </div>
       </div>
 
       <div className="max-w-3xl mx-auto px-4 sm:px-6 py-5 space-y-6">
+        {/* Criar por texto (IA) */}
+        <div className="bento-fx p-3">
+          <div className="flex items-center gap-2">
+            <svg className="w-4 h-4 text-lime-fg shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M13 10V3L4 14h7v7l9-11h-7z" />
+            </svg>
+            <input
+              value={aiText}
+              onChange={e => { setAiText(e.target.value); if (aiError) setAiError('') }}
+              onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleAiCreate() } }}
+              disabled={aiLoading}
+              placeholder="Escreva uma tarefa: “reunião com Flávio sexta 15h”…"
+              className="flex-1 bg-transparent text-sm text-bento-text placeholder:text-bento-muted focus:outline-none disabled:opacity-50"
+            />
+            <button
+              onClick={handleAiCreate}
+              disabled={aiLoading || !aiText.trim()}
+              className="bento-btn px-3 py-1.5 rounded-btn text-xs font-semibold shrink-0 disabled:opacity-50 min-h-0"
+            >
+              {aiLoading ? 'Interpretando…' : 'Criar'}
+            </button>
+          </div>
+          {aiError && <p className="text-xs text-red-400 mt-2 pl-6">{aiError}</p>}
+        </div>
+
+        {/* Resumo do dia (IA) */}
+        {summaryOpen && (
+          <div className="bento-fx p-4 relative">
+            <button onClick={() => setSummaryOpen(false)} aria-label="Fechar resumo"
+              className="absolute top-3 right-3 text-bento-muted hover:text-bento-text">
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+            <div className="flex items-center gap-2 mb-2">
+              <svg className="w-3.5 h-3.5 text-lime-fg" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M13 10V3L4 14h7v7l9-11h-7z" />
+              </svg>
+              <span className="text-xs font-semibold uppercase tracking-wide text-lime-fg">Resumo do dia</span>
+            </div>
+            {summaryLoading
+              ? <p className="text-sm text-bento-muted animate-pulse">Gerando resumo…</p>
+              : <p className="text-sm text-bento-dim whitespace-pre-wrap leading-relaxed">{summary}</p>}
+          </div>
+        )}
+
         {totalTasks === 0 ? (
           <EmptyAll onNew={openNew} />
         ) : (
@@ -300,11 +456,14 @@ export function TarefasClient({ initialTasks, linkOptions, currentUser }: Props)
 
       {modalOpen && (
         <TaskModal
+          key={modalKey}
           onClose={() => setModalOpen(false)}
           onSaved={handleSaved}
           currentUser={currentUser}
           linkOptions={linkOptions}
           task={editing}
+          prefill={modalPrefill}
+          aiFilled={modalAiFilled}
         />
       )}
     </div>

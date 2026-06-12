@@ -6,6 +6,21 @@ Categorias: 🐛 Fix · 🔄 Mudança · ✨ Novidade
 
 ---
 
+✨ Novidade — agente nas Tarefas (etapa 2a): criar tarefa por texto natural +
+resumo do dia, via API Anthropic (claude-haiku) com auth + rate-limit.
+- Criar por texto: input "Escreva uma tarefa…" no topo de /tarefas.
+  /api/tasks/parse interpreta título, data, hora e prioridade (datas relativas
+  resolvidas a partir de hoje, no fuso do navegador) e o contato; o nome casa
+  com um lead/cliente no cliente. Abre o modal JÁ PREENCHIDO (preview editável,
+  selo "preenchido por IA") — não salva sozinho. Título nunca vazio: fallback
+  do texto digitado (servidor e cliente).
+- Resumo do dia: botão no header → /api/tasks/summary resume hoje + atrasadas
+  em texto curto e humano (não lista crua).
+- Busca de lead melhorada: o "Conectar a" do modal mostra nome · empresa/nicho.
+Não inclui o sugerir-sozinho (etapa 2b).
+
+---
+
 ✨ Novidade — área de Tarefas (To-do), etapa 1 (base; o agente fica p/ etapa 2).
 - Banco: migration 015_tasks.sql cria a tabela `tasks` (due_date + due_time,
   notes, prioridade, done/completed_at, linked_type/id/name p/ conectar a lead ou

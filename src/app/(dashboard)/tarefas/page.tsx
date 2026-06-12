@@ -13,14 +13,14 @@ export default async function TarefasPage() {
   // `data` vem null → tratamos como lista vazia (a tela renderiza normalmente).
   const [tasksRes, leadsRes, clientsRes, profileRes] = await Promise.all([
     supabase.from('tasks').select('*').eq('user_id', user.id).order('due_date', { ascending: true }),
-    supabase.from('leads').select('id, name, phone').order('name'),
-    supabase.from('clients').select('id, name, phone').order('name'),
+    supabase.from('leads').select('id, name, phone, company, nicho').order('name'),
+    supabase.from('clients').select('id, name, phone, company').order('name'),
     supabase.from('profiles').select('id, name').eq('id', user.id).single(),
   ])
 
   const linkOptions: LinkOption[] = [
-    ...(leadsRes.data ?? []).map(l => ({ type: 'lead' as const, id: l.id, name: l.name, phone: l.phone })),
-    ...(clientsRes.data ?? []).map(c => ({ type: 'client' as const, id: c.id, name: c.name, phone: c.phone })),
+    ...(leadsRes.data ?? []).map(l => ({ type: 'lead' as const, id: l.id, name: l.name, phone: l.phone, detail: l.nicho || l.company || null })),
+    ...(clientsRes.data ?? []).map(c => ({ type: 'client' as const, id: c.id, name: c.name, phone: c.phone, detail: c.company || null })),
   ]
 
   return (
