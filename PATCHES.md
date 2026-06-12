@@ -6,6 +6,24 @@ Categorias: 🐛 Fix · 🔄 Mudança · ✨ Novidade
 
 ---
 
+✨ Novidade — design system VerdeLima: remapeia toda a paleta de tokens (dark +
+light) para a identidade verde-lima e elimina o índigo/roxo residual.
+- Dark verde-preto premium (#080D0A canvas, #111A14 card, #17231B elevado,
+  #263328 borda, texto #F3F7EF/#A8B3A2/#6F7A6A). Light controlado, sem neon sobre
+  branco: fill fechado #4F8500 com texto branco (AA), fundos suaves #E8F8D2.
+- Sistema de acento por papéis: lime + hover/dim(active)/soft/soft-fg/border,
+  todos theme-aware (--accent-*). Botão primário, item ativo, foco e ring → verde.
+- De-roxo final: ::selection, hover de cards, .text-gradient, .btn-primary,
+  gradientes e keyframe de glow no tailwind.config → verde. Login des-aroxado
+  (fundo verde-preto + textos branco/verde). ui/button: hover lime + secundário
+  com borda verde. HallClient: status "client" indigo→lime. MetricasTab: legenda
+  "Venda Feita" emerald→lime.
+- Camada de compat DARK (espelho da clara) remapeia hexes azul-acinzentados
+  legados (#0d1117/#1e2533/#2d3748…) para os tokens verdes sem editar 11 arquivos.
+  Migração desses hexes p/ tokens diretos fica como dívida pós-lançamento.
+
+---
+
 🔄 Mudança — remove o campo "Perfil de acesso" (role) da tela de Perfil.
 Resquício do sistema de papéis removido no pivot para app de usuário único:
 mostrava ROLE_LABELS[role] e não fazia mais sentido. Remove o campo, o tipo

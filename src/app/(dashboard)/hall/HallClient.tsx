@@ -52,7 +52,7 @@ const ACTIVITY_ICONS: Record<string, React.ReactNode> = {
 // Status semânticos (não-acento): cores próprias preservadas nos dois temas.
 const ACTIVITY_COLORS: Record<string, string> = {
   lead:     'bg-blue-900/40 text-blue-400',
-  client:   'bg-indigo-900/40 text-indigo-400',
+  client:   'bg-lime/15 text-lime-fg',
   payment:  'bg-green-900/40 text-green-400',
   task:     'bg-amber-900/40 text-amber-400',
   campaign: 'bg-purple-900/40 text-purple-400',

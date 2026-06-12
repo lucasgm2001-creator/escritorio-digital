@@ -16,7 +16,7 @@ const FUNNEL_STAGES = [
   { key: 'interagiu', label: 'Interagiu',   dotClass: 'bg-indigo-500' },
   { key: 'reuniao',   label: 'Reunião',     dotClass: 'bg-purple-500' },
   { key: 'proposta',  label: 'Proposta',    dotClass: 'bg-amber-500' },
-  { key: 'fechado',   label: 'Venda Feita', dotClass: 'bg-emerald-500' },
+  { key: 'fechado',   label: 'Venda Feita', dotClass: 'bg-lime' },
 ]
 
 const card = 'bento-fx p-5'

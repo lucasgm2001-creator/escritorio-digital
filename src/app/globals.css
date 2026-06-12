@@ -9,86 +9,102 @@
    :root = tema escuro (padrão).  html.light = tema claro.
    ════════════════════════════════════════════════════════════════ */
 :root {
-  /* Superfícies / texto */
-  --c-background:         13 17 23;     /* #0d1117 */
-  --c-foreground:         230 237 243;  /* #e6edf3 */
-  --c-card:               22 27 39;     /* #161b27 */
-  --c-card-foreground:    230 237 243;
-  --c-muted:              22 27 34;     /* #161b22 */
-  --c-muted-foreground:   125 133 144;  /* #7d8590 */
-  --c-border:             45 55 72;     /* #2d3748 */
-  --c-input:              30 37 51;     /* #1e2533 */
-  --c-popover:            30 37 51;     /* #1e2533 */
-  --c-popover-foreground: 230 237 243;
-  --c-accent:             30 37 51;     /* #1e2533 */
-  --c-accent-foreground:  230 237 243;
-  --c-ring:               99 102 241;   /* #6366f1 */
+  /* Superfícies / texto — verde-preto premium (estado natural do produto) */
+  --c-background:         8 13 10;      /* #080D0A  canvas principal */
+  --c-foreground:         243 247 239;  /* #F3F7EF  texto claro, não branco puro */
+  --c-card:               17 26 20;     /* #111A14  card/surface */
+  --c-card-foreground:    243 247 239;
+  --c-muted:              13 20 15;     /* #0D140F  background secundário */
+  --c-muted-foreground:   168 179 162;  /* #A8B3A2  texto secundário (cinza-esverdeado) */
+  --c-border:             38 51 40;     /* #263328  borda discreta */
+  --c-input:              23 35 27;     /* #17231B  card elevado (inputs/popover) */
+  --c-popover:            23 35 27;     /* #17231B */
+  --c-popover-foreground: 243 247 239;
+  --c-accent:             23 35 27;     /* #17231B */
+  --c-accent-foreground:  243 247 239;
+  --c-ring:               182 255 59;   /* #B6FF3B  foco verde lima */
 
-  /* Sidebar */
-  --c-sidebar:            15 17 23;     /* #0f1117 */
-  --c-sidebar-foreground: 237 242 247;  /* #edf2f7 */
-  --c-sidebar-muted:      125 133 144;  /* #7d8590 */
+  /* Sidebar — limpa, mesma base do canvas */
+  --c-sidebar:            8 13 10;      /* #080D0A */
+  --c-sidebar-foreground: 243 247 239;  /* #F3F7EF */
+  --c-sidebar-muted:      111 122 106;  /* #6F7A6A  texto fraco */
   --c-sidebar-border:     255 255 255;  /* usado com baixa opacidade */
-  --c-sidebar-accent:     129 140 248;  /* #818cf8 */
+  --c-sidebar-accent:     182 255 59;   /* #B6FF3B  item ativo verde lima */
 
   --radius:        0.75rem;
-  --glow-primary:  rgba(99,102,241,0.35);
-  --shadow-card:   0 4px 24px rgba(0,0,0,0.30);
-  --shadow-hover:  0 8px 32px rgba(0,0,0,0.40), 0 0 0 1px rgba(99,102,241,0.15);
+  --glow-primary:  rgba(182,255,59,0.28);
+  --shadow-card:   0 4px 24px rgba(0,0,0,0.35);
+  --shadow-hover:  0 8px 32px rgba(0,0,0,0.45), 0 0 0 1px rgba(182,255,59,0.14);
 
-  /* ── Design System "Bento Compacto" — ESCURO (padrão) ──
-     Acento verde-limão e neutros próprios, isolados dos tokens --c-* legados.
-     Só usados no piloto (Hall) + componentes bento por enquanto. */
-  --accent:          194 247 58;   /* #C2F73A */
-  --accent-dim:      155 201 31;   /* #9BC91F  (hover) */
-  --accent-ink:      10 12 16;     /* #0A0C10  (texto sobre o acento) */
-  --accent-fg:       194 247 58;   /* cor do TEXTO-acento: claro usa o dim */
+  /* ── Sistema de acento "verde lima" — ESCURO (padrão) ──
+     Papéis: fill (botão/KPI), hover (mais claro), active (mais fechado),
+     soft (fundo de badge positivo), ink (texto sobre o fill). No dark o
+     verde pode brilhar mais. */
+  --accent:          182 255 59;   /* #B6FF3B  principal (fill) */
+  --accent-hover:    200 255 99;   /* #C8FF63  hover (mais claro) */
+  --accent-dim:      159 234 34;   /* #9FEA22  ativo/pressed (mais fechado) */
+  --accent-ink:      8 18 10;      /* #08120A  texto sobre o fill claro */
+  --accent-fg:       182 255 59;   /* texto-acento em superfície escura */
+  --accent-soft:     30 58 34;     /* #1E3A22  fundo verde suave (badge +) */
+  --accent-soft-fg:  200 255 99;   /* #C8FF63  texto sobre o soft */
+  --accent-border:   46 74 46;     /* #2E4A2E  borda verde (botão secundário) */
+  --accent-glow:     rgba(182,255,59,0.30);
 
-  --bento-bg:        12 14 18;     /* #0C0E12 */
-  --bento-panel:     21 24 30;     /* #15181E */
-  --bento-border:    35 40 48;     /* #232830 */
-  --bento-text:      255 255 255;  /* #FFFFFF */
-  --bento-dim:       200 204 210;  /* #C8CCD2 */
-  --bento-muted:     122 128 138;  /* #7A808A */
+  --bento-bg:        8 13 10;      /* #080D0A */
+  --bento-panel:     17 26 20;     /* #111A14 */
+  --bento-border:    38 51 40;     /* #263328 */
+  --bento-text:      243 247 239;  /* #F3F7EF  (não branco puro) */
+  --bento-dim:       168 179 162;  /* #A8B3A2 */
+  --bento-muted:     111 122 106;  /* #6F7A6A */
 }
 
 /* ─── Tema claro ─────────────────────────────────────────────── */
 html.light {
-  --c-background:         246 248 250;  /* #f6f8fa  (canvas levemente cinza) */
-  --c-foreground:         31 35 40;     /* #1f2328  texto escuro legível */
-  --c-card:               255 255 255;  /* #ffffff  cartões brancos sobre o canvas */
-  --c-card-foreground:    31 35 40;
-  --c-muted:              234 238 242;  /* #eaeef2 */
-  --c-muted-foreground:   87 96 106;    /* #57606a */
-  --c-border:             208 215 222;  /* #d0d7de */
-  --c-input:              255 255 255;  /* #ffffff  com borda */
+  --c-background:         247 250 243;  /* #F7FAF3  canvas off-white esverdeado */
+  --c-foreground:         24 32 20;     /* #182014  texto escuro */
+  --c-card:               255 255 255;  /* #FFFFFF  cartões brancos */
+  --c-card-foreground:    24 32 20;
+  --c-muted:              238 245 231;  /* #EEF5E7  surface suave */
+  --c-muted-foreground:   93 102 88;    /* #5D6658  texto secundário */
+  --c-border:             220 232 209;  /* #DCE8D1  borda */
+  --c-input:              255 255 255;  /* #FFFFFF  com borda */
   --c-popover:            255 255 255;
-  --c-popover-foreground: 31 35 40;
-  --c-accent:             234 238 242;  /* #eaeef2 */
-  --c-accent-foreground:  31 35 40;
-  --c-ring:               99 102 241;
+  --c-popover-foreground: 24 32 20;
+  --c-accent:             238 245 231;  /* #EEF5E7 */
+  --c-accent-foreground:  24 32 20;
+  --c-ring:               111 175 0;    /* #6FAF00  foco verde */
 
   /* Sidebar clara */
-  --c-sidebar:            241 245 249;  /* #f1f5f9 */
-  --c-sidebar-foreground: 30 41 59;     /* #1e293b */
-  --c-sidebar-muted:      100 116 139;  /* #64748b */
+  --c-sidebar:            247 250 243;  /* #F7FAF3 */
+  --c-sidebar-foreground: 24 32 20;     /* #182014 */
+  --c-sidebar-muted:      93 102 88;    /* #5D6658 */
   --c-sidebar-border:     0 0 0;        /* usado com baixa opacidade */
-  --c-sidebar-accent:     79 70 229;    /* #4f46e5  indigo mais escuro p/ contraste em fundo claro */
+  --c-sidebar-accent:     79 133 0;     /* #4F8500  verde fechado p/ contraste no claro */
 
-  --glow-primary:  rgba(99,102,241,0.12);
-  --shadow-card:   0 1px 3px rgba(27,31,36,0.08), 0 1px 2px rgba(27,31,36,0.06);
-  --shadow-hover:  0 4px 16px rgba(27,31,36,0.10), 0 0 0 1px rgba(99,102,241,0.12);
+  --glow-primary:  rgba(111,175,0,0.12);
+  --shadow-card:   0 1px 3px rgba(24,32,20,0.08), 0 1px 2px rgba(24,32,20,0.06);
+  --shadow-hover:  0 4px 16px rgba(24,32,20,0.10), 0 0 0 1px rgba(111,175,0,0.14);
 
-  /* ── Design System "Bento Compacto" — CLARO ──
-     Acento/ink permanecem (definidos no :root). No claro, o TEXTO-acento usa o
-     dim (#9BC91F) para contraste sobre fundos claros. */
-  --accent-fg:    155 201 31;   /* #9BC91F */
-  --bento-bg:     238 240 243;  /* #EEF0F3 */
+  /* ── Sistema de acento "verde lima" — CLARO ──
+     Sem neon sobre branco: fill sólido usa verde FECHADO (#4F8500) com texto
+     branco (contraste AA); texto-acento e bordas usam verde fechado; fundos de
+     badge usam verde SUAVE (#E8F8D2). */
+  --accent:          79 133 0;     /* #4F8500  fill sólido (texto branco) */
+  --accent-hover:    111 175 0;    /* #6FAF00  hover */
+  --accent-dim:      63 105 0;     /* #3F6900  ativo/pressed */
+  --accent-ink:      255 255 255;  /* texto branco sobre o fill verde escuro */
+  --accent-fg:       79 133 0;     /* #4F8500  texto-acento fechado */
+  --accent-soft:     232 248 210;  /* #E8F8D2  fundo verde suave (badge +) */
+  --accent-soft-fg:  63 90 0;      /* #3F5A00  texto escuro sobre o soft */
+  --accent-border:   183 232 121;  /* #B7E879  borda verde clara */
+  --accent-glow:     rgba(111,175,0,0.18);
+
+  --bento-bg:     247 250 243;  /* #F7FAF3 */
   --bento-panel:  255 255 255;  /* #FFFFFF */
-  --bento-border: 228 231 236;  /* #E4E7EC */
-  --bento-text:   20 23 29;     /* #14171D */
-  --bento-dim:    68 71 77;     /* #44474D */
-  --bento-muted:  136 141 150;  /* #888D96 */
+  --bento-border: 220 232 209;  /* #DCE8D1 */
+  --bento-text:   24 32 20;     /* #182014 */
+  --bento-dim:    93 102 88;    /* #5D6658 */
+  --bento-muted:  138 145 130;  /* #8A9182  texto fraco */
 }
 
 /* ─── Base ───────────────────────────────────────────────────── */
@@ -103,7 +119,7 @@ html.light {
     font-feature-settings: "rlig" 1, "calt" 1;
   }
 
-  ::selection { background: rgba(99,102,241,0.30); }
+  ::selection { background: rgba(182,255,59,0.24); color: rgb(var(--c-foreground)); }
 
   /* Scrollbar — adapta ao tema */
   ::-webkit-scrollbar         { width: 6px; height: 6px; }
@@ -150,7 +166,7 @@ html.light {
     border-radius: 4px 0 0 4px;
   }
   .stat-card:hover {
-    border-color: rgba(99,102,241,0.30);
+    border-color: var(--accent-glow);
     box-shadow: var(--shadow-hover);
     transform: translateY(-1px);
   }
@@ -166,20 +182,22 @@ html.light {
 
   /* Texto em gradiente (títulos) */
   .text-gradient {
-    background: linear-gradient(135deg, #818cf8 0%, #c084fc 100%);
+    background: linear-gradient(135deg, rgb(var(--accent)) 0%, rgb(var(--accent-hover)) 100%);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text;
   }
 
-  /* Botão primário com gradiente */
+  /* Botão primário com gradiente (legado) — agora verde lima */
   .btn-primary {
-    background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
-    box-shadow: 0 0 0 rgba(99,102,241,0);
+    background: rgb(var(--accent));
+    color: rgb(var(--accent-ink));
+    box-shadow: 0 0 0 rgba(0,0,0,0);
     transition: all 0.2s ease;
   }
   .btn-primary:hover {
-    box-shadow: 0 0 20px rgba(99,102,241,0.4), 0 4px 12px rgba(0,0,0,0.3);
+    background: rgb(var(--accent-hover));
+    box-shadow: 0 4px 14px var(--accent-glow);
     transform: translateY(-1px);
   }
   .btn-primary:active { transform: translateY(0); }
@@ -213,14 +231,14 @@ html.light {
     position: relative;
     overflow: hidden;
     border-radius: 16px;
-    background: linear-gradient(160deg, #181c23 0%, #14171d 100%);
-    border: 1px solid #232830;
-    box-shadow: inset 0 1px 0 rgba(255,255,255,0.04), 0 1px 2px rgba(0,0,0,0.30);
+    background: linear-gradient(160deg, #17231B 0%, #111A14 100%);
+    border: 1px solid #263328;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.04), 0 1px 2px rgba(0,0,0,0.35);
   }
   html.light .bento-fx {
-    background: linear-gradient(160deg, #ffffff 0%, #fafbfc 100%);
-    border: 1px solid #e4e7ec;
-    box-shadow: inset 0 1px 0 rgba(255,255,255,0.80), 0 1px 3px rgba(0,0,0,0.04);
+    background: linear-gradient(160deg, #ffffff 0%, #fafdf8 100%);
+    border: 1px solid #DCE8D1;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.80), 0 1px 3px rgba(24,32,20,0.04);
   }
 
   /* Filete de acento — SÓ no painel herói. */
@@ -238,8 +256,8 @@ html.light {
     color: rgb(var(--bento-text));
   }
   .bento-metric.sm { font-size: 30px; }
-  .bento-metric .cents { font-size: 0.52em; font-weight: 500; color: #6b7280; }
-  html.light .bento-metric .cents { color: #a0a4ab; }
+  .bento-metric .cents { font-size: 0.52em; font-weight: 500; color: rgb(var(--bento-muted)); }
+  html.light .bento-metric .cents { color: rgb(var(--bento-muted)); }
 
   /* Gráfico de barras: baseline 1px + barra "hoje/atual" no acento. */
   .bento-bars { display: flex; align-items: flex-end; gap: 6px; position: relative; }
@@ -248,11 +266,11 @@ html.light {
     background: rgba(255,255,255,0.06);
   }
   html.light .bento-bars::after { background: rgba(0,0,0,0.06); }
-  .bento-bar { flex: 1; border-radius: 4px 4px 0 0; background: #232830; }
-  html.light .bento-bar { background: #e0e3e8; }
+  .bento-bar { flex: 1; border-radius: 4px 4px 0 0; background: #263328; }
+  html.light .bento-bar { background: #DCE8D1; }
   .bento-bar.is-now {
     background: linear-gradient(180deg, rgb(var(--accent)), rgb(var(--accent-dim)));
-    box-shadow: 0 0 14px rgba(194,247,58,0.35);
+    box-shadow: 0 0 14px var(--accent-glow);
   }
 
   /* Barra de proporção (trilho 3px) sob itens de lista/funil. */
@@ -260,17 +278,17 @@ html.light {
   html.light .bento-track { background: rgba(0,0,0,0.06); }
   .bento-fill { height: 100%; border-radius: 2px; background: rgb(var(--accent)); }
   .bento-fill.dim { background: rgb(var(--accent-dim)); }
-  .bento-fill.mut { background: #3a4150; }
-  html.light .bento-fill.mut { background: #c2c7d0; }
+  .bento-fill.mut { background: #2E4A2E; }
+  html.light .bento-fill.mut { background: #C7D6BA; }
 
   /* Botão primário com profundidade: inset highlight + sombra colorida discreta. */
   .bento-btn {
     background: rgb(var(--accent)); color: rgb(var(--accent-ink));
-    box-shadow: inset 0 1px 0 rgba(255,255,255,0.30), 0 2px 8px rgba(194,247,58,0.20);
-    transition: transform .12s ease, box-shadow .12s ease;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.25), 0 2px 8px var(--accent-glow);
+    transition: background .12s ease, transform .12s ease, box-shadow .12s ease;
   }
-  .bento-btn:hover { box-shadow: inset 0 1px 0 rgba(255,255,255,0.30), 0 4px 14px rgba(194,247,58,0.30); }
-  .bento-btn:active { transform: scale(0.98); }
+  .bento-btn:hover { background: rgb(var(--accent-hover)); box-shadow: inset 0 1px 0 rgba(255,255,255,0.25), 0 4px 14px var(--accent-glow); }
+  .bento-btn:active { background: rgb(var(--accent-dim)); transform: scale(0.98); }
 }
 
 /* ─── Utilities ──────────────────────────────────────────────── */
@@ -286,6 +304,50 @@ html.light {
   .animate-glow     { animation: glowPulse 2s ease-in-out infinite; }
   .animate-live     { animation: livePulse 1.6s ease-in-out infinite; }
 }
+
+/* ════════════════════════════════════════════════════════════════
+   CAMADA DE COMPATIBILIDADE — tema ESCURO
+   Os hexes azul-acinzentados antigos (#0d1117, #161b27, #1e2533,
+   #2d3748…) ainda aparecem soltos em alguns componentes. No verde-preto
+   novo eles destoariam, então os remapeamos para os tokens atuais —
+   sem precisar editar arquivo por arquivo. (espelho do bloco claro abaixo)
+   ════════════════════════════════════════════════════════════════ */
+
+/* — Superfícies (background-color) — */
+html:not(.light) [class~="bg-[#0d1117]"]              { background-color: rgb(var(--c-background)) !important; }
+html:not(.light) [class~="bg-[#161b22]"],
+html:not(.light) [class~="bg-[#161b27]"],
+html:not(.light) [class~="bg-[#222c3d]"]              { background-color: rgb(var(--c-card)) !important; }
+html:not(.light) [class~="bg-[#1e2533]"]              { background-color: rgb(var(--c-input)) !important; }
+html:not(.light) [class~="bg-[#1a2133]"],
+html:not(.light) [class~="bg-[#1a2533]"],
+html:not(.light) [class~="bg-[#252d3d]"],
+html:not(.light) [class~="bg-[#262d35]"],
+html:not(.light) [class~="bg-[#2a3444]"]              { background-color: rgb(var(--c-muted)) !important; }
+
+/* variantes de opacidade comuns (ex.: bg-[#0d1117]/50) */
+html:not(.light) [class*="bg-[#0d1117]/"]             { background-color: rgb(var(--c-background)) !important; }
+html:not(.light) [class*="bg-[#161b27]/"],
+html:not(.light) [class*="bg-[#161b22]/"]             { background-color: rgb(var(--c-card)) !important; }
+html:not(.light) [class*="bg-[#1a2133]/"]             { background-color: rgb(var(--c-muted)) !important; }
+
+/* — Hover de superfícies (só no :hover) — */
+html:not(.light) [class~="hover:bg-[#1e2533]"]:hover,
+html:not(.light) [class~="hover:bg-[#2d3748]"]:hover,
+html:not(.light) [class~="hover:bg-[#252d3d]"]:hover,
+html:not(.light) [class~="hover:bg-[#2a3444]"]:hover,
+html:not(.light) [class~="hover:bg-[#262d35]"]:hover,
+html:not(.light) [class~="hover:bg-[#1a2133]"]:hover,
+html:not(.light) [class~="hover:bg-[#1a2533]"]:hover  { background-color: rgb(var(--c-muted)) !important; }
+
+/* — Bordas — */
+html:not(.light) [class*="border-[#2d3748]"],
+html:not(.light) [class*="border-[#3d4f6a]"],
+html:not(.light) [class*="border-[#1a2133]"]          { border-color: rgb(var(--c-border)) !important; }
+html:not(.light) [class~="hover:border-[#3d4f6a]"]:hover { border-color: var(--accent-glow) !important; }
+
+/* — Divisores — */
+html:not(.light) [class*="divide-[#2d3748]"] > * + *  { border-color: rgb(var(--c-border)) !important; }
 
 /* ════════════════════════════════════════════════════════════════
    CAMADA DE COMPATIBILIDADE — tema claro
