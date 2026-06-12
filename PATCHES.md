@@ -6,6 +6,16 @@ Categorias: 🐛 Fix · 🔄 Mudança · ✨ Novidade
 
 ---
 
+🐛 Fix — schema de produção desalinhado (migrations 006–012 aplicadas só em
+parte → "funciona no local, quebra no ar"). Quebrou leads (006) e depois a aba
+Vendedores ("column sellers.cargo does not exist"). A varredura migrations×código
+achou ainda `commissions.cargo/description` (criar comissão quebraria) e
+`profiles.avatar_url/phone/cargo/logo_url`. Migration 016_reconcile_prod_schema:
+`add column if not exists` de TODAS as colunas que o código usa em sellers,
+commissions, profiles e leads — idempotente, não apaga nada. Rodada em prod.
+
+---
+
 🐛 Fix — escritas que falhavam em SILÊNCIO (risco de perda de dado sem aviso).
 Helper central de persistência: `lib/useSave.ts` (optimistic → await → em erro
 rollback + toast vermelho; em sucesso, toast opcional) + `components/ui/toast.tsx`
