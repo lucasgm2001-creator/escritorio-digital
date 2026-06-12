@@ -6,6 +6,18 @@ Categorias: 🐛 Fix · 🔄 Mudança · ✨ Novidade
 
 ---
 
+🐛 Fix — respostas do agente do Hall agora renderizam markdown (antes os `##`,
+`**` e listas apareciam como texto cru).
+- AgentChat trocou o `<p whitespace-pre-wrap>` por um componente Markdown
+  (react-markdown + remark-gfm) — só nas respostas do agente; a bolha do usuário
+  segue texto puro (fundo lima/tinta escura, contexto de cor diferente).
+- Novo `components/ui/Markdown.tsx`: cada elemento (títulos, negrito, listas,
+  links, código, tabela, citação) estilizado só com tokens (bento-*/lime-*/
+  font-display/font-tech) → funciona nos dois temas, sem cor hardcoded.
+- Lógica e prompt do agente intactos: mudou só a camada de exibição.
+
+---
+
 ✨ Novidade — Vendedores reestruturado como perfil clicável (passo 2).
 - Lista vira cards clicáveis com 2 indicadores: Vendas + Comissão do mês (agregada
   numa query só, por mês corrente).

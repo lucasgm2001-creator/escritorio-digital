@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
+import { Markdown } from '@/components/ui/Markdown'
 
 interface Message {
   id: string
@@ -107,9 +108,11 @@ export function AgentChat() {
                   : 'bg-bento-bg text-bento-text border border-bento-border'
               }`}
             >
-              <p className="text-sm leading-relaxed whitespace-pre-wrap">
-                {msg.content}
-              </p>
+              {msg.role === 'agent' ? (
+                <Markdown>{msg.content}</Markdown>
+              ) : (
+                <p className="text-sm leading-relaxed whitespace-pre-wrap">{msg.content}</p>
+              )}
               <p
                 className={`text-xs mt-1 ${
                   msg.role === 'user'
