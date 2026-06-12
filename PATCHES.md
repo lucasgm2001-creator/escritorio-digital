@@ -6,6 +6,194 @@ Categorias: 🐛 Fix · 🔄 Mudança · ✨ Novidade
 
 ---
 
+✨ Novidade — agente nas Tarefas (etapa 2a): criar tarefa por texto natural +
+resumo do dia, via API Anthropic (claude-haiku) com auth + rate-limit.
+- Criar por texto: input "Escreva uma tarefa…" no topo de /tarefas.
+  /api/tasks/parse interpreta título, data, hora e prioridade (datas relativas
+  resolvidas a partir de hoje, no fuso do navegador) e o contato; o nome casa
+  com um lead/cliente no cliente. Abre o modal JÁ PREENCHIDO (preview editável,
+  selo "preenchido por IA") — não salva sozinho. Título nunca vazio: fallback
+  do texto digitado (servidor e cliente).
+- Resumo do dia: botão no header → /api/tasks/summary resume hoje + atrasadas
+  em texto curto e humano (não lista crua).
+- Busca de lead melhorada: o "Conectar a" do modal mostra nome · empresa/nicho.
+Não inclui o sugerir-sozinho (etapa 2b).
+
+---
+
+✨ Novidade — área de Tarefas (To-do), etapa 1 (base; o agente fica p/ etapa 2).
+- Banco: migration 015_tasks.sql cria a tabela `tasks` (due_date + due_time,
+  notes, prioridade, done/completed_at, linked_type/id/name p/ conectar a lead ou
+  cliente). RLS OWNER-ONLY (auth.uid()=user_id), sem papel. Recria a `tasks`
+  ANTIGA (tarefas de equipe da 005, resquício do sistema de papéis, sem UI) com
+  `drop ... cascade` — a velha estava vazia.
+- Menu: "Tarefas" na Sidebar entre Hall e Comercial (ícone check-square, ativo
+  limão).
+- Tela /tarefas: seções por dia (Atrasadas/Hoje/Amanhã/Esta semana/Depois/
+  Concluídas recolhível); contagem por seção; vazias somem (exceto Hoje). Linha:
+  checkbox (otimista), título, chip do lead/cliente + telefone (tel:), briefing
+  expansível, tag de prioridade (alta/urgente), data+hora (mono). Ordenação:
+  prioridade → dia → com hora (por horário) antes de sem hora.
+- Modal Bento (Field em escopo de módulo → sem bug de foco): título, briefing,
+  data, hora, prioridade e "Conectar a" (busca lead/cliente). Dois temas.
+
+---
+
+✨ Novidade — DESIGN_SYSTEM_VERDELIMA_EDV2.md: especificação canônica do design
+system. Incorpora a revisão crítica: separa identidade ESTRUTURAL (verde contido:
+botão/item ativo/foco) de EVENTO (verde brilhante: venda/meta/toast); cores de
+STATUS (verde/âmbar/vermelho) não governam CATEGORIA (o funil usa wayfinding
+frio); estados neutros (lead frio ≠ erro); vocabulário de pipeline (não "saúde do
+sistema"). 19 seções: filosofia, semântica, tokens dark/light, tipografia,
+superfícies, botões, inputs, tabelas, badges, gráficos, sidebar, pipeline,
+toasts, estados, exemplos e regras do que evitar.
+
+---
+
+✨ Novidade — funil (Kanban) do Comercial no estilo Pipedrive: cor vira
+informação, não decoração. As etapas do meio (Novo/Interagiu/Reunião/Proposta/
+Não Interagiu) ficam NEUTRAS (dot cinza, nome bento-dim); só Fechado (verde lima
+suave) e Perdido (vermelho suave) têm cor. Campo `tone` no ColumnConfig governa
+isso só no Kanban — PipelineTab/AgendaTab seguem coloridos.
+- Deal rotting (recurso-chave do Pipedrive): dias parado via last_contact_at
+  (fallback created_at) → 3–4d borda+tag âmbar, 5+d vermelho ("esfriando").
+- Lead quente: score≥650 OU prioridade alta/urgente → borda+tag limão "QUENTE".
+  Um sinal por card, prioridade quente > esfriando > atenção.
+- Card enxuto: nome · sub (nicho/empresa) · rodapé (valor + sinal OU próxima ação
+  vinda de next_contact). Header da coluna com contagem + soma (mono).
+- Lógica de sinais isolada em leadSignals.ts.
+Divergência consciente da referência: "Ganho" usa verde lima (não o emerald do
+mock) para bater com o design system VerdeLima.
+
+---
+
+✨ Novidade — design system VerdeLima: remapeia toda a paleta de tokens (dark +
+light) para a identidade verde-lima e elimina o índigo/roxo residual.
+- Dark verde-preto premium (#080D0A canvas, #111A14 card, #17231B elevado,
+  #263328 borda, texto #F3F7EF/#A8B3A2/#6F7A6A). Light controlado, sem neon sobre
+  branco: fill fechado #4F8500 com texto branco (AA), fundos suaves #E8F8D2.
+- Sistema de acento por papéis: lime + hover/dim(active)/soft/soft-fg/border,
+  todos theme-aware (--accent-*). Botão primário, item ativo, foco e ring → verde.
+- De-roxo final: ::selection, hover de cards, .text-gradient, .btn-primary,
+  gradientes e keyframe de glow no tailwind.config → verde. Login des-aroxado
+  (fundo verde-preto + textos branco/verde). ui/button: hover lime + secundário
+  com borda verde. HallClient: status "client" indigo→lime. MetricasTab: legenda
+  "Venda Feita" emerald→lime.
+- Camada de compat DARK (espelho da clara) remapeia hexes azul-acinzentados
+  legados (#0d1117/#1e2533/#2d3748…) para os tokens verdes sem editar 11 arquivos.
+  Migração desses hexes p/ tokens diretos fica como dívida pós-lançamento.
+
+---
+
+🔄 Mudança — remove o campo "Perfil de acesso" (role) da tela de Perfil.
+Resquício do sistema de papéis removido no pivot para app de usuário único:
+mostrava ROLE_LABELS[role] e não fazia mais sentido. Remove o campo, o tipo
+ROLE_LABELS e a prop initialRole do PerfilClient, e o `role` do select em
+perfil/page.tsx. (A coluna profiles.role segue existindo no banco — só não é
+mais exibida.)
+
+---
+
+✨ Novidade — de-roxo + audit de tema do app inteiro. Varredura por classes que
+ignoravam o tema/identidade e troca pelos tokens Bento (acento verde-limão).
+- ClientesClient: ClientRow extraído para escopo de módulo (corrige o MESMO bug
+  de foco do BUG 1 — o campo de "jobs" perdia o foco a cada tecla); de-roxo +
+  tokens bento.
+- AgentChat (Hall): balões, dots de loading, input e botão Enviar saem do roxo
+  para limão/bento.
+- PerfilClient: avatar, inputs e botão → limão/bento.
+- Shell: Sidebar (item ativo, logo), Topbar (avatar) → limão.
+- login: HÍBRIDO — mantém o fundo gradiente roxo (branding/primeira impressão),
+  mas botão "Entrar" e link "Esqueci minha senha" viram limão.
+- error.tsx: tinha light hardcode (bg-red-50/slate) → tokens bento.
+- Código morto deixado on-brand: ThemeSelector, Clock, ui/button, ui/badge.
+Cores SEMÂNTICAS (status, etapas do funil, score) preservadas. O único primary-*
+remanescente é o branding do login (fundo/labels), intencional.
+
+---
+
+✨ Novidade — acabamento Bento no Comercial + correção de 3 bugs críticos nos
+modais. Propaga o design Bento Compacto (do Hall) para o Comercial: abas
+(DraggableTabs) e botão "Novo Lead" saem do roxo (`primary-*`) para o acento
+verde-limão (`.bento-btn`); filtro Brasil/EUA/Todos e cards de lead ganham
+acento limão + profundidade (`.bento-fx`); abas Pipeline/Métricas/Agenda usam
+painéis com profundidade; Comissões/Vendedores/Fixo e os modais ficam sem roxo.
+As cores SEMÂNTICAS de estágio do funil (azul/indigo/roxo/âmbar/esmeralda/rosa)
+são mantidas de propósito.
+
+BUGS corrigidos nos modais (Novo Lead, Comissão, Diário):
+- FOCO: o input perdia o foco a cada tecla porque o subcomponente `Field` era
+  definido DENTRO do `LeadModal` (recriado a cada render → input remontava).
+  Movido para escopo de módulo. (Os outros modais não tinham o padrão.)
+- TEMA: modais estavam presos no claro (`bg-white`/`slate-*`/`*-50` hardcoded),
+  texto quase invisível no dark. Retematizados com tokens bento (contraste nos
+  dois temas); emerald/azul/âmbar viram tons translúcidos semânticos.
+- ROXO: "Preencher com IA" e pills de prioridade saíram do indigo → acento/bento.
+
+Também (audit de tema): `lib/utils/score.ts` tinha TODOS os badges de score em
+tons claros (`bg-*-50`, `gray-100`) que quebravam no dark — reescritos
+dark-aware (aparecem no LeadCard e na Agenda).
+
+---
+
+✨ Novidade — refino de acabamento do design Bento Compacto (piloto no Hall).
+Eleva o Bento de "troca de paleta" para acabamento técnico de instrumento,
+SUTIL e ESTÁTICO. Valores de CSS copiados de painel_padrao_tecnico.html (fonte
+da verdade), funcionando nos dois temas (claro/escuro). Implementado em
+globals.css (classes `.bento-canvas/.bento-fx/.bento-metric/.bento-bars/
+.bento-track/.bento-fill/.bento-btn`) e nos componentes bento (Panel ganha
+profundidade + variante `hero` com filete de acento; Metric vai a 46px com
+tracking negativo + centavos apagados; Button ganha inset highlight + sombra
+colorida + active scale). Microdetalhes: (1) painéis com gradação sutil +
+borda + inset highlight no topo (não chapado); (2) grade finíssima de 28px no
+canvas (~0.015 escuro / 0.018 claro); (3) filete verde-limão só no painel
+herói; (4) hierarquia forte (número 46px Space Grotesk vs label 10px JetBrains
+Mono uppercase); (5) barras de proporção (trilho 3px) no resumo por tipo de
+atividade; (6) gráfico com baseline + eixo X mono + barra "hoje" no acento
+(eventos reais da semana); (7) botão com profundidade e resposta a toque.
+TUDO ESTÁTICO (sem animação ambiente; exceções: pulse sutil do "online" e
+hover/active de botões). Verde-limão pontual. Dados reais (eventos da semana,
+atividades hoje, online, proporção por tipo). Próximo: replicar em Comercial e
+Configurações.
+
+---
+
+🔄 Mudança — PIVOT para app PESSOAL de uso único (só o Lucas). Decisão de
+produto: o sistema deixa de ser multi-área/multi-perfil e passa a focar no
+fluxo de trabalho de um único usuário. Isso também elimina a maior fonte de
+bugs recentes (papéis/roles, RLS por papel, layout que dependia do role).
+
+O QUE SAI:
+1. ÁREAS removidas por completo (rotas, páginas e componentes exclusivos):
+   Tráfego (`/trafego`), Administrativo (`/administrativo`) e Financeiro
+   (`/financeiro`). MANTIDAS: Hall, Comercial, Clientes, Configurações, Perfil.
+   As TABELAS de dados dessas áreas (campanhas, pagamentos etc.) NÃO foram
+   dropadas no banco — só a UI saiu, para permitir reativação futura.
+2. SISTEMA DE PAPÉIS removido: filtro de NAV_ITEMS por role na Sidebar, prop
+   `userRole` no layout/Shell/Topbar, gates `isAdmin` espalhados (passam a
+   sempre liberar), e `src/lib/supabase/rbac.ts` (já era código morto).
+   No banco, as policies de RLS baseadas em PAPEL são removidas por uma
+   migration nova (014); o RLS de PRIVACIDADE (só o usuário autenticado acessa)
+   é MANTIDO. A coluna `profiles.role` é mantida fisicamente (órfã, sem uso)
+   para evitar quebra de queries e facilitar rollback.
+3. CONFIGURAÇÕES: removido o gate admin-only da seção de logo (com 1 usuário
+   não faz sentido). Mantidos tema, logo do sistema e perfil pessoal.
+
+LOGIN MANTIDO: email+senha via Supabase Auth (o app vai pra internet, precisa
+proteger os dados). O middleware continua protegendo as rotas (logado vê,
+deslogado vai pro login) — só não há mais "níveis" de acesso.
+
+COMO REVERTER (se a empresa precisar reativar): os commits desta mudança ficam
+na branch `pivot-app-pessoal`. Para trazer uma área de volta, faça
+`git revert <hash>` dos commits abaixo (ou cherry-pick dos arquivos das pastas
+removidas a partir do commit ANTERIOR a eles):
+  - feat: remover áreas Tráfego/Administrativo/Financeiro → 72fcc33
+  - refactor(auth): remover sistema de papéis (usuário único) → 45e9438
+  - refactor(config): limpar Configurações para usuário único → adbd933
+  - DB: supabase/migrations/014_drop_role_system.sql
+
+---
+
 🔄 Mudança — responsividade mobile do dashboard (testado a 375px/390px).
 PRINCIPAL: o Kanban do Comercial usava `grid grid-cols-5` fixo (~860px) e
 ficava ilegível no celular. Agora, abaixo de `lg`, o funil vira um scroll

@@ -25,19 +25,19 @@ interface Props {
 
 const INTERACTION_BUTTONS: { type: string; label: string; icon: React.ReactNode; delta: number; color: string }[] = [
   {
-    type: 'atendeu', label: 'Atendeu', delta: 80, color: 'bg-green-50 text-green-700 border-green-200 hover:bg-green-100',
+    type: 'atendeu', label: 'Atendeu', delta: 80, color: 'bg-green-900/20 text-green-400 border-green-800/50 hover:bg-green-900/30',
     icon: <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" /></svg>,
   },
   {
-    type: 'nao_atendeu', label: 'Não Atendeu', delta: -30, color: 'bg-red-50 text-red-700 border-red-200 hover:bg-red-100',
+    type: 'nao_atendeu', label: 'Não Atendeu', delta: -30, color: 'bg-red-900/20 text-red-400 border-red-800/50 hover:bg-red-900/30',
     icon: <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" /></svg>,
   },
   {
-    type: 'mensagem', label: 'Mensagem', delta: 20, color: 'bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100',
+    type: 'mensagem', label: 'Mensagem', delta: 20, color: 'bg-blue-900/20 text-blue-400 border-blue-800/50 hover:bg-blue-900/30',
     icon: <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" /></svg>,
   },
   {
-    type: 'nota', label: 'Nota', delta: 0, color: 'bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100',
+    type: 'nota', label: 'Nota', delta: 0, color: 'bg-amber-900/20 text-amber-400 border-amber-800/50 hover:bg-amber-900/30',
     icon: <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>,
   },
 ]
@@ -118,7 +118,7 @@ export function LeadDiary({ lead, onClose, onUpdated, currentUser }: Props) {
       <div className="flex-1 bg-black/30" onClick={onClose} />
 
       {/* Painel lateral */}
-      <div className="w-full max-w-md bg-white flex flex-col shadow-2xl overflow-hidden">
+      <div className="w-full max-w-md bg-bento-panel border-l border-bento-border flex flex-col shadow-card-hover overflow-hidden">
         {/* Header */}
         <div className="flex items-start justify-between p-5 border-b border-border">
           <div>
@@ -176,13 +176,13 @@ export function LeadDiary({ lead, onClose, onUpdated, currentUser }: Props) {
                 value={noteText}
                 onChange={e => setNoteText(e.target.value)}
                 rows={2}
-                className="w-full border border-border rounded-lg px-3 py-2 text-sm resize-none focus:outline-none focus:border-primary-400"
+                className="w-full border border-border rounded-lg px-3 py-2 text-sm resize-none focus:outline-none focus:border-lime"
                 placeholder="Escreva uma nota..."
                 autoFocus
               />
               <div className="flex gap-2">
                 <button onClick={() => setActiveBtn(null)} className="flex-1 border border-border text-sm py-1.5 rounded-lg hover:bg-muted transition-colors">Cancelar</button>
-                <button onClick={() => handleInteraction('nota', 0)} disabled={!noteText.trim()} className="flex-1 bg-primary-900 text-white text-sm py-1.5 rounded-lg hover:bg-primary-800 transition-colors disabled:opacity-50">Salvar</button>
+                <button onClick={() => handleInteraction('nota', 0)} disabled={!noteText.trim()} className="bento-btn flex-1 text-sm py-1.5 rounded-btn disabled:opacity-50">Salvar</button>
               </div>
             </div>
           )}
@@ -193,12 +193,12 @@ export function LeadDiary({ lead, onClose, onUpdated, currentUser }: Props) {
           <div className="flex items-center justify-between mb-2">
             <p className="text-xs font-medium text-muted-foreground">Análise com IA</p>
             <button onClick={handleAiAnalysis} disabled={aiLoading}
-              className="text-xs text-indigo-600 hover:text-indigo-800 disabled:opacity-50">
+              className="font-tech text-xs text-lime-fg hover:text-lime disabled:opacity-50">
               {aiLoading ? 'Analisando...' : 'Gerar análise'}
             </button>
           </div>
           {aiSuggestion && (
-            <p className="text-xs text-foreground bg-indigo-50 rounded-lg p-3 leading-relaxed">{aiSuggestion}</p>
+            <p className="text-xs text-bento-dim bg-bento-bg border border-bento-border rounded-btn p-3 leading-relaxed">{aiSuggestion}</p>
           )}
         </div>
 
@@ -216,7 +216,7 @@ export function LeadDiary({ lead, onClose, onUpdated, currentUser }: Props) {
                     <div className="flex items-center gap-2">
                       <span className="text-xs font-medium text-foreground capitalize">{i.type.replace('_', ' ')}</span>
                       {i.score_delta !== 0 && (
-                        <span className={`text-xs font-mono ${i.score_delta > 0 ? 'text-green-600' : 'text-red-600'}`}>
+                        <span className={`text-xs font-mono ${i.score_delta > 0 ? 'text-green-400' : 'text-red-400'}`}>
                           {i.score_delta > 0 ? '+' : ''}{i.score_delta}
                         </span>
                       )}

@@ -52,17 +52,22 @@ const config: Config = {
           accent:     'rgb(var(--c-sidebar-accent) / <alpha-value>)',
         },
         // Status colors — fixos nos dois temas (texto sempre branco sobre eles)
-        destructive: { DEFAULT: '#ef4444', foreground: '#ffffff' },
+        destructive: { DEFAULT: '#ef4444', foreground: '#ffffff' },  // erro/negativo
         success:     { DEFAULT: '#22c55e', foreground: '#ffffff' },
-        warning:     { DEFAULT: '#f59e0b', foreground: '#ffffff' },
+        warning:     { DEFAULT: '#f5b83d', foreground: '#1a1306' },  // atenção (âmbar)
 
-        // ── Design System "Bento Compacto" ──
-        // Acento verde-limão. `lime.fg` é a cor do TEXTO-acento (claro usa o dim).
+        // ── Sistema de acento "verde lima" ──
+        // Identidade do sistema. Papéis: fill/hover/active/ink + soft (badge +) + border (botão 2º).
+        // Tudo theme-aware via --accent-* (dark brilha mais; light usa verde fechado).
         lime: {
-          DEFAULT: 'rgb(var(--accent) / <alpha-value>)',
-          dim:     'rgb(var(--accent-dim) / <alpha-value>)',
-          ink:     'rgb(var(--accent-ink) / <alpha-value>)',
-          fg:      'rgb(var(--accent-fg) / <alpha-value>)',
+          DEFAULT:   'rgb(var(--accent) / <alpha-value>)',
+          hover:     'rgb(var(--accent-hover) / <alpha-value>)',
+          dim:       'rgb(var(--accent-dim) / <alpha-value>)',
+          ink:       'rgb(var(--accent-ink) / <alpha-value>)',
+          fg:        'rgb(var(--accent-fg) / <alpha-value>)',
+          soft:      'rgb(var(--accent-soft) / <alpha-value>)',
+          'soft-fg': 'rgb(var(--accent-soft-fg) / <alpha-value>)',
+          border:    'rgb(var(--accent-border) / <alpha-value>)',
         },
         // Neutros bento (theme-aware), isolados dos tokens --c-* legados.
         bento: {
@@ -88,19 +93,19 @@ const config: Config = {
         bento: '14px', frame: '22px', btn: '10px',
       },
       boxShadow: {
-        card:        '0 4px 24px rgba(0,0,0,0.3)',
-        'card-hover':'0 8px 32px rgba(0,0,0,0.4), 0 0 0 1px rgba(99,102,241,0.15)',
-        glow:        '0 0 20px rgba(99,102,241,0.4)',
-        'glow-sm':   '0 0 10px rgba(99,102,241,0.25)',
-        'glow-lg':   '0 0 40px rgba(99,102,241,0.5)',
+        card:        '0 4px 24px rgba(0,0,0,0.35)',
+        'card-hover':'0 8px 32px rgba(0,0,0,0.45), 0 0 0 1px rgba(182,255,59,0.14)',
+        glow:        '0 0 20px rgba(182,255,59,0.30)',
+        'glow-sm':   '0 0 10px rgba(182,255,59,0.20)',
+        'glow-lg':   '0 0 40px rgba(182,255,59,0.40)',
         inner:       'inset 0 1px 0 rgba(255,255,255,0.06)',
       },
       backgroundImage: {
-        'gradient-card':    'linear-gradient(135deg, #161b27 0%, #1a2035 100%)',
-        'gradient-sidebar': 'linear-gradient(180deg, #0f1117 0%, #131620 100%)',
-        'gradient-primary': 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)',
-        'gradient-hero':    'linear-gradient(135deg, #0d1117 0%, #161b27 100%)',
-        'gradient-text':    'linear-gradient(135deg, #818cf8 0%, #c084fc 100%)',
+        'gradient-card':    'linear-gradient(135deg, #17231B 0%, #111A14 100%)',
+        'gradient-sidebar': 'linear-gradient(180deg, #080D0A 0%, #0D140F 100%)',
+        'gradient-primary': 'linear-gradient(135deg, #B6FF3B 0%, #9FEA22 100%)',
+        'gradient-hero':    'linear-gradient(135deg, #080D0A 0%, #111A14 100%)',
+        'gradient-text':    'linear-gradient(135deg, #B6FF3B 0%, #C8FF63 100%)',
       },
       animation: {
         'fade-in':    'fadeIn 0.2s ease-out',
@@ -118,8 +123,8 @@ const config: Config = {
         slideDown: { '0%': { opacity: '0', transform: 'translateY(-6px)' }, '100%': { opacity: '1', transform: 'translateY(0)' } },
         countUp:   { '0%': { opacity: '0', transform: 'translateY(6px)' }, '100%': { opacity: '1', transform: 'translateY(0)' } },
         glowPulse: {
-          '0%,100%': { boxShadow: '0 0 8px rgba(99,102,241,0.35)' },
-          '50%':     { boxShadow: '0 0 20px rgba(99,102,241,0.6)' },
+          '0%,100%': { boxShadow: '0 0 8px rgba(182,255,59,0.30)' },
+          '50%':     { boxShadow: '0 0 18px rgba(182,255,59,0.50)' },
         },
         livePulse: { '0%,100%': { opacity: '1' }, '50%': { opacity: '0.35' } },
       },

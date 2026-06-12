@@ -34,8 +34,8 @@ function SortableTab({ tab, isActive, onTabChange }: { tab: TabConfig; isActive:
       onClick={onTabChange}
       className={`px-4 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap cursor-grab active:cursor-grabbing ${
         isActive
-          ? 'border-primary-600 text-primary-400'
-          : 'border-transparent text-muted-foreground hover:text-foreground'
+          ? 'border-lime text-lime-fg'
+          : 'border-transparent text-bento-muted hover:text-bento-text'
       }`}
     >
       {tab.label}
@@ -101,7 +101,7 @@ export function DraggableTabs({ tabs, activeTab, onTabChange, sectionKey }: Drag
   }
 
   return (
-    <div className="flex items-center justify-between border-b border-[#2d3748]">
+    <div className="flex items-center justify-between border-b border-bento-border">
       <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
         <SortableContext items={tabOrder} strategy={horizontalListSortingStrategy}>
           <div className="flex gap-0 flex-1 overflow-x-auto">
@@ -120,7 +120,7 @@ export function DraggableTabs({ tabs, activeTab, onTabChange, sectionKey }: Drag
       {tabOrder.length > 0 && (
         <button
           onClick={handleResetOrder}
-          className="ml-2 px-2 py-2 text-muted-foreground hover:text-foreground transition-colors flex-shrink-0"
+          className="ml-2 px-2 py-2 text-bento-muted hover:text-bento-text transition-colors flex-shrink-0"
           title="Resetar ordem das abas"
         >
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">

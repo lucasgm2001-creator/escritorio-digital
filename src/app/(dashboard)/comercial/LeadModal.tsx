@@ -28,12 +28,29 @@ const ORIGENS = [
   { value: 'outro',     label: 'Outro' },
 ]
 
+// Cores SEMÂNTICAS de prioridade (translúcidas dark; o tema claro é resolvido
+// pela camada de compatibilidade em globals.css). Não são o acento.
 const PRIORIDADES = [
-  { value: 'baixa',   label: 'Baixa',   color: 'text-slate-600  bg-slate-50  border-slate-200' },
-  { value: 'media',   label: 'Média',   color: 'text-blue-600   bg-blue-50   border-blue-200' },
-  { value: 'alta',    label: 'Alta',    color: 'text-amber-600  bg-amber-50  border-amber-200' },
-  { value: 'urgente', label: 'Urgente', color: 'text-red-600    bg-red-50    border-red-200' },
+  { value: 'baixa',   label: 'Baixa',   color: 'text-slate-400 bg-slate-800/40 border-slate-700/50' },
+  { value: 'media',   label: 'Média',   color: 'text-blue-400  bg-blue-900/30  border-blue-800/50' },
+  { value: 'alta',    label: 'Alta',    color: 'text-amber-400 bg-amber-900/30 border-amber-800/50' },
+  { value: 'urgente', label: 'Urgente', color: 'text-red-400   bg-red-900/30   border-red-800/50' },
 ]
+
+// Tokens bento, theme-aware (dark: fundo escuro + texto claro; light: o inverso).
+const inputCls = 'w-full bg-bento-bg border border-bento-border rounded-btn px-3 py-2 text-sm text-bento-text placeholder:text-bento-muted focus:outline-none focus:border-lime'
+
+// IMPORTANTE: Field fica em escopo de MÓDULO, não dentro do componente. Definido
+// dentro do render, seria recriado a cada keystroke → o input remonta e perde o
+// foco (bug "só entra 1 letra"). Fora, o nó do input é estável.
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div>
+      <label className="block text-xs font-medium text-bento-dim mb-1">{label}</label>
+      {children}
+    </div>
+  )
+}
 
 export function LeadModal({ onClose, onCreated, currentUser }: Props) {
   const [form, setForm] = useState({ ...EMPTY_FORM, assigned_to: currentUser.id, assigned_name: currentUser.name })
@@ -109,29 +126,20 @@ export function LeadModal({ onClose, onCreated, currentUser }: Props) {
     setLoading(false)
   }
 
-  const Field = ({ label, children }: { label: string; children: React.ReactNode }) => (
-    <div>
-      <label className="block text-xs font-medium text-foreground mb-1">{label}</label>
-      {children}
-    </div>
-  )
-
-  const inputCls = 'w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-primary-400 bg-white'
-
   return (
-    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-end sm:items-center justify-center z-50 p-0 sm:p-4">
-      <div className="bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl w-full sm:max-w-2xl max-h-[92vh] flex flex-col animate-slide-up">
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-end sm:items-center justify-center z-50 p-0 sm:p-4">
+      <div className="bento-fx rounded-t-frame sm:rounded-frame shadow-card-hover w-full sm:max-w-2xl max-h-[92vh] flex flex-col animate-slide-up">
 
         {/* Header */}
-        <div className="flex items-center justify-between p-5 border-b border-border shrink-0">
-          <h2 className="font-bold text-foreground text-base">Novo Lead</h2>
+        <div className="flex items-center justify-between p-5 border-b border-bento-border shrink-0">
+          <h2 className="font-display font-bold text-bento-text text-base">Novo Lead</h2>
           <div className="flex items-center gap-2">
             <button
               onClick={() => setAiPaste(!aiPaste)}
-              className={`text-xs px-3 py-1.5 rounded-lg border transition-colors ${
+              className={`text-xs px-3 py-1.5 rounded-btn border transition-colors ${
                 aiPaste
-                  ? 'bg-indigo-100 text-indigo-700 border-indigo-300'
-                  : 'bg-indigo-50 text-indigo-600 border-indigo-200 hover:bg-indigo-100'
+                  ? 'bg-lime/15 text-lime-fg border-lime/40'
+                  : 'bg-bento-bg text-bento-dim border-bento-border hover:border-lime'
               }`}
             >
               <span className="flex items-center gap-1.5">
@@ -141,7 +149,7 @@ export function LeadModal({ onClose, onCreated, currentUser }: Props) {
                 Preencher com IA
               </span>
             </button>
-            <button onClick={onClose} className="text-muted-foreground hover:text-foreground">
+            <button onClick={onClose} className="text-bento-muted hover:text-bento-text">
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
               </svg>
@@ -151,19 +159,19 @@ export function LeadModal({ onClose, onCreated, currentUser }: Props) {
 
         {/* AI paste area */}
         {aiPaste && (
-          <div className="p-4 bg-indigo-50 border-b border-indigo-100 shrink-0">
-            <p className="text-xs text-indigo-700 mb-2 font-medium">Cole o texto do WhatsApp, formulário ou qualquer texto com os dados do lead:</p>
+          <div className="p-4 bg-bento-bg border-b border-bento-border shrink-0">
+            <p className="text-xs text-bento-dim mb-2 font-medium">Cole o texto do WhatsApp, formulário ou qualquer texto com os dados do lead:</p>
             <textarea
               value={rawText}
               onChange={e => setRawText(e.target.value)}
-              className="w-full border border-indigo-200 rounded-lg p-3 text-sm resize-none focus:outline-none focus:border-indigo-400 bg-white"
+              className="w-full bg-bento-panel border border-bento-border rounded-btn p-3 text-sm text-bento-text placeholder:text-bento-muted resize-none focus:outline-none focus:border-lime"
               rows={3}
               placeholder="Nome: João Silva&#10;Empresa: ABC Ltda&#10;Telefone: (11) 99999-9999&#10;Nicho: E-commerce"
             />
             <button
               onClick={handleAiParse}
               disabled={aiLoading || !rawText.trim()}
-              className="mt-2 text-sm bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 transition-colors disabled:opacity-50"
+              className="bento-btn mt-2 text-sm px-4 py-2 rounded-btn disabled:opacity-50 min-h-0"
             >
               {aiLoading ? 'Analisando...' : 'Extrair dados'}
             </button>
@@ -231,8 +239,8 @@ export function LeadModal({ onClose, onCreated, currentUser }: Props) {
                   key={p.value}
                   type="button"
                   onClick={() => set('prioridade', p.value)}
-                  className={`flex-1 py-1.5 rounded-lg text-xs font-semibold border transition-all ${
-                    form.prioridade === p.value ? p.color : 'text-slate-400 bg-white border-slate-200 hover:border-slate-300'
+                  className={`flex-1 py-1.5 rounded-btn text-xs font-semibold border transition-all ${
+                    form.prioridade === p.value ? p.color : 'text-bento-muted bg-bento-bg border-bento-border hover:border-lime'
                   }`}
                 >
                   {p.label}
@@ -249,10 +257,10 @@ export function LeadModal({ onClose, onCreated, currentUser }: Props) {
                   key={op}
                   type="button"
                   onClick={() => set('operation', op)}
-                  className={`flex-1 py-2 rounded-lg text-sm font-medium border transition-colors ${
+                  className={`flex-1 py-2 rounded-btn text-sm font-medium border transition-colors ${
                     form.operation === op
-                      ? 'bg-primary-900 text-white border-primary-900'
-                      : 'border-border text-muted-foreground hover:border-primary-300'
+                      ? 'bg-lime text-lime-ink border-lime'
+                      : 'border-bento-border text-bento-muted hover:border-lime'
                   }`}
                 >
                   {op === 'brasil' ? 'Brasil' : 'EUA'}
@@ -296,11 +304,11 @@ export function LeadModal({ onClose, onCreated, currentUser }: Props) {
           {/* Botões */}
           <div className="flex gap-3 pt-1">
             <button type="button" onClick={onClose}
-              className="flex-1 border border-border text-foreground py-2.5 rounded-lg text-sm hover:bg-muted transition-colors">
+              className="flex-1 border border-bento-border text-bento-dim py-2.5 rounded-btn text-sm hover:border-lime hover:text-bento-text transition-colors">
               Cancelar
             </button>
             <button type="submit" disabled={loading}
-              className="flex-1 bg-primary-900 text-white py-2.5 rounded-lg text-sm font-semibold hover:bg-primary-800 transition-colors disabled:opacity-50">
+              className="bento-btn flex-1 py-2.5 rounded-btn text-sm font-semibold disabled:opacity-50">
               {loading ? 'Salvando...' : 'Criar Lead'}
             </button>
           </div>

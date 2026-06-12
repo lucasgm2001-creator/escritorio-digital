@@ -46,7 +46,7 @@ export function PipelineTab({ leads }: Props) {
           { label: 'Ticket Médio',   value: fmt(avgTicket),     sub: 'por lead' },
           { label: 'Vendas Feitas',  value: fmt(leads.filter(l => l.status === 'fechado').reduce((s, l) => s + (l.value || 0), 0)), sub: `${leads.filter(l => l.status === 'fechado').length} contratos` },
         ].map(kpi => (
-          <div key={kpi.label} className="bg-[#161b22] rounded-xl border border-[#2d3748] p-5 shadow-sm">
+          <div key={kpi.label} className="bento-fx p-5">
             <p className="text-xs text-muted-foreground font-medium">{kpi.label}</p>
             <p className="text-2xl font-bold text-foreground mt-1">{kpi.value}</p>
             <p className="text-xs text-muted-foreground mt-0.5">{kpi.sub}</p>
@@ -56,7 +56,7 @@ export function PipelineTab({ leads }: Props) {
 
       <div className="grid grid-cols-2 gap-5">
         {/* By stage */}
-        <div className="bg-[#161b22] rounded-xl border border-[#2d3748] p-5 shadow-sm">
+        <div className="bento-fx p-5">
           <h3 className="font-semibold text-foreground mb-4 text-sm">Valor por Estágio</h3>
           <div className="space-y-3">
             {byStage.map(stage => (
@@ -84,15 +84,15 @@ export function PipelineTab({ leads }: Props) {
         </div>
 
         {/* By seller */}
-        <div className="bg-[#161b22] rounded-xl border border-[#2d3748] p-5 shadow-sm">
+        <div className="bento-fx p-5">
           <h3 className="font-semibold text-foreground mb-4 text-sm">Valor por Vendedor</h3>
           <div className="space-y-3">
             {bySeller.map(seller => (
               <div key={seller.name}>
                 <div className="flex items-center justify-between mb-1.5">
                   <div className="flex items-center gap-2">
-                    <div className="w-6 h-6 rounded-full bg-primary-900/30 flex items-center justify-center flex-none">
-                      <span className="text-[9px] font-bold text-primary-400">
+                    <div className="w-6 h-6 rounded-full bg-lime/15 flex items-center justify-center flex-none">
+                      <span className="text-[9px] font-bold text-lime-fg">
                         {seller.name.split(' ')[0][0]}
                       </span>
                     </div>
@@ -103,7 +103,7 @@ export function PipelineTab({ leads }: Props) {
                 </div>
                 <div className="h-2 bg-[#1e2533] rounded-full overflow-hidden">
                   <div
-                    className="h-full rounded-full bg-primary-400 transition-all"
+                    className="h-full rounded-full bg-lime transition-all"
                     style={{ width: `${(seller.value / maxSellerValue) * 100}%` }}
                   />
                 </div>

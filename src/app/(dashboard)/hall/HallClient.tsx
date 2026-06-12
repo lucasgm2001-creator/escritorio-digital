@@ -2,9 +2,10 @@
 
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Badge } from '@/components/ui/badge'
-import { timeAgo } from '@/lib/utils'
+import { cn, timeAgo } from '@/lib/utils'
+import { Panel } from '@/components/bento/Panel'
+import { Metric } from '@/components/bento/Metric'
+import { LiveDot } from '@/components/bento/LiveDot'
 import { AgentChat } from './AgentChat'
 import type { Activity, Notice } from '@/types'
 
@@ -14,7 +15,6 @@ interface Props {
   initialActivities: Activity[]
   initialNotices: Notice[]
   userName: string
-  userRole: string
   userId: string
 }
 
@@ -49,19 +49,32 @@ const ACTIVITY_ICONS: Record<string, React.ReactNode> = {
   system: <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17H3a2 2 0 01-2-2V5a2 2 0 012-2h14a2 2 0 012 2v10a2 2 0 01-2 2h-2" /></svg>,
 }
 
+// Status semânticos (não-acento): cores próprias preservadas nos dois temas.
 const ACTIVITY_COLORS: Record<string, string> = {
   lead:     'bg-blue-900/40 text-blue-400',
-  client:   'bg-indigo-900/40 text-indigo-400',
+  client:   'bg-lime/15 text-lime-fg',
   payment:  'bg-green-900/40 text-green-400',
   task:     'bg-amber-900/40 text-amber-400',
   campaign: 'bg-purple-900/40 text-purple-400',
   system:   'bg-slate-800/60 text-slate-400',
 }
 
+const ACTIVITY_TYPE_LABELS: Record<string, string> = {
+  lead: 'Leads', client: 'Clientes', payment: 'Pagamentos',
+  task: 'Tarefas', campaign: 'Campanhas', system: 'Sistema',
+}
+
 const NOTICE_BORDER: Record<string, string> = {
   info:    'border-blue-800/50 bg-blue-900/20',
   warning: 'border-amber-800/50 bg-amber-900/20',
   urgent:  'border-red-800/50 bg-red-900/20',
+}
+
+const NOTICE_LABEL: Record<string, string> = { info: 'Info', warning: 'Atenção', urgent: 'Urgente' }
+const NOTICE_PILL: Record<string, string> = {
+  info:    'bg-blue-900/40 text-blue-400 border-blue-800/50',
+  warning: 'bg-amber-900/40 text-amber-400 border-amber-800/50',
+  urgent:  'bg-red-900/40 text-red-400 border-red-800/50',
 }
 
 function computeGreeting(): string {
@@ -114,6 +127,9 @@ function getHourSlots(): { hour: number; label: string }[] {
 const MONTH_NAMES = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro']
 const MONTH_ABBR  = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez']
 
+// Campos de formulário no estilo Bento (superfícies theme-aware + foco no acento).
+const bentoInput = 'w-full bg-bento-bg border border-bento-border rounded-btn px-3 py-2 text-sm text-bento-text placeholder:text-bento-muted focus:outline-none focus:border-lime'
+
 // ─── Event Modal ──────────────────────────────────────────────────────────────
 
 interface EventModalProps {
@@ -132,12 +148,12 @@ function EventModal({ date, hour, userId, onClose, onSaved }: EventModalProps) {
     end_time: hour != null ? `${String(hour + 1).padStart(2,'0')}:00` : '',
     description: '',
     type: 'reuniao' as CalendarEvent['type'],
-    color: '#6366f1',
+    color: '#C2F73A',
   })
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
 
-  const colors = ['#6366f1','#10b981','#f59e0b','#ef4444','#8b5cf6','#06b6d4','#ec4899']
+  const colors = ['#C2F73A','#10b981','#f59e0b','#ef4444','#8b5cf6','#06b6d4','#ec4899']
 
   const handleSave = async () => {
     if (!form.title.trim()) { setError('Título é obrigatório'); return }
@@ -171,14 +187,12 @@ function EventModal({ date, hour, userId, onClose, onSaved }: EventModalProps) {
     }
   }
 
-  const inputCls = 'w-full bg-[#1e2533] border border-[#2d3748] rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary-600'
-
   return (
     <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-end sm:items-center justify-center z-50 p-0 sm:p-4">
-      <div className="bg-[#161b22] border border-[#2d3748] rounded-t-2xl sm:rounded-2xl shadow-card-hover w-full sm:max-w-md animate-slide-up">
-        <div className="flex items-center justify-between p-5 border-b border-[#2d3748]">
-          <h2 className="font-bold text-foreground text-base">Novo Evento</h2>
-          <button onClick={onClose} className="text-muted-foreground hover:text-foreground transition-colors p-1">
+      <div className="bento-fx rounded-t-frame sm:rounded-frame shadow-card-hover w-full sm:max-w-md animate-slide-up">
+        <div className="flex items-center justify-between p-5 border-b border-bento-border">
+          <h2 className="font-display font-bold text-bento-text text-base">Novo Evento</h2>
+          <button onClick={onClose} className="text-bento-muted hover:text-bento-text transition-colors p-1">
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
             </svg>
@@ -189,20 +203,20 @@ function EventModal({ date, hour, userId, onClose, onSaved }: EventModalProps) {
           {error && <p className="text-xs text-red-400 bg-red-900/20 border border-red-800/40 rounded-lg px-3 py-2">{error}</p>}
 
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Título *</label>
+            <label className="block font-tech text-[10px] uppercase tracking-[0.12em] text-bento-muted mb-1.5">Título *</label>
             <input value={form.title} onChange={e => setForm(p => ({ ...p, title: e.target.value }))}
-              placeholder="Ex: Reunião com cliente" className={inputCls} />
+              placeholder="Ex: Reunião com cliente" className={bentoInput} />
           </div>
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-xs font-medium text-muted-foreground mb-1.5">Data</label>
-              <input type="date" value={form.date} onChange={e => setForm(p => ({ ...p, date: e.target.value }))} className={inputCls} />
+              <label className="block font-tech text-[10px] uppercase tracking-[0.12em] text-bento-muted mb-1.5">Data</label>
+              <input type="date" value={form.date} onChange={e => setForm(p => ({ ...p, date: e.target.value }))} className={bentoInput} />
             </div>
             <div>
-              <label className="block text-xs font-medium text-muted-foreground mb-1.5">Tipo</label>
+              <label className="block font-tech text-[10px] uppercase tracking-[0.12em] text-bento-muted mb-1.5">Tipo</label>
               <select value={form.type} onChange={e => setForm(p => ({ ...p, type: e.target.value as CalendarEvent['type'] }))}
-                className={inputCls}>
+                className={bentoInput}>
                 {Object.entries(EVENT_TYPE_LABELS).map(([k,v]) => <option key={k} value={k}>{v}</option>)}
               </select>
             </div>
@@ -210,28 +224,28 @@ function EventModal({ date, hour, userId, onClose, onSaved }: EventModalProps) {
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-xs font-medium text-muted-foreground mb-1.5">Início</label>
-              <input type="time" value={form.start_time} onChange={e => setForm(p => ({ ...p, start_time: e.target.value }))} className={inputCls} />
+              <label className="block font-tech text-[10px] uppercase tracking-[0.12em] text-bento-muted mb-1.5">Início</label>
+              <input type="time" value={form.start_time} onChange={e => setForm(p => ({ ...p, start_time: e.target.value }))} className={bentoInput} />
             </div>
             <div>
-              <label className="block text-xs font-medium text-muted-foreground mb-1.5">Fim</label>
-              <input type="time" value={form.end_time} onChange={e => setForm(p => ({ ...p, end_time: e.target.value }))} className={inputCls} />
+              <label className="block font-tech text-[10px] uppercase tracking-[0.12em] text-bento-muted mb-1.5">Fim</label>
+              <input type="time" value={form.end_time} onChange={e => setForm(p => ({ ...p, end_time: e.target.value }))} className={bentoInput} />
             </div>
           </div>
 
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Descrição (opcional)</label>
+            <label className="block font-tech text-[10px] uppercase tracking-[0.12em] text-bento-muted mb-1.5">Descrição (opcional)</label>
             <textarea value={form.description} onChange={e => setForm(p => ({ ...p, description: e.target.value }))}
               placeholder="Detalhes do evento..." rows={2}
-              className={`${inputCls} resize-none`} />
+              className={`${bentoInput} resize-none`} />
           </div>
 
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Cor</label>
+            <label className="block font-tech text-[10px] uppercase tracking-[0.12em] text-bento-muted mb-1.5">Cor</label>
             <div className="flex gap-2">
               {colors.map(c => (
                 <button key={c} onClick={() => setForm(p => ({ ...p, color: c }))}
-                  className={`w-7 h-7 rounded-full transition-all ${form.color === c ? 'ring-2 ring-white ring-offset-2 ring-offset-[#161b22]' : ''}`}
+                  className={`w-7 h-7 rounded-full transition-all ${form.color === c ? 'ring-2 ring-bento-text ring-offset-2 ring-offset-bento-panel' : ''}`}
                   style={{ backgroundColor: c }} />
               ))}
             </div>
@@ -239,11 +253,11 @@ function EventModal({ date, hour, userId, onClose, onSaved }: EventModalProps) {
 
           <div className="flex gap-3 pt-1">
             <button onClick={onClose}
-              className="flex-1 border border-[#2d3748] text-muted-foreground py-2.5 rounded-lg text-sm hover:bg-[#1e2533] transition-colors min-h-[44px]">
+              className="flex-1 border border-bento-border text-bento-dim py-2.5 rounded-btn text-sm hover:border-lime hover:text-bento-text transition-colors min-h-[44px]">
               Cancelar
             </button>
             <button onClick={handleSave} disabled={saving || !form.title.trim()}
-              className="flex-1 bg-primary-600 text-white py-2.5 rounded-lg text-sm font-semibold hover:bg-primary-500 transition-colors disabled:opacity-50 shadow-glow-sm min-h-[44px]">
+              className="bento-btn flex-1 py-2.5 rounded-btn text-sm font-semibold disabled:opacity-50 min-h-[44px]">
               {saving ? 'Salvando...' : 'Salvar'}
             </button>
           </div>
@@ -268,44 +282,44 @@ function EventDetailModal({ event, onClose, onDelete }: { event: CalendarEvent; 
 
   return (
     <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-end sm:items-center justify-center z-50 p-0 sm:p-4">
-      <div className="bg-[#161b22] border border-[#2d3748] rounded-t-2xl sm:rounded-2xl shadow-card-hover w-full sm:max-w-sm animate-slide-up">
-        <div className="flex items-center justify-between p-5 border-b border-[#2d3748]">
+      <div className="bento-fx rounded-t-frame sm:rounded-frame shadow-card-hover w-full sm:max-w-sm animate-slide-up">
+        <div className="flex items-center justify-between p-5 border-b border-bento-border">
           <div className="flex items-center gap-2.5">
             <span className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: event.color }} />
-            <h2 className="font-bold text-foreground text-base">{event.title}</h2>
+            <h2 className="font-display font-bold text-bento-text text-base">{event.title}</h2>
           </div>
-          <button onClick={onClose} className="text-muted-foreground hover:text-foreground transition-colors p-1">
+          <button onClick={onClose} className="text-bento-muted hover:text-bento-text transition-colors p-1">
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
             </svg>
           </button>
         </div>
         <div className="p-5 space-y-3">
-          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+          <div className="flex items-center gap-2 text-sm text-bento-dim">
             <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
             </svg>
             {new Date(event.date + 'T12:00:00').toLocaleDateString('pt-BR', { weekday:'long', day:'numeric', month:'long', year:'numeric' })}
           </div>
           {(event.start_time || event.end_time) && (
-            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <div className="flex items-center gap-2 text-sm text-bento-dim">
               <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
               {event.start_time?.slice(0,5)} {event.end_time ? `– ${event.end_time.slice(0,5)}` : ''}
             </div>
           )}
-          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+          <div className="flex items-center gap-2 text-sm text-bento-dim">
             <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
             </svg>
             {EVENT_TYPE_LABELS[event.type]}
           </div>
           {event.description && (
-            <p className="text-sm text-muted-foreground bg-[#1e2533] rounded-lg px-3 py-2">{event.description}</p>
+            <p className="text-sm text-bento-dim bg-bento-bg rounded-btn px-3 py-2">{event.description}</p>
           )}
           <button onClick={handleDelete} disabled={deleting}
-            className="w-full mt-2 border border-red-800/50 text-red-400 py-2 rounded-lg text-sm hover:bg-red-900/20 transition-colors disabled:opacity-50 min-h-[44px]">
+            className="w-full mt-2 border border-red-800/50 text-red-400 py-2 rounded-btn text-sm hover:bg-red-900/20 transition-colors disabled:opacity-50 min-h-[44px]">
             {deleting ? 'Excluindo...' : 'Excluir evento'}
           </button>
         </div>
@@ -383,10 +397,10 @@ function Calendar({ userId, events, onEventsChange }: CalendarProps) {
         const hasEvents = events.some(e => e.date.startsWith(monthStr))
         return (
           <button key={i} onClick={() => { setMonth(i); setView('monthly') }}
-            className={`rounded-xl p-3 border text-center transition-all hover:border-primary-600/60 cursor-pointer ${
-              isCurrentMonth ? 'bg-primary-600/20 border-primary-600/40' : 'bg-[#1a2133] border-[#2d3748]'
+            className={`rounded-bento p-3 border text-center transition-all hover:border-lime/60 cursor-pointer ${
+              isCurrentMonth ? 'bg-lime/15 border-lime/40' : 'bg-bento-bg border-bento-border'
             }`}>
-            <p className={`text-sm font-bold capitalize ${isCurrentMonth ? 'text-primary-400' : 'text-foreground'}`}>
+            <p className={`font-display text-sm font-bold capitalize ${isCurrentMonth ? 'text-lime-fg' : 'text-bento-text'}`}>
               {MONTH_ABBR[i]}
             </p>
             {hasEvents && (
@@ -409,7 +423,7 @@ function Calendar({ userId, events, onEventsChange }: CalendarProps) {
       <div>
         <div className="grid grid-cols-7 gap-1 mb-1">
           {['Seg','Ter','Qua','Qui','Sex','Sab','Dom'].map(d => (
-            <div key={d} className="text-center text-xs font-bold text-muted-foreground py-1">{d}</div>
+            <div key={d} className="text-center font-tech text-[10px] uppercase tracking-[0.12em] font-semibold text-bento-muted py-1">{d}</div>
           ))}
         </div>
         <div className="grid grid-cols-7 gap-1">
@@ -418,18 +432,18 @@ function Calendar({ userId, events, onEventsChange }: CalendarProps) {
             const isToday = dateStr === todayStr
             return (
               <button key={i} onClick={() => { setDailyDate(date); setView('daily') }}
-                className={`rounded-lg p-1.5 min-h-[52px] border text-left transition-all hover:border-primary-600/50 ${
-                  isToday ? 'bg-primary-600/20 border-primary-600/40' :
-                  isCurrentMonth ? 'bg-[#1a2133] border-[#2d3748]' : 'bg-[#0d1117] border-[#1a2133]'
+                className={`rounded-md p-1.5 min-h-[52px] border text-left transition-all hover:border-lime/50 ${
+                  isToday ? 'bg-lime/15 border-lime/40' :
+                  isCurrentMonth ? 'bg-bento-bg border-bento-border' : 'bg-transparent border-bento-border/40'
                 }`}>
-                <span className={`text-xs font-medium ${
-                  isToday ? 'text-primary-400' : isCurrentMonth ? 'text-foreground' : 'text-muted-foreground/40'
+                <span className={`font-display text-xs font-medium ${
+                  isToday ? 'text-lime-fg' : isCurrentMonth ? 'text-bento-text' : 'text-bento-muted/50'
                 }`}>{date.getDate()}</span>
                 <div className="flex flex-wrap gap-0.5 mt-0.5">
                   {dayEvents.slice(0, 3).map(e => (
                     <span key={e.id} className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: e.color }} />
                   ))}
-                  {dayEvents.length > 3 && <span className="text-[9px] text-muted-foreground">+{dayEvents.length - 3}</span>}
+                  {dayEvents.length > 3 && <span className="text-[9px] text-bento-muted">+{dayEvents.length - 3}</span>}
                 </div>
               </button>
             )
@@ -449,18 +463,18 @@ function Calendar({ userId, events, onEventsChange }: CalendarProps) {
           const isToday = dateStr === todayStr
           return (
             <button key={dateStr} onClick={() => { setDailyDate(date); setView('daily') }}
-              className={`min-w-[72px] shrink-0 snap-start sm:min-w-0 sm:shrink rounded-xl p-3 border text-center transition-all hover:border-primary-600/60 cursor-pointer ${
-                isToday ? 'bg-primary-600/20 border-primary-600/40 shadow-glow-sm' : 'bg-[#1a2133] border-[#2d3748] hover:border-[#3d4f6a]'
+              className={`min-w-[72px] shrink-0 snap-start sm:min-w-0 sm:shrink rounded-bento p-3 border text-center transition-all hover:border-lime/60 cursor-pointer ${
+                isToday ? 'bg-lime/15 border-lime/40' : 'bg-bento-bg border-bento-border'
               }`}>
-              <p className={`text-xs font-medium ${isToday ? 'text-primary-400' : 'text-muted-foreground'}`}>{label}</p>
-              <p className={`text-xl font-bold mt-1 tabular-nums ${isToday ? 'text-primary-300' : 'text-foreground'}`}>
+              <p className={`font-tech text-[10px] uppercase tracking-[0.12em] ${isToday ? 'text-lime-fg' : 'text-bento-muted'}`}>{label}</p>
+              <p className={`font-display text-xl font-bold mt-1 tabular-nums ${isToday ? 'text-lime-fg' : 'text-bento-text'}`}>
                 {date.getDate()}
               </p>
               <div className="flex flex-wrap justify-center gap-0.5 mt-1.5">
                 {dayEvents.slice(0, 2).map(e => (
                   <span key={e.id} className="w-2 h-2 rounded-sm" style={{ backgroundColor: e.color }} />
                 ))}
-                {dayEvents.length > 2 && <span className="text-[9px] text-muted-foreground w-full text-center">+{dayEvents.length - 2}</span>}
+                {dayEvents.length > 2 && <span className="text-[9px] text-bento-muted w-full text-center">+{dayEvents.length - 2}</span>}
               </div>
             </button>
           )
@@ -488,12 +502,12 @@ function Calendar({ userId, events, onEventsChange }: CalendarProps) {
 
           return (
             <div key={hour} className="flex gap-3">
-              <span className={`text-xs tabular-nums w-12 pt-2 shrink-0 text-right ${isNow ? 'text-primary-400 font-semibold' : 'text-muted-foreground/60'}`}>
+              <span className={`font-tech text-xs tabular-nums w-12 pt-2 shrink-0 text-right ${isNow ? 'text-lime-fg font-semibold' : 'text-bento-muted/60'}`}>
                 {label}
               </span>
               <button onClick={() => setEventModal({ date: dailyDate, hour })}
-                className={`flex-1 min-h-[40px] rounded-lg border text-left px-3 py-1.5 transition-all hover:border-primary-600/50 hover:bg-primary-600/5 group ${
-                  isNow ? 'bg-primary-600/10 border-primary-600/30' : 'bg-[#1a2133] border-[#2d3748]'
+                className={`flex-1 min-h-[40px] rounded-md border text-left px-3 py-1.5 transition-all hover:border-lime/50 group ${
+                  isNow ? 'bg-lime/10 border-lime/30' : 'bg-bento-bg border-bento-border'
                 }`}>
                 {slotEvents.length > 0 ? (
                   <div className="space-y-0.5">
@@ -501,13 +515,13 @@ function Calendar({ userId, events, onEventsChange }: CalendarProps) {
                       <div key={e.id} onClick={ev => { ev.stopPropagation(); setDetailEvent(e) }}
                         className="flex items-center gap-2 cursor-pointer">
                         <span className="w-2 h-2 rounded-sm shrink-0" style={{ backgroundColor: e.color }} />
-                        <span className="text-xs font-medium text-foreground">{e.title}</span>
-                        <span className="text-[10px] text-muted-foreground">{EVENT_TYPE_LABELS[e.type]}</span>
+                        <span className="text-xs font-medium text-bento-text">{e.title}</span>
+                        <span className="text-[10px] text-bento-muted">{EVENT_TYPE_LABELS[e.type]}</span>
                       </div>
                     ))}
                   </div>
                 ) : (
-                  <span className="text-xs text-muted-foreground/0 group-hover:text-muted-foreground/40 transition-colors">
+                  <span className="text-xs text-transparent group-hover:text-bento-muted/60 transition-colors">
                     + adicionar evento
                   </span>
                 )}
@@ -521,43 +535,41 @@ function Calendar({ userId, events, onEventsChange }: CalendarProps) {
 
   return (
     <>
-      <Card>
-        <CardHeader className="pb-3">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-            <div className="flex items-center gap-2">
-              <button onClick={() => navigate(-1)}
-                className="p-1.5 rounded-lg hover:bg-[#1e2533] text-muted-foreground hover:text-foreground transition-colors">
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-                </svg>
-              </button>
-              <span className="text-sm font-semibold text-foreground">{breadcrumb()}</span>
-              <button onClick={() => navigate(1)}
-                className="p-1.5 rounded-lg hover:bg-[#1e2533] text-muted-foreground hover:text-foreground transition-colors">
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                </svg>
-              </button>
-            </div>
-            <div className="flex gap-1 flex-wrap">
-              {(['daily','weekly','monthly','annual'] as CalendarView[]).map(v => (
-                <button key={v} onClick={() => setView(v)}
-                  className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-all ${
-                    view === v ? 'bg-primary-600 text-white shadow-glow-sm' : 'bg-[#1a2133] text-muted-foreground border border-[#2d3748] hover:border-primary-600'
-                  }`}>
-                  {v === 'daily' ? 'Diário' : v === 'weekly' ? 'Semanal' : v === 'monthly' ? 'Mensal' : 'Anual'}
-                </button>
-              ))}
-            </div>
+      <section className="bento-fx p-5">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
+          <div className="flex items-center gap-2">
+            <button onClick={() => navigate(-1)}
+              className="p-1.5 rounded-md hover:bg-bento-bg text-bento-muted hover:text-bento-text transition-colors">
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+              </svg>
+            </button>
+            <span className="font-display text-sm font-semibold text-bento-text">{breadcrumb()}</span>
+            <button onClick={() => navigate(1)}
+              className="p-1.5 rounded-md hover:bg-bento-bg text-bento-muted hover:text-bento-text transition-colors">
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+              </svg>
+            </button>
           </div>
-        </CardHeader>
-        <CardContent>
+          <div className="flex gap-1 flex-wrap">
+            {(['daily','weekly','monthly','annual'] as CalendarView[]).map(v => (
+              <button key={v} onClick={() => setView(v)}
+                className={`px-2.5 py-1 rounded-md font-tech text-[11px] uppercase tracking-wide font-medium transition-all ${
+                  view === v ? 'bg-lime text-lime-ink' : 'bg-bento-bg text-bento-muted border border-bento-border hover:border-lime'
+                }`}>
+                {v === 'daily' ? 'Diário' : v === 'weekly' ? 'Semanal' : v === 'monthly' ? 'Mensal' : 'Anual'}
+              </button>
+            ))}
+          </div>
+        </div>
+        <div>
           {view === 'annual'  && <AnnualView />}
           {view === 'monthly' && <MonthlyView />}
           {view === 'weekly'  && <WeeklyView />}
           {view === 'daily'   && <DailyView />}
-        </CardContent>
-      </Card>
+        </div>
+      </section>
 
       {eventModal && (
         <EventModal
@@ -582,7 +594,7 @@ function Calendar({ userId, events, onEventsChange }: CalendarProps) {
 
 // ─── Main HallClient ──────────────────────────────────────────────────────────
 
-export function HallClient({ initialActivities, initialNotices, userName, userRole, userId }: Props) {
+export function HallClient({ initialActivities, initialNotices, userName, userId }: Props) {
   const [activeTab, setActiveTab]     = useState<Tab>('activities')
   const [activities, setActivities]   = useState<Activity[]>(initialActivities)
   const [notices, setNotices]         = useState<Notice[]>(initialNotices)
@@ -594,7 +606,8 @@ export function HallClient({ initialActivities, initialNotices, userName, userRo
   const [savingNotice, setSavingNotice] = useState(false)
   const [calEvents, setCalEvents]     = useState<CalendarEvent[]>([])
 
-  const canPostNotice = userRole === 'admin' || userRole === 'financeiro'
+  // App pessoal de usuário único: acesso total.
+  const canPostNotice = true
 
   useEffect(() => {
     setGreeting(computeGreeting())
@@ -642,6 +655,23 @@ export function HallClient({ initialActivities, initialNotices, userName, userRo
     }
   }
 
+  // ── Métricas reais (estáticas) para os painéis ──────────────────────────────
+  const todayStr = toDateStr(new Date())
+  const weekdayBars = getWeekDays(new Date()).map(d => ({
+    label: d.label,
+    isToday: d.dateStr === todayStr,
+    count: calEvents.filter(e => e.date === d.dateStr).length,
+  }))
+  const eventsThisWeek = weekdayBars.reduce((s, d) => s + d.count, 0)
+  const maxWeekday = Math.max(1, ...weekdayBars.map(d => d.count))
+  const activitiesToday = activities.filter(a => (a.created_at ?? '').slice(0, 10) === todayStr).length
+
+  // Proporção por tipo de atividade (funil → barras de proporção).
+  const typeCounts = Object.entries(
+    activities.reduce<Record<string, number>>((acc, a) => { acc[a.type] = (acc[a.type] ?? 0) + 1; return acc }, {})
+  ).sort((a, b) => b[1] - a[1])
+  const maxType = Math.max(1, ...typeCounts.map(([, c]) => c))
+
   const TABS = [
     {
       id: 'activities' as Tab, label: 'Atividades',
@@ -654,28 +684,28 @@ export function HallClient({ initialActivities, initialNotices, userName, userRo
   ]
 
   return (
-    <div className="p-4 sm:p-6 max-w-7xl mx-auto space-y-6 animate-fade-in">
+    <div className="p-4 sm:p-6 max-w-7xl mx-auto space-y-5 animate-fade-in font-body">
 
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl sm:text-2xl font-bold text-foreground tracking-tight">
+          <h1 className="font-display text-xl sm:text-2xl font-bold text-bento-text tracking-tight">
             {greeting ? `${greeting}, ${userName}` : userName}
           </h1>
-          <p className="text-muted-foreground mt-0.5 capitalize text-sm">{today}</p>
+          <p className="text-bento-muted mt-0.5 capitalize text-sm">{today}</p>
         </div>
-        <div className="flex items-center gap-2 border border-green-800/50 bg-green-900/20 rounded-full px-3 py-1.5">
-          <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
-          <span className="text-xs font-medium text-green-400">{onlineCount} online</span>
+        <div className="flex items-center gap-2 rounded-full border border-bento-border bg-bento-panel px-3 py-1.5">
+          <LiveDot />
+          <span className="font-tech text-xs font-medium text-lime-fg tabular-nums">{onlineCount} online</span>
         </div>
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-1 border-b border-[#2d3748]">
+      <div className="flex gap-1 border-b border-bento-border">
         {TABS.map(tab => (
           <button key={tab.id} onClick={() => setActiveTab(tab.id)}
             className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
-              activeTab === tab.id ? 'border-primary-600 text-primary-400' : 'border-transparent text-muted-foreground hover:text-foreground'
+              activeTab === tab.id ? 'border-lime text-lime-fg' : 'border-transparent text-bento-muted hover:text-bento-text'
             }`}>
             {tab.icon}
             {tab.label}
@@ -683,105 +713,157 @@ export function HallClient({ initialActivities, initialNotices, userName, userRo
         ))}
       </div>
 
-      {activeTab === 'activities' && (
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
-          <Card className="lg:col-span-2">
-            <CardHeader className="pb-3">
-              <CardTitle className="flex items-center gap-2 text-sm">
-                Atividades Recentes
-                <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-0 divide-y divide-[#2d3748]/60">
-              {activities.length === 0 ? (
-                <p className="text-sm text-muted-foreground py-6 text-center">Nenhuma atividade ainda.</p>
-              ) : activities.map(a => (
-                <div key={a.id} className="flex items-start gap-3 py-3 first:pt-0 last:pb-0">
-                  <div className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${ACTIVITY_COLORS[a.type] ?? 'bg-slate-800/60 text-slate-400'}`}>
-                    {ACTIVITY_ICONS[a.type]}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm text-foreground leading-snug">{a.description}</p>
-                    <div className="flex items-center gap-1.5 mt-0.5">
-                      {a.user_name && <><p className="text-xs text-muted-foreground">{a.user_name}</p><span className="text-muted-foreground/50 text-xs">·</span></>}
-                      <p className="text-xs text-muted-foreground">{timeAgo(a.created_at)}</p>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </CardContent>
-          </Card>
+      {/* Canvas com grade técnica — todos os painéis vivem aqui dentro */}
+      <div className="bento-canvas p-4 sm:p-5 space-y-4">
 
-          <Card>
-            <CardHeader className="pb-3">
-              <div className="flex items-center justify-between">
-                <CardTitle className="text-sm">Mural de Avisos</CardTitle>
-                {canPostNotice && (
+        {activeTab === 'activities' && (
+          <>
+            {/* Faixa de métricas */}
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+              {/* Herói: agenda da semana com mini-gráfico */}
+              <Panel hero label="Agenda · esta semana" className="col-span-2">
+                <div className="flex items-end gap-2">
+                  <Metric size="big">{eventsThisWeek}</Metric>
+                  <span className="font-tech text-[11px] text-bento-muted pb-1">eventos</span>
+                </div>
+                <p className="font-tech text-[11px] text-bento-muted mt-1">{calEvents.length} no calendário</p>
+                <div className="bento-bars h-[64px] mt-4">
+                  {weekdayBars.map(d => (
+                    <div key={d.label} className={cn('bento-bar', d.isToday && 'is-now')}
+                      style={{ height: `${maxWeekday > 0 ? Math.max(8, (d.count / maxWeekday) * 100) : 6}%` }} />
+                  ))}
+                </div>
+                <div className="flex gap-1.5 mt-2">
+                  {weekdayBars.map(d => (
+                    <span key={d.label} className={cn('flex-1 text-center font-tech text-[9px]', d.isToday ? 'text-lime-fg' : 'text-bento-muted/70')}>
+                      {d.isToday ? 'hoje' : d.label}
+                    </span>
+                  ))}
+                </div>
+              </Panel>
+
+              {/* Online agora */}
+              <Panel label="Online agora" action={<LiveDot />}>
+                <div className="flex-1 flex flex-col justify-end">
+                  <Metric size="sm">{onlineCount}</Metric>
+                  <p className="font-tech text-[11px] text-bento-muted mt-1.5">conectados</p>
+                </div>
+              </Panel>
+
+              {/* Atividades hoje */}
+              <Panel label="Atividades hoje">
+                <div className="flex-1 flex flex-col justify-end">
+                  <Metric size="sm">{activitiesToday}</Metric>
+                  <p className="font-tech text-[11px] text-bento-muted mt-1.5">{activities.length} no total</p>
+                </div>
+              </Panel>
+            </div>
+
+            {/* Conteúdo principal */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+              <Panel className="lg:col-span-2" label="Atividades Recentes" action={<LiveDot />}>
+                {/* Resumo por tipo — barras de proporção */}
+                {typeCounts.length > 0 && (
+                  <div className="space-y-2 mb-4 pb-4 border-b border-bento-border/60">
+                    {typeCounts.slice(0, 4).map(([type, count], i) => (
+                      <div key={type}>
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="text-xs text-bento-dim">{ACTIVITY_TYPE_LABELS[type] ?? type}</span>
+                          <span className="font-tech text-xs font-semibold text-bento-text tabular-nums">{String(count).padStart(2, '0')}</span>
+                        </div>
+                        <div className="bento-track">
+                          <div className={cn('bento-fill', i === 0 ? '' : i < 2 ? 'dim' : 'mut')} style={{ width: `${(count / maxType) * 100}%` }} />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                <div className="space-y-0 divide-y divide-bento-border/60">
+                  {activities.length === 0 ? (
+                    <p className="text-sm text-bento-muted py-6 text-center">Nenhuma atividade ainda.</p>
+                  ) : activities.map(a => (
+                    <div key={a.id} className="flex items-start gap-3 py-3 first:pt-0 last:pb-0">
+                      <div className={`w-7 h-7 rounded-md flex items-center justify-center shrink-0 ${ACTIVITY_COLORS[a.type] ?? 'bg-slate-800/60 text-slate-400'}`}>
+                        {ACTIVITY_ICONS[a.type]}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm text-bento-text leading-snug">{a.description}</p>
+                        <div className="flex items-center gap-1.5 mt-0.5">
+                          {a.user_name && <><p className="text-xs text-bento-muted">{a.user_name}</p><span className="text-bento-muted/50 text-xs">·</span></>}
+                          <p className="font-tech text-xs text-bento-muted">{timeAgo(a.created_at)}</p>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </Panel>
+
+              <Panel
+                label="Mural de Avisos"
+                action={canPostNotice && (
                   <button onClick={() => setShowNoticeForm(!showNoticeForm)}
-                    className="text-xs text-primary-400 hover:text-primary-300 transition-colors font-medium flex items-center gap-1">
+                    className="font-tech text-[11px] uppercase tracking-wide text-lime-fg hover:text-lime transition-colors font-semibold flex items-center gap-1">
                     <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
                     </svg>
                     Postar
                   </button>
                 )}
-              </div>
-            </CardHeader>
-            <CardContent className="space-y-2.5">
-              {showNoticeForm && (
-                <div className="bg-[#1e2533] border border-[#2d3748] rounded-xl p-3 space-y-2 mb-3">
-                  <input value={noticeForm.title} onChange={e => setNoticeForm(p => ({ ...p, title: e.target.value }))}
-                    placeholder="Título" className="w-full bg-[#161b22] border border-[#2d3748] rounded-lg px-3 py-1.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary-600" />
-                  <textarea value={noticeForm.content} onChange={e => setNoticeForm(p => ({ ...p, content: e.target.value }))}
-                    placeholder="Mensagem..." rows={2}
-                    className="w-full bg-[#161b22] border border-[#2d3748] rounded-lg px-3 py-1.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary-600 resize-none" />
-                  <div className="flex gap-1.5">
-                    {(['info','warning','urgent'] as const).map(p => (
-                      <button key={p} onClick={() => setNoticeForm(prev => ({ ...prev, priority: p }))}
-                        className={`flex-1 py-1 rounded-md text-xs font-medium border transition-all ${
-                          noticeForm.priority === p
-                            ? p === 'info' ? 'bg-blue-900/40 text-blue-400 border-blue-800/50'
-                              : p === 'warning' ? 'bg-amber-900/40 text-amber-400 border-amber-800/50'
-                              : 'bg-red-900/40 text-red-400 border-red-800/50'
-                            : 'bg-transparent text-muted-foreground border-[#2d3748]'
-                        }`}>
-                        {p === 'info' ? 'Info' : p === 'warning' ? 'Atenção' : 'Urgente'}
-                      </button>
-                    ))}
-                    <button onClick={handlePostNotice} disabled={savingNotice || !noticeForm.title.trim()}
-                      className="px-3 py-1 bg-primary-600 text-white rounded-lg text-xs font-semibold hover:bg-primary-500 disabled:opacity-50 transition-colors">
-                      {savingNotice ? '...' : 'OK'}
-                    </button>
-                  </div>
-                </div>
-              )}
-              {notices.length === 0
-                ? <p className="text-sm text-muted-foreground py-6 text-center">Nenhum aviso.</p>
-                : notices.map(n => (
-                  <div key={n.id} className={`rounded-xl border p-3 ${NOTICE_BORDER[n.priority] ?? 'border-[#2d3748]'}`}>
-                    <div className="flex items-center justify-between mb-1">
-                      <p className="text-sm font-semibold text-foreground">{n.title}</p>
-                      <Badge variant={n.priority === 'info' ? 'default' : n.priority === 'warning' ? 'warning' : 'destructive'} className="text-[10px]">
-                        {n.priority === 'info' ? 'Info' : n.priority === 'warning' ? 'Atenção' : 'Urgente'}
-                      </Badge>
+              >
+                <div className="space-y-2.5">
+                  {showNoticeForm && (
+                    <div className="bg-bento-bg border border-bento-border rounded-bento p-3 space-y-2 mb-3">
+                      <input value={noticeForm.title} onChange={e => setNoticeForm(p => ({ ...p, title: e.target.value }))}
+                        placeholder="Título" className="w-full bg-bento-panel border border-bento-border rounded-btn px-3 py-1.5 text-sm text-bento-text placeholder:text-bento-muted focus:outline-none focus:border-lime" />
+                      <textarea value={noticeForm.content} onChange={e => setNoticeForm(p => ({ ...p, content: e.target.value }))}
+                        placeholder="Mensagem..." rows={2}
+                        className="w-full bg-bento-panel border border-bento-border rounded-btn px-3 py-1.5 text-sm text-bento-text placeholder:text-bento-muted focus:outline-none focus:border-lime resize-none" />
+                      <div className="flex gap-1.5">
+                        {(['info','warning','urgent'] as const).map(p => (
+                          <button key={p} onClick={() => setNoticeForm(prev => ({ ...prev, priority: p }))}
+                            className={`flex-1 py-1 rounded-md text-xs font-medium border transition-all ${
+                              noticeForm.priority === p ? NOTICE_PILL[p] : 'bg-transparent text-bento-muted border-bento-border'
+                            }`}>
+                            {NOTICE_LABEL[p]}
+                          </button>
+                        ))}
+                        <button onClick={handlePostNotice} disabled={savingNotice || !noticeForm.title.trim()}
+                          className="bento-btn px-3 py-1 rounded-btn text-xs font-semibold disabled:opacity-50">
+                          {savingNotice ? '...' : 'OK'}
+                        </button>
+                      </div>
                     </div>
-                    <p className="text-xs text-muted-foreground">{n.content}</p>
-                    {n.author_name && <p className="text-xs text-muted-foreground/60 mt-1">— {n.author_name} · {timeAgo(n.created_at)}</p>}
-                  </div>
-                ))
-              }
-            </CardContent>
-          </Card>
-        </div>
-      )}
+                  )}
+                  {notices.length === 0
+                    ? <p className="text-sm text-bento-muted py-6 text-center">Nenhum aviso.</p>
+                    : notices.map(n => (
+                      <div key={n.id} className={`rounded-bento border p-3 ${NOTICE_BORDER[n.priority] ?? 'border-bento-border'}`}>
+                        <div className="flex items-center justify-between mb-1 gap-2">
+                          <p className="text-sm font-semibold text-bento-text">{n.title}</p>
+                          <span className={`shrink-0 text-[10px] px-2 py-0.5 rounded-full border font-semibold ${NOTICE_PILL[n.priority] ?? 'border-bento-border text-bento-muted'}`}>
+                            {NOTICE_LABEL[n.priority] ?? n.priority}
+                          </span>
+                        </div>
+                        <p className="text-xs text-bento-dim">{n.content}</p>
+                        {n.author_name && <p className="font-tech text-xs text-bento-muted/70 mt-1">— {n.author_name} · {timeAgo(n.created_at)}</p>}
+                      </div>
+                    ))
+                  }
+                </div>
+              </Panel>
+            </div>
+          </>
+        )}
 
-      {activeTab === 'agent' && (
-        <div className="h-[600px] rounded-lg border border-[#2d3748] bg-[#0d1117] overflow-hidden">
-          <AgentChat />
-        </div>
-      )}
+        {activeTab === 'agent' && (
+          <div className="bento-fx h-[600px] overflow-hidden">
+            <AgentChat />
+          </div>
+        )}
 
-      <Calendar userId={userId} events={calEvents} onEventsChange={setCalEvents} />
+        <Calendar userId={userId} events={calEvents} onEventsChange={setCalEvents} />
+      </div>
     </div>
   )
 }

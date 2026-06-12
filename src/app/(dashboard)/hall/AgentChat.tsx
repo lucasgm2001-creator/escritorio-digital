@@ -72,11 +72,11 @@ export function AgentChat() {
   }
 
   return (
-    <div className="flex flex-col h-full bg-[#0d1117]">
+    <div className="flex flex-col h-full bg-transparent font-body">
       {/* Header */}
-      <div className="p-4 border-b border-[#2d3748]">
-        <h2 className="text-lg font-semibold text-foreground flex items-center gap-2">
-          <svg className="w-4 h-4 text-primary-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17H3a2 2 0 01-2-2V5a2 2 0 012-2h14a2 2 0 012 2v10a2 2 0 01-2 2h-2" /></svg>
+      <div className="p-4 border-b border-bento-border">
+        <h2 className="font-display text-lg font-semibold text-bento-text flex items-center gap-2">
+          <svg className="w-4 h-4 text-lime-fg" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17H3a2 2 0 01-2-2V5a2 2 0 012-2h14a2 2 0 012 2v10a2 2 0 01-2 2h-2" /></svg>
           Agente IA
         </h2>
         <p className="text-xs text-muted-foreground mt-1">
@@ -103,8 +103,8 @@ export function AgentChat() {
             <div
               className={`max-w-md px-4 py-2 rounded-lg ${
                 msg.role === 'user'
-                  ? 'bg-primary-600 text-white'
-                  : 'bg-[#1e2533] text-foreground border border-[#2d3748]'
+                  ? 'bg-lime text-lime-ink'
+                  : 'bg-bento-bg text-bento-text border border-bento-border'
               }`}
             >
               <p className="text-sm leading-relaxed whitespace-pre-wrap">
@@ -113,8 +113,8 @@ export function AgentChat() {
               <p
                 className={`text-xs mt-1 ${
                   msg.role === 'user'
-                    ? 'text-white/60'
-                    : 'text-muted-foreground'
+                    ? 'text-lime-ink/60'
+                    : 'text-bento-muted'
                 }`}
               >
                 {msg.timestamp.toLocaleTimeString('pt-BR', {
@@ -128,11 +128,11 @@ export function AgentChat() {
 
         {loading && (
           <div className="flex justify-start">
-            <div className="bg-[#1e2533] text-foreground border border-[#2d3748] px-4 py-2 rounded-lg">
+            <div className="bg-bento-bg text-bento-text border border-bento-border px-4 py-2 rounded-lg">
               <div className="flex gap-2 items-center">
-                <div className="w-2 h-2 bg-primary-600 rounded-full animate-bounce" />
-                <div className="w-2 h-2 bg-primary-600 rounded-full animate-bounce delay-100" />
-                <div className="w-2 h-2 bg-primary-600 rounded-full animate-bounce delay-200" />
+                <div className="w-2 h-2 bg-lime rounded-full animate-bounce" />
+                <div className="w-2 h-2 bg-lime rounded-full animate-bounce delay-100" />
+                <div className="w-2 h-2 bg-lime rounded-full animate-bounce delay-200" />
               </div>
             </div>
           </div>
@@ -142,7 +142,7 @@ export function AgentChat() {
       </div>
 
       {/* Input */}
-      <div className="p-4 border-t border-[#2d3748]">
+      <div className="p-4 border-t border-bento-border">
         <form onSubmit={handleSend} className="flex gap-2">
           <input
             type="text"
@@ -150,12 +150,12 @@ export function AgentChat() {
             onChange={e => setInput(e.target.value)}
             placeholder="Faça uma pergunta..."
             disabled={loading}
-            className="flex-1 bg-[#1e2533] border border-[#2d3748] rounded-lg px-3 py-2 text-sm text-foreground placeholder-muted-foreground focus:outline-none focus:border-primary-600 disabled:opacity-50"
+            className="flex-1 bg-bento-bg border border-bento-border rounded-btn px-3 py-2 text-sm text-bento-text placeholder:text-bento-muted focus:outline-none focus:border-lime disabled:opacity-50"
           />
           <button
             type="submit"
             disabled={!input.trim() || loading}
-            className="bg-primary-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            className="bento-btn px-4 py-2 rounded-btn text-sm font-medium disabled:cursor-not-allowed"
           >
             Enviar
           </button>

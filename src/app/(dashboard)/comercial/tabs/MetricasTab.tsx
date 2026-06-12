@@ -16,10 +16,10 @@ const FUNNEL_STAGES = [
   { key: 'interagiu', label: 'Interagiu',   dotClass: 'bg-indigo-500' },
   { key: 'reuniao',   label: 'Reunião',     dotClass: 'bg-purple-500' },
   { key: 'proposta',  label: 'Proposta',    dotClass: 'bg-amber-500' },
-  { key: 'fechado',   label: 'Venda Feita', dotClass: 'bg-emerald-500' },
+  { key: 'fechado',   label: 'Venda Feita', dotClass: 'bg-lime' },
 ]
 
-const card = 'bg-[#161b22] rounded-xl border border-[#2d3748] p-5'
+const card = 'bento-fx p-5'
 
 export function MetricasTab({ leads }: Props) {
   const total    = leads.length
@@ -47,7 +47,7 @@ export function MetricasTab({ leads }: Props) {
           { label: 'Taxa de Conversão', value: `${convRate.toFixed(1)}%`,  sub: `${fechados} de ${total} leads`, valueClass: 'text-emerald-400', accent: 'before:bg-emerald-500' },
           { label: 'Taxa de Perda',     value: `${lossRate.toFixed(1)}%`,  sub: `${perdidos} perdidos`,          valueClass: 'text-rose-400',    accent: 'before:bg-rose-500' },
           { label: 'Ticket Médio',      value: fmt(avgTicket),             sub: 'vendas fechadas',               valueClass: 'text-blue-400',    accent: 'before:bg-blue-500' },
-          { label: 'Receita Fechada',   value: fmt(closedValue),           sub: `${fechados} contratos`,         valueClass: 'text-primary-400', accent: 'before:bg-primary-500' },
+          { label: 'Receita Fechada',   value: fmt(closedValue),           sub: `${fechados} contratos`,         valueClass: 'text-lime-fg', accent: 'before:bg-lime' },
         ].map(kpi => (
           <div key={kpi.label} className={`stat-card ${kpi.accent}`}>
             <p className="text-xs text-muted-foreground font-medium">{kpi.label}</p>

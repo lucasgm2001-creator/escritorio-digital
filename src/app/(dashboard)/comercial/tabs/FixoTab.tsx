@@ -12,19 +12,12 @@ interface Seller {
   observations?: string
 }
 
-interface Props {
-  currentUser: { id: string; name: string; role: string }
-}
-
-export function FixoTab({ currentUser }: Props) {
+export function FixoTab() {
   const [sellers, setSellers] = useState<Seller[]>([])
   const [loading, setLoading] = useState(true)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [form, setForm] = useState({ fixed_salary: '', start_date: '', observations: '' })
   const [saving, setSaving] = useState(false)
-
-  const role = (currentUser.role ?? '').toLowerCase()
-  const isAdmin = role === 'admin' || role === 'administrador'
 
   useEffect(() => {
     const load = async () => {
@@ -102,23 +95,9 @@ export function FixoTab({ currentUser }: Props) {
     }
   }
 
-  const inputCls = 'w-full bg-[#1e2533] border border-[#2d3748] rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary-600'
+  const inputCls = 'w-full bg-[#1e2533] border border-[#2d3748] rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-lime'
 
   const fmt = (v: number) => `R$ ${v.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`
-
-  if (!isAdmin) {
-    return (
-      <div className="p-6 h-full flex items-center justify-center bg-background">
-        <div className="text-center">
-          <svg className="w-12 h-12 mx-auto mb-3 text-muted-foreground/30" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-          </svg>
-          <p className="text-sm text-muted-foreground font-medium">Acesso Restrito</p>
-          <p className="text-xs text-muted-foreground/60 mt-1">Esta seção é visível apenas para administradores</p>
-        </div>
-      </div>
-    )
-  }
 
   return (
     <div className="p-4 sm:p-6 space-y-5 overflow-auto h-full bg-background animate-fade-in">
@@ -132,7 +111,7 @@ export function FixoTab({ currentUser }: Props) {
       <div className="bg-[#161b22] rounded-xl border border-[#2d3748] overflow-hidden">
         {loading ? (
           <div className="flex items-center justify-center gap-3 py-16 text-muted-foreground text-sm">
-            <span className="w-5 h-5 border-2 border-muted-foreground/20 border-t-primary-500 rounded-full animate-spin" />
+            <span className="w-5 h-5 border-2 border-muted-foreground/20 border-t-lime rounded-full animate-spin" />
             Carregando...
           </div>
         ) : sellers.length === 0 ? (
@@ -159,8 +138,8 @@ export function FixoTab({ currentUser }: Props) {
                 <tr key={s.id} className="hover:bg-[#1a2133]/60 transition-colors">
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-2.5">
-                      <div className="w-8 h-8 rounded-lg bg-primary-900/40 border border-primary-800/40 flex items-center justify-center flex-none">
-                        <span className="text-xs font-bold text-primary-400">{s.name[0]}</span>
+                      <div className="w-8 h-8 rounded-lg bg-lime/15 border border-lime/30 flex items-center justify-center flex-none">
+                        <span className="text-xs font-bold text-lime-fg">{s.name[0]}</span>
                       </div>
                       <span className="font-semibold text-foreground">{s.name}</span>
                     </div>
@@ -177,7 +156,7 @@ export function FixoTab({ currentUser }: Props) {
                   <td className="px-4 py-3">
                     <button
                       onClick={() => handleEdit(s)}
-                      className="text-xs text-primary-400 hover:text-primary-300 underline underline-offset-2 transition-colors"
+                      className="text-xs text-lime-fg hover:text-lime-fg underline underline-offset-2 transition-colors"
                     >
                       Editar
                     </button>
@@ -258,14 +237,14 @@ export function FixoTab({ currentUser }: Props) {
                     setForm({ fixed_salary: '', start_date: '', observations: '' })
                   }}
                   disabled={saving}
-                  className="flex-1 border border-[#2d3748] text-muted-foreground py-2.5 rounded-lg text-sm hover:bg-[#1e2533] transition-colors disabled:opacity-50"
+                  className="flex-1 border border-bento-border text-bento-dim py-2.5 rounded-btn text-sm hover:border-lime hover:text-bento-text transition-colors disabled:opacity-50"
                 >
                   Cancelar
                 </button>
                 <button
                   onClick={handleSave}
                   disabled={saving || !form.fixed_salary}
-                  className="flex-1 bg-primary-600 text-white py-2.5 rounded-lg text-sm font-semibold hover:bg-primary-500 transition-colors disabled:opacity-50 shadow-glow-sm"
+                  className="bento-btn flex-1 py-2.5 rounded-btn text-sm font-semibold disabled:opacity-50"
                 >
                   {saving ? 'Salvando...' : 'Salvar'}
                 </button>

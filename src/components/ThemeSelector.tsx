@@ -92,8 +92,8 @@ export function ThemeSelector() {
               onClick={() => handleThemeChange(opt.id as Theme)}
               className={`flex flex-col items-center justify-center gap-2 px-3 py-3 rounded-lg border transition-all ${
                 theme === opt.id
-                  ? 'bg-primary-600 border-primary-600 text-white shadow-md'
-                  : 'bg-[#1e2533] border-[#2d3748] text-muted-foreground hover:border-primary-600 hover:bg-[#252d3d]'
+                  ? 'bento-btn border-transparent'
+                  : 'bg-bento-bg border-bento-border text-bento-dim hover:border-lime'
               }`}
             >
               <Icon className="w-[18px] h-[18px]" strokeWidth={1.5} />

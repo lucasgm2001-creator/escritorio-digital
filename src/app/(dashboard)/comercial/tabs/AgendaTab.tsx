@@ -47,7 +47,7 @@ export function AgendaTab({ leads }: Props) {
           <input
             value={search}
             onChange={e => setSearch(e.target.value)}
-            className="w-full pl-9 pr-3 py-2 border border-[#2d3748] rounded-lg text-sm focus:outline-none focus:border-primary-600 bg-[#1e2533] text-foreground"
+            className="w-full pl-9 pr-3 py-2 border border-bento-border rounded-btn text-sm focus:outline-none focus:border-lime bg-bento-bg text-bento-text"
             placeholder="Buscar nome, empresa ou telefone..."
           />
         </div>
@@ -55,7 +55,7 @@ export function AgendaTab({ leads }: Props) {
         <select
           value={stageFilter}
           onChange={e => setStageFilter(e.target.value)}
-          className="border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-primary-600 bg-input text-foreground"
+          className="border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-lime bg-input text-foreground"
         >
           {stages.map(s => (
             <option key={s.key} value={s.key}>{s.label}</option>
@@ -66,7 +66,7 @@ export function AgendaTab({ leads }: Props) {
       </div>
 
       {/* List */}
-      <div className="bg-[#161b22] rounded-xl border border-[#2d3748] overflow-hidden">
+      <div className="bento-fx overflow-hidden">
         {filtered.length === 0 ? (
           <div className="p-10 text-center">
             <div className="w-10 h-10 rounded-full bg-[#1e2533] flex items-center justify-center mx-auto mb-3">
@@ -97,8 +97,8 @@ export function AgendaTab({ leads }: Props) {
                   className="grid grid-cols-[auto_1fr_auto_auto_auto] gap-4 items-center px-4 py-3 hover:bg-[#1a2133]/60 transition-colors"
                 >
                   {/* Avatar */}
-                  <div className="w-9 h-9 rounded-full bg-primary-900/30 border border-primary-800/40 flex items-center justify-center flex-none">
-                    <span className="text-xs font-bold text-primary-400">{lead.name[0]}</span>
+                  <div className="w-9 h-9 rounded-full bg-lime/15 border border-lime/30 flex items-center justify-center flex-none">
+                    <span className="text-xs font-bold text-lime-fg">{lead.name[0]}</span>
                   </div>
 
                   {/* Name + company */}

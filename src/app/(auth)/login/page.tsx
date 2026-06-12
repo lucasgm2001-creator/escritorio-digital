@@ -45,7 +45,7 @@ export default function LoginPage() {
   }
 
   return (
-    <main className="min-h-screen bg-gradient-to-br from-primary-950 via-primary-900 to-primary-800 flex items-center justify-center p-4">
+    <main className="min-h-screen bg-gradient-to-br from-[#080D0A] via-[#0D140F] to-[#111A14] flex items-center justify-center p-4">
       <div className="w-full max-w-md">
         {/* Logo */}
         <div className="text-center mb-12">
@@ -56,7 +56,7 @@ export default function LoginPage() {
             </svg>
           </div>
           <h1 className="text-3xl font-bold text-white mb-1">DR Growth</h1>
-          <p className="text-primary-300">Escritório Digital</p>
+          <p className="text-lime-fg">Escritório Digital</p>
         </div>
 
         {/* Form */}
@@ -64,7 +64,7 @@ export default function LoginPage() {
           <form onSubmit={handleSubmit} className="space-y-6">
             {/* Email */}
             <div>
-              <label htmlFor="email" className="block text-sm font-medium text-primary-100 mb-2">
+              <label htmlFor="email" className="block text-sm font-medium text-white/90 mb-2">
                 E-mail
               </label>
               <input
@@ -73,7 +73,7 @@ export default function LoginPage() {
                 value={email}
                 onChange={e => { setEmail(e.target.value); setError('') }}
                 placeholder="seu@email.com"
-                className="w-full bg-white/10 border border-white/20 rounded-xl px-4 py-3 text-white placeholder-primary-400 focus:outline-none focus:border-white/50 transition-colors"
+                className="w-full bg-white/10 border border-white/20 rounded-xl px-4 py-3 text-white placeholder-white/40 focus:outline-none focus:border-lime/60 transition-colors"
                 disabled={loading}
                 required
               />
@@ -81,7 +81,7 @@ export default function LoginPage() {
 
             {/* Password */}
             <div>
-              <label htmlFor="password" className="block text-sm font-medium text-primary-100 mb-2">
+              <label htmlFor="password" className="block text-sm font-medium text-white/90 mb-2">
                 Senha
               </label>
               <div className="relative">
@@ -91,14 +91,14 @@ export default function LoginPage() {
                   value={password}
                   onChange={e => { setPassword(e.target.value); setError('') }}
                   placeholder="••••••••"
-                  className="w-full bg-white/10 border border-white/20 rounded-xl px-4 py-3 text-white placeholder-primary-400 focus:outline-none focus:border-white/50 pr-12 transition-colors"
+                  className="w-full bg-white/10 border border-white/20 rounded-xl px-4 py-3 text-white placeholder-white/40 focus:outline-none focus:border-lime/60 pr-12 transition-colors"
                   disabled={loading}
                   required
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-primary-300 hover:text-white transition-colors"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-white/50 hover:text-white transition-colors"
                 >
                   <EyeIcon show={showPassword} />
                 </button>
@@ -109,7 +109,7 @@ export default function LoginPage() {
             <div className="text-right">
               <Link
                 href="/forgot-password"
-                className="text-sm text-primary-300 hover:text-white transition-colors"
+                className="text-sm text-lime-fg hover:text-lime transition-colors"
               >
                 Esqueci minha senha
               </Link>
@@ -126,17 +126,17 @@ export default function LoginPage() {
             <button
               type="submit"
               disabled={loading || !email || !password}
-              className="w-full bg-white text-primary-900 font-semibold rounded-xl py-3 hover:bg-primary-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+              className="w-full bg-lime text-lime-ink font-semibold rounded-xl py-3 hover:bg-lime-hover transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
             >
               {loading ? (
-                <span className="w-5 h-5 border-2 border-primary-900/30 border-t-primary-900 rounded-full animate-spin" />
+                <span className="w-5 h-5 border-2 border-lime-ink/30 border-t-lime-ink rounded-full animate-spin" />
               ) : 'Entrar'}
             </button>
           </form>
         </div>
 
         {/* Footer */}
-        <p className="text-center text-primary-400 text-xs mt-8">
+        <p className="text-center text-white/40 text-xs mt-8">
           © 2025 DR Growth • Sistema Interno
         </p>
       </div>
