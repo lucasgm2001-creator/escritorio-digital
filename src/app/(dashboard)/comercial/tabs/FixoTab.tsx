@@ -66,11 +66,12 @@ export function FixoTab() {
     setSaving(true)
     try {
       const supabase = createClient()
-      await supabase.from('sellers').update({
+      const { error } = await supabase.from('sellers').update({
         fixed_salary: salaryNum,
         start_date: form.start_date || null,
         observations: form.observations || null,
       }).eq('id', editingId)
+      if (error) throw error
 
       setSellers(prev =>
         prev.map(s =>

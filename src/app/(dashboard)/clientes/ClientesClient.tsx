@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import { useSave } from '@/lib/useSave'
 import { formatCurrency, formatDate, timeAgo } from '@/lib/utils'
 
 interface Client {
@@ -205,6 +206,7 @@ export function ClientesClient({ initialClients, currentUser }: Props) {
   const [lastCreateTime, setLastCreateTime] = useState<number>(0) // Rate limiting
 
   const supabase = createClient()
+  const save = useSave()
 
   const filtered = clients.filter(c => {
     if (!search) return true
@@ -231,19 +233,23 @@ export function ClientesClient({ initialClients, currentUser }: Props) {
     }
 
     setLoading(true)
-    const { data, error } = await supabase.from('clients').insert({
-      name: form.name,
-      company: form.company || null,
-      email: form.email || null,
-      phone: form.phone || null,
-      plan_weekly: parseFloat(form.plan_weekly),
-      status: 'ativo',
-      start_date: new Date().toISOString().slice(0, 10),
-      assigned_name: currentUser.name,
-    }).select().single()
+    const { ok, data } = await save<Client>({
+      run: () => supabase.from('clients').insert({
+        name: form.name,
+        company: form.company || null,
+        email: form.email || null,
+        phone: form.phone || null,
+        plan_weekly: parseFloat(form.plan_weekly),
+        status: 'ativo',
+        start_date: new Date().toISOString().slice(0, 10),
+        assigned_name: currentUser.name,
+      }).select().single(),
+      success: 'Cliente criado.',
+      error: 'Não foi possível criar o cliente',
+    })
 
-    if (!error && data) {
-      setClients(prev => [data as Client, ...prev])
+    if (ok && data) {
+      setClients(prev => [data, ...prev])
       setLastCreateTime(Date.now()) // Rate limiting
       await supabase.from('activities').insert({
         type: 'client',
@@ -259,23 +265,29 @@ export function ClientesClient({ initialClients, currentUser }: Props) {
 
   const handleSaveEdit = async () => {
     if (!editClient) return
+    const target = editClient
     setLoading(true)
-    await supabase.from('clients').update({
-      name: editForm.name || editClient.name,
-      company: editForm.company || null,
-      email: editForm.email || null,
-      phone: editForm.phone || null,
-      plan_weekly: parseFloat(editForm.plan_weekly) || editClient.plan_weekly,
-    }).eq('id', editClient.id)
-    setClients(prev => prev.map(c => c.id === editClient.id ? {
-      ...c,
-      name: editForm.name || c.name,
+    const patch = {
+      name: editForm.name || target.name,
       company: editForm.company || undefined,
       email: editForm.email || undefined,
       phone: editForm.phone || undefined,
-      plan_weekly: parseFloat(editForm.plan_weekly) || c.plan_weekly,
-    } : c))
-    setEditClient(null)
+      plan_weekly: parseFloat(editForm.plan_weekly) || target.plan_weekly,
+    }
+    const { ok } = await save({
+      optimistic: () => setClients(prev => prev.map(c => c.id === target.id ? { ...c, ...patch } : c)),
+      run: () => supabase.from('clients').update({
+        name: patch.name,
+        company: editForm.company || null,
+        email: editForm.email || null,
+        phone: editForm.phone || null,
+        plan_weekly: patch.plan_weekly,
+      }).eq('id', target.id),
+      rollback: () => setClients(prev => prev.map(c => c.id === target.id ? target : c)),
+      success: 'Cliente atualizado.',
+      error: 'Não foi possível salvar o cliente',
+    })
+    if (ok) setEditClient(null)
     setLoading(false)
   }
 
@@ -283,35 +295,57 @@ export function ClientesClient({ initialClients, currentUser }: Props) {
     const job = jobInput.trim()
     if (!job) return
     const jobs = [...(client.jobs ?? []), job]
-    await supabase.from('clients').update({ jobs }).eq('id', client.id)
-    setClients(prev => prev.map(c => c.id === client.id ? { ...c, jobs } : c))
+    const prevJobs = client.jobs
     setJobInput('')
+    await save({
+      optimistic: () => setClients(prev => prev.map(c => c.id === client.id ? { ...c, jobs } : c)),
+      run: () => supabase.from('clients').update({ jobs }).eq('id', client.id),
+      rollback: () => setClients(prev => prev.map(c => c.id === client.id ? { ...c, jobs: prevJobs } : c)),
+      error: 'Não foi possível adicionar o serviço',
+    })
   }
 
   const handleRemoveJob = async (client: Client, idx: number) => {
     const jobs = (client.jobs ?? []).filter((_, i) => i !== idx)
-    await supabase.from('clients').update({ jobs }).eq('id', client.id)
-    setClients(prev => prev.map(c => c.id === client.id ? { ...c, jobs } : c))
+    const prevJobs = client.jobs
+    await save({
+      optimistic: () => setClients(prev => prev.map(c => c.id === client.id ? { ...c, jobs } : c)),
+      run: () => supabase.from('clients').update({ jobs }).eq('id', client.id),
+      rollback: () => setClients(prev => prev.map(c => c.id === client.id ? { ...c, jobs: prevJobs } : c)),
+      error: 'Não foi possível remover o serviço',
+    })
   }
 
   const handleInativar = async (client: Client) => {
     const reason = window.prompt(`Motivo para inativar ${client.name}?`)
     if (reason === null) return
-    await supabase.from('clients').update({
-      status: 'inativo', end_date: new Date().toISOString().slice(0, 10), end_reason: reason,
-    }).eq('id', client.id)
-    setClients(prev => prev.map(c => c.id === client.id ? { ...c, status: 'inativo' as const } : c))
-    await supabase.from('activities').insert({
-      type: 'client',
-      description: `Cliente inativado: ${client.name}. Motivo: ${reason}`,
-      user_name: currentUser.name,
-      entity_id: client.id,
+    const { ok } = await save({
+      optimistic: () => setClients(prev => prev.map(c => c.id === client.id ? { ...c, status: 'inativo' as const } : c)),
+      run: () => supabase.from('clients').update({
+        status: 'inativo', end_date: new Date().toISOString().slice(0, 10), end_reason: reason,
+      }).eq('id', client.id),
+      rollback: () => setClients(prev => prev.map(c => c.id === client.id ? { ...c, status: client.status } : c)),
+      success: 'Cliente inativado.',
+      error: 'Não foi possível inativar o cliente',
     })
+    if (ok) {
+      await supabase.from('activities').insert({
+        type: 'client',
+        description: `Cliente inativado: ${client.name}. Motivo: ${reason}`,
+        user_name: currentUser.name,
+        entity_id: client.id,
+      })
+    }
   }
 
   const handleReativar = async (client: Client) => {
-    await supabase.from('clients').update({ status: 'ativo', end_date: null }).eq('id', client.id)
-    setClients(prev => prev.map(c => c.id === client.id ? { ...c, status: 'ativo' as const } : c))
+    await save({
+      optimistic: () => setClients(prev => prev.map(c => c.id === client.id ? { ...c, status: 'ativo' as const } : c)),
+      run: () => supabase.from('clients').update({ status: 'ativo', end_date: null }).eq('id', client.id),
+      rollback: () => setClients(prev => prev.map(c => c.id === client.id ? { ...c, status: client.status } : c)),
+      success: 'Cliente reativado.',
+      error: 'Não foi possível reativar o cliente',
+    })
   }
 
   const loadActivities = async (clientId: string) => {

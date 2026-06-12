@@ -75,9 +75,16 @@ export function KanbanBoard({ initialLeads, currentUser }: { initialLeads: Lead[
     const lead = leads.find(l => l.id === leadId)
     if (!lead || lead.status === newStatus) return
 
-    setLeads(prev => prev.map(l => l.id === leadId ? { ...l, status: newStatus } : l))
+    const prevStatus = lead.status
+    setLeads(prev => prev.map(l => l.id === leadId ? { ...l, status: newStatus } : l))   // otimista
 
-    await supabase.from('leads').update({ status: newStatus, updated_at: new Date().toISOString() }).eq('id', leadId)
+    const { error: moveErr } = await supabase
+      .from('leads').update({ status: newStatus, updated_at: new Date().toISOString() }).eq('id', leadId)
+    if (moveErr) {
+      setLeads(prev => prev.map(l => l.id === leadId ? { ...l, status: prevStatus } : l))   // rollback
+      showToast(`Não foi possível mover o lead: ${moveErr.message}`, 'error')
+      return
+    }
 
     if (newStatus === 'fechado') {
       await supabase.from('activities').insert({
@@ -87,7 +94,7 @@ export function KanbanBoard({ initialLeads, currentUser }: { initialLeads: Lead[
         entity_id: leadId,
       })
 
-      await supabase.from('clients').insert({
+      const { error: clientErr } = await supabase.from('clients').insert({
         name: lead.name,
         email: lead.email ?? null,
         phone: lead.phone ?? null,
@@ -98,9 +105,12 @@ export function KanbanBoard({ initialLeads, currentUser }: { initialLeads: Lead[
         assigned_name: lead.assigned_name ?? null,
         start_date: new Date().toISOString(),
       })
-
-      setCommissionLead({ ...lead, status: 'fechado' })
-      showToast(`Cliente ${lead.name} cadastrado automaticamente`)
+      if (clientErr) {
+        showToast(`Lead movido, mas falhou ao cadastrar o cliente: ${clientErr.message}`, 'error')
+      } else {
+        setCommissionLead({ ...lead, status: 'fechado' })
+        showToast(`Cliente ${lead.name} cadastrado automaticamente`)
+      }
     }
   }, [leads, supabase, currentUser.name])
 

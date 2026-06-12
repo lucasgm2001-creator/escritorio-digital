@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import { useToast } from '@/components/ui/toast'
 
 interface Commission {
   id: string
@@ -50,6 +51,7 @@ export function ComissoesTab({ currentUser }: Props) {
   const [createError, setCreateError] = useState('')
 
   const supabase = createClient()
+  const { toast } = useToast()
   // App pessoal de usuário único: acesso total.
   const canManageAll = true
 
@@ -81,10 +83,11 @@ export function ComissoesTab({ currentUser }: Props) {
 
   const handleStatusChange = async (id: string, status: Commission['status']) => {
     if (!canManageAll) return
-    await supabase.from('commissions').update({
+    const { error } = await supabase.from('commissions').update({
       status,
       paid_at: status === 'paga' ? new Date().toISOString() : null,
     }).eq('id', id)
+    if (error) { toast({ type: 'error', message: `Não foi possível mudar o status: ${error.message}` }); return }
     setCommissions(prev => prev.map(c => c.id === id ? { ...c, status } : c))
   }
 

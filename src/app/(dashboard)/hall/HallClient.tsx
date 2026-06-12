@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import { useToast } from '@/components/ui/toast'
 import { cn, timeAgo } from '@/lib/utils'
 import { Panel } from '@/components/bento/Panel'
 import { Metric } from '@/components/bento/Metric'
@@ -271,11 +272,17 @@ function EventModal({ date, hour, userId, onClose, onSaved }: EventModalProps) {
 
 function EventDetailModal({ event, onClose, onDelete }: { event: CalendarEvent; onClose: () => void; onDelete: (id: string) => void }) {
   const [deleting, setDeleting] = useState(false)
+  const { toast } = useToast()
 
   const handleDelete = async () => {
     setDeleting(true)
     const supabase = createClient()
-    await supabase.from('calendar_events').delete().eq('id', event.id)
+    const { error } = await supabase.from('calendar_events').delete().eq('id', event.id)
+    if (error) {
+      setDeleting(false)
+      toast({ type: 'error', message: `Não foi possível excluir o evento: ${error.message}` })
+      return
+    }
     onDelete(event.id)
     onClose()
   }

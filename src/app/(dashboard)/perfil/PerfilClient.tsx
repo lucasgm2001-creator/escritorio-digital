@@ -85,7 +85,8 @@ export function PerfilClient({ userId, email, initialName, initialPhone, initial
       const { data: { publicUrl } } = supabase.storage.from('avatars').getPublicUrl(path)
       const urlWithBust = `${publicUrl}?t=${Date.now()}`
 
-      await supabase.from('profiles').update({ avatar_url: urlWithBust }).eq('id', userId)
+      const { error: dbErr } = await supabase.from('profiles').update({ avatar_url: urlWithBust }).eq('id', userId)
+      if (dbErr) throw dbErr
       setAvatarUrl(urlWithBust)
       setSuccess('Foto atualizada com sucesso.')
     } catch (err) {

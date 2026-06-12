@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { DashboardShell } from '@/components/layout/DashboardShell'
+import { ToastProvider } from '@/components/ui/toast'
 import { capitalizeName } from '@/lib/utils'
 import { getSystemLogoUrl } from '@/lib/logo'
 
@@ -60,7 +61,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
       logoUrl={logoUrl}
       pageTitles={PAGE_TITLES}
     >
-      {children}
+      <ToastProvider>{children}</ToastProvider>
     </DashboardShell>
   )
 }

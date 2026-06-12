@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import { useToast } from '@/components/ui/toast'
 import { formatDate } from '@/lib/utils'
 
 interface SellerRow {
@@ -54,6 +55,7 @@ function SellerProfile({
   onClose: () => void
   onUpdated: (s: SellerRow) => void
 }) {
+  const { toast } = useToast()
   const [fixedForm, setFixedForm] = useState({
     fixed_salary: seller.fixed_salary?.toString() ?? '',
     start_date: seller.start_date?.split('T')[0] ?? '',
@@ -83,11 +85,12 @@ function SellerProfile({
     try {
       const supabase = createClient()
       const salaryNum = parseFloat(fixedForm.fixed_salary) || 0
-      await supabase.from('sellers').update({
+      const { error } = await supabase.from('sellers').update({
         fixed_salary: salaryNum,
         start_date: fixedForm.start_date || null,
         observations: fixedForm.observations || null,
       }).eq('id', seller.id)
+      if (error) { toast({ type: 'error', message: `Não foi possível salvar o fixo: ${error.message}` }); return }
       onUpdated({ ...seller, fixed_salary: salaryNum, start_date: fixedForm.start_date, observations: fixedForm.observations })
     } finally {
       setSavingFixed(false)
@@ -124,9 +127,10 @@ function SellerProfile({
 
   const handleStatusChange = async (id: string, status: Commission['status']) => {
     const supabase = createClient()
-    await supabase.from('commissions').update({
+    const { error } = await supabase.from('commissions').update({
       status, paid_at: status === 'paga' ? new Date().toISOString() : null,
     }).eq('id', id)
+    if (error) { toast({ type: 'error', message: `Não foi possível mudar o status: ${error.message}` }); return }
     setCommissions(prev => prev.map(c => c.id === id ? { ...c, status } : c))
   }
 
@@ -353,6 +357,7 @@ function SellerProfile({
 // ─── Main VendedoresTab ───────────────────────────────────────────────────────
 
 export function VendedoresTab() {
+  const { toast } = useToast()
   const [sellers, setSellers]     = useState<SellerRow[]>([])
   const [loading, setLoading]     = useState(true)
   const [fetchError, setFetchError] = useState<string | null>(null)
@@ -410,7 +415,8 @@ export function VendedoresTab() {
         status: 'ativo', total_sales: 0, total_commissions: 0, leads_assigned: 0, conversion_rate: 0,
       }).select('id, name, email, cargo, monthly_goal, default_commission, fixed_salary, start_date, observations, status, leads_assigned, conversion_rate, total_sales, created_at').single()
 
-      if (!error && data) setSellers(prev => [...prev, data as SellerRow])
+      if (error) { toast({ type: 'error', message: `Não foi possível criar o vendedor: ${error.message}` }); return }
+      if (data) setSellers(prev => [...prev, data as SellerRow])
     } finally {
       setForm({ name: '', email: '', telefone: '', cargo: '', monthly_goal: '', default_commission: '' })
       setAddOpen(false)
@@ -421,7 +427,8 @@ export function VendedoresTab() {
   const handleToggle = async (id: string, current: 'ativo' | 'inativo') => {
     const next = current === 'ativo' ? 'inativo' : 'ativo'
     const supabase = createClient()
-    await supabase.from('sellers').update({ status: next }).eq('id', id)
+    const { error } = await supabase.from('sellers').update({ status: next }).eq('id', id)
+    if (error) { toast({ type: 'error', message: `Não foi possível mudar o status do vendedor: ${error.message}` }); return }
     setSellers(prev => prev.map(s => s.id === id ? { ...s, status: next } : s))
   }
 

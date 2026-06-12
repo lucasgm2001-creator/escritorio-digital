@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import { useToast } from '@/components/ui/toast'
 import { getScoreInfo } from '@/lib/utils/score'
 import { timeAgo } from '@/lib/utils'
 import type { Lead } from './types'
@@ -52,6 +53,7 @@ export function LeadDiary({ lead, onClose, onUpdated, currentUser }: Props) {
   const [aiLoading, setAiLoading] = useState(false)
 
   const supabase = createClient()
+  const { toast } = useToast()
   const scoreInfo = getScoreInfo(currentLead.score)
 
   useEffect(() => {
@@ -71,7 +73,7 @@ export function LeadDiary({ lead, onClose, onUpdated, currentUser }: Props) {
     const newScore = Math.max(0, Math.min(1000, currentLead.score + delta))
     const updatedLead = { ...currentLead, score: newScore, last_contact_at: new Date().toISOString() }
 
-    const { data: interaction } = await supabase
+    const { data: interaction, error: interErr } = await supabase
       .from('lead_interactions')
       .insert({
         lead_id: lead.id,
@@ -84,11 +86,24 @@ export function LeadDiary({ lead, onClose, onUpdated, currentUser }: Props) {
       .select()
       .single()
 
-    await supabase
+    if (interErr) {
+      toast({ type: 'error', message: `Não foi possível registrar a interação: ${interErr.message}` })
+      setLoadingInteraction(false)
+      return
+    }
+
+    const { error: scoreErr } = await supabase
       .from('leads')
       .update({ score: newScore, last_contact_at: updatedLead.last_contact_at })
       .eq('id', lead.id)
 
+    if (scoreErr) {
+      toast({ type: 'error', message: `Interação salva, mas falhou ao atualizar o score: ${scoreErr.message}` })
+      setLoadingInteraction(false)
+      return
+    }
+
+    // Persistiu tudo → aplica no estado local.
     if (interaction) setInteractions(prev => [interaction, ...prev])
     setCurrentLead(updatedLead)
     onUpdated(updatedLead)

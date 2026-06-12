@@ -6,6 +6,22 @@ Categorias: 🐛 Fix · 🔄 Mudança · ✨ Novidade
 
 ---
 
+🐛 Fix — escritas que falhavam em SILÊNCIO (risco de perda de dado sem aviso).
+Helper central de persistência: `lib/useSave.ts` (optimistic → await → em erro
+rollback + toast vermelho; em sucesso, toast opcional) + `components/ui/toast.tsx`
+(ToastProvider/useToast, montado no layout do dashboard). Aplicado nos ~14
+write-sites que não tratavam erro:
+- Clientes: criar, editar, +job, −job, inativar, reativar (optimistic + rollback).
+- Comercial/Funil (KanbanBoard): mover etapa no drag (rollback do status) + criar
+  cliente ao ganhar — via o toast próprio do board.
+- Hall: excluir evento. LeadDiary: interação/score (aplica local só se persistir).
+- Comissões: status. Vendedores: fixo, status, criar, ativar/inativar. Fixo:
+  salvar (relança no try/catch). Perfil: avatar (usa o erro local existente).
+A varredura não achou OUTRA mutação fire-and-forget além das de Tarefas (já
+corrigidas); reads com `.then()` executam normalmente.
+
+---
+
 🐛 Fix — concluir/excluir tarefa não persistia (voltava ao recarregar). Causa: os
 query builders do supabase-js são lazy/thenable — `toggleDone` e `handleDelete`
 montavam `.update()/.delete()` SEM `await`, então a requisição nunca disparava
