@@ -59,6 +59,7 @@ export function LeadModal({ onClose, onCreated, currentUser }: Props) {
   const [rawText, setRawText] = useState('')
   const [aiLoading, setAiLoading] = useState(false)
   const [sellers, setSellers] = useState<Seller[]>([])
+  const [submitError, setSubmitError] = useState('')
 
   const supabase = createClient()
 
@@ -94,36 +95,44 @@ export function LeadModal({ onClose, onCreated, currentUser }: Props) {
     e.preventDefault()
     if (!form.name.trim()) return
     setLoading(true)
+    setSubmitError('')
 
-    const { data, error } = await supabase.from('leads').insert({
-      name: form.name,
-      company: form.company || null,
-      email: form.email || null,
-      phone: form.phone || null,
+    // Só o nome é obrigatório. Os opcionais viram null; campos com NOT NULL/CHECK
+    // recebem defaults sensatos. assigned_to é nullable → null evita violar a FK
+    // de profiles quando não há vendedor escolhido.
+    const { data, error: insertError } = await supabase.from('leads').insert({
+      name: form.name.trim(),
+      company: form.company.trim() || null,
+      email: form.email.trim() || null,
+      phone: form.phone.trim() || null,
       value: parseFloat(form.value) || 0,
-      operation: form.operation,
-      notes: form.notes || null,
-      nicho: form.nicho || null,
+      operation: form.operation || 'brasil',
+      notes: form.notes.trim() || null,
+      nicho: form.nicho.trim() || null,
       origem: form.origem || null,
-      prioridade: form.prioridade,
+      prioridade: form.prioridade || 'media',
       next_contact: form.next_contact || null,
-      assigned_to: form.assigned_to || currentUser.id,
-      assigned_name: form.assigned_name || currentUser.name,
+      assigned_to: form.assigned_to || null,
+      assigned_name: form.assigned_name || currentUser.name || null,
       score: 500,
       status: 'novo',
     }).select().single()
 
-    if (!error && data) {
-      await supabase.from('activities').insert({
-        type: 'lead',
-        description: `Novo lead cadastrado: ${form.name}`,
-        user_name: currentUser.name,
-        entity_id: data.id,
-      })
-      onCreated(data as Lead)
-      onClose()
+    if (insertError || !data) {
+      setSubmitError(insertError?.message ?? 'Não foi possível criar o lead. Tente novamente.')
+      setLoading(false)
+      return
     }
-    setLoading(false)
+
+    // Registrar atividade é best-effort: não bloqueia o sucesso do lead.
+    await supabase.from('activities').insert({
+      type: 'lead',
+      description: `Novo lead cadastrado: ${form.name.trim()}`,
+      user_name: currentUser.name,
+      entity_id: data.id,
+    })
+    onCreated(data as Lead)
+    onClose()
   }
 
   return (
@@ -300,6 +309,16 @@ export function LeadModal({ onClose, onCreated, currentUser }: Props) {
               placeholder="Contexto, dores, próximos passos..."
             />
           </Field>
+
+          {/* Erro do salvamento (não falha mais em silêncio) */}
+          {submitError && (
+            <div className="flex items-start gap-2 text-sm text-red-400 bg-red-900/20 border border-red-800/40 rounded-btn px-3 py-2">
+              <svg className="w-4 h-4 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+              </svg>
+              <span><strong className="font-semibold">Não foi possível criar o lead.</strong> {submitError}</span>
+            </div>
+          )}
 
           {/* Botões */}
           <div className="flex gap-3 pt-1">

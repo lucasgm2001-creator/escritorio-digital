@@ -6,6 +6,18 @@ Categorias: 🐛 Fix · 🔄 Mudança · ✨ Novidade
 
 ---
 
+🐛 Fix — criar lead só com o nome falhava com 400 silencioso. Dois problemas:
+(1) o app engolia o erro do insert (modal não fechava, nada aparecia) → agora
+mostra um banner "Não foi possível criar o lead: <motivo>" (fim da falha
+silenciosa). (2) Payload defensivo no LeadModal: só `name` é obrigatório;
+opcionais → null; defaults sensatos (operation/prioridade/status/score/value);
+`assigned_to` → null quando sem vendedor (evita violar a FK de profiles).
+Causa raiz do 400 em produção: a migration 006 (campos nicho/origem/prioridade/
+next_contact) não havia sido aplicada no banco de prod — resolvida rodando a 006
+(idempotente, add column if not exists) no Supabase.
+
+---
+
 ✨ Novidade — agente nas Tarefas (etapa 2a): criar tarefa por texto natural +
 resumo do dia, via API Anthropic (claude-haiku) com auth + rate-limit.
 - Criar por texto: input "Escreva uma tarefa…" no topo de /tarefas.
