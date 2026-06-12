@@ -113,6 +113,8 @@ export function TarefasClient({ initialTasks, linkOptions, currentUser }: Props)
   const [summary, setSummary] = useState<string | null>(null)
   const [summaryLoading, setSummaryLoading] = useState(false)
   const [summaryOpen, setSummaryOpen] = useState(false)
+  // Erro de ação (concluir/excluir) — sem falha silenciosa
+  const [actionError, setActionError] = useState('')
 
   const supabase = createClient()
   const phoneById = useMemo(() => {
@@ -137,20 +139,31 @@ export function TarefasClient({ initialTasks, linkOptions, currentUser }: Props)
 
   const pendingCount = tasks.filter(t => !t.done).length
 
-  // ── Ações ──
-  const toggleDone = (t: Task) => {
+  // ── Ações ── (optimistic + await + rollback se o banco recusar)
+  const toggleDone = async (t: Task) => {
     const nowDone = !t.done
     const completed_at = nowDone ? new Date().toISOString() : null
+    setActionError('')
     setTasks(prev => prev.map(x => x.id === t.id ? { ...x, done: nowDone, completed_at } : x))
-    supabase.from('tasks').update({ done: nowDone, completed_at }).eq('id', t.id)
+    const { error } = await supabase.from('tasks').update({ done: nowDone, completed_at }).eq('id', t.id)
+    if (error) {
+      setTasks(prev => prev.map(x => x.id === t.id ? t : x))   // rollback ao original
+      setActionError(`Não foi possível ${nowDone ? 'concluir' : 'reabrir'} a tarefa: ${error.message}`)
+    }
   }
   const handleSaved = (t: Task) => {
     setTasks(prev => prev.some(x => x.id === t.id) ? prev.map(x => x.id === t.id ? t : x) : [t, ...prev])
   }
-  const handleDelete = (t: Task) => {
-    setTasks(prev => prev.filter(x => x.id !== t.id))
+  const handleDelete = async (t: Task) => {
     setConfirmId(null)
-    supabase.from('tasks').delete().eq('id', t.id)
+    setActionError('')
+    const snapshot = tasks
+    setTasks(prev => prev.filter(x => x.id !== t.id))
+    const { error } = await supabase.from('tasks').delete().eq('id', t.id)
+    if (error) {
+      setTasks(snapshot)                                        // rollback (re-insere)
+      setActionError(`Não foi possível excluir a tarefa: ${error.message}`)
+    }
   }
   const openNew  = () => { setModalKey(k => k + 1); setEditing(null); setModalPrefill(null); setModalAiFilled(false); setModalOpen(true) }
   const openEdit = (t: Task) => { setModalKey(k => k + 1); setEditing(t); setModalPrefill(null); setModalAiFilled(false); setModalOpen(true) }
@@ -361,6 +374,21 @@ export function TarefasClient({ initialTasks, linkOptions, currentUser }: Props)
       </div>
 
       <div className="max-w-3xl mx-auto px-4 sm:px-6 py-5 space-y-6">
+        {/* Erro de ação (concluir/excluir) */}
+        {actionError && (
+          <div className="flex items-start gap-2 rounded-bento border border-red-800/40 bg-red-900/20 px-3 py-2.5 text-sm text-red-400">
+            <svg className="w-4 h-4 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+            </svg>
+            <span className="flex-1">{actionError}</span>
+            <button onClick={() => setActionError('')} aria-label="Fechar" className="text-red-400/70 hover:text-red-400 shrink-0">
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+        )}
+
         {/* Criar por texto (IA) */}
         <div className="bento-fx p-3">
           <div className="flex items-center gap-2">

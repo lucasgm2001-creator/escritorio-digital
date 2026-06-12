@@ -6,6 +6,16 @@ Categorias: 🐛 Fix · 🔄 Mudança · ✨ Novidade
 
 ---
 
+🐛 Fix — concluir/excluir tarefa não persistia (voltava ao recarregar). Causa: os
+query builders do supabase-js são lazy/thenable — `toggleDone` e `handleDelete`
+montavam `.update()/.delete()` SEM `await`, então a requisição nunca disparava
+(zero chamadas na rede; só o estado local mudava). Corrigido: ambas viraram
+`async` com `await`, optimistic update + ROLLBACK se o banco recusar, e banner de
+erro visível (sem falha silenciosa). Tabela tasks já tinha done/completed_at e a
+RLS de update/delete do dono (migration 015).
+
+---
+
 🐛 Fix — criar lead só com o nome falhava com 400 silencioso. Dois problemas:
 (1) o app engolia o erro do insert (modal não fechava, nada aparecia) → agora
 mostra um banner "Não foi possível criar o lead: <motivo>" (fim da falha
