@@ -34,39 +34,15 @@ const SIGNAL_TAG: Record<Exclude<LeadSignal, 'none'>, string> = {
   warm: 'text-amber-400 bg-amber-400/[0.12]',
 }
 
-export function LeadCard({ lead, isDragging, onClick }: Props) {
-  const {
-    attributes, listeners, setNodeRef,
-    transform, transition,
-    isDragging: isSortableDragging,
-  } = useSortable({ id: lead.id })
-
-  const isClosed = lead.status === 'fechado'
+// Conteúdo visual do card (compartilhado entre a versão arrastável e a estática).
+function LeadCardBody({ lead }: { lead: Lead }) {
   const signal = getLeadSignal(lead)
   const sub = lead.nicho || lead.company
   const formattedValue = formatValue(lead.value || 0)
   const nextAction = signal === 'none' ? nextActionLabel(lead) : null
 
-  const style = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-    opacity: isSortableDragging ? 0.3 : (isClosed ? 0.6 : 1),
-  }
-
   return (
-    <div
-      ref={setNodeRef}
-      style={style}
-      {...attributes}
-      {...listeners}
-      onClick={onClick}
-      className={cn(
-        'bento-fx p-2.5 cursor-pointer select-none',
-        'hover:border-lime/50 transition-colors duration-150',
-        SIGNAL_BORDER[signal],
-        isDragging && 'shadow-card-hover rotate-1 scale-105 border-lime',
-      )}
-    >
+    <>
       <p className="font-semibold text-bento-text text-xs leading-snug truncate">{lead.name}</p>
       {sub && (
         <p className="font-tech text-[10px] text-bento-muted truncate mt-0.5">{sub}</p>
@@ -92,6 +68,59 @@ export function LeadCard({ lead, isDragging, onClick }: Props) {
           </span>
         ) : null}
       </div>
+    </>
+  )
+}
+
+// Card arrastável (funil desktop, dentro de DndContext/SortableContext).
+export function LeadCard({ lead, isDragging, onClick }: Props) {
+  const {
+    attributes, listeners, setNodeRef,
+    transform, transition,
+    isDragging: isSortableDragging,
+  } = useSortable({ id: lead.id })
+
+  const signal = getLeadSignal(lead)
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isSortableDragging ? 0.3 : (lead.status === 'fechado' ? 0.6 : 1),
+  }
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      {...attributes}
+      {...listeners}
+      onClick={onClick}
+      className={cn(
+        'bento-fx p-2.5 cursor-pointer select-none',
+        'hover:border-lime/50 transition-colors duration-150',
+        SIGNAL_BORDER[signal],
+        isDragging && 'shadow-card-hover rotate-1 scale-105 border-lime',
+      )}
+    >
+      <LeadCardBody lead={lead} />
     </div>
+  )
+}
+
+// Card estático (acordeão mobile — sem drag, só clique p/ abrir o detalhe).
+export function StaticLeadCard({ lead, onClick }: Props) {
+  const signal = getLeadSignal(lead)
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={cn(
+        'block w-full text-left bento-fx p-2.5 cursor-pointer',
+        'hover:border-lime/50 transition-colors duration-150',
+        SIGNAL_BORDER[signal],
+        lead.status === 'fechado' && 'opacity-60',
+      )}
+    >
+      <LeadCardBody lead={lead} />
+    </button>
   )
 }

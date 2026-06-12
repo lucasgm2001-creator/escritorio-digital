@@ -25,8 +25,7 @@ export function MetricasTab({ leads }: Props) {
   const total    = leads.length
   const fechados = leads.filter(l => l.status === 'fechado').length
   const perdidos = leads.filter(l => l.status === 'perdido').length
-  const brasil   = leads.filter(l => l.operation === 'brasil').length
-  const eua      = leads.filter(l => l.operation === 'eua').length
+  const ativos   = leads.filter(l => l.status !== 'fechado' && l.status !== 'perdido').length
 
   const closedValue = leads.filter(l => l.status === 'fechado').reduce((s, l) => s + (l.value || 0), 0)
   const avgTicket   = fechados > 0 ? closedValue / fechados : 0
@@ -83,45 +82,23 @@ export function MetricasTab({ leads }: Props) {
           </div>
         </div>
 
-        {/* Origem */}
+        {/* Resumo (substitui a antiga divisão Brasil/EUA) */}
         <div className={card}>
-          <h3 className="font-semibold text-foreground mb-4 text-sm">Leads por Origem</h3>
-          <div className="space-y-3">
-            {[
-              { label: 'Brasil', count: brasil, barClass: 'bg-green-500' },
-              { label: 'EUA',    count: eua,    barClass: 'bg-blue-500' },
-            ].map(item => (
-              <div key={item.label}>
-                <div className="flex items-center justify-between mb-1.5">
-                  <span className="text-xs text-muted-foreground">{item.label}</span>
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs font-semibold text-foreground tabular-nums">{item.count}</span>
-                    <span className="text-[10px] text-muted-foreground">
-                      {total > 0 ? `${((item.count / total) * 100).toFixed(0)}%` : '0%'}
-                    </span>
-                  </div>
-                </div>
-                <div className="h-1.5 bg-[#2d3748] rounded-full overflow-hidden">
-                  <div className={`h-full rounded-full transition-all ${item.barClass}`}
-                    style={{ width: total > 0 ? `${(item.count / total) * 100}%` : '0%' }} />
-                </div>
-              </div>
-            ))}
-          </div>
-          {total > 0 && (
-            <div className="mt-4 pt-3 border-t border-[#2d3748] flex justify-around">
-              <div className="text-center">
-                <p className="text-xs text-muted-foreground">Total</p>
-                <p className="text-lg font-bold text-foreground">{total}</p>
-              </div>
-              <div className="text-center">
-                <p className="text-xs text-muted-foreground">Ativos</p>
-                <p className="text-lg font-bold text-foreground">
-                  {leads.filter(l => l.status !== 'fechado' && l.status !== 'perdido').length}
-                </p>
-              </div>
+          <h3 className="font-semibold text-foreground mb-4 text-sm">Resumo</h3>
+          <div className="flex justify-around">
+            <div className="text-center">
+              <p className="text-xs text-muted-foreground">Total</p>
+              <p className="text-lg font-bold text-foreground tabular-nums">{total}</p>
             </div>
-          )}
+            <div className="text-center">
+              <p className="text-xs text-muted-foreground">Ativos</p>
+              <p className="text-lg font-bold text-foreground tabular-nums">{ativos}</p>
+            </div>
+            <div className="text-center">
+              <p className="text-xs text-muted-foreground">Fechados</p>
+              <p className="text-lg font-bold text-lime-fg tabular-nums">{fechados}</p>
+            </div>
+          </div>
         </div>
 
         {/* Temperatura */}

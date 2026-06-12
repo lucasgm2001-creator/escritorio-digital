@@ -4,8 +4,8 @@ import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useToast } from '@/components/ui/toast'
 import { getScoreInfo } from '@/lib/utils/score'
-import { timeAgo } from '@/lib/utils'
-import type { Lead } from './types'
+import { cn, timeAgo } from '@/lib/utils'
+import { ALL_COLUMNS, type Lead, type LeadStatus, type ColumnTone } from './types'
 
 interface Interaction {
   id: string
@@ -21,7 +21,16 @@ interface Props {
   lead: Lead
   onClose: () => void
   onUpdated: (lead: Lead) => void
+  /** Move o lead de fase (persiste + rollback + toast no board). Retorna se persistiu. */
+  onMoveStage?: (newStatus: LeadStatus) => Promise<boolean>
   currentUser: { id: string; name: string }
+}
+
+// Cor do ponto da fase por tom (neutro / ganho / perda) — alinhado ao funil.
+const PHASE_DOT: Record<ColumnTone, string> = {
+  neutral: 'bg-bento-muted',
+  win:     'bg-lime',
+  loss:    'bg-red-400',
 }
 
 const INTERACTION_BUTTONS: { type: string; label: string; icon: React.ReactNode; delta: number; color: string }[] = [
@@ -43,7 +52,7 @@ const INTERACTION_BUTTONS: { type: string; label: string; icon: React.ReactNode;
   },
 ]
 
-export function LeadDiary({ lead, onClose, onUpdated, currentUser }: Props) {
+export function LeadDiary({ lead, onClose, onUpdated, onMoveStage, currentUser }: Props) {
   const [interactions, setInteractions] = useState<Interaction[]>([])
   const [currentLead, setCurrentLead] = useState<Lead>(lead)
   const [noteText, setNoteText] = useState('')
@@ -51,10 +60,26 @@ export function LeadDiary({ lead, onClose, onUpdated, currentUser }: Props) {
   const [loadingInteraction, setLoadingInteraction] = useState(false)
   const [aiSuggestion, setAiSuggestion] = useState('')
   const [aiLoading, setAiLoading] = useState(false)
+  const [phaseOpen, setPhaseOpen] = useState(false)
+  const [movingPhase, setMovingPhase] = useState(false)
 
   const supabase = createClient()
   const { toast } = useToast()
   const scoreInfo = getScoreInfo(currentLead.score)
+  const currentPhase = ALL_COLUMNS.find(c => c.key === currentLead.status)
+
+  // Move o lead de fase pelo seletor: otimista no painel; delega persistência ao
+  // board (onMoveStage = mesmo fluxo do arrastar, inclui "ganhou"); rollback se falhar.
+  const changePhase = async (newStatus: LeadStatus) => {
+    setPhaseOpen(false)
+    if (!onMoveStage || newStatus === currentLead.status) return
+    const prev = currentLead.status
+    setMovingPhase(true)
+    setCurrentLead(c => ({ ...c, status: newStatus }))
+    const ok = await onMoveStage(newStatus)
+    if (!ok) setCurrentLead(c => ({ ...c, status: prev }))
+    setMovingPhase(false)
+  }
 
   useEffect(() => {
     supabase
@@ -145,6 +170,50 @@ export function LeadDiary({ lead, onClose, onUpdated, currentUser }: Props) {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
             </svg>
           </button>
+        </div>
+
+        {/* Fase — seletor (alternativa ao arrastar; vale mobile e desktop) */}
+        <div className="px-5 py-3 border-b border-border relative">
+          <span className="text-xs text-muted-foreground">Fase</span>
+          <button
+            type="button"
+            onClick={() => setPhaseOpen(o => !o)}
+            disabled={movingPhase || !onMoveStage}
+            className="mt-1 w-full flex items-center justify-between gap-2 bg-bento-bg border border-bento-border rounded-btn px-3 py-2 hover:border-lime transition-colors disabled:opacity-60 min-h-[44px]"
+          >
+            <span className="flex items-center gap-2 min-w-0">
+              <span className={cn('w-2 h-2 rounded-full flex-none', PHASE_DOT[currentPhase?.tone ?? 'neutral'])} />
+              <span className="text-sm font-medium text-bento-text truncate">{currentPhase?.label ?? currentLead.status}</span>
+            </span>
+            {movingPhase ? (
+              <span className="w-4 h-4 border-2 border-bento-muted/30 border-t-bento-muted rounded-full animate-spin flex-none" />
+            ) : (
+              <svg className={cn('w-4 h-4 text-bento-muted transition-transform flex-none', phaseOpen && 'rotate-180')} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+              </svg>
+            )}
+          </button>
+          {phaseOpen && (
+            <div className="absolute left-5 right-5 z-20 mt-1 bg-bento-panel border border-bento-border rounded-btn shadow-card-hover overflow-hidden">
+              {ALL_COLUMNS.map(c => (
+                <button
+                  key={c.key}
+                  type="button"
+                  onClick={() => changePhase(c.key)}
+                  className={cn('w-full flex items-center gap-2 px-3 py-2 text-left hover:bg-bento-bg transition-colors',
+                    c.key === currentLead.status && 'bg-bento-bg')}
+                >
+                  <span className={cn('w-2 h-2 rounded-full flex-none', PHASE_DOT[c.tone])} />
+                  <span className="text-sm text-bento-text flex-1 truncate">{c.label}</span>
+                  {c.key === currentLead.status && (
+                    <svg className="w-3.5 h-3.5 text-lime-fg flex-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                    </svg>
+                  )}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* Score */}

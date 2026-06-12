@@ -258,27 +258,7 @@ export function LeadModal({ onClose, onCreated, currentUser }: Props) {
             </div>
           </Field>
 
-          {/* Linha 6: Operação */}
-          <Field label="Operação">
-            <div className="flex gap-2">
-              {(['brasil', 'eua'] as const).map(op => (
-                <button
-                  key={op}
-                  type="button"
-                  onClick={() => set('operation', op)}
-                  className={`flex-1 py-2 rounded-btn text-sm font-medium border transition-colors ${
-                    form.operation === op
-                      ? 'bg-lime text-lime-ink border-lime'
-                      : 'border-bento-border text-bento-muted hover:border-lime'
-                  }`}
-                >
-                  {op === 'brasil' ? 'Brasil' : 'EUA'}
-                </button>
-              ))}
-            </div>
-          </Field>
-
-          {/* Linha 7: Responsável */}
+          {/* Responsável */}
           <Field label="Responsável">
             <select
               value={form.assigned_to}

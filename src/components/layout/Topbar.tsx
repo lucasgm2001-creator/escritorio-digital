@@ -15,21 +15,22 @@ interface TopbarProps {
   avatarUrl?: string | null
 }
 
-function LiveClock({ timezone, flag }: { timezone: string; flag: string }) {
+// O fuso IANA (America/...) já resolve o horário de verão dos EUA automaticamente.
+function LiveClock({ timezone, label }: { timezone: string; label: string }) {
   const [time, setTime] = useState('')
   useEffect(() => {
     const update = () => setTime(new Date().toLocaleTimeString('pt-BR', {
-      timeZone: timezone, hour: '2-digit', minute: '2-digit', second: '2-digit',
+      timeZone: timezone, hour: '2-digit', minute: '2-digit',
     }))
     update()
-    const id = setInterval(update, 1000)
+    const id = setInterval(update, 30_000)
     return () => clearInterval(id)
   }, [timezone])
 
   return (
-    <div className="flex items-center gap-1.5">
-      <span className="text-sm leading-none">{flag}</span>
-      <span className="font-mono text-xs font-semibold text-foreground tabular-nums tracking-wide">{time}</span>
+    <div className="flex flex-col items-center leading-none gap-0.5">
+      <span className="text-[9px] text-muted-foreground whitespace-nowrap">{label}</span>
+      <span className="font-mono text-xs font-semibold text-foreground tabular-nums">{time}</span>
     </div>
   )
 }
@@ -80,10 +81,15 @@ export function Topbar({ title, onMenuToggle, userName = 'Usuário', userInitial
       <h1 className="font-semibold text-foreground text-sm tracking-tight">{title}</h1>
 
       <div className="ml-auto flex items-center gap-4">
-        {/* Clocks */}
-        <div className="hidden sm:flex items-center gap-4 border-r border-[#2d3748] pr-4">
-          <LiveClock timezone="America/Sao_Paulo" flag="BR" />
-          <LiveClock timezone="America/New_York" flag="EUA" />
+        {/* Fusos: Brasília (principal) + EUA Leste/Montanha/Oeste. Brasília a partir
+            de sm; os 3 dos EUA a partir de lg (evita lotar a barra em tela média). */}
+        <div className="hidden sm:flex items-center gap-3 border-r border-[#2d3748] pr-4">
+          <LiveClock timezone="America/Sao_Paulo" label="Brasília" />
+          <div className="hidden lg:flex items-center gap-3">
+            <LiveClock timezone="America/New_York"    label="EUA Leste" />
+            <LiveClock timezone="America/Denver"      label="EUA Mont." />
+            <LiveClock timezone="America/Los_Angeles" label="EUA Oeste" />
+          </div>
         </div>
 
         {/* Avatar + dropdown */}

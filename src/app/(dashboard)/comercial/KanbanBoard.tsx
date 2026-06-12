@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 import {
   DndContext, DragOverlay, PointerSensor, useSensor, useSensors,
   type DragStartEvent, type DragEndEvent,
@@ -8,6 +8,7 @@ import {
 import { createClient } from '@/lib/supabase/client'
 import { DraggableTabs } from '@/components/DraggableTabs'
 import { KanbanColumn } from './KanbanColumn'
+import { PhaseAccordion } from './PhaseAccordion'
 import { LeadCard } from './LeadCard'
 import { LeadModal } from './LeadModal'
 import { LeadDiary } from './LeadDiary'
@@ -23,19 +24,27 @@ import type { Lead, LeadStatus } from './types'
 export type { LeadStatus, Lead, ColumnConfig } from './types'
 
 type Tab = 'funil' | 'pipeline' | 'metricas' | 'agenda' | 'comissoes' | 'vendedores' | 'apresentacao'
-type OperationFilter = 'todos' | 'brasil' | 'eua'
 
 interface CurrentUser { id: string; name: string }
 
 export function KanbanBoard({ initialLeads, currentUser }: { initialLeads: Lead[], currentUser: CurrentUser }) {
   const [leads, setLeads] = useState<Lead[]>(initialLeads)
   const [activeId, setActiveId] = useState<string | null>(null)
-  const [filter, setFilter] = useState<OperationFilter>('todos')
   const [newLeadOpen, setNewLeadOpen] = useState(false)
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null)
   const [tab, setTab] = useState<Tab>('funil')
   const [commissionLead, setCommissionLead] = useState<Lead | null>(null)
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null)
+  // Desktop = colunas com drag; mobile = acordeão de fases. Renderiza só UM
+  // (evita ids duplicados no dnd-kit). Default desktop p/ o SSR; ajusta no mount.
+  const [isDesktop, setIsDesktop] = useState(true)
+  useEffect(() => {
+    const mq = window.matchMedia('(min-width: 1024px)')
+    const sync = () => setIsDesktop(mq.matches)
+    sync()
+    mq.addEventListener('change', sync)
+    return () => mq.removeEventListener('change', sync)
+  }, [])
 
   const supabase = createClient()
 
@@ -58,61 +67,66 @@ export function KanbanBoard({ initialLeads, currentUser }: { initialLeads: Lead[
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } })
   )
 
-  const filteredLeads = filter === 'todos' ? leads : leads.filter(l => l.operation === filter)
+  const filteredLeads = leads   // sem segmentação Brasil/EUA
 
   const handleDragStart = (e: DragStartEvent) => setActiveId(e.active.id as string)
+
+  // Fluxo de "ganhou": cria atividade + cliente e abre a comissão. Centralizado
+  // para arrastar E o seletor de fase (LeadDiary) dispararem o MESMO comportamento.
+  const runWonFlow = useCallback(async (lead: Lead) => {
+    await supabase.from('activities').insert({
+      type: 'lead',
+      description: `Lead ${lead.name} movido para Venda Feita`,
+      user_name: currentUser.name,
+      entity_id: lead.id,
+    })
+    const { error: clientErr } = await supabase.from('clients').insert({
+      name: lead.name,
+      email: lead.email ?? null,
+      phone: lead.phone ?? null,
+      company: lead.company ?? null,
+      plan_weekly: 0,
+      status: 'ativo',
+      assigned_to: lead.assigned_to ?? null,
+      assigned_name: lead.assigned_name ?? null,
+      start_date: new Date().toISOString(),
+    })
+    if (clientErr) {
+      showToast(`Lead movido, mas falhou ao cadastrar o cliente: ${clientErr.message}`, 'error')
+    } else {
+      setCommissionLead({ ...lead, status: 'fechado' })
+      showToast(`Cliente ${lead.name} cadastrado automaticamente`)
+    }
+  }, [supabase, currentUser.name])
+
+  // Move um lead de fase: otimista → persiste → rollback+toast se falhar → won-flow.
+  const moveLeadToStatus = useCallback(async (lead: Lead, newStatus: LeadStatus): Promise<boolean> => {
+    if (lead.status === newStatus) return true
+    const prevStatus = lead.status
+    setLeads(prev => prev.map(l => l.id === lead.id ? { ...l, status: newStatus } : l))   // otimista
+
+    const { error } = await supabase
+      .from('leads').update({ status: newStatus, updated_at: new Date().toISOString() }).eq('id', lead.id)
+    if (error) {
+      setLeads(prev => prev.map(l => l.id === lead.id ? { ...l, status: prevStatus } : l))   // rollback
+      showToast(`Não foi possível mover o lead: ${error.message}`, 'error')
+      return false
+    }
+    if (newStatus === 'fechado' && prevStatus !== 'fechado') await runWonFlow(lead)
+    return true
+  }, [supabase, runWonFlow])
 
   const handleDragEnd = useCallback(async (e: DragEndEvent) => {
     setActiveId(null)
     const { active, over } = e
     if (!over) return
-
     const leadId = active.id as string
     const newStatus = over.id as LeadStatus
-
     if (!ALL_COLUMNS.find(c => c.key === newStatus)) return
-
     const lead = leads.find(l => l.id === leadId)
-    if (!lead || lead.status === newStatus) return
-
-    const prevStatus = lead.status
-    setLeads(prev => prev.map(l => l.id === leadId ? { ...l, status: newStatus } : l))   // otimista
-
-    const { error: moveErr } = await supabase
-      .from('leads').update({ status: newStatus, updated_at: new Date().toISOString() }).eq('id', leadId)
-    if (moveErr) {
-      setLeads(prev => prev.map(l => l.id === leadId ? { ...l, status: prevStatus } : l))   // rollback
-      showToast(`Não foi possível mover o lead: ${moveErr.message}`, 'error')
-      return
-    }
-
-    if (newStatus === 'fechado') {
-      await supabase.from('activities').insert({
-        type: 'lead',
-        description: `Lead ${lead.name} movido para Venda Feita`,
-        user_name: currentUser.name,
-        entity_id: leadId,
-      })
-
-      const { error: clientErr } = await supabase.from('clients').insert({
-        name: lead.name,
-        email: lead.email ?? null,
-        phone: lead.phone ?? null,
-        company: lead.company ?? null,
-        plan_weekly: 0,
-        status: 'ativo',
-        assigned_to: lead.assigned_to ?? null,
-        assigned_name: lead.assigned_name ?? null,
-        start_date: new Date().toISOString(),
-      })
-      if (clientErr) {
-        showToast(`Lead movido, mas falhou ao cadastrar o cliente: ${clientErr.message}`, 'error')
-      } else {
-        setCommissionLead({ ...lead, status: 'fechado' })
-        showToast(`Cliente ${lead.name} cadastrado automaticamente`)
-      }
-    }
-  }, [leads, supabase, currentUser.name])
+    if (!lead) return
+    await moveLeadToStatus(lead, newStatus)
+  }, [leads, moveLeadToStatus])
 
   const handleLeadCreated = (lead: Lead) => setLeads(prev => [lead, ...prev])
   const handleLeadUpdated = (lead: Lead) => setLeads(prev => prev.map(l => l.id === lead.id ? lead : l))
@@ -126,21 +140,6 @@ export function KanbanBoard({ initialLeads, currentUser }: { initialLeads: Lead[
         <div className="flex items-center justify-between gap-2 flex-wrap px-4 sm:px-6 pt-4 pb-3">
           <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
             <h1 className="font-display font-bold text-bento-text text-lg tracking-tight">Comercial</h1>
-            <div className="flex gap-0.5 bg-bento-panel rounded-btn p-0.5 border border-bento-border">
-              {(['todos', 'brasil', 'eua'] as OperationFilter[]).map(op => (
-                <button
-                  key={op}
-                  onClick={() => setFilter(op)}
-                  className={`px-2.5 py-1 rounded-md text-xs font-medium border transition-all ${
-                    filter === op
-                      ? 'bg-lime/15 text-lime-fg border-lime/40'
-                      : 'border-transparent text-bento-muted hover:text-bento-text'
-                  }`}
-                >
-                  {op === 'todos' ? 'Todos' : op === 'brasil' ? 'Brasil' : 'EUA'}
-                </button>
-              ))}
-            </div>
             <span className="font-tech text-xs text-bento-muted font-medium tabular-nums">{filteredLeads.length} leads</span>
           </div>
 
@@ -163,7 +162,8 @@ export function KanbanBoard({ initialLeads, currentUser }: { initialLeads: Lead[
 
       {/* Content */}
       <div className="flex-1 overflow-hidden">
-        {tab === 'funil' && (
+        {/* Funil — DESKTOP: colunas com drag */}
+        {tab === 'funil' && isDesktop && (
           <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
             <div className="h-full overflow-auto p-3 sm:p-5 bg-bento-bg overscroll-x-contain snap-x snap-mandatory lg:snap-none">
               {/* Mobile: scroll horizontal com snap (flex). Desktop (lg+): funil em grade
@@ -222,6 +222,13 @@ export function KanbanBoard({ initialLeads, currentUser }: { initialLeads: Lead[
           </DndContext>
         )}
 
+        {/* Funil — MOBILE: acordeão compacto de fases (tocar p/ abrir) */}
+        {tab === 'funil' && !isDesktop && (
+          <div className="h-full overflow-auto p-3 bg-bento-bg">
+            <PhaseAccordion leads={filteredLeads} onLeadClick={setSelectedLead} />
+          </div>
+        )}
+
         {tab === 'pipeline'     && <PipelineTab leads={filteredLeads} />}
         {tab === 'metricas'     && <MetricasTab leads={filteredLeads} />}
         {tab === 'agenda'       && <AgendaTab leads={filteredLeads} />}
@@ -244,6 +251,10 @@ export function KanbanBoard({ initialLeads, currentUser }: { initialLeads: Lead[
           lead={selectedLead}
           onClose={() => setSelectedLead(null)}
           onUpdated={handleLeadUpdated}
+          onMoveStage={(newStatus) => {
+            const fresh = leads.find(l => l.id === selectedLead.id) ?? selectedLead
+            return moveLeadToStatus(fresh, newStatus)
+          }}
           currentUser={currentUser}
         />
       )}

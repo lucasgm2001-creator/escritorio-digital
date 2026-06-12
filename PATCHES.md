@@ -6,6 +6,23 @@ Categorias: 🐛 Fix · 🔄 Mudança · ✨ Novidade
 
 ---
 
+✨ Novidade — país/fusos + melhorias do funil (publicados juntos).
+- Fusos: o Topbar mostra 4 relógios — Brasília (principal) + EUA Leste/Montanha/
+  Oeste — usando fuso IANA (horário de verão dos EUA automático). Brasília a
+  partir de sm; os 3 dos EUA a partir de lg; oculto no mobile.
+- Sai a segmentação Brasil/EUA: filtro Todos/Brasil/EUA do Comercial, campo
+  "Operação" do cadastro de lead e a divisão Brasil/EUA das Métricas (virou card
+  "Resumo": Total/Ativos/Fechados). A coluna leads.operation fica órfã no banco
+  (sem SQL). Comissão USD+BRL intocada.
+- Funil mobile em ACORDEÃO: cada fase é uma linha compacta; tocar expande os
+  leads daquela etapa (PhaseAccordion + StaticLeadCard). Desktop mantém colunas
+  com drag (renderiza só um dos dois p/ não duplicar ids no dnd).
+- Mudar de fase pelo card: no detalhe do lead há um seletor "Fase" (todas as 7);
+  move com o helper (rollback + toast). Arrastar e seletor usam o MESMO caminho
+  (moveLeadToStatus) → "Venda Feita" pelos dois cria cliente + abre comissão.
+
+---
+
 🐛 Fix — schema de produção desalinhado (migrations 006–012 aplicadas só em
 parte → "funciona no local, quebra no ar"). Quebrou leads (006) e depois a aba
 Vendedores ("column sellers.cargo does not exist"). A varredura migrations×código
