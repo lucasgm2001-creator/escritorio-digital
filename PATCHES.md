@@ -6,6 +6,24 @@ Categorias: 🐛 Fix · 🔄 Mudança · ✨ Novidade
 
 ---
 
+✨ Novidade — área de Tarefas (To-do), etapa 1 (base; o agente fica p/ etapa 2).
+- Banco: migration 015_tasks.sql cria a tabela `tasks` (due_date + due_time,
+  notes, prioridade, done/completed_at, linked_type/id/name p/ conectar a lead ou
+  cliente). RLS OWNER-ONLY (auth.uid()=user_id), sem papel. Recria a `tasks`
+  ANTIGA (tarefas de equipe da 005, resquício do sistema de papéis, sem UI) com
+  `drop ... cascade` — a velha estava vazia.
+- Menu: "Tarefas" na Sidebar entre Hall e Comercial (ícone check-square, ativo
+  limão).
+- Tela /tarefas: seções por dia (Atrasadas/Hoje/Amanhã/Esta semana/Depois/
+  Concluídas recolhível); contagem por seção; vazias somem (exceto Hoje). Linha:
+  checkbox (otimista), título, chip do lead/cliente + telefone (tel:), briefing
+  expansível, tag de prioridade (alta/urgente), data+hora (mono). Ordenação:
+  prioridade → dia → com hora (por horário) antes de sem hora.
+- Modal Bento (Field em escopo de módulo → sem bug de foco): título, briefing,
+  data, hora, prioridade e "Conectar a" (busca lead/cliente). Dois temas.
+
+---
+
 ✨ Novidade — DESIGN_SYSTEM_VERDELIMA_EDV2.md: especificação canônica do design
 system. Incorpora a revisão crítica: separa identidade ESTRUTURAL (verde contido:
 botão/item ativo/foco) de EVENTO (verde brilhante: venda/meta/toast); cores de
