@@ -1,73 +1,207 @@
 'use client'
 
-// Módulo de Comissão — Tela, Bloco 1: Configuração + Resumo do mês.
-// Mora dentro do perfil do vendedor (sub-tab "Comissão"). Usa SÓ as tabelas da
-// migration 017 (fx_config, seller_salaries, deals, weekly_payments, meetings) e
-// as funções puras de src/lib/commission/calc. Moeda real = USD; BRL é exibição.
-// NÃO faz lançamento de venda/semana/reunião (bloco 2) nem histórico (bloco 3).
+// Módulo de Comissão — Tela (perfil do vendedor, sub-tab "Comissão").
+// Bloco 1: Resumo do mês + Configuração (salário c/ vigência, cotação global).
+// Bloco 2: Lançamentos — venda (deals), semanas recebidas (weekly_payments),
+//          reunião (meetings), status/rescisão e pendências na tela.
+// Usa SÓ as tabelas/funções da migration 017. Moeda real = USD; BRL é exibição.
+// Cada lançamento congela a cotação vigente no momento.
 
 import { useState, useEffect, useCallback } from 'react'
-import { ChevronLeft, ChevronRight, Plus, Lock, Unlock, Wallet, DollarSign, RefreshCw } from 'lucide-react'
+import {
+  ChevronLeft, ChevronRight, Plus, Lock, Unlock, Wallet, DollarSign, RefreshCw,
+  Receipt, Handshake, Trash2, Check, Circle,
+} from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { useSave } from '@/lib/useSave'
+import { useToast } from '@/components/ui/toast'
 import { cn } from '@/lib/utils'
 import { monthlySummary, resolveRate } from '@/lib/commission/calc'
-import type { SalaryPeriod, Meeting, WeeklyPayment, FxConfig } from '@/lib/commission/types'
+import type { SalaryPeriod, Meeting, WeeklyPayment, FxConfig, Deal, DealStatus } from '@/lib/commission/types'
 
 const inputCls = 'w-full bg-bento-bg border border-bento-border rounded-btn px-3 py-2 text-sm text-bento-text placeholder:text-bento-muted focus:outline-none focus:border-lime'
+const inputSm = 'bg-bento-bg border border-bento-border rounded-btn px-2 py-1 text-[11px] text-bento-text focus:outline-none focus:border-lime'
 
 const pad2 = (n: number) => String(n).padStart(2, '0')
 const usd = (n: number) => `US$ ${n.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 const brl = (n: number) => `R$ ${n.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 const monthName = (y: number, m: number) => new Date(y, m - 1, 1).toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })
 const fmtMonthYear = (iso: string) => { const [y, m] = iso.split('-'); return `${m}/${y}` }
+const fmtDayMonth = (iso: string) => { const [, m, d] = iso.split('-'); return `${d}/${m}` }
+const fmtDayMonthYear = (iso: string) => { const [y, m, d] = iso.split('-'); return `${d}/${m}/${y}` }
+const todayISO = () => { const d = new Date(); return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}` }
+
+const STATUS_CLS: Record<DealStatus, string> = {
+  em_andamento: 'bg-bento-panel text-bento-dim border-bento-border',
+  interrompido: 'bg-amber-900/30 text-amber-400 border-amber-800/50',
+  concluido:    'bg-lime/15 text-lime-fg border-lime/30',
+}
+
+type DealUI = Deal & { clientName: string | null }
+
+// ── mapeadores DB (snake) → tipos do cálculo (camel) ──────────────────────────
+const toDealUI = (r: { id: string; seller_id: string; client_name: string | null; valor_total_usd: number; teto_semanas: number; valor_por_semana_usd: number; status: DealStatus; data_fechamento: string }): DealUI => ({
+  id: r.id, sellerId: r.seller_id, clientName: r.client_name,
+  valorTotalUsd: Number(r.valor_total_usd), tetoSemanas: r.teto_semanas,
+  valorPorSemanaUsd: Number(r.valor_por_semana_usd), status: r.status, dataFechamento: r.data_fechamento,
+})
+const toWeek = (r: { id: string; deal_id: string; numero_semana: number; valor_usd: number; paid_on: string; cotacao_usd_brl: number }): WeeklyPayment => ({
+  id: r.id, dealId: r.deal_id, numeroSemana: r.numero_semana, valorUsd: Number(r.valor_usd), paidOn: r.paid_on, cotacaoUsdBrl: Number(r.cotacao_usd_brl),
+})
+const toMeeting = (r: { id: string; seller_id: string; met_on: string; valor_usd: number; cotacao_usd_brl: number }): Meeting => ({
+  id: r.id, sellerId: r.seller_id, metOn: r.met_on, valorUsd: Number(r.valor_usd), cotacaoUsdBrl: Number(r.cotacao_usd_brl),
+})
+type DealRow = Parameters<typeof toDealUI>[0]
+type WeekRow = Parameters<typeof toWeek>[0]
+type MeetingRow = Parameters<typeof toMeeting>[0]
+
+// ── Card de uma venda: semanas (marcar/desmarcar) + status ────────────────────
+function DealCard({ deal, weeks, statusBusy, onMark, onUnmark, onChangeStatus }: {
+  deal: DealUI
+  weeks: WeeklyPayment[]
+  statusBusy: boolean
+  onMark: (numero: number, paidOn: string) => Promise<boolean>
+  onUnmark: (week: WeeklyPayment) => Promise<void>
+  onChangeStatus: (status: DealStatus) => void
+}) {
+  const [active, setActive] = useState<number | null>(null)
+  const [date, setDate] = useState(todayISO())
+  const [busy, setBusy] = useState(false)
+
+  const paidByNum = new Map(weeks.map(w => [w.numeroSemana, w]))
+  const congelado = deal.status !== 'em_andamento'
+  const pagas = weeks.length
+  const pendentes = congelado ? 0 : Math.max(0, deal.tetoSemanas - pagas)
+
+  const handleMark = async (n: number) => {
+    setBusy(true); const ok = await onMark(n, date); setBusy(false); if (ok) setActive(null)
+  }
+  const handleUnmark = async (w: WeeklyPayment) => {
+    setBusy(true); await onUnmark(w); setBusy(false); setActive(null)
+  }
+
+  return (
+    <div className="bg-bento-bg border border-bento-border/60 rounded-btn p-3 space-y-2.5">
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0">
+          <p className="text-sm font-medium text-bento-text truncate">{deal.clientName || 'Venda sem cliente'}</p>
+          <p className="text-[11px] text-bento-muted tabular-nums">{usd(deal.valorTotalUsd)} · {deal.tetoSemanas} sem · {usd(deal.valorPorSemanaUsd)}/sem · fech. {fmtDayMonthYear(deal.dataFechamento)}</p>
+        </div>
+        <select value={deal.status} disabled={statusBusy} onChange={e => onChangeStatus(e.target.value as DealStatus)}
+          className={cn('text-[11px] px-2 py-1 rounded-full border font-medium focus:outline-none focus:border-lime flex-none', STATUS_CLS[deal.status])}>
+          <option value="em_andamento">Em andamento</option>
+          <option value="interrompido">Interrompido</option>
+          <option value="concluido">Concluído</option>
+        </select>
+      </div>
+
+      <div className="flex flex-wrap gap-1.5">
+        {Array.from({ length: deal.tetoSemanas }, (_, i) => i + 1).map(n => {
+          const w = paidByNum.get(n)
+          return (
+            <button key={n} type="button" onClick={() => setActive(active === n ? null : n)}
+              className={cn('flex items-center gap-1 text-[11px] px-2 py-1 rounded-btn border transition-colors',
+                w ? 'bg-lime/15 text-lime-fg border-lime/30' : 'bg-bento-panel text-bento-muted border-bento-border hover:border-lime/50')}>
+              {w ? <Check className="w-3 h-3" /> : <Circle className="w-3 h-3" />}
+              S{n}{w ? ` · ${fmtDayMonth(w.paidOn)}` : ''}
+            </button>
+          )
+        })}
+      </div>
+
+      {active !== null && (
+        paidByNum.get(active)
+          ? (
+            <div className="flex items-center justify-between gap-2 bg-bento-panel border border-bento-border rounded-btn p-2">
+              <span className="text-[11px] text-bento-muted">Semana {active} recebida em {fmtDayMonthYear(paidByNum.get(active)!.paidOn)}</span>
+              <button onClick={() => handleUnmark(paidByNum.get(active)!)} disabled={busy} className="flex items-center gap-1 text-[11px] text-red-400 hover:text-red-300 disabled:opacity-50">
+                <Trash2 className="w-3.5 h-3.5" /> Desmarcar
+              </button>
+            </div>
+          )
+          : (
+            <div className="flex items-center gap-2 bg-bento-panel border border-bento-border rounded-btn p-2">
+              <span className="text-[11px] text-bento-muted whitespace-nowrap">Recebi a S{active} em</span>
+              <input type="date" value={date} onChange={e => setDate(e.target.value)} className={`flex-1 ${inputSm}`} />
+              <button onClick={() => handleMark(active)} disabled={busy} className="bento-btn px-2.5 py-1 rounded-btn text-[11px] font-semibold disabled:opacity-50">{busy ? '...' : 'Marcar'}</button>
+            </div>
+          )
+      )}
+
+      {congelado
+        ? <p className="text-[11px] text-amber-400">Congelado em {usd(pagas * deal.valorPorSemanaUsd)} ({pagas} de {deal.tetoSemanas} semanas).</p>
+        : pendentes > 0
+          ? <p className="text-[11px] text-bento-muted">{pendentes} semana(s) pendente(s) · {usd(pendentes * deal.valorPorSemanaUsd)} a receber.</p>
+          : <p className="text-[11px] text-lime-fg">Todas as semanas recebidas.</p>}
+    </div>
+  )
+}
 
 export function CommissionSection({ sellerId }: { sellerId: string }) {
   const save = useSave()
+  const { toast } = useToast()
   const supabase = createClient()
 
   const [loading, setLoading] = useState(true)
   const [salaries, setSalaries] = useState<SalaryPeriod[]>([])
   const [meetings, setMeetings] = useState<Meeting[]>([])
   const [weeks, setWeeks] = useState<WeeklyPayment[]>([])
+  const [deals, setDeals] = useState<DealUI[]>([])
+  const [clients, setClients] = useState<{ id: string; name: string }[]>([])
 
-  // Cotação salva (global)
+  // Cotação (global)
   const [fxManual, setFxManual] = useState<number | null>(null)
   const [fxTravada, setFxTravada] = useState(false)
-  // Cotação em edição
   const [fxManualInput, setFxManualInput] = useState('')
   const [fxTravadaInput, setFxTravadaInput] = useState(false)
   const [savingFx, setSavingFx] = useState(false)
   const [fxError, setFxError] = useState('')
 
-  // Mês em foco no resumo
+  // Mês em foco
   const now = new Date()
   const [refDate, setRefDate] = useState({ year: now.getFullYear(), month: now.getMonth() + 1 })
   const prevMonth = () => setRefDate(r => r.month === 1 ? { year: r.year - 1, month: 12 } : { year: r.year, month: r.month - 1 })
   const nextMonth = () => setRefDate(r => r.month === 12 ? { year: r.year + 1, month: 1 } : { year: r.year, month: r.month + 1 })
 
-  // Form de salário (novo período de vigência)
+  // Form salário
   const [salValor, setSalValor] = useState('')
   const [salMonth, setSalMonth] = useState(`${now.getFullYear()}-${pad2(now.getMonth() + 1)}`)
   const [savingSal, setSavingSal] = useState(false)
   const [salError, setSalError] = useState('')
 
+  // Form venda
+  const [showNewDeal, setShowNewDeal] = useState(false)
+  const [dealForm, setDealForm] = useState({ client: '', valorTotal: '100', semanas: '4', dataFechamento: todayISO() })
+  const [savingDeal, setSavingDeal] = useState(false)
+  const [dealError, setDealError] = useState('')
+  const [statusBusyId, setStatusBusyId] = useState<string | null>(null)
+
+  // Form reunião
+  const [showNewMeeting, setShowNewMeeting] = useState(false)
+  const [meetingForm, setMeetingForm] = useState({ metOn: todayISO(), valor: '15', client: '', note: '' })
+  const [savingMeeting, setSavingMeeting] = useState(false)
+  const [meetingError, setMeetingError] = useState('')
+
   const load = useCallback(async () => {
     setLoading(true)
-    const [salRes, mtgRes, dealRes, fxRes] = await Promise.all([
+    const [salRes, mtgRes, dealRes, fxRes, cliRes] = await Promise.all([
       supabase.from('seller_salaries').select('seller_id, valor_usd, effective_from').eq('seller_id', sellerId).order('effective_from', { ascending: false }),
-      supabase.from('meetings').select('id, seller_id, met_on, valor_usd, cotacao_usd_brl').eq('seller_id', sellerId),
-      supabase.from('deals').select('id').eq('seller_id', sellerId),
+      supabase.from('meetings').select('id, seller_id, met_on, valor_usd, cotacao_usd_brl').eq('seller_id', sellerId).order('met_on', { ascending: false }),
+      supabase.from('deals').select('id, seller_id, client_name, valor_total_usd, teto_semanas, valor_por_semana_usd, status, data_fechamento').eq('seller_id', sellerId).order('data_fechamento', { ascending: false }),
       supabase.from('fx_config').select('cotacao_manual, cotacao_travada').eq('id', 1).maybeSingle(),
+      supabase.from('clients').select('id, name').order('name'),
     ])
 
     setSalaries((salRes.data ?? []).map(s => ({ sellerId: s.seller_id, valorUsd: Number(s.valor_usd), effectiveFrom: s.effective_from })))
-    setMeetings((mtgRes.data ?? []).map(m => ({ id: m.id, sellerId: m.seller_id, metOn: m.met_on, valorUsd: Number(m.valor_usd), cotacaoUsdBrl: Number(m.cotacao_usd_brl) })))
+    setMeetings((mtgRes.data ?? []).map(toMeeting))
+    const ds = (dealRes.data ?? []).map(toDealUI)
+    setDeals(ds)
+    setClients((cliRes.data ?? []) as { id: string; name: string }[])
 
-    const dealIds = (dealRes.data ?? []).map(d => d.id)
+    const dealIds = ds.map(d => d.id)
     if (dealIds.length) {
       const { data: wk } = await supabase.from('weekly_payments').select('id, deal_id, numero_semana, valor_usd, paid_on, cotacao_usd_brl').in('deal_id', dealIds)
-      setWeeks((wk ?? []).map(w => ({ id: w.id, dealId: w.deal_id, numeroSemana: w.numero_semana, valorUsd: Number(w.valor_usd), paidOn: w.paid_on, cotacaoUsdBrl: Number(w.cotacao_usd_brl) })))
+      setWeeks((wk ?? []).map(toWeek))
     } else {
       setWeeks([])
     }
@@ -82,17 +216,23 @@ export function CommissionSection({ sellerId }: { sellerId: string }) {
 
   useEffect(() => { load() }, [load])
 
-  // ── Cálculo do mês em foco (funções puras da Fase 1) ──────────────────────
+  // ── Cálculos ──────────────────────────────────────────────────────────────
   const fx: FxConfig = { cotacaoManual: fxManual, cotacaoTravada: fxTravada }
-  const automaticRate = fxManual ?? 0 // busca do dólar do dia vem depois; por ora usa o manual como referência
+  const automaticRate = fxManual ?? 0 // busca automática do dólar vem depois
+  const currentRate = resolveRate(fx, automaticRate)
   const summary = monthlySummary({ year: refDate.year, month: refDate.month, salaries, meetings, weeks, fx, automaticRate })
   const appliedEff = (() => {
     const firstDay = `${refDate.year}-${pad2(refDate.month)}-01`
     return salaries.filter(s => s.effectiveFrom <= firstDay).sort((a, b) => (a.effectiveFrom < b.effectiveFrom ? 1 : -1))[0]?.effectiveFrom
   })()
   const vazio = summary.totalUsd === 0
+  const semanasPendentes = deals.reduce((acc, d) => d.status === 'em_andamento'
+    ? acc + Math.max(0, d.tetoSemanas - weeks.filter(w => w.dealId === d.id).length) : acc, 0)
+  const monthPrefix = `${refDate.year}-${pad2(refDate.month)}`
+  const meetingsDoMes = meetings.filter(m => m.metOn.slice(0, 7) === monthPrefix)
+  const dealVps = (() => { const t = parseFloat(dealForm.valorTotal); const s = parseInt(dealForm.semanas); return t > 0 && s > 0 ? Math.round((t / s) * 100) / 100 : 0 })()
 
-  // ── Salvar cotação (global) ───────────────────────────────────────────────
+  // ── Salvar cotação ──────────────────────────────────────────────────────────
   const saveFx = async () => {
     setFxError('')
     const manualNum = fxManualInput.trim() === '' ? null : parseFloat(fxManualInput)
@@ -110,7 +250,7 @@ export function CommissionSection({ sellerId }: { sellerId: string }) {
     setSavingFx(false)
   }
 
-  // ── Adicionar salário (novo período; nunca reescreve o passado) ───────────
+  // ── Salário (novo período; nunca reescreve o passado) ─────────────────────────
   const addSalary = async () => {
     setSalError('')
     const v = parseFloat(salValor)
@@ -132,12 +272,117 @@ export function CommissionSection({ sellerId }: { sellerId: string }) {
     setSavingSal(false)
   }
 
+  // ── Lançar venda ──────────────────────────────────────────────────────────────
+  const addDeal = async () => {
+    setDealError('')
+    const total = parseFloat(dealForm.valorTotal)
+    const semanas = parseInt(dealForm.semanas)
+    if (isNaN(total) || total <= 0) { setDealError('Valor total inválido.'); return }
+    if (isNaN(semanas) || semanas <= 0) { setDealError('Número de semanas inválido.'); return }
+    if (!dealForm.dataFechamento) { setDealError('Informe a data de fechamento.'); return }
+    const vps = Math.round((total / semanas) * 100) / 100
+    const matched = clients.find(c => c.name.toLowerCase() === dealForm.client.trim().toLowerCase())
+    setSavingDeal(true)
+    const { ok, data } = await save<DealRow>({
+      run: () => supabase.from('deals').insert({
+        seller_id: sellerId, client_id: matched?.id ?? null, client_name: dealForm.client.trim() || null,
+        valor_total_usd: total, teto_semanas: semanas, valor_por_semana_usd: vps,
+        status: 'em_andamento', data_fechamento: dealForm.dataFechamento,
+      }).select('id, seller_id, client_name, valor_total_usd, teto_semanas, valor_por_semana_usd, status, data_fechamento').single(),
+      success: 'Venda lançada.',
+      error: 'Não foi possível lançar a venda',
+    })
+    if (ok && data) {
+      setDeals(prev => [toDealUI(data), ...prev])
+      setShowNewDeal(false)
+      setDealForm({ client: '', valorTotal: '100', semanas: '4', dataFechamento: todayISO() })
+    }
+    setSavingDeal(false)
+  }
+
+  // ── Marcar / desmarcar semana ─────────────────────────────────────────────────
+  const markWeek = async (deal: DealUI, numero: number, paidOn: string): Promise<boolean> => {
+    if (!paidOn) { toast({ type: 'error', message: 'Informe a data do recebimento.' }); return false }
+    if (currentRate <= 0) { toast({ type: 'error', message: 'Defina a cotação USD→BRL antes de lançar.' }); return false }
+    const { ok, data } = await save<WeekRow>({
+      run: () => supabase.from('weekly_payments').insert({
+        deal_id: deal.id, numero_semana: numero, valor_usd: deal.valorPorSemanaUsd,
+        paid_on: paidOn, cotacao_usd_brl: currentRate,
+      }).select('id, deal_id, numero_semana, valor_usd, paid_on, cotacao_usd_brl').single(),
+      success: `Semana ${numero} recebida em ${fmtDayMonthYear(paidOn)}.`,
+      error: 'Não foi possível marcar a semana',
+    })
+    if (ok && data) { setWeeks(prev => [...prev, toWeek(data)]); return true }
+    return false
+  }
+
+  const unmarkWeek = async (week: WeeklyPayment) => {
+    await save({
+      optimistic: () => setWeeks(prev => prev.filter(w => w.id !== week.id)),
+      run: () => supabase.from('weekly_payments').delete().eq('id', week.id),
+      rollback: () => setWeeks(prev => [...prev, week]),
+      success: 'Semana desmarcada.',
+      error: 'Não foi possível desmarcar a semana',
+    })
+  }
+
+  const changeDealStatus = async (deal: DealUI, status: DealStatus) => {
+    const prev = deal.status
+    setStatusBusyId(deal.id)
+    await save({
+      optimistic: () => setDeals(ds => ds.map(d => d.id === deal.id ? { ...d, status } : d)),
+      run: () => supabase.from('deals').update({ status }).eq('id', deal.id),
+      rollback: () => setDeals(ds => ds.map(d => d.id === deal.id ? { ...d, status: prev } : d)),
+      success: 'Status da venda atualizado.',
+      error: 'Não foi possível mudar o status',
+    })
+    setStatusBusyId(null)
+  }
+
+  // ── Lançar / remover reunião ───────────────────────────────────────────────────
+  const addMeeting = async () => {
+    setMeetingError('')
+    const valor = parseFloat(meetingForm.valor)
+    if (isNaN(valor) || valor < 0) { setMeetingError('Valor inválido.'); return }
+    if (!meetingForm.metOn) { setMeetingError('Informe a data da reunião.'); return }
+    if (currentRate <= 0) { setMeetingError('Defina a cotação USD→BRL antes de lançar.'); return }
+    const matched = clients.find(c => c.name.toLowerCase() === meetingForm.client.trim().toLowerCase())
+    setSavingMeeting(true)
+    const { ok, data } = await save<MeetingRow>({
+      run: () => supabase.from('meetings').insert({
+        seller_id: sellerId, met_on: meetingForm.metOn, valor_usd: valor, cotacao_usd_brl: currentRate,
+        client_id: matched?.id ?? null, client_name: meetingForm.client.trim() || null, note: meetingForm.note.trim() || null,
+      }).select('id, seller_id, met_on, valor_usd, cotacao_usd_brl').single(),
+      success: 'Reunião lançada.',
+      error: 'Não foi possível lançar a reunião',
+    })
+    if (ok && data) {
+      setMeetings(prev => [toMeeting(data), ...prev])
+      setShowNewMeeting(false)
+      setMeetingForm({ metOn: todayISO(), valor: '15', client: '', note: '' })
+    }
+    setSavingMeeting(false)
+  }
+
+  const deleteMeeting = async (m: Meeting) => {
+    await save({
+      optimistic: () => setMeetings(prev => prev.filter(x => x.id !== m.id)),
+      run: () => supabase.from('meetings').delete().eq('id', m.id),
+      rollback: () => setMeetings(prev => [...prev, m]),
+      success: 'Reunião removida.',
+      error: 'Não foi possível remover a reunião',
+    })
+  }
+
   if (loading) {
     return <div className="flex items-center justify-center py-10 text-bento-muted text-sm gap-2"><span className="w-4 h-4 border-2 border-bento-muted/20 border-t-lime rounded-full animate-spin" />Carregando comissão...</div>
   }
 
   return (
     <div className="space-y-5">
+      {/* lista compartilhada de clientes p/ os campos de cliente */}
+      <datalist id="commission-clients">{clients.map(c => <option key={c.id} value={c.name} />)}</datalist>
+
       {/* ── RESUMO DO MÊS ─────────────────────────────────────────────── */}
       <section className="bento-fx p-4 space-y-3">
         <div className="flex items-center justify-between gap-2">
@@ -174,9 +419,119 @@ export function CommissionSection({ sellerId }: { sellerId: string }) {
 
         <p className="text-[11px] text-bento-muted pt-1 border-t border-bento-border/40">
           {vazio
-            ? 'Sem lançamentos neste mês ainda — os valores aparecem aqui conforme você registrar reuniões e semanas (bloco 2).'
+            ? 'Sem lançamentos neste mês ainda — lance vendas, semanas e reuniões abaixo.'
             : `Convertido a R$ ${summary.rateUsed.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} (${fxTravada ? 'travada' : 'automática'}). Reuniões e vendas usam a cotação congelada de cada lançamento.`}
         </p>
+      </section>
+
+      {/* ── VENDAS ────────────────────────────────────────────────────── */}
+      <section className="bento-fx p-4 space-y-3">
+        <div className="flex items-center justify-between gap-2">
+          <h4 className="flex items-center gap-1.5 text-sm font-semibold text-bento-text"><Receipt className="w-4 h-4 text-lime-fg" /> Vendas</h4>
+          {semanasPendentes > 0 && (
+            <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-900/30 text-amber-400 border border-amber-800/50">{semanasPendentes} semana(s) pendente(s)</span>
+          )}
+        </div>
+
+        {!showNewDeal && (
+          <button onClick={() => setShowNewDeal(true)} className="flex items-center justify-center gap-1.5 w-full bento-btn py-2.5 rounded-btn text-sm font-semibold min-h-[44px]">
+            <Plus className="w-4 h-4" /> Nova venda
+          </button>
+        )}
+
+        {showNewDeal && (
+          <div className="bg-bento-bg border border-bento-border/60 rounded-btn p-3 space-y-3">
+            <div>
+              <label className="block text-xs font-medium text-bento-dim mb-1">Cliente</label>
+              <input list="commission-clients" value={dealForm.client} onChange={e => setDealForm(p => ({ ...p, client: e.target.value }))} className={inputCls} placeholder="Nome do cliente (livre ou existente)" />
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="block text-xs font-medium text-bento-dim mb-1">Valor total (USD)</label>
+                <input type="number" value={dealForm.valorTotal} onChange={e => setDealForm(p => ({ ...p, valorTotal: e.target.value }))} className={inputCls} min="0" step="10" />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-bento-dim mb-1">Nº de semanas</label>
+                <input type="number" value={dealForm.semanas} onChange={e => setDealForm(p => ({ ...p, semanas: e.target.value }))} className={inputCls} min="1" step="1" />
+              </div>
+            </div>
+            <div className="flex items-center justify-between text-[11px]">
+              <span className="text-bento-muted">Valor por semana (auto)</span>
+              <span className="font-medium text-bento-text tabular-nums">{usd(dealVps)}</span>
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-bento-dim mb-1">Data de fechamento</label>
+              <input type="date" value={dealForm.dataFechamento} onChange={e => setDealForm(p => ({ ...p, dataFechamento: e.target.value }))} className={inputCls} />
+            </div>
+            {dealError && <p className="text-xs text-red-400">{dealError}</p>}
+            <div className="flex gap-2">
+              <button onClick={() => { setShowNewDeal(false); setDealError('') }} className="flex-1 border border-bento-border text-bento-dim py-2 rounded-btn text-sm hover:border-lime transition-colors min-h-[44px]">Cancelar</button>
+              <button onClick={addDeal} disabled={savingDeal} className="flex-1 bento-btn py-2 rounded-btn text-sm font-semibold disabled:opacity-50 min-h-[44px]">{savingDeal ? 'Salvando...' : 'Lançar venda'}</button>
+            </div>
+          </div>
+        )}
+
+        {deals.length === 0
+          ? <p className="text-xs text-bento-muted py-2">Nenhuma venda lançada ainda.</p>
+          : <div className="space-y-2">
+              {deals.map(d => (
+                <DealCard key={d.id} deal={d} weeks={weeks.filter(w => w.dealId === d.id)} statusBusy={statusBusyId === d.id}
+                  onMark={(n, paidOn) => markWeek(d, n, paidOn)} onUnmark={unmarkWeek} onChangeStatus={(s) => changeDealStatus(d, s)} />
+              ))}
+            </div>}
+      </section>
+
+      {/* ── REUNIÕES (do mês em foco) ─────────────────────────────────── */}
+      <section className="bento-fx p-4 space-y-3">
+        <h4 className="flex items-center gap-1.5 text-sm font-semibold text-bento-text"><Handshake className="w-4 h-4 text-lime-fg" /> Reuniões de <span className="capitalize">{monthName(refDate.year, refDate.month)}</span></h4>
+
+        {!showNewMeeting && (
+          <button onClick={() => setShowNewMeeting(true)} className="flex items-center justify-center gap-1.5 w-full bento-btn py-2.5 rounded-btn text-sm font-semibold min-h-[44px]">
+            <Plus className="w-4 h-4" /> Nova reunião
+          </button>
+        )}
+
+        {showNewMeeting && (
+          <div className="bg-bento-bg border border-bento-border/60 rounded-btn p-3 space-y-3">
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="block text-xs font-medium text-bento-dim mb-1">Data</label>
+                <input type="date" value={meetingForm.metOn} onChange={e => setMeetingForm(p => ({ ...p, metOn: e.target.value }))} className={inputCls} />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-bento-dim mb-1">Valor (USD)</label>
+                <input type="number" value={meetingForm.valor} onChange={e => setMeetingForm(p => ({ ...p, valor: e.target.value }))} className={inputCls} min="0" step="5" />
+              </div>
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-bento-dim mb-1">Cliente (opcional)</label>
+              <input list="commission-clients" value={meetingForm.client} onChange={e => setMeetingForm(p => ({ ...p, client: e.target.value }))} className={inputCls} placeholder="Com quem foi" />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-bento-dim mb-1">Nota (opcional)</label>
+              <input value={meetingForm.note} onChange={e => setMeetingForm(p => ({ ...p, note: e.target.value }))} className={inputCls} placeholder="Ex: call de descoberta" />
+            </div>
+            {meetingError && <p className="text-xs text-red-400">{meetingError}</p>}
+            <div className="flex gap-2">
+              <button onClick={() => { setShowNewMeeting(false); setMeetingError('') }} className="flex-1 border border-bento-border text-bento-dim py-2 rounded-btn text-sm hover:border-lime transition-colors min-h-[44px]">Cancelar</button>
+              <button onClick={addMeeting} disabled={savingMeeting} className="flex-1 bento-btn py-2 rounded-btn text-sm font-semibold disabled:opacity-50 min-h-[44px]">{savingMeeting ? 'Salvando...' : 'Lançar reunião'}</button>
+            </div>
+          </div>
+        )}
+
+        {meetingsDoMes.length === 0
+          ? <p className="text-xs text-bento-muted py-2">Nenhuma reunião neste mês.</p>
+          : <div className="space-y-1.5">
+              {meetingsDoMes.map(m => (
+                <div key={m.id} className="flex items-center justify-between gap-2 bg-bento-bg border border-bento-border/60 rounded-btn px-3 py-2">
+                  <div className="min-w-0">
+                    <p className="text-sm text-bento-text tabular-nums">{fmtDayMonthYear(m.metOn)} · {usd(m.valorUsd)}</p>
+                    <p className="text-[11px] text-bento-muted tabular-nums">{brl(m.valorUsd * m.cotacaoUsdBrl)} (cot. {m.cotacaoUsdBrl.toLocaleString('pt-BR', { minimumFractionDigits: 2 })})</p>
+                  </div>
+                  <button onClick={() => deleteMeeting(m)} className="text-bento-muted hover:text-red-400 p-1 flex-none" aria-label="Remover reunião"><Trash2 className="w-4 h-4" /></button>
+                </div>
+              ))}
+            </div>}
       </section>
 
       {/* ── CONFIGURAÇÃO: SALÁRIO ─────────────────────────────────────── */}
@@ -226,7 +581,7 @@ export function CommissionSection({ sellerId }: { sellerId: string }) {
         <div className="flex items-center justify-between bg-bento-bg border border-bento-border/60 rounded-btn px-3 py-2.5">
           <span className="text-xs text-bento-muted">Cotação em uso</span>
           <div className="flex items-center gap-2">
-            <span className="text-sm font-semibold text-bento-text tabular-nums">R$ {resolveRate(fx, automaticRate).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+            <span className="text-sm font-semibold text-bento-text tabular-nums">R$ {currentRate.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
             <span className={cn('text-[10px] px-1.5 py-0.5 rounded-full border', fxTravada ? 'bg-amber-900/30 text-amber-400 border-amber-800/50' : 'bg-lime/15 text-lime-fg border-lime/30')}>
               {fxTravada ? 'Travada' : 'Automática'}
             </span>

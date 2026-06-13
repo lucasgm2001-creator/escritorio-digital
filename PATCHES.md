@@ -6,6 +6,24 @@ Categorias: 🐛 Fix · 🔄 Mudança · ✨ Novidade
 
 ---
 
+✨ Novidade — tela de comissão, Bloco 2 (lançamentos) na aba "Comissão".
+- Lançar venda: form com cliente (livre ou vincula a cliente existente via
+  datalist), valor total USD e nº de semanas EDITÁVEIS (pré 100/4), valor por
+  semana calculado automático; grava em `deals` com valor_por_semana congelado.
+- Semanas pagas: cada venda mostra chips S1..Sn (paga c/ data ou pendente).
+  Marcar pede a data do recebimento (paid_on) → grava em `weekly_payments` com a
+  cotação congelada; dá pra desmarcar. A semana conta no mês do paid_on.
+- Reunião: form (data met_on, valor pré US$15, cliente/nota opcionais) → grava em
+  `meetings` com cotação congelada; lista as do mês em foco + remover.
+- Status/rescisão: selector em_andamento/interrompido/concluido por venda;
+  interrompido congela no que já foi pago (mostra "Congelado em US$X").
+- Pendências na tela: chip "{n} semana(s) pendente(s)" no topo de Vendas + nota
+  por venda. Sem cron/mural (fica pra etapa futura).
+- Resumo do mês passa a refletir os lançamentos reais (USD e BRL). Trava: não
+  deixa lançar sem cotação > 0. Tudo grava via helper useSave (rollback + toast).
+
+---
+
 ✨ Novidade — tela de comissão, Bloco 1 (no perfil do vendedor) + limpeza do
 modelo antigo.
 - Nova sub-tab "Comissão" no perfil do vendedor (Comercial → Vendedores → abrir
