@@ -6,6 +6,27 @@ Categorias: 🐛 Fix · 🔄 Mudança · ✨ Novidade
 
 ---
 
+✨ Novidade — tela de comissão, Bloco 1 (no perfil do vendedor) + limpeza do
+modelo antigo.
+- Nova sub-tab "Comissão" no perfil do vendedor (Comercial → Vendedores → abrir
+  vendedor). Tem: Resumo do mês (seletor de mês; Salário + Reuniões + Vendas +
+  Total em USD e BRL, estado vazio tratado), Salário fixo USD com vigência
+  (cada mudança é um registro novo, aumento só pra frente), e Cotação USD→BRL
+  global (travar manual / automática). Usa só as tabelas/funções da 017; nada de
+  lançamento (bloco 2) nem histórico (bloco 3). `src/.../tabs/CommissionSection.tsx`.
+- Limpeza do modelo de comissão antigo (genérico, em R$):
+  - Removida a sub-tab "Comissões" (plural) de dentro do perfil do vendedor.
+  - Removida a aba "Comissões" do topo do Comercial; arquivo `ComissoesTab.tsx`
+    apagado (ficou órfão). Topo agora: Funil · Pipeline · Métricas · Agenda ·
+    Apresentação · Vendedores.
+  - Removido o campo "comissão padrão (%)" da aba Metas & Remuneração e o
+    "Comissão (%)" do form Novo Vendedor (resíduo do modelo %). Coluna
+    `sellers.default_commission` mantida no banco (sem mudança de schema).
+- Mantidos (leem ainda o modelo antigo, serão religados ao novo num bloco
+  futuro): o KPI "Comissão" no topo do painel e o "Comissão do mês" nos cards.
+
+---
+
 ✨ Novidade — módulo de comissão, Fase 1 (schema + cálculo + testes, SEM UI).
 - Migration 017 (rodada em prod): 5 tabelas no modelo "long" (uma linha por
   evento), moeda real = USD, BRL só exibição. `fx_config` (cotação USD→BRL

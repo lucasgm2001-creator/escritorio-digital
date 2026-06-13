@@ -16,14 +16,13 @@ import { CommissionModal } from './CommissionModal'
 import { PipelineTab } from './tabs/PipelineTab'
 import { MetricasTab } from './tabs/MetricasTab'
 import { AgendaTab } from './tabs/AgendaTab'
-import { ComissoesTab } from './tabs/ComissoesTab'
 import { VendedoresTab } from './tabs/VendedoresTab'
 import { ApresentacaoTab } from './tabs/ApresentacaoTab'
 import { MAIN_FLOW, SECONDARY_FLOW, ALL_COLUMNS } from './types'
 import type { Lead, LeadStatus } from './types'
 export type { LeadStatus, Lead, ColumnConfig } from './types'
 
-type Tab = 'funil' | 'pipeline' | 'metricas' | 'agenda' | 'comissoes' | 'vendedores' | 'apresentacao'
+type Tab = 'funil' | 'pipeline' | 'metricas' | 'agenda' | 'vendedores' | 'apresentacao'
 
 interface CurrentUser { id: string; name: string }
 
@@ -58,7 +57,6 @@ export function KanbanBoard({ initialLeads, currentUser }: { initialLeads: Lead[
     { key: 'pipeline',     label: 'Pipeline' },
     { key: 'metricas',     label: 'Métricas' },
     { key: 'agenda',       label: 'Agenda' },
-    { key: 'comissoes',    label: 'Comissões' },
     { key: 'apresentacao', label: 'Apresentação' },
     { key: 'vendedores',   label: 'Vendedores' },
   ]
@@ -232,7 +230,6 @@ export function KanbanBoard({ initialLeads, currentUser }: { initialLeads: Lead[
         {tab === 'pipeline'     && <PipelineTab leads={filteredLeads} />}
         {tab === 'metricas'     && <MetricasTab leads={filteredLeads} />}
         {tab === 'agenda'       && <AgendaTab leads={filteredLeads} />}
-        {tab === 'comissoes'    && <ComissoesTab currentUser={currentUser} />}
         {tab === 'apresentacao' && <ApresentacaoTab />}
         {tab === 'vendedores'   && <VendedoresTab />}
       </div>

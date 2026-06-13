@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase/client'
 import { useToast } from '@/components/ui/toast'
 import { useSave } from '@/lib/useSave'
 import { cn, formatDate } from '@/lib/utils'
+import { CommissionSection } from './CommissionSection'
 
 interface SellerRow {
   id: string
@@ -42,13 +43,6 @@ interface Commission {
 
 const SELLER_COLS = 'id, name, email, phone, photo_url, cargo, monthly_goal, default_commission, fixed_salary, start_date, observations, status, leads_assigned, conversion_rate, total_sales, created_at'
 
-const STATUS_CFG = {
-  pendente: { label: 'Pendente', cls: 'bg-amber-900/30 text-amber-400 border-amber-800/50' },
-  aprovada: { label: 'Aprovada', cls: 'bg-blue-900/30 text-blue-400 border-blue-800/50' },
-  paga:     { label: 'Paga',     cls: 'bg-lime/15 text-lime-fg border-lime/30' },
-} as const
-
-const fmt  = (v: number) => `R$ ${v.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`
 const fmtK = (v: number) => v >= 1000 ? `R$ ${(v / 1000).toFixed(1)}k` : `R$ ${v.toFixed(0)}`
 const monthKey = (iso?: string) => { const d = iso ? new Date(iso) : new Date(); return `${d.getFullYear()}-${d.getMonth()}` }
 
@@ -103,7 +97,7 @@ function Avatar({ name, photoUrl, size = 'md' }: { name: string; photoUrl?: stri
 
 // ─── Painel lateral do vendedor ───────────────────────────────────────────────
 
-type Section = 'dados' | 'remuneracao' | 'comissoes'
+type Section = 'dados' | 'remuneracao' | 'comissao'
 
 function SellerProfile({ seller, onClose, onUpdated }: {
   seller: SellerRow
@@ -118,30 +112,21 @@ function SellerProfile({ seller, onClose, onUpdated }: {
   const [section, setSection] = useState<Section>('dados')
   const [current, setCurrent] = useState<SellerRow>(seller)
   const [commissions, setCommissions] = useState<Commission[]>([])
-  const [loadingCom, setLoadingCom] = useState(true)
-  const [leads, setLeads] = useState<Array<{ id: string; name: string }>>([])
   const [uploading, setUploading] = useState(false)
 
   // Form Metas & Remuneração (salário fixo + metas juntos)
   const [rem, setRem] = useState({
     fixed_salary: seller.fixed_salary?.toString() ?? '',
     monthly_goal: seller.monthly_goal?.toString() ?? '',
-    default_commission: seller.default_commission?.toString() ?? '',
     start_date: seller.start_date?.split('T')[0] ?? '',
     observations: seller.observations ?? '',
   })
   const [savingRem, setSavingRem] = useState(false)
 
-  // Comissões
-  const [showAddCom, setShowAddCom] = useState(false)
-  const [comForm, setComForm] = useState({ lead_id: '', description: '', percentage: '10', amount: '', due_date: '' })
-  const [savingCom, setSavingCom] = useState(false)
-  const [comError, setComError] = useState('')
-
+  // Comissões antigas (modelo genérico) — usadas só nos KPIs do topo do painel.
   useEffect(() => {
     supabase.from('commissions').select('*').eq('seller_id', seller.id).order('created_at', { ascending: false })
-      .then(({ data }) => { setCommissions(data ?? []); setLoadingCom(false) })
-    supabase.from('leads').select('id, name').order('name').then(({ data }) => setLeads(data ?? []))
+      .then(({ data }) => setCommissions(data ?? []))
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [seller.id])
 
@@ -173,7 +158,6 @@ function SellerProfile({ seller, onClose, onUpdated }: {
     const patch = {
       fixed_salary: parseFloat(rem.fixed_salary) || 0,
       monthly_goal: parseFloat(rem.monthly_goal) || 0,
-      default_commission: parseFloat(rem.default_commission) || 0,
       start_date: rem.start_date || null,
       observations: rem.observations || null,
     }
@@ -182,7 +166,6 @@ function SellerProfile({ seller, onClose, onUpdated }: {
       ...current,
       fixed_salary: patch.fixed_salary,
       monthly_goal: patch.monthly_goal,
-      default_commission: patch.default_commission,
       start_date: rem.start_date || undefined,
       observations: rem.observations || undefined,
     }
@@ -204,40 +187,6 @@ function SellerProfile({ seller, onClose, onUpdated }: {
       run: () => supabase.from('sellers').update({ status: next }).eq('id', seller.id),
       rollback: () => { setCurrent(prev); onUpdated(prev) },
       error: 'Não foi possível mudar o status',
-    })
-  }
-
-  const addCommission = async () => {
-    if (!comForm.amount) { setComError('Valor é obrigatório'); return }
-    setSavingCom(true); setComError('')
-    const lead = leads.find(l => l.id === comForm.lead_id)
-    const { ok, data } = await save<Commission>({
-      run: () => supabase.from('commissions').insert({
-        seller_id: seller.id, seller_name: seller.name,
-        lead_id: comForm.lead_id || null, lead_name: lead?.name || null,
-        description: comForm.description || null,
-        percentage: parseFloat(comForm.percentage) || 0,
-        amount: parseFloat(comForm.amount), status: 'pendente',
-        due_date: comForm.due_date || null,
-      }).select().single(),
-      success: 'Comissão adicionada.',
-      error: 'Não foi possível adicionar a comissão',
-    })
-    if (ok && data) {
-      setCommissions(prev => [data, ...prev])
-      setShowAddCom(false)
-      setComForm({ lead_id: '', description: '', percentage: '10', amount: '', due_date: '' })
-    }
-    setSavingCom(false)
-  }
-
-  const changeComStatus = async (id: string, status: Commission['status']) => {
-    const prev = commissions
-    await save({
-      optimistic: () => setCommissions(cur => cur.map(c => c.id === id ? { ...c, status } : c)),
-      run: () => supabase.from('commissions').update({ status, paid_at: status === 'paga' ? new Date().toISOString() : null }).eq('id', id),
-      rollback: () => setCommissions(prev),
-      error: 'Não foi possível mudar o status da comissão',
     })
   }
 
@@ -277,8 +226,8 @@ function SellerProfile({ seller, onClose, onUpdated }: {
         </div>
 
         {/* Section tabs */}
-        <div className="flex gap-1 px-5 pt-3 border-b border-bento-border shrink-0">
-          {([['dados', 'Dados'], ['remuneracao', 'Metas & Remuneração'], ['comissoes', 'Comissões']] as const).map(([k, label]) => (
+        <div className="flex gap-1 px-5 pt-3 border-b border-bento-border shrink-0 overflow-x-auto">
+          {([['dados', 'Dados'], ['remuneracao', 'Metas & Remuneração'], ['comissao', 'Comissão']] as const).map(([k, label]) => (
             <button key={k} onClick={() => setSection(k)}
               className={cn('px-2.5 py-2.5 text-xs font-medium border-b-2 transition-colors whitespace-nowrap',
                 section === k ? 'border-lime text-lime-fg' : 'border-transparent text-bento-muted hover:text-bento-text')}>
@@ -322,19 +271,13 @@ function SellerProfile({ seller, onClose, onUpdated }: {
                   <input type="number" value={rem.monthly_goal} onChange={e => setRem(p => ({ ...p, monthly_goal: e.target.value }))} className={inputCls} placeholder="0,00" min="0" step="100" />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-bento-dim mb-1.5">Comissão padrão (%)</label>
-                  <input type="number" value={rem.default_commission} onChange={e => setRem(p => ({ ...p, default_commission: e.target.value }))} className={inputCls} placeholder="0" min="0" max="100" step="0.1" />
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
                   <label className="block text-xs font-medium text-bento-dim mb-1.5">Salário fixo (R$)</label>
                   <input type="number" value={rem.fixed_salary} onChange={e => setRem(p => ({ ...p, fixed_salary: e.target.value }))} className={inputCls} placeholder="0,00" min="0" step="100" />
                 </div>
-                <div>
-                  <label className="block text-xs font-medium text-bento-dim mb-1.5">Data de início</label>
-                  <input type="date" value={rem.start_date} onChange={e => setRem(p => ({ ...p, start_date: e.target.value }))} className={inputCls} />
-                </div>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-bento-dim mb-1.5">Data de início</label>
+                <input type="date" value={rem.start_date} onChange={e => setRem(p => ({ ...p, start_date: e.target.value }))} className={inputCls} />
               </div>
               <div>
                 <label className="block text-xs font-medium text-bento-dim mb-1.5">Observações</label>
@@ -346,69 +289,8 @@ function SellerProfile({ seller, onClose, onUpdated }: {
             </div>
           )}
 
-          {/* Comissões */}
-          {section === 'comissoes' && (
-            <div className="space-y-4">
-              <div className="grid grid-cols-2 gap-3">
-                <div className="bento-fx p-3"><p className="text-xs text-lime-fg font-medium">Total pago</p><p className="text-lg font-bold text-bento-text mt-0.5 tabular-nums">{fmt(totalPaid)}</p></div>
-                <div className="bento-fx p-3"><p className="text-xs text-amber-400 font-medium">A pagar</p><p className="text-lg font-bold text-bento-text mt-0.5 tabular-nums">{fmt(totalPending)}</p></div>
-              </div>
-
-              <button onClick={() => setShowAddCom(v => !v)} className="flex items-center gap-2 bento-btn px-4 py-2 rounded-btn text-sm font-semibold min-h-[44px]">
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
-                Nova comissão
-              </button>
-
-              {showAddCom && (
-                <div className="bento-fx p-4 space-y-3">
-                  {comError && <p className="text-xs text-red-400">{comError}</p>}
-                  <div>
-                    <label className="block text-xs font-medium text-bento-dim mb-1">Lead relacionado</label>
-                    <select value={comForm.lead_id} onChange={e => setComForm(p => ({ ...p, lead_id: e.target.value }))} className={inputCls}>
-                      <option value="">Nenhum (opcional)</option>
-                      {leads.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium text-bento-dim mb-1">Descrição</label>
-                    <input value={comForm.description} onChange={e => setComForm(p => ({ ...p, description: e.target.value }))} className={inputCls} placeholder="Ex: comissão por fechamento" />
-                  </div>
-                  <div className="grid grid-cols-3 gap-3">
-                    <div><label className="block text-xs font-medium text-bento-dim mb-1">%</label><input type="number" value={comForm.percentage} onChange={e => setComForm(p => ({ ...p, percentage: e.target.value }))} className={inputCls} min="0" max="100" step="0.1" /></div>
-                    <div><label className="block text-xs font-medium text-bento-dim mb-1">Valor *</label><input type="number" value={comForm.amount} onChange={e => setComForm(p => ({ ...p, amount: e.target.value }))} className={inputCls} min="0" step="0.01" placeholder="0,00" /></div>
-                    <div><label className="block text-xs font-medium text-bento-dim mb-1">Venc.</label><input type="date" value={comForm.due_date} onChange={e => setComForm(p => ({ ...p, due_date: e.target.value }))} className={inputCls} /></div>
-                  </div>
-                  <div className="flex gap-2">
-                    <button onClick={() => setShowAddCom(false)} className="flex-1 border border-bento-border text-bento-dim py-2 rounded-btn text-sm hover:border-lime transition-colors min-h-[44px]">Cancelar</button>
-                    <button onClick={addCommission} disabled={savingCom || !comForm.amount} className="flex-1 bento-btn py-2 rounded-btn text-sm font-semibold disabled:opacity-50 min-h-[44px]">{savingCom ? 'Salvando...' : 'Adicionar'}</button>
-                  </div>
-                </div>
-              )}
-
-              {loadingCom ? (
-                <div className="flex items-center justify-center py-8 text-bento-muted text-sm gap-2"><span className="w-4 h-4 border-2 border-bento-muted/20 border-t-lime rounded-full animate-spin" />Carregando...</div>
-              ) : commissions.length === 0 ? (
-                <p className="text-center text-sm text-bento-muted py-8">Nenhuma comissão registrada.</p>
-              ) : (
-                <div className="space-y-2">
-                  {commissions.map(c => (
-                    <div key={c.id} className="flex items-center justify-between bento-fx px-4 py-3 gap-3">
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm text-bento-text font-medium truncate">{c.lead_name ?? c.description ?? 'Sem descrição'}</p>
-                        <p className="text-xs text-bento-muted">{fmt(c.amount)} · {c.percentage}%{c.due_date ? ` · ${new Date(c.due_date).toLocaleDateString('pt-BR')}` : ''}</p>
-                      </div>
-                      <select value={c.status} onChange={e => changeComStatus(c.id, e.target.value as Commission['status'])}
-                        className={cn('text-[11px] px-2 py-1 rounded-full border font-medium focus:outline-none focus:border-lime', STATUS_CFG[c.status].cls)}>
-                        <option value="pendente">Pendente</option>
-                        <option value="aprovada">Aprovada</option>
-                        <option value="paga">Paga</option>
-                      </select>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
+          {/* Comissão (módulo novo — bloco 1: config + resumo do mês) */}
+          {section === 'comissao' && <CommissionSection sellerId={seller.id} />}
         </div>
       </div>
     </div>
@@ -429,7 +311,7 @@ export function VendedoresTab() {
   const [addOpen, setAddOpen] = useState(false)
   const [selected, setSelected] = useState<SellerRow | null>(null)
 
-  const emptyForm = { name: '', email: '', telefone: '', cargo: '', monthly_goal: '', default_commission: '' }
+  const emptyForm = { name: '', email: '', telefone: '', cargo: '', monthly_goal: '' }
   const [form, setForm] = useState(emptyForm)
   const [photoFile, setPhotoFile] = useState<File | null>(null)
   const [photoPreview, setPhotoPreview] = useState<string | null>(null)
@@ -476,15 +358,13 @@ export function VendedoresTab() {
   const handleAdd = async () => {
     if (!form.name.trim()) return
     const goal = form.monthly_goal ? parseFloat(form.monthly_goal) : 0
-    const comm = form.default_commission ? parseFloat(form.default_commission) : 0
     if (form.monthly_goal && (isNaN(goal) || goal < 0)) { toast({ type: 'error', message: 'Meta mensal inválida' }); return }
-    if (form.default_commission && (isNaN(comm) || comm < 0 || comm > 100)) { toast({ type: 'error', message: 'Comissão deve ser 0–100%' }); return }
 
     setSaving(true)
     const { ok, data } = await save<SellerRow>({
       run: () => supabase.from('sellers').insert({
         name: form.name.trim(), email: form.email.trim() || null, phone: form.telefone.trim() || null,
-        cargo: form.cargo.trim() || null, monthly_goal: goal, default_commission: comm,
+        cargo: form.cargo.trim() || null, monthly_goal: goal,
         status: 'ativo', total_sales: 0, total_commissions: 0, leads_assigned: 0, conversion_rate: 0,
       }).select(SELLER_COLS).single(),
       success: 'Vendedor criado.',
@@ -606,9 +486,9 @@ export function VendedoresTab() {
                   <input type={f.type} value={form[f.key as keyof typeof form]} onChange={e => setForm(p => ({ ...p, [f.key]: e.target.value }))} className={inputCls} placeholder={f.ph} />
                 </div>
               ))}
-              <div className="grid grid-cols-2 gap-3">
-                <div><label className="block text-xs font-medium text-bento-dim mb-1.5">Meta mensal (R$)</label><input type="number" value={form.monthly_goal} onChange={e => setForm(p => ({ ...p, monthly_goal: e.target.value }))} className={inputCls} placeholder="0,00" min="0" step="100" /></div>
-                <div><label className="block text-xs font-medium text-bento-dim mb-1.5">Comissão (%)</label><input type="number" value={form.default_commission} onChange={e => setForm(p => ({ ...p, default_commission: e.target.value }))} className={inputCls} placeholder="0" min="0" max="100" step="0.1" /></div>
+              <div>
+                <label className="block text-xs font-medium text-bento-dim mb-1.5">Meta mensal (R$)</label>
+                <input type="number" value={form.monthly_goal} onChange={e => setForm(p => ({ ...p, monthly_goal: e.target.value }))} className={inputCls} placeholder="0,00" min="0" step="100" />
               </div>
               <div className="flex gap-3 pt-1">
                 <button onClick={closeAdd} className="flex-1 border border-bento-border text-bento-dim py-2.5 rounded-btn text-sm hover:border-lime transition-colors min-h-[44px]">Cancelar</button>
