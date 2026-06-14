@@ -6,6 +6,13 @@ Categorias: 🐛 Fix · 🔄 Mudança · ✨ Novidade
 
 ---
 
+✨ Novidade — reunião com cliente visível e editável (aba Comissão).
+- A reunião já guardava o cliente no cadastro; agora a lista mostra "Reunião ·
+  {cliente}" e o editar inclui o campo cliente (texto livre com sugestões dos
+  clientes existentes). Sem SQL — a coluna `client_name` já existia.
+
+---
+
 ✨ Novidade — editar e excluir venda e reunião na aba Comissão (sem SQL; RLS já
 permitia update/delete nessas tabelas).
 - Venda (DealCard): ícones de editar e excluir no cabeçalho. Excluir com

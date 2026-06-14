@@ -38,6 +38,7 @@ const STATUS_CLS: Record<DealStatus, string> = {
 }
 
 type DealUI = Deal & { clientName: string | null }
+type MeetingUI = Meeting & { clientName: string | null }
 
 // ── mapeadores DB (snake) → tipos do cálculo (camel) ──────────────────────────
 const toDealUI = (r: { id: string; seller_id: string; client_name: string | null; valor_total_usd: number; teto_semanas: number; valor_por_semana_usd: number; status: DealStatus; data_fechamento: string }): DealUI => ({
@@ -48,8 +49,8 @@ const toDealUI = (r: { id: string; seller_id: string; client_name: string | null
 const toWeek = (r: { id: string; deal_id: string; numero_semana: number; valor_usd: number; paid_on: string; cotacao_usd_brl: number }): WeeklyPayment => ({
   id: r.id, dealId: r.deal_id, numeroSemana: r.numero_semana, valorUsd: Number(r.valor_usd), paidOn: r.paid_on, cotacaoUsdBrl: Number(r.cotacao_usd_brl),
 })
-const toMeeting = (r: { id: string; seller_id: string; met_on: string; valor_usd: number; cotacao_usd_brl: number }): Meeting => ({
-  id: r.id, sellerId: r.seller_id, metOn: r.met_on, valorUsd: Number(r.valor_usd), cotacaoUsdBrl: Number(r.cotacao_usd_brl),
+const toMeeting = (r: { id: string; seller_id: string; met_on: string; valor_usd: number; cotacao_usd_brl: number; client_name: string | null }): MeetingUI => ({
+  id: r.id, sellerId: r.seller_id, metOn: r.met_on, valorUsd: Number(r.valor_usd), cotacaoUsdBrl: Number(r.cotacao_usd_brl), clientName: r.client_name,
 })
 type DealRow = Parameters<typeof toDealUI>[0]
 type WeekRow = Parameters<typeof toWeek>[0]
@@ -196,16 +197,16 @@ function DealCard({ deal, weeks, statusBusy, onMark, onUnmark, onEditDate, onCha
 
 // ── Linha de reunião: editar (data/valor) + excluir com confirmação ───────────
 function MeetingRow({ meeting, onEdit, onDelete }: {
-  meeting: Meeting
-  onEdit: (patch: { metOn: string; valor: string }) => Promise<boolean>
+  meeting: MeetingUI
+  onEdit: (patch: { metOn: string; valor: string; client: string }) => Promise<boolean>
   onDelete: () => Promise<void>
 }) {
   const [editing, setEditing] = useState(false)
   const [confirming, setConfirming] = useState(false)
-  const [form, setForm] = useState({ metOn: meeting.metOn, valor: String(meeting.valorUsd) })
+  const [form, setForm] = useState({ metOn: meeting.metOn, valor: String(meeting.valorUsd), client: meeting.clientName ?? '' })
   const [busy, setBusy] = useState(false)
 
-  const openEdit = () => { setForm({ metOn: meeting.metOn, valor: String(meeting.valorUsd) }); setConfirming(false); setEditing(true) }
+  const openEdit = () => { setForm({ metOn: meeting.metOn, valor: String(meeting.valorUsd), client: meeting.clientName ?? '' }); setConfirming(false); setEditing(true) }
   const handleSave = async () => { setBusy(true); const ok = await onEdit(form); setBusy(false); if (ok) setEditing(false) }
   const handleDelete = async () => { setBusy(true); await onDelete(); setBusy(false) }
 
@@ -213,8 +214,8 @@ function MeetingRow({ meeting, onEdit, onDelete }: {
     <div className="bg-bento-bg border border-bento-border/60 rounded-btn px-3 py-2 space-y-2">
       <div className="flex items-center justify-between gap-2">
         <div className="min-w-0">
-          <p className="text-sm text-bento-text tabular-nums">{fmtDayMonthYear(meeting.metOn)} · {usd(meeting.valorUsd)}</p>
-          <p className="text-[11px] text-bento-muted tabular-nums">{brl(meeting.valorUsd * meeting.cotacaoUsdBrl)} (cot. {meeting.cotacaoUsdBrl.toLocaleString('pt-BR', { minimumFractionDigits: 2 })})</p>
+          <p className="text-sm text-bento-text truncate">{meeting.clientName ? `Reunião · ${meeting.clientName}` : 'Reunião'}</p>
+          <p className="text-[11px] text-bento-muted tabular-nums">{fmtDayMonthYear(meeting.metOn)} · {usd(meeting.valorUsd)} · {brl(meeting.valorUsd * meeting.cotacaoUsdBrl)}</p>
         </div>
         <div className="flex items-center gap-1 flex-none">
           <button onClick={() => { setConfirming(false); openEdit() }} className="p-1 text-bento-muted hover:text-bento-text" aria-label="Editar reunião"><Pencil className="w-4 h-4" /></button>
@@ -223,6 +224,7 @@ function MeetingRow({ meeting, onEdit, onDelete }: {
       </div>
       {editing && (
         <div className="space-y-2">
+          <input list="commission-clients" value={form.client} onChange={e => setForm(p => ({ ...p, client: e.target.value }))} className={`w-full ${inputSm} py-1.5`} placeholder="Cliente" />
           <div className="grid grid-cols-2 gap-2">
             <input type="date" value={form.metOn} onChange={e => setForm(p => ({ ...p, metOn: e.target.value }))} className={`${inputSm} py-1.5`} />
             <input type="number" value={form.valor} onChange={e => setForm(p => ({ ...p, valor: e.target.value }))} className={`${inputSm} py-1.5`} min="0" step="5" />
@@ -253,7 +255,7 @@ export function CommissionSection({ sellerId }: { sellerId: string }) {
 
   const [loading, setLoading] = useState(true)
   const [salaries, setSalaries] = useState<SalaryPeriod[]>([])
-  const [meetings, setMeetings] = useState<Meeting[]>([])
+  const [meetings, setMeetings] = useState<MeetingUI[]>([])
   const [weeks, setWeeks] = useState<WeeklyPayment[]>([])
   const [deals, setDeals] = useState<DealUI[]>([])
   const [clients, setClients] = useState<{ id: string; name: string }[]>([])
@@ -295,7 +297,7 @@ export function CommissionSection({ sellerId }: { sellerId: string }) {
     setLoading(true)
     const [salRes, mtgRes, dealRes, fxRes, cliRes] = await Promise.all([
       supabase.from('seller_salaries').select('seller_id, valor_usd, effective_from').eq('seller_id', sellerId).order('effective_from', { ascending: false }),
-      supabase.from('meetings').select('id, seller_id, met_on, valor_usd, cotacao_usd_brl').eq('seller_id', sellerId).order('met_on', { ascending: false }),
+      supabase.from('meetings').select('id, seller_id, met_on, valor_usd, cotacao_usd_brl, client_name').eq('seller_id', sellerId).order('met_on', { ascending: false }),
       supabase.from('deals').select('id, seller_id, client_name, valor_total_usd, teto_semanas, valor_por_semana_usd, status, data_fechamento').eq('seller_id', sellerId).order('data_fechamento', { ascending: false }),
       supabase.from('fx_config').select('cotacao_manual, cotacao_travada').eq('id', 1).maybeSingle(),
       supabase.from('clients').select('id, name').order('name'),
@@ -514,7 +516,7 @@ export function CommissionSection({ sellerId }: { sellerId: string }) {
       run: () => supabase.from('meetings').insert({
         seller_id: sellerId, met_on: meetingForm.metOn, valor_usd: valor, cotacao_usd_brl: currentRate,
         client_id: matched?.id ?? null, client_name: meetingForm.client.trim() || null, note: meetingForm.note.trim() || null,
-      }).select('id, seller_id, met_on, valor_usd, cotacao_usd_brl').single(),
+      }).select('id, seller_id, met_on, valor_usd, cotacao_usd_brl, client_name').single(),
       success: 'Reunião lançada.',
       error: 'Não foi possível lançar a reunião',
     })
@@ -526,7 +528,7 @@ export function CommissionSection({ sellerId }: { sellerId: string }) {
     setSavingMeeting(false)
   }
 
-  const deleteMeeting = async (m: Meeting) => {
+  const deleteMeeting = async (m: MeetingUI) => {
     await save({
       optimistic: () => setMeetings(prev => prev.filter(x => x.id !== m.id)),
       run: () => supabase.from('meetings').delete().eq('id', m.id),
@@ -537,15 +539,16 @@ export function CommissionSection({ sellerId }: { sellerId: string }) {
   }
 
   // Editar reunião (data/valor). A cotação congelada da reunião permanece.
-  const editMeeting = async (m: Meeting, patch: { metOn: string; valor: string }): Promise<boolean> => {
+  const editMeeting = async (m: MeetingUI, patch: { metOn: string; valor: string; client: string }): Promise<boolean> => {
     const valor = parseFloat(patch.valor)
     if (isNaN(valor) || valor < 0) { toast({ type: 'error', message: 'Valor inválido.' }); return false }
     if (!patch.metOn) { toast({ type: 'error', message: 'Informe a data.' }); return false }
+    const matched = clients.find(c => c.name.toLowerCase() === patch.client.trim().toLowerCase())
     const prev = m
-    const updated: Meeting = { ...m, metOn: patch.metOn, valorUsd: valor }
+    const updated: MeetingUI = { ...m, metOn: patch.metOn, valorUsd: valor, clientName: patch.client.trim() || null }
     const { ok } = await save({
       optimistic: () => setMeetings(ms => ms.map(x => x.id === m.id ? updated : x)),
-      run: () => supabase.from('meetings').update({ met_on: patch.metOn, valor_usd: valor }).eq('id', m.id),
+      run: () => supabase.from('meetings').update({ met_on: patch.metOn, valor_usd: valor, client_id: matched?.id ?? null, client_name: patch.client.trim() || null }).eq('id', m.id),
       rollback: () => setMeetings(ms => ms.map(x => x.id === m.id ? prev : x)),
       success: 'Reunião atualizada.',
       error: 'Não foi possível atualizar a reunião',
