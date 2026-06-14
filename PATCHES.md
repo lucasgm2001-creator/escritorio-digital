@@ -6,6 +6,16 @@ Categorias: 🐛 Fix · 🔄 Mudança · ✨ Novidade
 
 ---
 
+✨ Novidade — excluir vendedor de vez (perfil do vendedor).
+- Botão "Excluir vendedor" na seção Dados, separado do "Desativar", com
+  confirmação em 2 passos. Apaga via delete em `sellers` (RLS de DELETE liberada
+  por SQL manual). Quem tem dados ligados (vendas/reuniões/salário) é BLOQUEADO
+  pelo banco (FKs on delete restrict) → mostra mensagem amigável "...tem vendas/
+  comissões registradas. Desative-o em vez de excluir." em vez do erro cru.
+  Sucesso → fecha e tira do grid.
+
+---
+
 ✨ Novidade — excluir lead de vez (painel do lead).
 - Botão "Excluir lead" no rodapé do LeadDiary, com confirmação em 2 passos
   ("Tem certeza? Esta ação não pode ser desfeita"). Apaga via delete em `leads`

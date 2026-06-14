@@ -99,10 +99,11 @@ function Avatar({ name, photoUrl, size = 'md' }: { name: string; photoUrl?: stri
 
 type Section = 'dados' | 'remuneracao' | 'comissao'
 
-function SellerProfile({ seller, onClose, onUpdated }: {
+function SellerProfile({ seller, onClose, onUpdated, onDeleted }: {
   seller: SellerRow
   onClose: () => void
   onUpdated: (s: SellerRow) => void
+  onDeleted: (id: string) => void
 }) {
   const { toast } = useToast()
   const save = useSave()
@@ -122,6 +123,8 @@ function SellerProfile({ seller, onClose, onUpdated }: {
     observations: seller.observations ?? '',
   })
   const [savingRem, setSavingRem] = useState(false)
+  const [confirmingDelete, setConfirmingDelete] = useState(false)
+  const [deleting, setDeleting] = useState(false)
 
   // Comissões antigas (modelo genérico) — usadas só nos KPIs do topo do painel.
   useEffect(() => {
@@ -188,6 +191,22 @@ function SellerProfile({ seller, onClose, onUpdated }: {
       rollback: () => { setCurrent(prev); onUpdated(prev) },
       error: 'Não foi possível mudar o status',
     })
+  }
+
+  const handleDelete = async () => {
+    setDeleting(true)
+    const { error } = await supabase.from('sellers').delete().eq('id', seller.id)
+    if (error) {
+      const msg = error.code === '23503'
+        ? 'Não é possível excluir: este vendedor tem vendas/comissões registradas. Desative-o em vez de excluir.'
+        : `Não foi possível excluir o vendedor: ${error.message}`
+      toast({ type: 'error', message: msg })
+      setDeleting(false)
+      return
+    }
+    toast({ type: 'success', message: 'Vendedor excluído.' })
+    onDeleted(seller.id)
+    onClose()
   }
 
   return (
@@ -259,6 +278,22 @@ function SellerProfile({ seller, onClose, onUpdated }: {
                     : 'bento-btn')}>
                 {current.status === 'ativo' ? 'Desativar vendedor' : 'Ativar vendedor'}
               </button>
+              {confirmingDelete ? (
+                <div className="space-y-2 mt-2">
+                  <p className="text-xs text-red-400">Tem certeza? Esta ação não pode ser desfeita.</p>
+                  <div className="flex gap-2">
+                    <button onClick={() => setConfirmingDelete(false)} disabled={deleting}
+                      className="flex-1 border border-bento-border text-bento-dim py-2 rounded-btn text-sm hover:border-bento-text transition-colors min-h-[44px]">Cancelar</button>
+                    <button onClick={handleDelete} disabled={deleting}
+                      className="flex-1 bg-red-500/90 hover:bg-red-500 text-white py-2 rounded-btn text-sm font-semibold disabled:opacity-50 min-h-[44px]">{deleting ? 'Excluindo...' : 'Excluir'}</button>
+                  </div>
+                </div>
+              ) : (
+                <button onClick={() => setConfirmingDelete(true)}
+                  className="w-full mt-2 py-2.5 rounded-btn text-sm font-semibold border border-bento-border text-bento-dim hover:border-red-400/50 hover:text-red-400 transition-colors min-h-[44px]">
+                  Excluir vendedor
+                </button>
+              )}
             </div>
           )}
 
@@ -505,6 +540,7 @@ export function VendedoresTab() {
           seller={selected}
           onClose={() => setSelected(null)}
           onUpdated={u => { setSellers(prev => prev.map(s => s.id === u.id ? u : s)); setSelected(u) }}
+          onDeleted={id => { setSellers(prev => prev.filter(s => s.id !== id)); setSelected(null) }}
         />
       )}
     </div>
