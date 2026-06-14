@@ -6,6 +6,13 @@ Categorias: 🐛 Fix · 🔄 Mudança · ✨ Novidade
 
 ---
 
+✨ Novidade — editar a data de uma semana já paga (aba Comissão do vendedor).
+- No card da venda, clicar numa semana paga abre um campo de data + "Salvar" pra
+  corrigir o `paid_on` (UPDATE em `weekly_payments`), além do "Desmarcar" que já
+  existia. Otimista + rollback + toast (useSave). Sem mudança de schema.
+
+---
+
 🐛 Fix — atribuir lead a vendedor sem conta (ex.: "Lucas") quebrava com erro de
 foreign key (`leads_assigned_to_fkey`).
 - Causa: o menu "Responsável" lista `sellers` e gravava o `sellers.id` em

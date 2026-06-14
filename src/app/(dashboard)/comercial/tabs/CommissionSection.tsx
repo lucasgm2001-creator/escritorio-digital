@@ -56,12 +56,13 @@ type WeekRow = Parameters<typeof toWeek>[0]
 type MeetingRow = Parameters<typeof toMeeting>[0]
 
 // ── Card de uma venda: semanas (marcar/desmarcar) + status ────────────────────
-function DealCard({ deal, weeks, statusBusy, onMark, onUnmark, onChangeStatus }: {
+function DealCard({ deal, weeks, statusBusy, onMark, onUnmark, onEditDate, onChangeStatus }: {
   deal: DealUI
   weeks: WeeklyPayment[]
   statusBusy: boolean
   onMark: (numero: number, paidOn: string) => Promise<boolean>
   onUnmark: (week: WeeklyPayment) => Promise<void>
+  onEditDate: (week: WeeklyPayment, newDate: string) => Promise<boolean>
   onChangeStatus: (status: DealStatus) => void
 }) {
   const [active, setActive] = useState<number | null>(null)
@@ -78,6 +79,9 @@ function DealCard({ deal, weeks, statusBusy, onMark, onUnmark, onChangeStatus }:
   }
   const handleUnmark = async (w: WeeklyPayment) => {
     setBusy(true); await onUnmark(w); setBusy(false); setActive(null)
+  }
+  const handleEdit = async (w: WeeklyPayment) => {
+    setBusy(true); const ok = await onEditDate(w, date); setBusy(false); if (ok) setActive(null)
   }
 
   return (
@@ -99,7 +103,7 @@ function DealCard({ deal, weeks, statusBusy, onMark, onUnmark, onChangeStatus }:
         {Array.from({ length: deal.tetoSemanas }, (_, i) => i + 1).map(n => {
           const w = paidByNum.get(n)
           return (
-            <button key={n} type="button" onClick={() => setActive(active === n ? null : n)}
+            <button key={n} type="button" onClick={() => { if (active === n) { setActive(null) } else { setActive(n); setDate(w ? w.paidOn : todayISO()) } }}
               className={cn('flex items-center gap-1 text-[11px] px-2 py-1 rounded-btn border transition-colors',
                 w ? 'bg-lime/15 text-lime-fg border-lime/30' : 'bg-bento-panel text-bento-muted border-bento-border hover:border-lime/50')}>
               {w ? <Check className="w-3 h-3" /> : <Circle className="w-3 h-3" />}
@@ -112,10 +116,14 @@ function DealCard({ deal, weeks, statusBusy, onMark, onUnmark, onChangeStatus }:
       {active !== null && (
         paidByNum.get(active)
           ? (
-            <div className="flex items-center justify-between gap-2 bg-bento-panel border border-bento-border rounded-btn p-2">
-              <span className="text-[11px] text-bento-muted">Semana {active} recebida em {fmtDayMonthYear(paidByNum.get(active)!.paidOn)}</span>
+            <div className="bg-bento-panel border border-bento-border rounded-btn p-2 space-y-2">
+              <div className="flex items-center gap-2">
+                <span className="text-[11px] text-bento-muted whitespace-nowrap">S{active} recebida em</span>
+                <input type="date" value={date} onChange={e => setDate(e.target.value)} className={`flex-1 ${inputSm}`} />
+                <button onClick={() => handleEdit(paidByNum.get(active)!)} disabled={busy} className="bento-btn px-2.5 py-1 rounded-btn text-[11px] font-semibold disabled:opacity-50">{busy ? '...' : 'Salvar'}</button>
+              </div>
               <button onClick={() => handleUnmark(paidByNum.get(active)!)} disabled={busy} className="flex items-center gap-1 text-[11px] text-red-400 hover:text-red-300 disabled:opacity-50">
-                <Trash2 className="w-3.5 h-3.5" /> Desmarcar
+                <Trash2 className="w-3.5 h-3.5" /> Desmarcar semana {active}
               </button>
             </div>
           )
@@ -326,6 +334,21 @@ export function CommissionSection({ sellerId }: { sellerId: string }) {
     })
   }
 
+  // Editar/corrigir a data de recebimento de uma semana já paga (UPDATE paid_on).
+  const editWeekDate = async (week: WeeklyPayment, newDate: string): Promise<boolean> => {
+    if (!newDate) { toast({ type: 'error', message: 'Informe a data.' }); return false }
+    if (newDate === week.paidOn) return true
+    const prevDate = week.paidOn
+    const { ok } = await save({
+      optimistic: () => setWeeks(ws => ws.map(w => w.id === week.id ? { ...w, paidOn: newDate } : w)),
+      run: () => supabase.from('weekly_payments').update({ paid_on: newDate }).eq('id', week.id),
+      rollback: () => setWeeks(ws => ws.map(w => w.id === week.id ? { ...w, paidOn: prevDate } : w)),
+      success: `Data da semana ${week.numeroSemana} atualizada.`,
+      error: 'Não foi possível atualizar a data',
+    })
+    return ok
+  }
+
   const changeDealStatus = async (deal: DealUI, status: DealStatus) => {
     const prev = deal.status
     setStatusBusyId(deal.id)
@@ -476,7 +499,7 @@ export function CommissionSection({ sellerId }: { sellerId: string }) {
           : <div className="space-y-2">
               {deals.map(d => (
                 <DealCard key={d.id} deal={d} weeks={weeks.filter(w => w.dealId === d.id)} statusBusy={statusBusyId === d.id}
-                  onMark={(n, paidOn) => markWeek(d, n, paidOn)} onUnmark={unmarkWeek} onChangeStatus={(s) => changeDealStatus(d, s)} />
+                  onMark={(n, paidOn) => markWeek(d, n, paidOn)} onUnmark={unmarkWeek} onEditDate={editWeekDate} onChangeStatus={(s) => changeDealStatus(d, s)} />
               ))}
             </div>}
       </section>
