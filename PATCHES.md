@@ -6,6 +6,13 @@ Categorias: 🐛 Fix · 🔄 Mudança · ✨ Novidade
 
 ---
 
+🔄 Mudança — cada venda e reunião viram itens recolhíveis (aba Comissão).
+- Na lista de Vendas, cada venda começa FECHADA com resumo no cabeçalho (cliente ·
+  valor · status · X/Y pagas); abre pra ver detalhes (semanas, status) e os botões
+  editar/excluir. Cada reunião idem (cliente · data · valor → abre p/ editar/excluir).
+
+---
+
 ✨ Novidade — nicho do lead como lista (+ "Outro").
 - No Novo Lead, "Nicho / Segmento" virou lista (Construction, House Cleaning … Pest
   Control) + "Outro" (revela campo de texto). Leads antigos mantêm o valor (texto);

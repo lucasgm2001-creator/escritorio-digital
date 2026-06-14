@@ -81,6 +81,7 @@ function DealCard({ deal, weeks, statusBusy, onMark, onUnmark, onEditDate, onCha
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [savingEdit, setSavingEdit] = useState(false)
   const [editForm, setEditForm] = useState({ client: deal.clientName ?? '', valorTotal: String(deal.valorTotalUsd), semanas: String(deal.tetoSemanas), dataFechamento: deal.dataFechamento })
+  const [expanded, setExpanded] = useState(false)
 
   const paidByNum = new Map(weeks.map(w => [w.numeroSemana, w]))
   const congelado = deal.status !== 'em_andamento'
@@ -109,12 +110,20 @@ function DealCard({ deal, weeks, statusBusy, onMark, onUnmark, onEditDate, onCha
   }
 
   return (
-    <div className="bg-bento-bg border border-bento-border/60 rounded-btn p-3 space-y-2.5">
-      <div className="flex items-start justify-between gap-2">
+    <div className="bg-bento-bg border border-bento-border/60 rounded-btn">
+      {/* Cabeçalho-resumo (clicável) — venda recolhida */}
+      <button type="button" onClick={() => setExpanded(v => !v)} className="w-full flex items-center justify-between gap-2 p-3 text-left">
         <div className="min-w-0">
           <p className="text-sm font-medium text-bento-text truncate">{deal.clientName || 'Venda sem cliente'}</p>
-          <p className="text-[11px] text-bento-muted tabular-nums">{usd(deal.valorTotalUsd)} · {deal.tetoSemanas} sem · {usd(deal.valorPorSemanaUsd)}/sem · fech. {fmtDayMonthYear(deal.dataFechamento)}</p>
+          <p className="text-[11px] text-bento-muted tabular-nums">{usd(deal.valorTotalUsd)} · {deal.status === 'em_andamento' ? 'em andamento' : deal.status === 'interrompido' ? 'interrompido' : 'concluído'} · {pagas}/{deal.tetoSemanas} pagas</p>
         </div>
+        <svg className={cn('w-4 h-4 text-bento-muted transition-transform flex-none', expanded && 'rotate-180')} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+      </button>
+
+      {expanded && (
+      <div className="px-3 pb-3 pt-2.5 space-y-2.5 border-t border-bento-border/60">
+      <div className="flex items-center justify-between gap-2">
+        <p className="text-[11px] text-bento-muted tabular-nums">{deal.tetoSemanas} sem · {usd(deal.valorPorSemanaUsd)}/sem · fech. {fmtDayMonthYear(deal.dataFechamento)}</p>
         <div className="flex items-center gap-1 flex-none">
           <select value={deal.status} disabled={statusBusy} onChange={e => onChangeStatus(e.target.value as DealStatus)}
             className={cn('text-[11px] px-2 py-1 rounded-full border font-medium focus:outline-none focus:border-lime', STATUS_CLS[deal.status])}>
@@ -202,6 +211,8 @@ function DealCard({ deal, weeks, statusBusy, onMark, onUnmark, onEditDate, onCha
         : pendentes > 0
           ? <p className="text-[11px] text-bento-muted">{pendentes} semana(s) pendente(s) · {usd(pendentes * deal.valorPorSemanaUsd)} a receber.</p>
           : <p className="text-[11px] text-lime-fg">Todas as semanas recebidas.</p>}
+      </div>
+      )}
     </div>
   )
 }
@@ -216,23 +227,30 @@ function MeetingRow({ meeting, onEdit, onDelete }: {
   const [confirming, setConfirming] = useState(false)
   const [form, setForm] = useState({ metOn: meeting.metOn, valor: String(meeting.valorUsd), client: meeting.clientName ?? '' })
   const [busy, setBusy] = useState(false)
+  const [expanded, setExpanded] = useState(false)
 
   const openEdit = () => { setForm({ metOn: meeting.metOn, valor: String(meeting.valorUsd), client: meeting.clientName ?? '' }); setConfirming(false); setEditing(true) }
   const handleSave = async () => { setBusy(true); const ok = await onEdit(form); setBusy(false); if (ok) setEditing(false) }
   const handleDelete = async () => { setBusy(true); await onDelete(); setBusy(false) }
 
   return (
-    <div className="bg-bento-bg border border-bento-border/60 rounded-btn px-3 py-2 space-y-2">
-      <div className="flex items-center justify-between gap-2">
+    <div className="bg-bento-bg border border-bento-border/60 rounded-btn">
+      {/* Cabeçalho-resumo (clicável) — reunião recolhida */}
+      <button type="button" onClick={() => setExpanded(v => !v)} className="w-full flex items-center justify-between gap-2 px-3 py-2 text-left">
         <div className="min-w-0">
           <p className="text-sm text-bento-text truncate">{meeting.clientName ? `Reunião · ${meeting.clientName}` : 'Reunião'}</p>
           <p className="text-[11px] text-bento-muted tabular-nums">{fmtDayMonthYear(meeting.metOn)} · {usd(meeting.valorUsd)} · {brl(meeting.valorUsd * meeting.cotacaoUsdBrl)}</p>
         </div>
-        <div className="flex items-center gap-1 flex-none">
-          <button onClick={() => { setConfirming(false); openEdit() }} className="p-1 text-bento-muted hover:text-bento-text" aria-label="Editar reunião"><Pencil className="w-4 h-4" /></button>
-          <button onClick={() => { setEditing(false); setConfirming(true) }} className="p-1 text-bento-muted hover:text-red-400" aria-label="Excluir reunião"><Trash2 className="w-4 h-4" /></button>
-        </div>
-      </div>
+        <svg className={cn('w-4 h-4 text-bento-muted transition-transform flex-none', expanded && 'rotate-180')} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+      </button>
+      {expanded && (
+      <div className="px-3 pb-3 pt-2 space-y-2 border-t border-bento-border/60">
+        {!editing && !confirming && (
+          <div className="flex gap-2">
+            <button onClick={openEdit} className="flex-1 flex items-center justify-center gap-1 border border-bento-border text-bento-dim py-1.5 rounded-btn text-[11px] hover:border-lime transition-colors"><Pencil className="w-3.5 h-3.5" /> Editar</button>
+            <button onClick={() => { setEditing(false); setConfirming(true) }} className="flex-1 flex items-center justify-center gap-1 border border-bento-border text-bento-dim py-1.5 rounded-btn text-[11px] hover:border-red-400/50 hover:text-red-400 transition-colors"><Trash2 className="w-3.5 h-3.5" /> Excluir</button>
+          </div>
+        )}
       {editing && (
         <div className="space-y-2">
           <input list="commission-clients" value={form.client} onChange={e => setForm(p => ({ ...p, client: e.target.value }))} className={`w-full ${inputSm} py-1.5`} placeholder="Cliente" />
@@ -254,6 +272,8 @@ function MeetingRow({ meeting, onEdit, onDelete }: {
             <button onClick={handleDelete} disabled={busy} className="flex-1 bg-red-500/90 hover:bg-red-500 text-white py-1.5 rounded-btn text-[11px] font-semibold disabled:opacity-50">{busy ? 'Excluindo...' : 'Excluir'}</button>
           </div>
         </div>
+      )}
+      </div>
       )}
     </div>
   )
