@@ -119,7 +119,10 @@ export function LeadModal({ onClose, onCreated, currentUser }: Props) {
       origem: form.origem || null,
       prioridade: form.prioridade || 'media',
       next_contact: form.next_contact || null,
-      assigned_to: form.assigned_to || null,
+      // Só o usuário logado tem linha em profiles (alvo da FK). Vendedores sem conta
+      // (ex.: Lucas) não — então grava só o nome e deixa a FK null, evitando o
+      // "violates foreign key constraint". Correção plena (contas/FK) fica pra Fase 2.
+      assigned_to: form.assigned_to === currentUser.id ? currentUser.id : null,
       assigned_name: form.assigned_name || currentUser.name || null,
       score: 500,
       status: 'novo',

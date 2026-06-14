@@ -6,6 +6,18 @@ Categorias: 🐛 Fix · 🔄 Mudança · ✨ Novidade
 
 ---
 
+🐛 Fix — atribuir lead a vendedor sem conta (ex.: "Lucas") quebrava com erro de
+foreign key (`leads_assigned_to_fkey`).
+- Causa: o menu "Responsável" lista `sellers` e gravava o `sellers.id` em
+  `leads.assigned_to`, mas a FK exige um `profiles.id`. Só o usuário logado
+  (Daniel) tem linha em `profiles` — por isso ele funcionava e os vendedores não.
+- Correção (opção 1, sem mexer em schema/contas): no salvamento, `assigned_to` só
+  recebe o id quando é o usuário logado; para qualquer vendedor fica `null` e o
+  nome vai em `assigned_name` (que é o que a tela já exibe — funil/pipeline/agenda/
+  comissão). Reorganização completa de contas e FK fica pra Fase 2.
+
+---
+
 🐛 Fix — "Preencher com IA" respondia 200 mas não preenchia os campos.
 - Causa: o `parse-lead` extraía o JSON com regex ANCORADO (`^\s*\{…\}\s*$`), que
   exige a resposta inteira ser JSON puro. Quando o modelo embrulhava em
