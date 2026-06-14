@@ -10,7 +10,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import {
   ChevronLeft, ChevronRight, Plus, Lock, Unlock, Wallet, DollarSign, RefreshCw,
-  Receipt, Handshake, Trash2, Check, Circle,
+  Receipt, Handshake, Trash2, Check, Circle, Pencil,
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { useSave } from '@/lib/useSave'
@@ -56,7 +56,7 @@ type WeekRow = Parameters<typeof toWeek>[0]
 type MeetingRow = Parameters<typeof toMeeting>[0]
 
 // ── Card de uma venda: semanas (marcar/desmarcar) + status ────────────────────
-function DealCard({ deal, weeks, statusBusy, onMark, onUnmark, onEditDate, onChangeStatus }: {
+function DealCard({ deal, weeks, statusBusy, onMark, onUnmark, onEditDate, onChangeStatus, onEditDeal, onDeleteDeal }: {
   deal: DealUI
   weeks: WeeklyPayment[]
   statusBusy: boolean
@@ -64,15 +64,22 @@ function DealCard({ deal, weeks, statusBusy, onMark, onUnmark, onEditDate, onCha
   onUnmark: (week: WeeklyPayment) => Promise<void>
   onEditDate: (week: WeeklyPayment, newDate: string) => Promise<boolean>
   onChangeStatus: (status: DealStatus) => void
+  onEditDeal: (patch: { client: string; valorTotal: string; semanas: string; dataFechamento: string }) => Promise<boolean>
+  onDeleteDeal: () => Promise<void>
 }) {
   const [active, setActive] = useState<number | null>(null)
   const [date, setDate] = useState(todayISO())
   const [busy, setBusy] = useState(false)
+  const [editing, setEditing] = useState(false)
+  const [confirmDelete, setConfirmDelete] = useState(false)
+  const [savingEdit, setSavingEdit] = useState(false)
+  const [editForm, setEditForm] = useState({ client: deal.clientName ?? '', valorTotal: String(deal.valorTotalUsd), semanas: String(deal.tetoSemanas), dataFechamento: deal.dataFechamento })
 
   const paidByNum = new Map(weeks.map(w => [w.numeroSemana, w]))
   const congelado = deal.status !== 'em_andamento'
   const pagas = weeks.length
   const pendentes = congelado ? 0 : Math.max(0, deal.tetoSemanas - pagas)
+  const editVps = (() => { const t = parseFloat(editForm.valorTotal); const s = parseInt(editForm.semanas); return t > 0 && s > 0 ? Math.round((t / s) * 100) / 100 : 0 })()
 
   const handleMark = async (n: number) => {
     setBusy(true); const ok = await onMark(n, date); setBusy(false); if (ok) setActive(null)
@@ -83,6 +90,16 @@ function DealCard({ deal, weeks, statusBusy, onMark, onUnmark, onEditDate, onCha
   const handleEdit = async (w: WeeklyPayment) => {
     setBusy(true); const ok = await onEditDate(w, date); setBusy(false); if (ok) setActive(null)
   }
+  const openEditDeal = () => {
+    setEditForm({ client: deal.clientName ?? '', valorTotal: String(deal.valorTotalUsd), semanas: String(deal.tetoSemanas), dataFechamento: deal.dataFechamento })
+    setConfirmDelete(false); setActive(null); setEditing(true)
+  }
+  const handleSaveEditDeal = async () => {
+    setSavingEdit(true); const ok = await onEditDeal(editForm); setSavingEdit(false); if (ok) setEditing(false)
+  }
+  const handleDeleteDeal = async () => {
+    setBusy(true); await onDeleteDeal(); setBusy(false)
+  }
 
   return (
     <div className="bg-bento-bg border border-bento-border/60 rounded-btn p-3 space-y-2.5">
@@ -91,13 +108,45 @@ function DealCard({ deal, weeks, statusBusy, onMark, onUnmark, onEditDate, onCha
           <p className="text-sm font-medium text-bento-text truncate">{deal.clientName || 'Venda sem cliente'}</p>
           <p className="text-[11px] text-bento-muted tabular-nums">{usd(deal.valorTotalUsd)} · {deal.tetoSemanas} sem · {usd(deal.valorPorSemanaUsd)}/sem · fech. {fmtDayMonthYear(deal.dataFechamento)}</p>
         </div>
-        <select value={deal.status} disabled={statusBusy} onChange={e => onChangeStatus(e.target.value as DealStatus)}
-          className={cn('text-[11px] px-2 py-1 rounded-full border font-medium focus:outline-none focus:border-lime flex-none', STATUS_CLS[deal.status])}>
-          <option value="em_andamento">Em andamento</option>
-          <option value="interrompido">Interrompido</option>
-          <option value="concluido">Concluído</option>
-        </select>
+        <div className="flex items-center gap-1 flex-none">
+          <select value={deal.status} disabled={statusBusy} onChange={e => onChangeStatus(e.target.value as DealStatus)}
+            className={cn('text-[11px] px-2 py-1 rounded-full border font-medium focus:outline-none focus:border-lime', STATUS_CLS[deal.status])}>
+            <option value="em_andamento">Em andamento</option>
+            <option value="interrompido">Interrompido</option>
+            <option value="concluido">Concluído</option>
+          </select>
+          <button onClick={openEditDeal} className="p-1 text-bento-muted hover:text-bento-text" aria-label="Editar venda"><Pencil className="w-3.5 h-3.5" /></button>
+          <button onClick={() => { setEditing(false); setActive(null); setConfirmDelete(true) }} className="p-1 text-bento-muted hover:text-red-400" aria-label="Excluir venda"><Trash2 className="w-3.5 h-3.5" /></button>
+        </div>
       </div>
+
+      {editing && (
+        <div className="bg-bento-panel border border-bento-border rounded-btn p-2.5 space-y-2">
+          <input list="commission-clients" value={editForm.client} onChange={e => setEditForm(p => ({ ...p, client: e.target.value }))} className={`w-full ${inputSm} py-1.5`} placeholder="Cliente" />
+          <div className="grid grid-cols-2 gap-2">
+            <input type="number" value={editForm.valorTotal} onChange={e => setEditForm(p => ({ ...p, valorTotal: e.target.value }))} className={`${inputSm} py-1.5`} min="0" step="10" placeholder="Valor total" />
+            <input type="number" value={editForm.semanas} onChange={e => setEditForm(p => ({ ...p, semanas: e.target.value }))} className={`${inputSm} py-1.5`} min="1" step="1" placeholder="Semanas" />
+          </div>
+          <div className="flex items-center justify-between text-[11px]">
+            <span className="text-bento-muted">Valor por semana</span><span className="font-medium text-bento-text tabular-nums">{usd(editVps)}</span>
+          </div>
+          <input type="date" value={editForm.dataFechamento} onChange={e => setEditForm(p => ({ ...p, dataFechamento: e.target.value }))} className={`w-full ${inputSm} py-1.5`} />
+          <div className="flex gap-2">
+            <button onClick={() => setEditing(false)} className="flex-1 border border-bento-border text-bento-dim py-1.5 rounded-btn text-[11px] hover:border-lime transition-colors">Cancelar</button>
+            <button onClick={handleSaveEditDeal} disabled={savingEdit} className="flex-1 bento-btn py-1.5 rounded-btn text-[11px] font-semibold disabled:opacity-50">{savingEdit ? 'Salvando...' : 'Salvar venda'}</button>
+          </div>
+        </div>
+      )}
+
+      {confirmDelete && (
+        <div className="bg-bento-panel border border-bento-border rounded-btn p-2.5 space-y-2">
+          <p className="text-[11px] text-red-400">Tem certeza? Apaga a venda e as semanas dela. Esta ação não pode ser desfeita.</p>
+          <div className="flex gap-2">
+            <button onClick={() => setConfirmDelete(false)} disabled={busy} className="flex-1 border border-bento-border text-bento-dim py-1.5 rounded-btn text-[11px] hover:border-bento-text transition-colors">Cancelar</button>
+            <button onClick={handleDeleteDeal} disabled={busy} className="flex-1 bg-red-500/90 hover:bg-red-500 text-white py-1.5 rounded-btn text-[11px] font-semibold disabled:opacity-50">{busy ? 'Excluindo...' : 'Excluir venda'}</button>
+          </div>
+        </div>
+      )}
 
       <div className="flex flex-wrap gap-1.5">
         {Array.from({ length: deal.tetoSemanas }, (_, i) => i + 1).map(n => {
@@ -141,6 +190,58 @@ function DealCard({ deal, weeks, statusBusy, onMark, onUnmark, onEditDate, onCha
         : pendentes > 0
           ? <p className="text-[11px] text-bento-muted">{pendentes} semana(s) pendente(s) · {usd(pendentes * deal.valorPorSemanaUsd)} a receber.</p>
           : <p className="text-[11px] text-lime-fg">Todas as semanas recebidas.</p>}
+    </div>
+  )
+}
+
+// ── Linha de reunião: editar (data/valor) + excluir com confirmação ───────────
+function MeetingRow({ meeting, onEdit, onDelete }: {
+  meeting: Meeting
+  onEdit: (patch: { metOn: string; valor: string }) => Promise<boolean>
+  onDelete: () => Promise<void>
+}) {
+  const [editing, setEditing] = useState(false)
+  const [confirming, setConfirming] = useState(false)
+  const [form, setForm] = useState({ metOn: meeting.metOn, valor: String(meeting.valorUsd) })
+  const [busy, setBusy] = useState(false)
+
+  const openEdit = () => { setForm({ metOn: meeting.metOn, valor: String(meeting.valorUsd) }); setConfirming(false); setEditing(true) }
+  const handleSave = async () => { setBusy(true); const ok = await onEdit(form); setBusy(false); if (ok) setEditing(false) }
+  const handleDelete = async () => { setBusy(true); await onDelete(); setBusy(false) }
+
+  return (
+    <div className="bg-bento-bg border border-bento-border/60 rounded-btn px-3 py-2 space-y-2">
+      <div className="flex items-center justify-between gap-2">
+        <div className="min-w-0">
+          <p className="text-sm text-bento-text tabular-nums">{fmtDayMonthYear(meeting.metOn)} · {usd(meeting.valorUsd)}</p>
+          <p className="text-[11px] text-bento-muted tabular-nums">{brl(meeting.valorUsd * meeting.cotacaoUsdBrl)} (cot. {meeting.cotacaoUsdBrl.toLocaleString('pt-BR', { minimumFractionDigits: 2 })})</p>
+        </div>
+        <div className="flex items-center gap-1 flex-none">
+          <button onClick={() => { setConfirming(false); openEdit() }} className="p-1 text-bento-muted hover:text-bento-text" aria-label="Editar reunião"><Pencil className="w-4 h-4" /></button>
+          <button onClick={() => { setEditing(false); setConfirming(true) }} className="p-1 text-bento-muted hover:text-red-400" aria-label="Excluir reunião"><Trash2 className="w-4 h-4" /></button>
+        </div>
+      </div>
+      {editing && (
+        <div className="space-y-2">
+          <div className="grid grid-cols-2 gap-2">
+            <input type="date" value={form.metOn} onChange={e => setForm(p => ({ ...p, metOn: e.target.value }))} className={`${inputSm} py-1.5`} />
+            <input type="number" value={form.valor} onChange={e => setForm(p => ({ ...p, valor: e.target.value }))} className={`${inputSm} py-1.5`} min="0" step="5" />
+          </div>
+          <div className="flex gap-2">
+            <button onClick={() => setEditing(false)} className="flex-1 border border-bento-border text-bento-dim py-1.5 rounded-btn text-[11px] hover:border-lime transition-colors">Cancelar</button>
+            <button onClick={handleSave} disabled={busy} className="flex-1 bento-btn py-1.5 rounded-btn text-[11px] font-semibold disabled:opacity-50">{busy ? '...' : 'Salvar'}</button>
+          </div>
+        </div>
+      )}
+      {confirming && (
+        <div className="space-y-2">
+          <p className="text-[11px] text-red-400">Excluir esta reunião? Não pode ser desfeito.</p>
+          <div className="flex gap-2">
+            <button onClick={() => setConfirming(false)} disabled={busy} className="flex-1 border border-bento-border text-bento-dim py-1.5 rounded-btn text-[11px] hover:border-bento-text transition-colors">Cancelar</button>
+            <button onClick={handleDelete} disabled={busy} className="flex-1 bg-red-500/90 hover:bg-red-500 text-white py-1.5 rounded-btn text-[11px] font-semibold disabled:opacity-50">{busy ? 'Excluindo...' : 'Excluir'}</button>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
@@ -362,6 +463,44 @@ export function CommissionSection({ sellerId }: { sellerId: string }) {
     setStatusBusyId(null)
   }
 
+  // Excluir venda — as semanas caem por cascade (FK on delete cascade).
+  const deleteDeal = async (deal: DealUI) => {
+    await save({
+      optimistic: () => { setDeals(ds => ds.filter(d => d.id !== deal.id)); setWeeks(ws => ws.filter(w => w.dealId !== deal.id)) },
+      run: () => supabase.from('deals').delete().eq('id', deal.id),
+      rollback: () => { void load() },
+      success: 'Venda excluída.',
+      error: 'Não foi possível excluir a venda',
+    })
+  }
+
+  // Editar venda. Bloqueia reduzir o nº de semanas abaixo das já pagas. Recalcula
+  // o valor/semana só p/ o futuro; semanas já pagas mantêm o valor congelado.
+  const editDeal = async (deal: DealUI, patch: { client: string; valorTotal: string; semanas: string; dataFechamento: string }): Promise<boolean> => {
+    const total = parseFloat(patch.valorTotal)
+    const semanas = parseInt(patch.semanas)
+    if (isNaN(total) || total <= 0) { toast({ type: 'error', message: 'Valor total inválido.' }); return false }
+    if (isNaN(semanas) || semanas <= 0) { toast({ type: 'error', message: 'Número de semanas inválido.' }); return false }
+    if (!patch.dataFechamento) { toast({ type: 'error', message: 'Informe a data de fechamento.' }); return false }
+    const paidCount = weeks.filter(w => w.dealId === deal.id).length
+    if (semanas < paidCount) { toast({ type: 'error', message: `Já há ${paidCount} semana(s) paga(s). Desmarque antes de reduzir o número de semanas.` }); return false }
+    const vps = Math.round((total / semanas) * 100) / 100
+    const matched = clients.find(c => c.name.toLowerCase() === patch.client.trim().toLowerCase())
+    const prev = deal
+    const updated: DealUI = { ...deal, clientName: patch.client.trim() || null, valorTotalUsd: total, tetoSemanas: semanas, valorPorSemanaUsd: vps, dataFechamento: patch.dataFechamento }
+    const { ok } = await save({
+      optimistic: () => setDeals(ds => ds.map(d => d.id === deal.id ? updated : d)),
+      run: () => supabase.from('deals').update({
+        client_id: matched?.id ?? null, client_name: patch.client.trim() || null,
+        valor_total_usd: total, teto_semanas: semanas, valor_por_semana_usd: vps, data_fechamento: patch.dataFechamento,
+      }).eq('id', deal.id),
+      rollback: () => setDeals(ds => ds.map(d => d.id === deal.id ? prev : d)),
+      success: 'Venda atualizada.',
+      error: 'Não foi possível atualizar a venda',
+    })
+    return ok
+  }
+
   // ── Lançar / remover reunião ───────────────────────────────────────────────────
   const addMeeting = async () => {
     setMeetingError('')
@@ -395,6 +534,23 @@ export function CommissionSection({ sellerId }: { sellerId: string }) {
       success: 'Reunião removida.',
       error: 'Não foi possível remover a reunião',
     })
+  }
+
+  // Editar reunião (data/valor). A cotação congelada da reunião permanece.
+  const editMeeting = async (m: Meeting, patch: { metOn: string; valor: string }): Promise<boolean> => {
+    const valor = parseFloat(patch.valor)
+    if (isNaN(valor) || valor < 0) { toast({ type: 'error', message: 'Valor inválido.' }); return false }
+    if (!patch.metOn) { toast({ type: 'error', message: 'Informe a data.' }); return false }
+    const prev = m
+    const updated: Meeting = { ...m, metOn: patch.metOn, valorUsd: valor }
+    const { ok } = await save({
+      optimistic: () => setMeetings(ms => ms.map(x => x.id === m.id ? updated : x)),
+      run: () => supabase.from('meetings').update({ met_on: patch.metOn, valor_usd: valor }).eq('id', m.id),
+      rollback: () => setMeetings(ms => ms.map(x => x.id === m.id ? prev : x)),
+      success: 'Reunião atualizada.',
+      error: 'Não foi possível atualizar a reunião',
+    })
+    return ok
   }
 
   if (loading) {
@@ -499,7 +655,8 @@ export function CommissionSection({ sellerId }: { sellerId: string }) {
           : <div className="space-y-2">
               {deals.map(d => (
                 <DealCard key={d.id} deal={d} weeks={weeks.filter(w => w.dealId === d.id)} statusBusy={statusBusyId === d.id}
-                  onMark={(n, paidOn) => markWeek(d, n, paidOn)} onUnmark={unmarkWeek} onEditDate={editWeekDate} onChangeStatus={(s) => changeDealStatus(d, s)} />
+                  onMark={(n, paidOn) => markWeek(d, n, paidOn)} onUnmark={unmarkWeek} onEditDate={editWeekDate} onChangeStatus={(s) => changeDealStatus(d, s)}
+                  onEditDeal={(patch) => editDeal(d, patch)} onDeleteDeal={() => deleteDeal(d)} />
               ))}
             </div>}
       </section>
@@ -546,13 +703,7 @@ export function CommissionSection({ sellerId }: { sellerId: string }) {
           ? <p className="text-xs text-bento-muted py-2">Nenhuma reunião neste mês.</p>
           : <div className="space-y-1.5">
               {meetingsDoMes.map(m => (
-                <div key={m.id} className="flex items-center justify-between gap-2 bg-bento-bg border border-bento-border/60 rounded-btn px-3 py-2">
-                  <div className="min-w-0">
-                    <p className="text-sm text-bento-text tabular-nums">{fmtDayMonthYear(m.metOn)} · {usd(m.valorUsd)}</p>
-                    <p className="text-[11px] text-bento-muted tabular-nums">{brl(m.valorUsd * m.cotacaoUsdBrl)} (cot. {m.cotacaoUsdBrl.toLocaleString('pt-BR', { minimumFractionDigits: 2 })})</p>
-                  </div>
-                  <button onClick={() => deleteMeeting(m)} className="text-bento-muted hover:text-red-400 p-1 flex-none" aria-label="Remover reunião"><Trash2 className="w-4 h-4" /></button>
-                </div>
+                <MeetingRow key={m.id} meeting={m} onEdit={(patch) => editMeeting(m, patch)} onDelete={() => deleteMeeting(m)} />
               ))}
             </div>}
       </section>

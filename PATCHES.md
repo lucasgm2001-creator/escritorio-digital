@@ -6,6 +6,19 @@ Categorias: 🐛 Fix · 🔄 Mudança · ✨ Novidade
 
 ---
 
+✨ Novidade — editar e excluir venda e reunião na aba Comissão (sem SQL; RLS já
+permitia update/delete nessas tabelas).
+- Venda (DealCard): ícones de editar e excluir no cabeçalho. Excluir com
+  confirmação em 2 passos → apaga a venda e as semanas dela (FK cascade), sem
+  órfãs. Editar (cliente, valor total, nº de semanas, data) recalcula o valor/
+  semana só p/ o futuro; semanas já pagas mantêm o valor congelado. Bloqueia
+  reduzir o nº de semanas abaixo das já pagas (pede pra desmarcar antes).
+- Reunião (novo MeetingRow): editar (data/valor) e excluir AGORA com confirmação
+  em 2 passos (antes o excluir era direto). Cotação congelada permanece.
+- Tudo via useSave (otimista + rollback + toast). Arquivo: CommissionSection.tsx.
+
+---
+
 ✨ Novidade — excluir vendedor de vez (perfil do vendedor).
 - Botão "Excluir vendedor" na seção Dados, separado do "Desativar", com
   confirmação em 2 passos. Apaga via delete em `sellers` (RLS de DELETE liberada
