@@ -6,6 +6,13 @@ Categorias: 🐛 Fix · 🔄 Mudança · ✨ Novidade
 
 ---
 
+🐛 Fix — limite de upload da Gaveta alinhado em 50 MB (bucket e app).
+- O bucket "materiais" foi para 50 MB no Supabase, mas o app ainda barrava em 25 MB
+  ("passa de 25 MB") antes de tentar subir. Limite do código e as mensagens de aviso
+  agora estão em 50 MB, batendo com o bucket.
+
+---
+
 ✨ Novidade — Gaveta de materiais com armazenamento real (Bloco 1 do Studio de Apresentação).
 - A aba Apresentação (Comercial) agora SALVA de verdade: cada arquivo sobe pro bucket
   "materiais" (Storage) e vira uma linha em `presentation_materials` — antes ficava só

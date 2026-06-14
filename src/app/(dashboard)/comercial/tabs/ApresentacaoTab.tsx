@@ -5,7 +5,7 @@ import { createClient } from '@/lib/supabase/client'
 import { useToast } from '@/components/ui/toast'
 import { cn } from '@/lib/utils'
 
-const MAX_BYTES = 25 * 1024 * 1024 // 25 MB — mesmo limite do bucket "materiais"
+const MAX_BYTES = 50 * 1024 * 1024 // 50 MB — mesmo limite do bucket "materiais"
 const COLS = 'id, name, storage_path, url, mime_type, size_bytes, created_at'
 
 interface Material {
@@ -90,8 +90,8 @@ export function ApresentacaoTab() {
       toast({
         type: 'error',
         message: tooBig.length === 1
-          ? `"${tooBig[0].name}" passa de 25 MB e não foi enviado.`
-          : `${tooBig.length} arquivos passam de 25 MB e não foram enviados.`,
+          ? `"${tooBig[0].name}" passa de 50 MB e não foi enviado.`
+          : `${tooBig.length} arquivos passam de 50 MB e não foram enviados.`,
       })
     }
     if (valid.length === 0) return
@@ -231,7 +231,7 @@ export function ApresentacaoTab() {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
                 </svg>
                 <p className="text-sm font-medium text-foreground">Arraste arquivos aqui ou clique para fazer upload</p>
-                <p className="text-xs text-muted-foreground mt-1">PDF, PPT, PNG, JPG — máximo 25 MB por arquivo</p>
+                <p className="text-xs text-muted-foreground mt-1">PDF, PPT, PNG, JPG — máximo 50 MB por arquivo</p>
               </div>
             )}
           </div>
