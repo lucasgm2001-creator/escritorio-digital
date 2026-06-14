@@ -23,6 +23,8 @@ interface Props {
   onUpdated: (lead: Lead) => void
   /** Move o lead de fase (persiste + rollback + toast no board). Retorna se persistiu. */
   onMoveStage?: (newStatus: LeadStatus) => Promise<boolean>
+  /** Remove o lead do funil após exclusão definitiva. */
+  onDeleted?: (id: string) => void
   currentUser: { id: string; name: string }
 }
 
@@ -52,7 +54,7 @@ const INTERACTION_BUTTONS: { type: string; label: string; icon: React.ReactNode;
   },
 ]
 
-export function LeadDiary({ lead, onClose, onUpdated, onMoveStage, currentUser }: Props) {
+export function LeadDiary({ lead, onClose, onUpdated, onMoveStage, onDeleted, currentUser }: Props) {
   const [interactions, setInteractions] = useState<Interaction[]>([])
   const [currentLead, setCurrentLead] = useState<Lead>(lead)
   const [noteText, setNoteText] = useState('')
@@ -65,6 +67,8 @@ export function LeadDiary({ lead, onClose, onUpdated, onMoveStage, currentUser }
   const [sellers, setSellers] = useState<{ id: string; name: string }[]>([])
   const [respOpen, setRespOpen] = useState(false)
   const [savingResp, setSavingResp] = useState(false)
+  const [confirmingDelete, setConfirmingDelete] = useState(false)
+  const [deleting, setDeleting] = useState(false)
 
   const supabase = createClient()
   const { toast } = useToast()
@@ -104,6 +108,19 @@ export function LeadDiary({ lead, onClose, onUpdated, onMoveStage, currentUser }
       toast({ type: 'success', message: `Responsável: ${name}.` })
     }
     setSavingResp(false)
+  }
+
+  const handleDelete = async () => {
+    setDeleting(true)
+    const { error } = await supabase.from('leads').delete().eq('id', lead.id)
+    if (error) {
+      toast({ type: 'error', message: `Não foi possível excluir o lead: ${error.message}` })
+      setDeleting(false)
+      return
+    }
+    toast({ type: 'success', message: 'Lead excluído.' })
+    onDeleted?.(lead.id)
+    onClose()
   }
 
   useEffect(() => {
@@ -382,6 +399,26 @@ export function LeadDiary({ lead, onClose, onUpdated, onMoveStage, currentUser }
                 </div>
               ))}
             </div>
+          )}
+        </div>
+
+        {/* Excluir lead — ação destrutiva, confirmação em 2 passos */}
+        <div className="px-5 py-3 border-t border-border shrink-0">
+          {confirmingDelete ? (
+            <div className="space-y-2">
+              <p className="text-xs text-red-400">Tem certeza? Esta ação não pode ser desfeita.</p>
+              <div className="flex gap-2">
+                <button onClick={() => setConfirmingDelete(false)} disabled={deleting}
+                  className="flex-1 border border-bento-border text-bento-dim py-2 rounded-btn text-sm hover:border-bento-text transition-colors min-h-[44px]">Cancelar</button>
+                <button onClick={handleDelete} disabled={deleting}
+                  className="flex-1 bg-red-500/90 hover:bg-red-500 text-white py-2 rounded-btn text-sm font-semibold disabled:opacity-50 min-h-[44px]">{deleting ? 'Excluindo...' : 'Excluir'}</button>
+              </div>
+            </div>
+          ) : (
+            <button onClick={() => setConfirmingDelete(true)}
+              className="w-full py-2.5 rounded-btn text-sm font-semibold border border-bento-border text-bento-dim hover:border-red-400/50 hover:text-red-400 transition-colors min-h-[44px]">
+              Excluir lead
+            </button>
           )}
         </div>
       </div>

@@ -252,6 +252,7 @@ export function KanbanBoard({ initialLeads, currentUser }: { initialLeads: Lead[
             const fresh = leads.find(l => l.id === selectedLead.id) ?? selectedLead
             return moveLeadToStatus(fresh, newStatus)
           }}
+          onDeleted={(id) => { setLeads(prev => prev.filter(l => l.id !== id)); setSelectedLead(null) }}
           currentUser={currentUser}
         />
       )}

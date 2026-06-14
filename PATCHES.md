@@ -6,6 +6,14 @@ Categorias: 🐛 Fix · 🔄 Mudança · ✨ Novidade
 
 ---
 
+✨ Novidade — excluir lead de vez (painel do lead).
+- Botão "Excluir lead" no rodapé do LeadDiary, com confirmação em 2 passos
+  ("Tem certeza? Esta ação não pode ser desfeita"). Apaga via delete em `leads`
+  (RLS de DELETE liberada por SQL manual) → o banco cascateia o histórico de
+  interações. Fecha o painel e tira o lead do funil. Toast em erro/sucesso.
+
+---
+
 🔄 Mudança — aba Atividades do Hall reorganizada (só layout, sem SQL).
 - Removido o card "Online agora" (duplicava o "X online" do topo, que fica).
 - Topo: dois resumos compactos lado a lado — "Atividades hoje" (nº + total) e
