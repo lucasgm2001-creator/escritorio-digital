@@ -6,6 +6,19 @@ Categorias: 🐛 Fix · 🔄 Mudança · ✨ Novidade
 
 ---
 
+✨ Novidade — Montador de apresentações (Bloco 2 do Studio).
+- Na aba Apresentação (Comercial), novo seletor "Gaveta | Apresentações".
+- Em "Apresentações": botão "Nova apresentação" abre o Montador — dá nome, escolhe o lead
+  (com opção "Nenhum (sem vincular)"), adiciona materiais da Gaveta numerados na ordem,
+  com remover (×) e reordenar (↑/↓). Salva na tabela presentations.
+- Lista das apresentações salvas (nome, lead ou "Sem lead", nº de materiais, data);
+  clicar abre de novo pra editar/re-salvar; excluir em 2 toques.
+- Excluir uma apresentação NÃO apaga os materiais da Gaveta. Materiais excluídos da
+  Gaveta somem da apresentação sem quebrar; lead excluído vira "Sem lead" (on delete set null).
+- Requer a migration 019 (tabela presentations) no Supabase.
+
+---
+
 🐛 Fix — limite de upload da Gaveta alinhado em 50 MB (bucket e app).
 - O bucket "materiais" foi para 50 MB no Supabase, mas o app ainda barrava em 25 MB
   ("passa de 25 MB") antes de tentar subir. Limite do código e as mensagens de aviso
