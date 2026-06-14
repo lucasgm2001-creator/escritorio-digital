@@ -612,6 +612,8 @@ export function HallClient({ initialActivities, initialNotices, userName, userId
   const [noticeForm, setNoticeForm]   = useState({ title: '', content: '', priority: 'info' as 'info' | 'warning' | 'urgent' })
   const [savingNotice, setSavingNotice] = useState(false)
   const [calEvents, setCalEvents]     = useState<CalendarEvent[]>([])
+  const [agendaOpen, setAgendaOpen]   = useState(false)
+  const [activitiesExpanded, setActivitiesExpanded] = useState(false)
 
   // App pessoal de usuário único: acesso total.
   const canPostNotice = true
@@ -671,6 +673,7 @@ export function HallClient({ initialActivities, initialNotices, userName, userId
   }))
   const eventsThisWeek = weekdayBars.reduce((s, d) => s + d.count, 0)
   const maxWeekday = Math.max(1, ...weekdayBars.map(d => d.count))
+  const eventsToday = calEvents.filter(e => e.date === todayStr).length
   const activitiesToday = activities.filter(a => (a.created_at ?? '').slice(0, 10) === todayStr).length
 
   // Proporção por tipo de atividade (funil → barras de proporção).
@@ -725,46 +728,59 @@ export function HallClient({ initialActivities, initialNotices, userName, userId
 
         {activeTab === 'activities' && (
           <>
-            {/* Faixa de métricas */}
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-              {/* Herói: agenda da semana com mini-gráfico */}
-              <Panel hero label="Agenda · esta semana" className="col-span-2">
-                <div className="flex items-end gap-2">
-                  <Metric size="big">{eventsThisWeek}</Metric>
-                  <span className="font-tech text-[11px] text-bento-muted pb-1">eventos</span>
-                </div>
-                <p className="font-tech text-[11px] text-bento-muted mt-1">{calEvents.length} no calendário</p>
-                <div className="bento-bars h-[64px] mt-4">
-                  {weekdayBars.map(d => (
-                    <div key={d.label} className={cn('bento-bar', d.isToday && 'is-now')}
-                      style={{ height: `${maxWeekday > 0 ? Math.max(8, (d.count / maxWeekday) * 100) : 6}%` }} />
-                  ))}
-                </div>
-                <div className="flex gap-1.5 mt-2">
-                  {weekdayBars.map(d => (
-                    <span key={d.label} className={cn('flex-1 text-center font-tech text-[9px]', d.isToday ? 'text-lime-fg' : 'text-bento-muted/70')}>
-                      {d.isToday ? 'hoje' : d.label}
-                    </span>
-                  ))}
-                </div>
-              </Panel>
-
-              {/* Online agora */}
-              <Panel label="Online agora" action={<LiveDot />}>
-                <div className="flex-1 flex flex-col justify-end">
-                  <Metric size="sm">{onlineCount}</Metric>
-                  <p className="font-tech text-[11px] text-bento-muted mt-1.5">conectados</p>
-                </div>
-              </Panel>
-
-              {/* Atividades hoje */}
+            {/* Resumos compactos — lado a lado */}
+            <div className="grid grid-cols-2 gap-4">
               <Panel label="Atividades hoje">
-                <div className="flex-1 flex flex-col justify-end">
+                <div className="flex items-end gap-2">
                   <Metric size="sm">{activitiesToday}</Metric>
-                  <p className="font-tech text-[11px] text-bento-muted mt-1.5">{activities.length} no total</p>
+                  <span className="font-tech text-[11px] text-bento-muted pb-1">hoje</span>
                 </div>
+                <p className="font-tech text-[11px] text-bento-muted mt-1.5">{activities.length} no total</p>
+              </Panel>
+              <Panel label="Agenda">
+                <div className="flex items-end gap-2">
+                  <Metric size="sm">{eventsThisWeek}</Metric>
+                  <span className="font-tech text-[11px] text-bento-muted pb-1">esta semana</span>
+                </div>
+                <p className="font-tech text-[11px] text-bento-muted mt-1.5">{calEvents.length} no calendário</p>
               </Panel>
             </div>
+
+            {/* Agenda · esta semana — caixa recolhível (começa fechada, com espiada) */}
+            <Panel>
+              <button type="button" onClick={() => setAgendaOpen(o => !o)}
+                className="w-full flex items-center justify-between gap-2 text-left">
+                <span className="min-w-0">
+                  <span className="block font-tech text-[10px] uppercase tracking-[0.12em] text-bento-muted">Agenda · esta semana</span>
+                  {!agendaOpen && (
+                    <span className="font-tech text-[11px] text-bento-muted">
+                      {eventsThisWeek} evento{eventsThisWeek === 1 ? '' : 's'} · {eventsToday > 0 ? `${eventsToday} hoje` : 'nada agendado para hoje'}
+                    </span>
+                  )}
+                </span>
+                <svg className={cn('w-4 h-4 text-bento-muted transition-transform flex-none', agendaOpen && 'rotate-180')}
+                  fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                </svg>
+              </button>
+              {agendaOpen && (
+                <div className="mt-4">
+                  <div className="bento-bars h-[64px]">
+                    {weekdayBars.map(d => (
+                      <div key={d.label} className={cn('bento-bar', d.isToday && 'is-now')}
+                        style={{ height: `${maxWeekday > 0 ? Math.max(8, (d.count / maxWeekday) * 100) : 6}%` }} />
+                    ))}
+                  </div>
+                  <div className="flex gap-1.5 mt-2">
+                    {weekdayBars.map(d => (
+                      <span key={d.label} className={cn('flex-1 text-center font-tech text-[9px]', d.isToday ? 'text-lime-fg' : 'text-bento-muted/70')}>
+                        {d.isToday ? 'hoje' : d.label}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </Panel>
 
             {/* Conteúdo principal */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
@@ -789,7 +805,7 @@ export function HallClient({ initialActivities, initialNotices, userName, userId
                 <div className="space-y-0 divide-y divide-bento-border/60">
                   {activities.length === 0 ? (
                     <p className="text-sm text-bento-muted py-6 text-center">Nenhuma atividade ainda.</p>
-                  ) : activities.map(a => (
+                  ) : activities.slice(0, activitiesExpanded ? activities.length : 3).map(a => (
                     <div key={a.id} className="flex items-start gap-3 py-3 first:pt-0 last:pb-0">
                       <div className={`w-7 h-7 rounded-md flex items-center justify-center shrink-0 ${ACTIVITY_COLORS[a.type] ?? 'bg-slate-800/60 text-slate-400'}`}>
                         {ACTIVITY_ICONS[a.type]}
@@ -804,6 +820,12 @@ export function HallClient({ initialActivities, initialNotices, userName, userId
                     </div>
                   ))}
                 </div>
+                {activities.length > 3 && (
+                  <button type="button" onClick={() => setActivitiesExpanded(v => !v)}
+                    className="font-tech text-[11px] uppercase tracking-wide text-lime-fg hover:text-lime transition-colors font-semibold mt-3 self-start">
+                    {activitiesExpanded ? 'Ver menos' : `Ver mais (${activities.length - 3})`}
+                  </button>
+                )}
               </Panel>
 
               <Panel

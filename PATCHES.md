@@ -6,6 +6,18 @@ Categorias: 🐛 Fix · 🔄 Mudança · ✨ Novidade
 
 ---
 
+🔄 Mudança — aba Atividades do Hall reorganizada (só layout, sem SQL).
+- Removido o card "Online agora" (duplicava o "X online" do topo, que fica).
+- Topo: dois resumos compactos lado a lado — "Atividades hoje" (nº + total) e
+  "Agenda" (eventos da semana + total no calendário).
+- "Agenda · esta semana" (gráfico) virou caixa recolhível, começa FECHADA com
+  espiada no cabeçalho ("{n} eventos · {n} hoje / nada agendado para hoje").
+- "Atividade recente" mostra as 3 mais recentes + botão "Ver mais" que expande o
+  resto (dos 20 já carregados) — só mostra/esconde, sem nova query.
+- Mural de Avisos intocado. Mesmo estilo Bento.
+
+---
+
 ✨ Novidade — trocar o responsável de um lead já criado (painel do lead).
 - Seletor "Responsável" no LeadDiary (espelha o de Fase): escolher o usuário
   logado grava o id real; escolher um vendedor grava só o nome (`assigned_name`) e
