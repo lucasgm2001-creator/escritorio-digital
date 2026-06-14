@@ -6,6 +6,15 @@ Categorias: 🐛 Fix · 🔄 Mudança · ✨ Novidade
 
 ---
 
+✨ Novidade — semanas pré-programadas pela data de fechamento (aba Comissão).
+- Cada semana da venda mostra a data PREVISTA (S1 = fechamento, depois +7/+14/+21),
+  calculada na hora (sem guardar nada; ajusta sozinha se mudar o fechamento). Os
+  chips diferenciam "prevista" (ícone de calendário + "prev.") de "paga" (check
+  verde + data real), com legenda. Ao marcar uma semana como recebida, o campo de
+  data já vem preenchido com a data prevista (ajustável).
+
+---
+
 ✨ Novidade — reunião com cliente visível e editável (aba Comissão).
 - A reunião já guardava o cliente no cadastro; agora a lista mostra "Reunião ·
   {cliente}" e o editar inclui o campo cliente (texto livre com sugestões dos

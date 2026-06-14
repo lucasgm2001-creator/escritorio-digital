@@ -10,7 +10,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import {
   ChevronLeft, ChevronRight, Plus, Lock, Unlock, Wallet, DollarSign, RefreshCw,
-  Receipt, Handshake, Trash2, Check, Circle, Pencil,
+  Receipt, Handshake, Trash2, Check, Pencil, CalendarDays,
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { useSave } from '@/lib/useSave'
@@ -30,6 +30,12 @@ const fmtMonthYear = (iso: string) => { const [y, m] = iso.split('-'); return `$
 const fmtDayMonth = (iso: string) => { const [, m, d] = iso.split('-'); return `${d}/${m}` }
 const fmtDayMonthYear = (iso: string) => { const [y, m, d] = iso.split('-'); return `${d}/${m}/${y}` }
 const todayISO = () => { const d = new Date(); return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}` }
+// Soma dias a uma data 'YYYY-MM-DD' (aritmética local, segura p/ data pura).
+const addDaysISO = (iso: string, days: number) => {
+  const [y, m, d] = iso.split('-').map(Number)
+  const dt = new Date(y, m - 1, d); dt.setDate(dt.getDate() + days)
+  return `${dt.getFullYear()}-${pad2(dt.getMonth() + 1)}-${pad2(dt.getDate())}`
+}
 
 const STATUS_CLS: Record<DealStatus, string> = {
   em_andamento: 'bg-bento-panel text-bento-dim border-bento-border',
@@ -152,16 +158,21 @@ function DealCard({ deal, weeks, statusBusy, onMark, onUnmark, onEditDate, onCha
       <div className="flex flex-wrap gap-1.5">
         {Array.from({ length: deal.tetoSemanas }, (_, i) => i + 1).map(n => {
           const w = paidByNum.get(n)
+          const prevDate = addDaysISO(deal.dataFechamento, (n - 1) * 7)   // data prevista (não significa paga)
           return (
-            <button key={n} type="button" onClick={() => { if (active === n) { setActive(null) } else { setActive(n); setDate(w ? w.paidOn : todayISO()) } }}
+            <button key={n} type="button" onClick={() => { if (active === n) { setActive(null) } else { setActive(n); setDate(w ? w.paidOn : prevDate) } }}
               className={cn('flex items-center gap-1 text-[11px] px-2 py-1 rounded-btn border transition-colors',
                 w ? 'bg-lime/15 text-lime-fg border-lime/30' : 'bg-bento-panel text-bento-muted border-bento-border hover:border-lime/50')}>
-              {w ? <Check className="w-3 h-3" /> : <Circle className="w-3 h-3" />}
-              S{n}{w ? ` · ${fmtDayMonth(w.paidOn)}` : ''}
+              {w ? <Check className="w-3 h-3" /> : <CalendarDays className="w-3 h-3 opacity-60" />}
+              S{n}{w ? ` · ${fmtDayMonth(w.paidOn)}` : ` · prev. ${fmtDayMonth(prevDate)}`}
             </button>
           )
         })}
       </div>
+      <p className="flex items-center gap-3 text-[10px] text-bento-muted">
+        <span className="flex items-center gap-1"><Check className="w-2.5 h-2.5 text-lime-fg" /> paga (data real)</span>
+        <span className="flex items-center gap-1"><CalendarDays className="w-2.5 h-2.5" /> prevista</span>
+      </p>
 
       {active !== null && (
         paidByNum.get(active)
