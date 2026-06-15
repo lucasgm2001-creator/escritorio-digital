@@ -6,6 +6,23 @@ Categorias: 🐛 Fix · 🔄 Mudança · ✨ Novidade
 
 ---
 
+🔄 Mudança — redesign visual do Studio de Apresentação com 3 abas e layout profissional.
+- Reorganizado em 3 sub-abas (ícone + contador): Materiais (era Gaveta), Montar (o
+  montador, antes um modal) e Apresentar (era Apresentações).
+- Materiais: contagem + Upload, busca + chips de filtro (Todos/PDF/Imagem), grid de cards
+  com thumbnail (140px), badge de tipo (PDF vermelho / IMG azul), nome + tamanho/data e
+  zona de upload no último slot.
+- Montar: 2 painéis — esquerda lista os materiais (com "+" pra adicionar); direita com
+  seletor de cliente + nome, slides numerados com arrastar (drag handle) + subir/descer/
+  remover, e rodapé Salvar/Apresentar.
+- Apresentar: grid de cards (cliente em mono accent, nome em display, mini-slides, "X
+  materiais · data" + botão play). Clicar apresenta em tela cheia.
+- Tela cheia (modo único, mantido): topbar fina com nome + cliente + contador + fechar,
+  menu lateral pra pular, setas e barra de progresso verde no rodapé.
+- Lucide React, fontes display/tech, sem animações. Lógica e tabelas inalteradas.
+
+---
+
 🐛 Fix — ajustes finos do funil: conversão %, tema verde, badge de dias, scroll e rename.
 - Conversão na barra de resumo estava 100% (só fechados/perdidos). Agora é
   fechados / (fechados + perdidos + ativos) — ex.: 2 / 11 = 18.2%.

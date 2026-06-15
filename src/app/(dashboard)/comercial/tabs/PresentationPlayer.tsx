@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { cn } from '@/lib/utils'
+import { Menu, X, ChevronLeft, ChevronRight } from 'lucide-react'
 
 export interface PlayerMaterial {
   id: string
@@ -57,8 +58,9 @@ export function MaterialFrame({ material }: { material: PlayerMaterial }) {
 }
 
 // ─── Player: tela cheia, sequência com setas + menu lateral pra pular ────────────
-export function PresentationPlayer({ name, materials, onClose }: {
+export function PresentationPlayer({ name, client, materials, onClose }: {
   name: string
+  client?: string | null
   materials: PlayerMaterial[]
   onClose: () => void
 }) {
@@ -110,71 +112,63 @@ export function PresentationPlayer({ name, materials, onClose }: {
   }, [next, prev, go, close, total])
 
   const blur = (e: React.MouseEvent<HTMLButtonElement>) => e.currentTarget.blur()
+  const progress = total > 0 ? ((index + 1) / total) * 100 : 0
 
   return (
-    <div ref={rootRef} className="fixed inset-0 z-[100] bg-black select-none">
-      {/* Conteúdo */}
-      <div className="absolute inset-0 flex items-center justify-center p-4 sm:p-8">
-        {current ? <MaterialFrame material={current} /> : <p className="text-white/60 text-sm">Sem material disponível.</p>}
-      </div>
-
-      {/* Setas */}
-      {total > 1 && (
-        <>
-          <button onClick={e => { blur(e); prev() }} disabled={index === 0} aria-label="Anterior"
-            className="absolute left-3 top-1/2 -translate-y-1/2 z-10 bg-white/10 hover:bg-white/20 disabled:opacity-20 text-white p-3 rounded-full backdrop-blur-sm transition-colors">
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
-          </button>
-          <button onClick={e => { blur(e); next() }} disabled={index === total - 1} aria-label="Próximo"
-            className="absolute right-3 top-1/2 -translate-y-1/2 z-10 bg-white/10 hover:bg-white/20 disabled:opacity-20 text-white p-3 rounded-full backdrop-blur-sm transition-colors">
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
-          </button>
-        </>
-      )}
-
-      {/* Botão de menu (canto superior ESQUERDO, cor do tema) + nome */}
-      <div className="absolute top-4 left-4 z-40 flex items-center gap-2 max-w-[70vw]">
+    <div ref={rootRef} className="fixed inset-0 z-[100] bg-black flex flex-col select-none">
+      {/* Topbar fina: menu + nome/cliente + contador + fechar */}
+      <div className="shrink-0 flex items-center gap-3 h-12 px-3 bg-black/70 backdrop-blur-sm border-b border-white/10">
         <button onClick={e => { blur(e); setMenuOpen(o => !o) }} title="Materiais" aria-label="Materiais"
-          className="flex-none bg-lime hover:bg-lime-hover text-lime-ink p-2.5 rounded-xl shadow-card-hover transition-colors">
-          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" /></svg>
+          className={cn('flex-none p-2 rounded-lg transition-colors', menuOpen ? 'bg-lime text-lime-ink' : 'bg-white/10 hover:bg-white/20 text-white')}>
+          <Menu className="w-4 h-4" />
         </button>
-        {!menuOpen && (
-          <p className="text-white/60 text-xs font-medium bg-black/40 backdrop-blur-sm px-3 py-1.5 rounded-full truncate">{name}</p>
-        )}
-      </div>
-
-      {/* Fechar (canto superior direito) */}
-      <div className="absolute top-4 right-4 z-40">
-        <button onClick={close} title="Fechar (ESC)"
-          className="bg-white/10 hover:bg-white/20 text-white p-2.5 rounded-xl backdrop-blur-sm transition-colors">
-          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+        <div className="min-w-0 flex-1 leading-tight">
+          <p className="text-white text-sm font-medium truncate">{name}</p>
+          {client && <p className="font-tech text-[10px] uppercase tracking-wider text-white/45 truncate">{client}</p>}
+        </div>
+        <span className="font-tech text-xs text-white/60 tabular-nums shrink-0">{index + 1} / {total}</span>
+        <button onClick={close} title="Fechar (ESC)" aria-label="Fechar"
+          className="flex-none p-2 rounded-lg bg-white/10 hover:bg-white/20 text-white transition-colors">
+          <X className="w-4 h-4" />
         </button>
       </div>
 
-      {/* Contador */}
-      <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-10">
-        <p className="text-white/60 text-xs font-medium bg-black/40 backdrop-blur-sm px-3 py-1.5 rounded-full tabular-nums">{index + 1} de {total}</p>
-      </div>
-
-      {/* Menu lateral (abre/fecha pelo botão) — clique num nome pula pra ele */}
-      {menuOpen && (
-        <>
-          <div className="absolute inset-0 z-20" onClick={() => setMenuOpen(false)} />
-          <aside className="absolute top-0 left-0 z-30 h-full w-72 max-w-[80vw] bg-bento-panel/95 backdrop-blur-sm border-r border-white/10 overflow-y-auto p-3 pt-16">
-            <p className="text-white/50 text-[11px] font-medium px-2 pb-2 truncate">{name}</p>
-            <div className="space-y-1">
-              {materials.map((m, i) => (
-                <button key={m.id} onClick={() => { go(i); setMenuOpen(false) }}
-                  className={cn('w-full text-left flex items-center gap-2 px-2 py-2 rounded-lg text-xs transition-colors',
-                    i === index ? 'bg-lime/20 text-lime-fg' : 'text-white/70 hover:bg-white/10')}>
-                  <span className="flex-none w-5 h-5 rounded bg-white/10 flex items-center justify-center text-[11px] tabular-nums">{i + 1}</span>
-                  <span className="flex-1 truncate">{m.name}</span>
-                </button>
-              ))}
-            </div>
+      {/* Corpo: menu lateral (opcional) + material centralizado */}
+      <div className="relative flex-1 min-h-0 flex">
+        {menuOpen && (
+          <aside className="w-72 max-w-[80vw] shrink-0 bg-bento-panel/95 backdrop-blur-sm border-r border-white/10 overflow-y-auto p-2">
+            {materials.map((m, i) => (
+              <button key={m.id} onClick={() => { go(i); setMenuOpen(false) }}
+                className={cn('w-full text-left flex items-center gap-2 px-2 py-2 rounded-lg text-xs transition-colors',
+                  i === index ? 'bg-lime/20 text-lime-fg' : 'text-white/70 hover:bg-white/10')}>
+                <span className="flex-none w-5 h-5 rounded bg-white/10 flex items-center justify-center text-[11px] tabular-nums">{i + 1}</span>
+                <span className="flex-1 truncate">{m.name}</span>
+              </button>
+            ))}
           </aside>
-        </>
-      )}
+        )}
+
+        <div className="relative flex-1 min-w-0 flex items-center justify-center p-4 sm:p-8">
+          {current ? <MaterialFrame material={current} /> : <p className="text-white/60 text-sm">Sem material disponível.</p>}
+          {total > 1 && (
+            <>
+              <button onClick={e => { blur(e); prev() }} disabled={index === 0} aria-label="Anterior"
+                className="absolute left-3 top-1/2 -translate-y-1/2 z-10 bg-white/10 hover:bg-white/20 disabled:opacity-20 text-white p-3 rounded-full backdrop-blur-sm transition-colors">
+                <ChevronLeft className="w-5 h-5" />
+              </button>
+              <button onClick={e => { blur(e); next() }} disabled={index === total - 1} aria-label="Próximo"
+                className="absolute right-3 top-1/2 -translate-y-1/2 z-10 bg-white/10 hover:bg-white/20 disabled:opacity-20 text-white p-3 rounded-full backdrop-blur-sm transition-colors">
+                <ChevronRight className="w-5 h-5" />
+              </button>
+            </>
+          )}
+        </div>
+      </div>
+
+      {/* Barra de progresso (verde, proporcional ao slide atual) */}
+      <div className="shrink-0 h-1 bg-white/10">
+        <div className="h-full bg-lime" style={{ width: `${progress}%` }} />
+      </div>
     </div>
   )
 }

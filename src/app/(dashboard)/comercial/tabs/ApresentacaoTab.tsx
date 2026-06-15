@@ -1,15 +1,23 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
+import {
+  DndContext, PointerSensor, useSensor, useSensors, closestCenter, type DragEndEvent,
+} from '@dnd-kit/core'
+import { SortableContext, useSortable, arrayMove, verticalListSortingStrategy } from '@dnd-kit/sortable'
+import { CSS } from '@dnd-kit/utilities'
 import { createClient } from '@/lib/supabase/client'
 import { useToast } from '@/components/ui/toast'
 import { cn, formatDate } from '@/lib/utils'
+import {
+  Upload, Search, Plus, Play, X, ChevronUp, ChevronDown, Trash2, Pencil,
+  GripVertical, FileText, FolderOpen, Layers,
+} from 'lucide-react'
 import { PresentationPlayer, MaterialFrame } from './PresentationPlayer'
 
 const MAX_BYTES = 50 * 1024 * 1024 // 50 MB — mesmo limite do bucket "materiais"
 const COLS = 'id, name, storage_path, url, mime_type, size_bytes, created_at'
 const PRES_COLS = 'id, name, lead_id, items, created_at, updated_at'
-
 const inputCls = 'w-full bg-bento-bg border border-bento-border rounded-btn px-3 py-2 text-sm text-bento-text placeholder:text-bento-muted focus:outline-none focus:border-lime'
 
 interface Material {
@@ -21,12 +29,7 @@ interface Material {
   size_bytes: number | null
   created_at: string
 }
-
-interface Lead {
-  id: string
-  name: string
-}
-
+interface Lead { id: string; name: string }
 interface Presentation {
   id: string
   name: string
@@ -42,23 +45,51 @@ function fmtSize(bytes: number | null): string {
   if (bytes >= 1_024) return `${(bytes / 1_024).toFixed(0)} KB`
   return `${bytes} B`
 }
+const isImage = (m: { mime_type: string | null }) => (m.mime_type ?? '').startsWith('image/')
+const isPdf = (m: { mime_type: string | null }) => (m.mime_type ?? '') === 'application/pdf'
 
-function FileIcon({ type }: { type: string | null }) {
-  const t = type ?? ''
-  if (t.includes('pdf')) return (
-    <svg className="w-5 h-5 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-    </svg>
-  )
-  if (t.includes('image')) return (
-    <svg className="w-5 h-5 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-    </svg>
-  )
+function TypeBadge({ m }: { m: Material }) {
+  if (isPdf(m)) return <span className="font-tech text-[10px] font-bold px-1.5 py-0.5 rounded bg-[rgba(239,68,68,0.15)] text-[#F87171]">PDF</span>
+  if (isImage(m)) return <span className="font-tech text-[10px] font-bold px-1.5 py-0.5 rounded bg-[rgba(96,165,250,0.15)] text-[#60A5FA]">IMG</span>
+  return <span className="font-tech text-[10px] font-bold px-1.5 py-0.5 rounded bg-bento-bg text-bento-muted">FILE</span>
+}
+
+// Miniatura: imagem real ou ícone por tipo (PDF vermelho).
+function Thumb({ m, className }: { m: Material; className?: string }) {
+  if (isImage(m)) {
+    // eslint-disable-next-line @next/next/no-img-element
+    return <img src={m.url} alt="" className={cn('object-cover bg-bento-bg', className)} />
+  }
   return (
-    <svg className="w-5 h-5 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
-    </svg>
+    <div className={cn('flex items-center justify-center bg-bento-bg', className)}>
+      <FileText className={cn('w-1/2 h-1/2', isPdf(m) ? 'text-[#F87171]' : 'text-bento-muted')} />
+    </div>
+  )
+}
+
+// Slide arrastável (aba Montar). Handle = grip; resto fica livre p/ os controles.
+function SortableSlide({ id, index, total, m, onUp, onDown, onRemove }: {
+  id: string; index: number; total: number; m: Material
+  onUp: () => void; onDown: () => void; onRemove: () => void
+}) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id })
+  const style = { transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.4 : 1 }
+  return (
+    <div ref={setNodeRef} style={style} {...attributes}
+      className="flex items-center gap-2 bg-bento-bg border border-bento-border rounded-md p-2">
+      <button {...listeners} aria-label="Arrastar" className="cursor-grab touch-none text-bento-muted hover:text-bento-text shrink-0">
+        <GripVertical className="w-4 h-4" />
+      </button>
+      <span className="font-tech text-[11px] font-bold text-lime-fg tabular-nums w-5 text-center shrink-0">{String(index + 1).padStart(2, '0')}</span>
+      <Thumb m={m} className="w-9 h-9 rounded shrink-0" />
+      <div className="min-w-0 flex-1">
+        <p className="text-xs font-medium text-bento-text truncate">{m.name}</p>
+        <p className="font-tech text-[10px] text-bento-muted">{fmtSize(m.size_bytes)}</p>
+      </div>
+      <button onClick={onUp} disabled={index === 0} aria-label="Subir" className="p-1 text-bento-muted hover:text-bento-text disabled:opacity-30 shrink-0"><ChevronUp className="w-4 h-4" /></button>
+      <button onClick={onDown} disabled={index === total - 1} aria-label="Descer" className="p-1 text-bento-muted hover:text-bento-text disabled:opacity-30 shrink-0"><ChevronDown className="w-4 h-4" /></button>
+      <button onClick={onRemove} aria-label="Remover" className="p-1 text-red-400 hover:text-red-300 shrink-0"><X className="w-4 h-4" /></button>
+    </div>
   )
 }
 
@@ -66,11 +97,12 @@ export function ApresentacaoTab() {
   const { toast } = useToast()
   const supabase = createClient()
   const inputRef = useRef<HTMLInputElement>(null)
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }))
 
-  const [view, setView] = useState<'gaveta' | 'apresentacoes'>('gaveta')
+  const [view, setView] = useState<'materiais' | 'montar' | 'apresentar'>('materiais')
   const [loading, setLoading] = useState(true)
 
-  // Gaveta (Bloco 1)
+  // Materiais
   const [materials, setMaterials] = useState<Material[]>([])
   const [fetchError, setFetchError] = useState<string | null>(null)
   const [uploading, setUploading] = useState(false)
@@ -78,12 +110,13 @@ export function ApresentacaoTab() {
   const [presenting, setPresenting] = useState<Material | null>(null)
   const [confirmingId, setConfirmingId] = useState<string | null>(null)
   const [deletingId, setDeletingId] = useState<string | null>(null)
+  const [search, setSearch] = useState('')
+  const [filter, setFilter] = useState<'todos' | 'pdf' | 'imagem'>('todos')
 
-  // Montador (Bloco 2)
+  // Montar / Apresentações
   const [leads, setLeads] = useState<Lead[]>([])
   const [presentations, setPresentations] = useState<Presentation[]>([])
   const [presError, setPresError] = useState<string | null>(null)
-  const [montadorOpen, setMontadorOpen] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [form, setForm] = useState({ name: '', leadId: '' })
   const [selectedIds, setSelectedIds] = useState<string[]>([])
@@ -91,13 +124,12 @@ export function ApresentacaoTab() {
   const [confirmingPresId, setConfirmingPresId] = useState<string | null>(null)
   const [deletingPresId, setDeletingPresId] = useState<string | null>(null)
 
-  // Player (Bloco 3)
-  const [playing, setPlaying] = useState<{ name: string; materials: Material[] } | null>(null)
+  // Player
+  const [playing, setPlaying] = useState<{ name: string; client: string | null; materials: Material[] } | null>(null)
 
   const matById = new Map(materials.map(m => [m.id, m]))
   const leadName = (id: string | null) => (id ? leads.find(l => l.id === id)?.name ?? null : null)
 
-  // Carrega materiais + leads + apresentações ao abrir a aba.
   useEffect(() => {
     const load = async () => {
       const [matRes, leadRes, presRes] = await Promise.all([
@@ -105,451 +137,410 @@ export function ApresentacaoTab() {
         supabase.from('leads').select('id, name').order('name'),
         supabase.from('presentations').select(PRES_COLS).order('created_at', { ascending: false }),
       ])
-
       if (matRes.error) {
         setFetchError(matRes.error.code === '42P01'
           ? 'Tabela presentation_materials não encontrada. Rode a migration 018 no Supabase.'
           : `Erro ao carregar materiais: ${matRes.error.message}`)
-      } else {
-        setMaterials((matRes.data ?? []) as Material[])
-        setFetchError(null)
-      }
-
+      } else { setMaterials((matRes.data ?? []) as Material[]); setFetchError(null) }
       setLeads((leadRes.data ?? []) as Lead[])
-
       if (presRes.error) {
         setPresError(presRes.error.code === '42P01'
           ? 'Tabela presentations não encontrada. Rode a migration 019 no Supabase.'
           : `Erro ao carregar apresentações: ${presRes.error.message}`)
-      } else {
-        setPresentations((presRes.data ?? []) as Presentation[])
-        setPresError(null)
-      }
-
+      } else { setPresentations((presRes.data ?? []) as Presentation[]); setPresError(null) }
       setLoading(false)
     }
     load()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  // ─── Gaveta: upload / excluir ───────────────────────────────────────────────
-
-  // Sobe de verdade: bucket "materiais" → URL pública → linha na tabela → card.
+  // ─── Materiais: upload / excluir ────────────────────────────────────────────
   const handleFiles = async (fileList: FileList) => {
     const picked = Array.from(fileList)
     if (picked.length === 0) return
-
     const tooBig = picked.filter(f => f.size > MAX_BYTES)
     const valid = picked.filter(f => f.size <= MAX_BYTES)
     if (tooBig.length) {
-      toast({
-        type: 'error',
-        message: tooBig.length === 1
-          ? `"${tooBig[0].name}" passa de 50 MB e não foi enviado.`
-          : `${tooBig.length} arquivos passam de 50 MB e não foram enviados.`,
-      })
+      toast({ type: 'error', message: tooBig.length === 1
+        ? `"${tooBig[0].name}" passa de 50 MB e não foi enviado.`
+        : `${tooBig.length} arquivos passam de 50 MB e não foram enviados.` })
     }
     if (valid.length === 0) return
-
     setUploading(true)
     const uploaded: Material[] = []
     for (const file of valid) {
       const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '-')
       const path = `${crypto.randomUUID()}-${safeName}`
-
-      const { error: upErr } = await supabase.storage
-        .from('materiais')
-        .upload(path, file, { contentType: file.type || undefined, upsert: false })
-      if (upErr) {
-        toast({ type: 'error', message: `Falha ao enviar "${file.name}": ${upErr.message}` })
-        continue
-      }
-
+      const { error: upErr } = await supabase.storage.from('materiais').upload(path, file, { contentType: file.type || undefined, upsert: false })
+      if (upErr) { toast({ type: 'error', message: `Falha ao enviar "${file.name}": ${upErr.message}` }); continue }
       const { data: { publicUrl } } = supabase.storage.from('materiais').getPublicUrl(path)
-
-      const { data, error } = await supabase
-        .from('presentation_materials')
-        .insert({
-          name: file.name,
-          storage_path: path,
-          url: publicUrl,
-          mime_type: file.type || null,
-          size_bytes: file.size,
-        })
-        .select(COLS)
-        .single()
-
+      const { data, error } = await supabase.from('presentation_materials')
+        .insert({ name: file.name, storage_path: path, url: publicUrl, mime_type: file.type || null, size_bytes: file.size })
+        .select(COLS).single()
       if (error || !data) {
-        await supabase.storage.from('materiais').remove([path]) // evita arquivo órfão no bucket
+        await supabase.storage.from('materiais').remove([path])
         toast({ type: 'error', message: `Falha ao salvar "${file.name}": ${error?.message ?? 'erro'}` })
         continue
       }
       uploaded.push(data as Material)
     }
-
     if (uploaded.length) {
       setMaterials(prev => [...uploaded.reverse(), ...prev])
-      toast({
-        type: 'success',
-        message: uploaded.length === 1 ? 'Material enviado.' : `${uploaded.length} materiais enviados.`,
-      })
+      toast({ type: 'success', message: uploaded.length === 1 ? 'Material enviado.' : `${uploaded.length} materiais enviados.` })
     }
     setUploading(false)
   }
-
   const pickFiles = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) handleFiles(e.target.files)
-    e.target.value = '' // permite reenviar o mesmo arquivo depois
+    e.target.value = ''
   }
-
   const handleDrop = (e: React.DragEvent) => {
-    e.preventDefault()
-    setDragging(false)
+    e.preventDefault(); setDragging(false)
     if (!uploading) handleFiles(e.dataTransfer.files)
   }
-
-  // Excluir material em 2 toques: apaga o registro (fonte da lista) e depois o arquivo do bucket.
   const handleDelete = async (m: Material) => {
     setDeletingId(m.id)
     const { error } = await supabase.from('presentation_materials').delete().eq('id', m.id)
-    if (error) {
-      toast({ type: 'error', message: `Não foi possível excluir: ${error.message}` })
-      setDeletingId(null)
-      return
-    }
-    await supabase.storage.from('materiais').remove([m.storage_path]) // se falhar, vira só um órfão invisível
+    if (error) { toast({ type: 'error', message: `Não foi possível excluir: ${error.message}` }); setDeletingId(null); return }
+    await supabase.storage.from('materiais').remove([m.storage_path])
     setMaterials(prev => prev.filter(x => x.id !== m.id))
-    setConfirmingId(null)
-    setDeletingId(null)
+    setSelectedIds(prev => prev.filter(id => id !== m.id))
+    setConfirmingId(null); setDeletingId(null)
     toast({ type: 'success', message: 'Material excluído.' })
   }
 
-  // ─── Montador: abrir / selecionar / reordenar / salvar / excluir ────────────
-
-  const openNew = () => {
-    setEditingId(null)
-    setForm({ name: '', leadId: '' })
-    setSelectedIds([])
-    setMontadorOpen(true)
-  }
-
+  // ─── Montar: rascunho / salvar ──────────────────────────────────────────────
+  const openNew = () => { setEditingId(null); setForm({ name: '', leadId: '' }); setSelectedIds([]); setView('montar') }
   const openPresentation = (p: Presentation) => {
     setEditingId(p.id)
     setForm({ name: p.name, leadId: p.lead_id ?? '' })
-    // mantém só os ids que ainda existem na gaveta, na ordem salva (ignora os ausentes)
     setSelectedIds((p.items ?? []).filter(id => matById.has(id)))
-    setMontadorOpen(true)
+    setView('montar')
   }
-
-  const closeMontador = () => setMontadorOpen(false)
-
-  const addToSelection = (id: string) =>
-    setSelectedIds(prev => (prev.includes(id) ? prev : [...prev, id]))
-
-  const removeFromSelection = (id: string) =>
-    setSelectedIds(prev => prev.filter(x => x !== id))
-
-  const move = (index: number, dir: -1 | 1) =>
+  const addToSelection = (id: string) => setSelectedIds(prev => (prev.includes(id) ? prev : [...prev, id]))
+  const removeFromSelection = (id: string) => setSelectedIds(prev => prev.filter(x => x !== id))
+  const move = (index: number, dir: -1 | 1) => setSelectedIds(prev => {
+    const j = index + dir
+    if (j < 0 || j >= prev.length) return prev
+    const arr = [...prev]
+    ;[arr[index], arr[j]] = [arr[j], arr[index]]
+    return arr
+  })
+  const onSlideDragEnd = (e: DragEndEvent) => {
+    const { active, over } = e
+    if (!over || active.id === over.id) return
     setSelectedIds(prev => {
-      const j = index + dir
-      if (j < 0 || j >= prev.length) return prev
-      const arr = [...prev]
-      ;[arr[index], arr[j]] = [arr[j], arr[index]]
-      return arr
+      const oldI = prev.indexOf(active.id as string)
+      const newI = prev.indexOf(over.id as string)
+      return oldI < 0 || newI < 0 ? prev : arrayMove(prev, oldI, newI)
     })
+  }
 
   const savePresentation = async () => {
     const name = form.name.trim()
     if (!name) { toast({ type: 'error', message: 'Dê um nome à apresentação.' }); return }
     if (selectedIds.length === 0) { toast({ type: 'error', message: 'Adicione pelo menos um material.' }); return }
-
     setSavingPres(true)
     const payload = { name, lead_id: form.leadId || null, items: selectedIds }
-
     if (editingId) {
-      const { data, error } = await supabase
-        .from('presentations')
-        .update({ ...payload, updated_at: new Date().toISOString() })
-        .eq('id', editingId)
-        .select(PRES_COLS)
-        .single()
-      if (error || !data) {
-        toast({ type: 'error', message: `Não foi possível salvar: ${error?.message ?? 'erro'}` })
-        setSavingPres(false)
-        return
-      }
+      const { data, error } = await supabase.from('presentations')
+        .update({ ...payload, updated_at: new Date().toISOString() }).eq('id', editingId).select(PRES_COLS).single()
+      if (error || !data) { toast({ type: 'error', message: `Não foi possível salvar: ${error?.message ?? 'erro'}` }); setSavingPres(false); return }
       setPresentations(prev => prev.map(p => (p.id === editingId ? (data as Presentation) : p)))
       toast({ type: 'success', message: 'Apresentação atualizada.' })
     } else {
-      const { data, error } = await supabase
-        .from('presentations')
-        .insert(payload)
-        .select(PRES_COLS)
-        .single()
-      if (error || !data) {
-        toast({ type: 'error', message: `Não foi possível salvar: ${error?.message ?? 'erro'}` })
-        setSavingPres(false)
-        return
-      }
+      const { data, error } = await supabase.from('presentations').insert(payload).select(PRES_COLS).single()
+      if (error || !data) { toast({ type: 'error', message: `Não foi possível salvar: ${error?.message ?? 'erro'}` }); setSavingPres(false); return }
       setPresentations(prev => [data as Presentation, ...prev])
+      setEditingId((data as Presentation).id)
       toast({ type: 'success', message: 'Apresentação salva.' })
     }
-
     setSavingPres(false)
-    setMontadorOpen(false)
+    setView('apresentar')
   }
 
-  // Excluir apresentação em 2 toques. NÃO apaga os materiais da gaveta — só a montagem.
   const deletePresentation = async (p: Presentation) => {
     setDeletingPresId(p.id)
     const { error } = await supabase.from('presentations').delete().eq('id', p.id)
-    if (error) {
-      toast({ type: 'error', message: `Não foi possível excluir: ${error.message}` })
-      setDeletingPresId(null)
-      return
-    }
+    if (error) { toast({ type: 'error', message: `Não foi possível excluir: ${error.message}` }); setDeletingPresId(null); return }
     setPresentations(prev => prev.filter(x => x.id !== p.id))
-    setConfirmingPresId(null)
-    setDeletingPresId(null)
+    setConfirmingPresId(null); setDeletingPresId(null)
     toast({ type: 'success', message: 'Apresentação excluída.' })
   }
 
-  // ─── Player: resolve os materiais e abre a apresentação ─────────────────────
-
+  // ─── Player ─────────────────────────────────────────────────────────────────
   const startPresent = (p: Presentation) => {
     const mats = (p.items ?? []).map(id => matById.get(id)).filter(Boolean) as Material[]
-    if (mats.length === 0) {
-      toast({ type: 'error', message: 'Esta apresentação não tem materiais disponíveis para apresentar.' })
-      return
-    }
-    setPlaying({ name: p.name, materials: mats })
+    if (mats.length === 0) { toast({ type: 'error', message: 'Esta apresentação não tem materiais disponíveis para apresentar.' }); return }
+    setPlaying({ name: p.name, client: leadName(p.lead_id), materials: mats })
+  }
+  const presentDraft = () => {
+    const mats = selectedIds.map(id => matById.get(id)).filter(Boolean) as Material[]
+    if (mats.length === 0) { toast({ type: 'error', message: 'Adicione materiais antes de apresentar.' }); return }
+    setPlaying({ name: form.name.trim() || 'Apresentação', client: leadName(form.leadId || null), materials: mats })
   }
 
+  const filteredMaterials = materials.filter(m => {
+    if (search && !m.name.toLowerCase().includes(search.toLowerCase())) return false
+    if (filter === 'pdf') return isPdf(m)
+    if (filter === 'imagem') return isImage(m)
+    return true
+  })
+
+  const TABS = [
+    { key: 'materiais' as const, label: 'Materiais', Icon: FolderOpen, count: materials.length },
+    { key: 'montar' as const, label: 'Montar', Icon: Layers, count: selectedIds.length },
+    { key: 'apresentar' as const, label: 'Apresentar', Icon: Play, count: presentations.length },
+  ]
+
   return (
-    <div className="p-4 sm:p-6 space-y-5 overflow-auto h-full animate-fade-in">
-      {/* Seletor de visão + ação contextual */}
-      <div className="flex items-center justify-between gap-3 flex-wrap">
-        <div className="flex bg-bento-bg border border-bento-border rounded-btn p-1 gap-1">
-          {(['gaveta', 'apresentacoes'] as const).map(v => (
-            <button key={v} onClick={() => setView(v)}
-              className={cn('px-3.5 py-1.5 rounded-[10px] text-sm font-medium transition-colors',
-                view === v ? 'bg-lime text-lime-ink' : 'text-bento-muted hover:text-bento-text')}>
-              {v === 'gaveta' ? 'Gaveta' : 'Apresentações'}
+    <div className="flex flex-col h-full">
+      {/* Sub-tabs */}
+      <div className="px-4 sm:px-6 pt-4 shrink-0">
+        <div className="flex items-center gap-1 border-b border-bento-border">
+          {TABS.map(t => (
+            <button key={t.key} onClick={() => setView(t.key)}
+              className={cn('flex items-center gap-2 px-3 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors',
+                view === t.key ? 'border-lime text-lime-fg' : 'border-transparent text-bento-muted hover:text-bento-text')}>
+              <t.Icon className="w-4 h-4" />
+              {t.label}
+              <span className={cn('font-tech text-[10px] tabular-nums px-1.5 py-0.5 rounded-full',
+                view === t.key ? 'bg-lime/15 text-lime-fg' : 'bg-bento-bg text-bento-muted')}>{t.count}</span>
             </button>
           ))}
         </div>
-
-        {view === 'gaveta' ? (
-          <div className="flex items-center">
-            <button
-              onClick={() => inputRef.current?.click()}
-              disabled={uploading}
-              className="bento-btn flex items-center gap-2 px-4 py-2 min-h-[44px] rounded-btn text-sm font-semibold disabled:opacity-50"
-            >
-              {uploading ? (
-                <span className="w-4 h-4 border-2 border-lime-ink/40 border-t-lime-ink rounded-full animate-spin" />
-              ) : (
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
-                </svg>
-              )}
-              {uploading ? 'Enviando...' : 'Upload'}
-            </button>
-            <input
-              ref={inputRef}
-              type="file"
-              multiple
-              accept=".pdf,.ppt,.pptx,.png,.jpg,.jpeg,.gif,.webp,.svg"
-              className="hidden"
-              onChange={pickFiles}
-            />
-          </div>
-        ) : (
-          <button
-            onClick={openNew}
-            className="bento-btn flex items-center gap-2 px-4 py-2 min-h-[44px] rounded-btn text-sm font-semibold"
-          >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-            </svg>
-            Nova apresentação
-          </button>
-        )}
       </div>
 
-      {loading ? (
-        <div className="flex items-center justify-center gap-3 py-16 text-muted-foreground text-sm">
-          <span className="w-5 h-5 border-2 border-muted-foreground/20 border-t-lime rounded-full animate-spin" />
-          Carregando...
-        </div>
-      ) : view === 'gaveta' ? (
-        <>
-          {fetchError && (
-            <div className="bg-amber-900/20 border border-amber-800/40 rounded-btn px-4 py-3 text-xs text-amber-400">{fetchError}</div>
-          )}
+      <input ref={inputRef} type="file" multiple accept=".pdf,.ppt,.pptx,.png,.jpg,.jpeg,.gif,.webp,.svg" className="hidden" onChange={pickFiles} />
 
-          {/* Drop zone */}
-          <div
-            onDragOver={e => { e.preventDefault(); setDragging(true) }}
-            onDragLeave={() => setDragging(false)}
-            onDrop={handleDrop}
-            onClick={() => { if (materials.length === 0 && !uploading) inputRef.current?.click() }}
-            className={`border-2 border-dashed rounded-2xl transition-all duration-200 ${
-              dragging
-                ? 'border-lime bg-lime/10 scale-[1.01]'
-                : materials.length === 0
-                  ? 'border-bento-border bg-bento-panel hover:border-lime hover:bg-lime/5 cursor-pointer'
-                  : 'border-bento-border/50 bg-transparent'
-            } ${materials.length === 0 ? 'py-16' : 'p-0'}`}
-          >
-            {materials.length === 0 && (
-              <div className="text-center pointer-events-none">
-                <svg className="w-10 h-10 mx-auto mb-3 text-muted-foreground/40" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
-                </svg>
-                <p className="text-sm font-medium text-foreground">Arraste arquivos aqui ou clique para fazer upload</p>
-                <p className="text-xs text-muted-foreground mt-1">PDF, PPT, PNG, JPG — máximo 50 MB por arquivo</p>
+      {loading ? (
+        <div className="flex-1 flex items-center justify-center text-bento-muted text-sm">Carregando...</div>
+      ) : view === 'materiais' ? (
+        /* ═══ MATERIAIS ═══ */
+        <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4">
+          <div className="flex items-center justify-between gap-3 flex-wrap">
+            <div className="flex items-baseline gap-2">
+              <h3 className="font-display font-bold text-bento-text text-lg">Materiais</h3>
+              <span className="font-tech text-xs text-bento-muted">{materials.length} arquivo{materials.length === 1 ? '' : 's'}</span>
+            </div>
+            <button onClick={() => inputRef.current?.click()} disabled={uploading}
+              className="bento-btn flex items-center gap-2 px-4 py-2 min-h-[44px] rounded-btn text-sm font-semibold disabled:opacity-50">
+              <Upload className="w-4 h-4" />{uploading ? 'Enviando...' : 'Upload'}
+            </button>
+          </div>
+
+          {/* Toolbar: busca + chips */}
+          <div className="flex items-center gap-2 flex-wrap">
+            <div className="relative flex-1 min-w-[180px] max-w-xs">
+              <Search className="w-4 h-4 absolute left-2.5 top-1/2 -translate-y-1/2 text-bento-muted" />
+              <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Buscar materiais..."
+                className="w-full bg-bento-bg border border-bento-border rounded-btn pl-8 pr-3 py-2 text-sm text-bento-text placeholder:text-bento-muted focus:outline-none focus:border-lime" />
+            </div>
+            <div className="flex bg-bento-bg border border-bento-border rounded-btn p-1 gap-1">
+              {(['todos', 'pdf', 'imagem'] as const).map(f => (
+                <button key={f} onClick={() => setFilter(f)}
+                  className={cn('px-3 py-1.5 rounded-[8px] text-xs font-medium transition-colors',
+                    filter === f ? 'bg-lime text-lime-ink' : 'text-bento-muted hover:text-bento-text')}>
+                  {f === 'todos' ? 'Todos' : f === 'pdf' ? 'PDF' : 'Imagem'}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {fetchError && <div className="bg-amber-900/20 border border-amber-800/40 rounded-btn px-4 py-3 text-xs text-amber-400">{fetchError}</div>}
+
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+            {filteredMaterials.map(m => (
+              <div key={m.id} className="group relative bento-fx overflow-hidden hover:border-lime/50 transition-colors">
+                <div className="relative h-[140px] flex items-center justify-center overflow-hidden bg-bento-bg">
+                  {isImage(m)
+                    // eslint-disable-next-line @next/next/no-img-element
+                    ? <img src={m.url} alt={m.name} className="w-full h-full object-cover" />
+                    : <FileText className={cn('w-10 h-10', isPdf(m) ? 'text-[#F87171]' : 'text-bento-muted')} />}
+                  <span className="absolute top-2 right-2"><TypeBadge m={m} /></span>
+                </div>
+                <div className="p-2.5">
+                  <p className="text-xs font-medium text-bento-text truncate">{m.name}</p>
+                  <p className="font-tech text-[10px] text-bento-muted mt-0.5">{fmtSize(m.size_bytes)} · {formatDate(m.created_at)}</p>
+                </div>
+                <div className={cn('absolute inset-0 bg-black/70 transition-opacity flex items-center justify-center gap-2 p-2',
+                  confirmingId === m.id ? 'opacity-100' : 'opacity-0 group-hover:opacity-100')}>
+                  {confirmingId === m.id ? (
+                    <div className="flex flex-col items-center gap-2 text-center px-2">
+                      <p className="text-xs font-medium text-red-300">Excluir este material?</p>
+                      <div className="flex gap-2">
+                        <button onClick={() => setConfirmingId(null)} disabled={deletingId === m.id} className="px-3 py-1.5 rounded-btn text-xs border border-white/30 text-white/80 hover:border-white transition-colors disabled:opacity-50">Cancelar</button>
+                        <button onClick={() => handleDelete(m)} disabled={deletingId === m.id} className="px-3 py-1.5 rounded-btn text-xs font-semibold bg-red-500/90 hover:bg-red-500 text-white transition-colors disabled:opacity-50">{deletingId === m.id ? 'Excluindo...' : 'Excluir'}</button>
+                      </div>
+                    </div>
+                  ) : (
+                    <>
+                      <button onClick={() => setPresenting(m)} className="bento-btn flex items-center gap-1.5 px-3 py-1.5 rounded-btn text-xs font-semibold min-h-0"><Search className="w-3.5 h-3.5" />Visualizar</button>
+                      <button onClick={() => setConfirmingId(m.id)} aria-label="Excluir" className="bg-red-900/60 hover:bg-red-900 text-red-300 p-1.5 rounded-lg transition-colors"><Trash2 className="w-3.5 h-3.5" /></button>
+                    </>
+                  )}
+                </div>
               </div>
+            ))}
+
+            {/* Zona de upload */}
+            {filter === 'todos' && !search && (
+              <button onClick={() => inputRef.current?.click()} disabled={uploading}
+                onDragOver={e => { e.preventDefault(); setDragging(true) }} onDragLeave={() => setDragging(false)} onDrop={handleDrop}
+                className={cn('h-full min-h-[200px] border-2 border-dashed rounded-xl flex flex-col items-center justify-center gap-2 transition-colors text-bento-muted',
+                  dragging ? 'border-lime bg-lime/10 text-lime-fg' : 'border-bento-border hover:border-lime hover:bg-lime/5 hover:text-lime-fg', 'disabled:opacity-50')}>
+                <Upload className="w-6 h-6" />
+                <span className="text-xs font-medium">{uploading ? 'Enviando...' : 'Upload'}</span>
+                <span className="font-tech text-[10px]">máx. 50 MB</span>
+              </button>
             )}
           </div>
 
-          {/* File grid */}
-          {materials.length > 0 && (
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
-              {materials.map(f => (
-                <div key={f.id} className="group relative bento-fx overflow-hidden hover:border-lime/50 transition-colors duration-200">
-                  {/* Preview */}
-                  <div className="h-32 bg-bento-bg flex items-center justify-center overflow-hidden">
-                    {f.mime_type?.startsWith('image/') ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img src={f.url} alt={f.name} className="w-full h-full object-cover" />
-                    ) : (
-                      <FileIcon type={f.mime_type} />
-                    )}
-                  </div>
-
-                  {/* Info */}
-                  <div className="p-2.5">
-                    <p className="text-xs font-medium text-foreground truncate">{f.name}</p>
-                    <p className="text-[10px] text-muted-foreground mt-0.5">{fmtSize(f.size_bytes)}</p>
-                  </div>
-
-                  {/* Actions overlay */}
-                  <div className={cn(
-                    'absolute inset-0 bg-black/70 transition-opacity flex items-center justify-center gap-2 p-2',
-                    confirmingId === f.id ? 'opacity-100' : 'opacity-0 group-hover:opacity-100',
-                  )}>
-                    {confirmingId === f.id ? (
-                      <div className="flex flex-col items-center gap-2 text-center px-2">
-                        <p className="text-xs font-medium text-red-300">Excluir este material?</p>
-                        <div className="flex gap-2">
-                          <button onClick={() => setConfirmingId(null)} disabled={deletingId === f.id}
-                            className="px-3 py-1.5 rounded-btn text-xs border border-white/30 text-white/80 hover:border-white transition-colors disabled:opacity-50">
-                            Cancelar
-                          </button>
-                          <button onClick={() => handleDelete(f)} disabled={deletingId === f.id}
-                            className="px-3 py-1.5 rounded-btn text-xs font-semibold bg-red-500/90 hover:bg-red-500 text-white transition-colors disabled:opacity-50">
-                            {deletingId === f.id ? 'Excluindo...' : 'Excluir'}
-                          </button>
-                        </div>
-                      </div>
-                    ) : (
-                      <>
-                        <button
-                          onClick={() => setPresenting(f)}
-                          className="bento-btn flex items-center gap-1.5 px-3 py-1.5 rounded-btn text-xs font-semibold min-h-0"
-                        >
-                          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.477 0 8.268 2.943 9.542 7-1.274 4.057-5.065 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                          </svg>
-                          Visualizar
-                        </button>
-                        <button onClick={() => setConfirmingId(f.id)} aria-label="Excluir"
-                          className="bg-red-900/60 hover:bg-red-900 text-red-300 p-1.5 rounded-lg transition-colors">
-                          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                          </svg>
-                        </button>
-                      </>
-                    )}
-                  </div>
-                </div>
-              ))}
-
-              {/* Add more */}
-              <button
-                onClick={() => inputRef.current?.click()}
-                disabled={uploading}
-                className="h-full min-h-[170px] border-2 border-dashed border-bento-border rounded-xl flex items-center justify-center hover:border-lime hover:bg-lime/5 transition-all text-bento-muted hover:text-lime-fg disabled:opacity-50"
-              >
-                {uploading ? (
-                  <span className="w-6 h-6 border-2 border-bento-muted/20 border-t-lime rounded-full animate-spin" />
-                ) : (
-                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M12 4v16m8-8H4" />
-                  </svg>
-                )}
-              </button>
+          {filteredMaterials.length === 0 && (search || filter !== 'todos') && (
+            <p className="text-center text-sm text-bento-muted py-8">Nenhum material encontrado.</p>
+          )}
+        </div>
+      ) : view === 'montar' ? (
+        /* ═══ MONTAR ═══ */
+        <div className="flex-1 min-h-0 flex flex-col lg:flex-row gap-4 p-4 sm:p-6">
+          {/* Esquerda: materiais disponíveis */}
+          <div className="lg:w-[340px] shrink-0 flex flex-col bento-fx overflow-hidden">
+            <div className="flex items-center justify-between px-3 py-2.5 border-b border-bento-border shrink-0">
+              <span className="text-sm font-semibold text-bento-text">Materiais</span>
+              <span className="font-tech text-xs text-bento-muted">{materials.length}</span>
             </div>
-          )}
-        </>
+            <div className="flex-1 overflow-y-auto p-2 space-y-1.5 min-h-[120px]">
+              {materials.length === 0 ? (
+                <p className="text-xs text-bento-muted text-center py-6">Suba arquivos na aba Materiais primeiro.</p>
+              ) : materials.map(m => {
+                const added = selectedIds.includes(m.id)
+                return (
+                  <button key={m.id} onClick={() => addToSelection(m.id)} disabled={added}
+                    className="group/it flex items-center gap-2 w-full text-left bg-bento-bg border border-bento-border rounded-md p-2 hover:border-lime/50 transition-colors disabled:opacity-50 disabled:hover:border-bento-border">
+                    <Thumb m={m} className="w-9 h-9 rounded shrink-0" />
+                    <div className="min-w-0 flex-1">
+                      <p className="text-xs font-medium text-bento-text truncate">{m.name}</p>
+                      <p className="font-tech text-[10px] text-bento-muted">{fmtSize(m.size_bytes)}</p>
+                    </div>
+                    {added
+                      ? <span className="font-tech text-[10px] text-lime-fg shrink-0">Adicionado</span>
+                      : <Plus className="w-4 h-4 text-lime-fg shrink-0 opacity-0 group-hover/it:opacity-100 transition-opacity" />}
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+
+          {/* Direita: apresentação sendo montada */}
+          <div className="flex-1 min-h-0 flex flex-col bento-fx overflow-hidden">
+            <div className="p-3 border-b border-bento-border shrink-0 space-y-2">
+              <div className="flex flex-col sm:flex-row gap-2">
+                <select value={form.leadId} onChange={e => setForm(p => ({ ...p, leadId: e.target.value }))} className={cn(inputCls, 'sm:w-48')}>
+                  <option value="">Cliente: nenhum</option>
+                  {leads.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
+                </select>
+                <input value={form.name} onChange={e => setForm(p => ({ ...p, name: e.target.value }))} className={inputCls} placeholder="Nome da apresentação" />
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-semibold text-bento-text">Slides da Apresentação</span>
+                <span className="font-tech text-xs text-bento-muted">{selectedIds.length}</span>
+              </div>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-3 min-h-[120px]">
+              {selectedIds.length === 0 ? (
+                <div className="h-full flex items-center justify-center text-center">
+                  <p className="text-xs text-bento-muted">Adicione materiais da lista à esquerda<br />para montar a apresentação.</p>
+                </div>
+              ) : (
+                <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onSlideDragEnd}>
+                  <SortableContext items={selectedIds} strategy={verticalListSortingStrategy}>
+                    <div className="space-y-1.5">
+                      {selectedIds.map((id, i) => {
+                        const m = matById.get(id)
+                        if (!m) return null
+                        return <SortableSlide key={id} id={id} index={i} total={selectedIds.length} m={m}
+                          onUp={() => move(i, -1)} onDown={() => move(i, 1)} onRemove={() => removeFromSelection(id)} />
+                      })}
+                    </div>
+                  </SortableContext>
+                </DndContext>
+              )}
+            </div>
+
+            <div className="flex items-center justify-between gap-2 p-3 border-t border-bento-border shrink-0">
+              <span className="font-tech text-xs text-bento-muted">{selectedIds.length} {selectedIds.length === 1 ? 'material' : 'materiais'}</span>
+              <div className="flex gap-2">
+                <button onClick={savePresentation} disabled={savingPres || !form.name.trim() || selectedIds.length === 0}
+                  className="px-4 py-2 rounded-btn text-sm font-semibold border border-bento-border text-bento-text hover:border-lime transition-colors disabled:opacity-50">
+                  {savingPres ? 'Salvando...' : editingId ? 'Salvar alterações' : 'Salvar'}
+                </button>
+                <button onClick={presentDraft} disabled={selectedIds.length === 0}
+                  className="bento-btn flex items-center gap-1.5 px-4 py-2 rounded-btn text-sm font-semibold disabled:opacity-50">
+                  <Play className="w-4 h-4 fill-current" />Apresentar
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
       ) : (
-        /* ─── Visão Apresentações ─── */
-        <>
-          {presError && (
-            <div className="bg-amber-900/20 border border-amber-800/40 rounded-btn px-4 py-3 text-xs text-amber-400">{presError}</div>
-          )}
+        /* ═══ APRESENTAR ═══ */
+        <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4">
+          <div className="flex items-center justify-between gap-3 flex-wrap">
+            <div className="flex items-baseline gap-2">
+              <h3 className="font-display font-bold text-bento-text text-lg">Apresentações</h3>
+              <span className="font-tech text-xs text-bento-muted">{presentations.length} salva{presentations.length === 1 ? '' : 's'}</span>
+            </div>
+            <button onClick={openNew} className="bento-btn flex items-center gap-2 px-4 py-2 min-h-[44px] rounded-btn text-sm font-semibold">
+              <Plus className="w-4 h-4" />Nova apresentação
+            </button>
+          </div>
+
+          {presError && <div className="bg-amber-900/20 border border-amber-800/40 rounded-btn px-4 py-3 text-xs text-amber-400">{presError}</div>}
 
           {presentations.length === 0 ? (
             <div className="bento-fx py-16 text-center">
-              <svg className="w-10 h-10 mx-auto mb-3 text-bento-muted/30" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 5a1 1 0 011-1h14a1 1 0 011 1v2a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM4 13a1 1 0 011-1h14a1 1 0 011 1v6a1 1 0 01-1 1H5a1 1 0 01-1-1v-6z" />
-              </svg>
+              <Layers className="w-10 h-10 mx-auto mb-3 text-bento-muted/30" />
               <p className="text-sm text-bento-muted font-medium">Nenhuma apresentação montada ainda</p>
-              <p className="text-xs text-bento-muted mt-1">Clique em &quot;Nova apresentação&quot; para montar uma a partir dos materiais da Gaveta.</p>
+              <p className="text-xs text-bento-muted mt-1">Use a aba Montar para criar uma a partir dos seus materiais.</p>
             </div>
           ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
               {presentations.map(p => {
-                const count = (p.items ?? []).filter(id => matById.has(id)).length
+                const items = (p.items ?? []).map(id => matById.get(id)).filter(Boolean) as Material[]
                 const lead = leadName(p.lead_id)
                 return (
-                  <div key={p.id} className="bento-fx p-4 flex flex-col gap-3">
-                    <div>
-                      <p className="font-semibold text-bento-text text-sm truncate">{p.name}</p>
-                      <p className="text-xs text-bento-muted mt-1 truncate">{lead ?? 'Sem lead'}</p>
-                      <p className="text-[11px] text-bento-muted mt-0.5">
-                        {count} {count === 1 ? 'material' : 'materiais'} · {formatDate(p.created_at)}
-                      </p>
-                    </div>
+                  <div key={p.id} className="bento-fx p-4 flex flex-col gap-3 hover:border-lime/40 transition-colors">
+                    <button onClick={() => startPresent(p)} className="text-left">
+                      {lead && <p className="font-tech text-[10px] uppercase tracking-wider text-lime-fg truncate">{lead}</p>}
+                      <p className="font-display font-bold text-bento-text truncate">{p.name}</p>
+                      <div className="flex gap-1 mt-2">
+                        {items.slice(0, 8).map(m => (
+                          <div key={m.id} className="w-7 h-9 rounded-sm border border-bento-border overflow-hidden bg-bento-bg flex items-center justify-center shrink-0">
+                            {isImage(m)
+                              // eslint-disable-next-line @next/next/no-img-element
+                              ? <img src={m.url} alt="" className="w-full h-full object-cover" />
+                              : <FileText className={cn('w-3.5 h-3.5', isPdf(m) ? 'text-[#F87171]' : 'text-bento-muted')} />}
+                          </div>
+                        ))}
+                        {items.length > 8 && <span className="font-tech text-[10px] text-bento-muted self-center ml-1">+{items.length - 8}</span>}
+                        {items.length === 0 && <span className="font-tech text-[11px] text-bento-muted">sem materiais disponíveis</span>}
+                      </div>
+                    </button>
 
                     {confirmingPresId === p.id ? (
-                      <div className="flex gap-2">
-                        <button onClick={() => setConfirmingPresId(null)} disabled={deletingPresId === p.id}
-                          className="flex-1 border border-bento-border text-bento-dim py-2 rounded-btn text-xs hover:border-bento-text transition-colors disabled:opacity-50">
-                          Cancelar
-                        </button>
-                        <button onClick={() => deletePresentation(p)} disabled={deletingPresId === p.id}
-                          className="flex-1 bg-red-500/90 hover:bg-red-500 text-white py-2 rounded-btn text-xs font-semibold transition-colors disabled:opacity-50">
-                          {deletingPresId === p.id ? 'Excluindo...' : 'Excluir'}
-                        </button>
+                      <div className="flex gap-2 mt-auto">
+                        <button onClick={() => setConfirmingPresId(null)} disabled={deletingPresId === p.id} className="flex-1 border border-bento-border text-bento-dim py-2 rounded-btn text-xs hover:border-bento-text transition-colors disabled:opacity-50">Cancelar</button>
+                        <button onClick={() => deletePresentation(p)} disabled={deletingPresId === p.id} className="flex-1 bg-red-500/90 hover:bg-red-500 text-white py-2 rounded-btn text-xs font-semibold transition-colors disabled:opacity-50">{deletingPresId === p.id ? 'Excluindo...' : 'Excluir'}</button>
                       </div>
                     ) : (
-                      <div className="flex items-center gap-2">
-                        <button onClick={() => startPresent(p)}
-                          className="flex-1 bento-btn flex items-center justify-center gap-1.5 py-2 rounded-btn text-xs font-semibold">
-                          <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z" /></svg>
-                          Apresentar
-                        </button>
-                        <button onClick={() => openPresentation(p)} aria-label="Editar" title="Editar"
-                          className="p-2 rounded-btn border border-bento-border text-bento-muted hover:border-lime hover:text-lime-fg transition-colors">
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
-                        </button>
-                        <button onClick={() => setConfirmingPresId(p.id)} aria-label="Excluir" title="Excluir"
-                          className="p-2 rounded-btn border border-bento-border text-bento-muted hover:border-red-400/50 hover:text-red-400 transition-colors">
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
-                        </button>
+                      <div className="flex items-center justify-between gap-2 mt-auto pt-1">
+                        <span className="font-tech text-[11px] text-bento-muted truncate">{items.length} {items.length === 1 ? 'material' : 'materiais'} · {formatDate(p.created_at)}</span>
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          <button onClick={() => openPresentation(p)} aria-label="Editar" title="Editar" className="p-1.5 rounded-btn border border-bento-border text-bento-muted hover:border-lime hover:text-lime-fg transition-colors"><Pencil className="w-3.5 h-3.5" /></button>
+                          <button onClick={() => setConfirmingPresId(p.id)} aria-label="Excluir" title="Excluir" className="p-1.5 rounded-btn border border-bento-border text-bento-muted hover:border-red-400/50 hover:text-red-400 transition-colors"><Trash2 className="w-3.5 h-3.5" /></button>
+                          <button onClick={() => startPresent(p)} aria-label="Apresentar" title="Apresentar" className="w-8 h-8 rounded-full bg-lime hover:bg-lime-hover text-lime-ink flex items-center justify-center transition-colors"><Play className="w-4 h-4 fill-current" /></button>
+                        </div>
                       </div>
                     )}
                   </div>
@@ -557,136 +548,23 @@ export function ApresentacaoTab() {
               })}
             </div>
           )}
-        </>
-      )}
-
-      {/* ─── Montador (modal) ─── */}
-      {montadorOpen && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-end sm:items-center justify-center z-50 p-0 sm:p-4">
-          <div className="bento-fx rounded-t-frame sm:rounded-frame shadow-card-hover w-full sm:max-w-lg max-h-[92vh] flex flex-col animate-slide-up">
-            <div className="flex items-center justify-between p-5 border-b border-bento-border shrink-0">
-              <h2 className="font-display font-bold text-bento-text text-base">{editingId ? 'Editar apresentação' : 'Nova apresentação'}</h2>
-              <button onClick={closeMontador} className="text-bento-muted hover:text-bento-text">
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
-              </button>
-            </div>
-
-            <div className="p-5 space-y-4 overflow-y-auto">
-              {/* Nome */}
-              <div>
-                <label className="block text-xs font-medium text-bento-dim mb-1.5">Nome *</label>
-                <input value={form.name} onChange={e => setForm(p => ({ ...p, name: e.target.value }))} className={inputCls} placeholder="Ex: Proposta Cliente X" autoFocus />
-              </div>
-
-              {/* Lead */}
-              <div>
-                <label className="block text-xs font-medium text-bento-dim mb-1.5">Lead</label>
-                <select value={form.leadId} onChange={e => setForm(p => ({ ...p, leadId: e.target.value }))} className={inputCls}>
-                  <option value="">Nenhum (sem vincular)</option>
-                  {leads.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
-                </select>
-              </div>
-
-              {/* Nesta apresentação (selecionados, numerados) */}
-              <div>
-                <label className="block text-xs font-medium text-bento-dim mb-1.5">Nesta apresentação ({selectedIds.length})</label>
-                {selectedIds.length === 0 ? (
-                  <p className="text-xs text-bento-muted bg-bento-bg border border-bento-border rounded-btn p-3 text-center">Nenhum material ainda. Adicione da gaveta abaixo.</p>
-                ) : (
-                  <div className="space-y-2">
-                    {selectedIds.map((id, i) => {
-                      const m = matById.get(id)
-                      if (!m) return null
-                      return (
-                        <div key={id} className="flex items-center gap-2 bg-bento-bg border border-bento-border rounded-btn p-2">
-                          <span className="flex-none w-5 h-5 rounded-md bg-lime/15 text-lime-fg text-[11px] font-bold flex items-center justify-center">{i + 1}</span>
-                          <span className="flex-none"><FileIcon type={m.mime_type} /></span>
-                          <span className="flex-1 truncate text-xs text-bento-text">{m.name}</span>
-                          <button onClick={() => move(i, -1)} disabled={i === 0} aria-label="Subir"
-                            className="p-1 text-bento-muted hover:text-bento-text disabled:opacity-30">
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" /></svg>
-                          </button>
-                          <button onClick={() => move(i, 1)} disabled={i === selectedIds.length - 1} aria-label="Descer"
-                            className="p-1 text-bento-muted hover:text-bento-text disabled:opacity-30">
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
-                          </button>
-                          <button onClick={() => removeFromSelection(id)} aria-label="Remover"
-                            className="p-1 text-red-400 hover:text-red-300">
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
-                          </button>
-                        </div>
-                      )
-                    })}
-                  </div>
-                )}
-              </div>
-
-              {/* Materiais da gaveta */}
-              <div>
-                <label className="block text-xs font-medium text-bento-dim mb-1.5">Materiais da gaveta</label>
-                {materials.length === 0 ? (
-                  <p className="text-xs text-bento-muted bg-bento-bg border border-bento-border rounded-btn p-3 text-center">
-                    Você ainda não tem materiais na Gaveta. Suba arquivos na aba &quot;Gaveta&quot; primeiro.
-                  </p>
-                ) : (
-                  <div className="grid grid-cols-1 gap-2 max-h-48 overflow-y-auto pr-1">
-                    {materials.map(m => {
-                      const added = selectedIds.includes(m.id)
-                      return (
-                        <button key={m.id} onClick={() => addToSelection(m.id)} disabled={added}
-                          className="flex items-center gap-2 w-full text-left bg-bento-bg border border-bento-border rounded-btn p-2 hover:border-lime/50 transition-colors disabled:opacity-50 disabled:hover:border-bento-border">
-                          <span className="flex-none"><FileIcon type={m.mime_type} /></span>
-                          <span className="flex-1 truncate text-xs text-bento-text">{m.name}</span>
-                          {added ? (
-                            <span className="flex-none text-[11px] text-lime-fg font-medium">Adicionado</span>
-                          ) : (
-                            <svg className="flex-none w-4 h-4 text-lime-fg" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
-                          )}
-                        </button>
-                      )
-                    })}
-                  </div>
-                )}
-              </div>
-            </div>
-
-            <div className="flex gap-3 p-5 border-t border-bento-border shrink-0">
-              <button onClick={closeMontador} className="flex-1 border border-bento-border text-bento-dim py-2.5 rounded-btn text-sm hover:border-lime transition-colors min-h-[44px]">Cancelar</button>
-              <button onClick={savePresentation} disabled={savingPres || !form.name.trim() || selectedIds.length === 0}
-                className="flex-1 bento-btn py-2.5 rounded-btn text-sm font-semibold disabled:opacity-50 min-h-[44px]">
-                {savingPres ? 'Salvando...' : editingId ? 'Salvar alterações' : 'Salvar apresentação'}
-              </button>
-            </div>
-          </div>
         </div>
       )}
 
-      {/* Player de apresentação */}
+      {/* Player de apresentação (single-mode, redesenhado) */}
       {playing && (
-        <PresentationPlayer
-          name={playing.name}
-          materials={playing.materials}
-          onClose={() => setPlaying(null)}
-        />
+        <PresentationPlayer name={playing.name} client={playing.client} materials={playing.materials} onClose={() => setPlaying(null)} />
       )}
 
-      {/* Pré-visualização de um material (Gaveta) — reusa o MaterialFrame, sem slideshow */}
+      {/* Pré-visualização de um material */}
       {presenting && (
         <div className="fixed inset-0 z-[100] bg-black flex items-center justify-center">
-          <button
-            onClick={() => setPresenting(null)}
-            className="absolute top-4 right-4 z-10 bg-white/10 hover:bg-white/20 text-white p-2.5 rounded-xl transition-colors backdrop-blur-sm"
-            title="Fechar (ESC)"
-          >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-            </svg>
+          <button onClick={() => setPresenting(null)} title="Fechar (ESC)" className="absolute top-4 right-4 z-10 bg-white/10 hover:bg-white/20 text-white p-2.5 rounded-xl transition-colors backdrop-blur-sm">
+            <X className="w-5 h-5" />
           </button>
-
           <div className="absolute top-4 left-4 z-10">
             <p className="text-white/60 text-xs font-medium bg-black/40 backdrop-blur-sm px-3 py-1.5 rounded-full">{presenting.name}</p>
           </div>
-
           <div className="w-full h-full flex items-center justify-center p-4 sm:p-8">
             <MaterialFrame material={presenting} />
           </div>
