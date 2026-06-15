@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useToast } from '@/components/ui/toast'
 import { cn, formatDate } from '@/lib/utils'
-import { PresentationPlayer, MaterialFrame, type PresentationMode } from './PresentationPlayer'
+import { PresentationPlayer, MaterialFrame } from './PresentationPlayer'
 
 const MAX_BYTES = 50 * 1024 * 1024 // 50 MB — mesmo limite do bucket "materiais"
 const COLS = 'id, name, storage_path, url, mime_type, size_bytes, created_at'
@@ -92,8 +92,7 @@ export function ApresentacaoTab() {
   const [deletingPresId, setDeletingPresId] = useState<string | null>(null)
 
   // Player (Bloco 3)
-  const [modeChooser, setModeChooser] = useState<{ name: string; materials: Material[] } | null>(null)
-  const [playing, setPlaying] = useState<{ name: string; materials: Material[]; mode: PresentationMode } | null>(null)
+  const [playing, setPlaying] = useState<{ name: string; materials: Material[] } | null>(null)
 
   const matById = new Map(materials.map(m => [m.id, m]))
   const leadName = (id: string | null) => (id ? leads.find(l => l.id === id)?.name ?? null : null)
@@ -315,7 +314,7 @@ export function ApresentacaoTab() {
     toast({ type: 'success', message: 'Apresentação excluída.' })
   }
 
-  // ─── Player: resolve os materiais e abre o seletor de modo ──────────────────
+  // ─── Player: resolve os materiais e abre a apresentação ─────────────────────
 
   const startPresent = (p: Presentation) => {
     const mats = (p.items ?? []).map(id => matById.get(id)).filter(Boolean) as Material[]
@@ -323,13 +322,7 @@ export function ApresentacaoTab() {
       toast({ type: 'error', message: 'Esta apresentação não tem materiais disponíveis para apresentar.' })
       return
     }
-    setModeChooser({ name: p.name, materials: mats })
-  }
-
-  const chooseMode = (mode: PresentationMode) => {
-    if (!modeChooser) return
-    setPlaying({ name: modeChooser.name, materials: modeChooser.materials, mode })
-    setModeChooser(null)
+    setPlaying({ name: p.name, materials: mats })
   }
 
   return (
@@ -668,45 +661,11 @@ export function ApresentacaoTab() {
         </div>
       )}
 
-      {/* Como apresentar? (seletor de modo) */}
-      {modeChooser && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-end sm:items-center justify-center z-50 p-0 sm:p-4">
-          <div className="bento-fx rounded-t-frame sm:rounded-frame shadow-card-hover w-full sm:max-w-md max-h-[92vh] flex flex-col animate-slide-up">
-            <div className="flex items-center justify-between p-5 border-b border-bento-border shrink-0">
-              <div className="min-w-0">
-                <h2 className="font-display font-bold text-bento-text text-base">Como apresentar?</h2>
-                <p className="text-xs text-bento-muted truncate">{modeChooser.name}</p>
-              </div>
-              <button onClick={() => setModeChooser(null)} className="text-bento-muted hover:text-bento-text">
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
-              </button>
-            </div>
-            <div className="p-5 space-y-2.5 overflow-y-auto">
-              {([
-                ['sequencia', 'Sequência', 'Passa material por material, na ordem. Setas do teclado e cliques.', 'padrão'],
-                ['livre', 'Livre', 'Índice sempre visível; pule pra qualquer material a qualquer hora.', ''],
-                ['foco', 'Foco', 'Um material por vez, sem distrações. Pra causar impacto.', ''],
-              ] as const).map(([m, label, desc, tag]) => (
-                <button key={m} onClick={() => chooseMode(m)}
-                  className="w-full text-left bento-fx p-4 hover:border-lime/50 transition-colors">
-                  <div className="flex items-center gap-2">
-                    <span className="font-semibold text-bento-text text-sm">{label}</span>
-                    {tag && <span className="text-[10px] text-lime-fg border border-lime/30 bg-lime/10 rounded-full px-1.5 py-0.5">{tag}</span>}
-                  </div>
-                  <p className="text-xs text-bento-muted mt-1">{desc}</p>
-                </button>
-              ))}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Player de apresentação (3 modos) */}
+      {/* Player de apresentação */}
       {playing && (
         <PresentationPlayer
           name={playing.name}
           materials={playing.materials}
-          initialMode={playing.mode}
           onClose={() => setPlaying(null)}
         />
       )}

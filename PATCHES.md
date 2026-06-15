@@ -6,6 +6,16 @@ Categorias: 🐛 Fix · 🔄 Mudança · ✨ Novidade
 
 ---
 
+🔄 Mudança — apresentação com modo único (sequência + menu lateral pra pular).
+- Removidos os 3 modos (Sequência/Livre/Foco), a troca por 1/2/3 e a telinha
+  "Como apresentar?". Clicar em "Apresentar" abre direto a apresentação.
+- Modo único: navegação em sequência (setas ◀▶ sempre visíveis + teclado ←/→/espaço,
+  Home/End) com contador "X de Y"; e um botão de menu no canto superior direito que
+  abre/fecha uma lista lateral com os nomes — clicar num nome pula pra aquele material.
+- Tela cheia de verdade (Fullscreen API + fallback + Safari) e ESC pra sair, como antes.
+
+---
+
 ✨ Novidade — 3 modos de apresentação: Sequência, Livre e Foco (Bloco 3 do Studio).
 - Cada apresentação salva ganha botão "Apresentar" → telinha "Como apresentar?" com 3 modos:
   Sequência (padrão, passa material por material), Livre (índice lateral sempre visível,

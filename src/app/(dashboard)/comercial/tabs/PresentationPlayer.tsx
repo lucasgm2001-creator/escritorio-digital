@@ -3,8 +3,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { cn } from '@/lib/utils'
 
-export type PresentationMode = 'sequencia' | 'livre' | 'foco'
-
 export interface PlayerMaterial {
   id: string
   name: string
@@ -58,18 +56,15 @@ export function MaterialFrame({ material }: { material: PlayerMaterial }) {
   )
 }
 
-// ─── Player: tela cheia, 3 modos, navegação por teclado e clique ────────────────
-export function PresentationPlayer({ name, materials, initialMode, onClose }: {
+// ─── Player: tela cheia, sequência com setas + menu lateral pra pular ────────────
+export function PresentationPlayer({ name, materials, onClose }: {
   name: string
   materials: PlayerMaterial[]
-  initialMode: PresentationMode
   onClose: () => void
 }) {
   const rootRef = useRef<HTMLDivElement>(null)
-  const hideTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [index, setIndex] = useState(0)
-  const [mode, setMode] = useState<PresentationMode>(initialMode)
-  const [controlsVisible, setControlsVisible] = useState(true)
+  const [menuOpen, setMenuOpen] = useState(false)
 
   const total = materials.length
   const current = materials[index]
@@ -99,7 +94,7 @@ export function PresentationPlayer({ name, materials, initialMode, onClose }: {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  // Teclado: setas/espaço navega, Home/End extremos, 1/2/3 troca modo, ESC sai.
+  // Teclado: setas/espaço navega, Home/End extremos, ESC sai.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       switch (e.key) {
@@ -108,44 +103,67 @@ export function PresentationPlayer({ name, materials, initialMode, onClose }: {
         case 'Home': e.preventDefault(); go(0); break
         case 'End': e.preventDefault(); go(total - 1); break
         case 'Escape': close(); break
-        case '1': setMode('sequencia'); break
-        case '2': setMode('livre'); break
-        case '3': setMode('foco'); break
       }
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
   }, [next, prev, go, close, total])
 
-  // Modo Foco: os controles somem sozinhos; reaparecem ao mexer o mouse.
-  useEffect(() => {
-    if (hideTimer.current) clearTimeout(hideTimer.current)
-    setControlsVisible(true)
-    if (mode === 'foco') hideTimer.current = setTimeout(() => setControlsVisible(false), 2500)
-    return () => { if (hideTimer.current) clearTimeout(hideTimer.current) }
-  }, [mode])
-
-  const pokeControls = () => {
-    if (mode !== 'foco') return
-    setControlsVisible(true)
-    if (hideTimer.current) clearTimeout(hideTimer.current)
-    hideTimer.current = setTimeout(() => setControlsVisible(false), 2500)
-  }
-
-  const chromeVisible = mode !== 'foco' || controlsVisible
   const blur = (e: React.MouseEvent<HTMLButtonElement>) => e.currentTarget.blur()
 
   return (
-    <div ref={rootRef} onMouseMove={pokeControls}
-      className="fixed inset-0 z-[100] bg-black flex flex-col select-none">
-      <div className="flex-1 flex min-h-0">
-        {/* Índice (modo Livre) */}
-        {mode === 'livre' && (
-          <aside className="w-60 shrink-0 bg-bento-panel/95 border-r border-white/10 overflow-y-auto p-3">
+    <div ref={rootRef} className="fixed inset-0 z-[100] bg-black select-none">
+      {/* Conteúdo */}
+      <div className="absolute inset-0 flex items-center justify-center p-4 sm:p-8">
+        {current ? <MaterialFrame material={current} /> : <p className="text-white/60 text-sm">Sem material disponível.</p>}
+      </div>
+
+      {/* Setas */}
+      {total > 1 && (
+        <>
+          <button onClick={e => { blur(e); prev() }} disabled={index === 0} aria-label="Anterior"
+            className="absolute left-3 top-1/2 -translate-y-1/2 z-10 bg-white/10 hover:bg-white/20 disabled:opacity-20 text-white p-3 rounded-full backdrop-blur-sm transition-colors">
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
+          </button>
+          <button onClick={e => { blur(e); next() }} disabled={index === total - 1} aria-label="Próximo"
+            className="absolute right-3 top-1/2 -translate-y-1/2 z-10 bg-white/10 hover:bg-white/20 disabled:opacity-20 text-white p-3 rounded-full backdrop-blur-sm transition-colors">
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
+          </button>
+        </>
+      )}
+
+      {/* Nome */}
+      <div className="absolute top-4 left-4 z-10">
+        <p className="text-white/60 text-xs font-medium bg-black/40 backdrop-blur-sm px-3 py-1.5 rounded-full max-w-[60vw] truncate">{name}</p>
+      </div>
+
+      {/* Botão de menu + Fechar (canto superior direito, acima do menu lateral) */}
+      <div className="absolute top-4 right-4 z-40 flex items-center gap-2">
+        <button onClick={e => { blur(e); setMenuOpen(o => !o) }} title="Materiais" aria-label="Materiais"
+          className={cn('p-2.5 rounded-xl backdrop-blur-sm transition-colors',
+            menuOpen ? 'bg-lime text-lime-ink' : 'bg-white/10 hover:bg-white/20 text-white')}>
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" /></svg>
+        </button>
+        <button onClick={close} title="Fechar (ESC)"
+          className="bg-white/10 hover:bg-white/20 text-white p-2.5 rounded-xl backdrop-blur-sm transition-colors">
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+        </button>
+      </div>
+
+      {/* Contador */}
+      <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-10">
+        <p className="text-white/60 text-xs font-medium bg-black/40 backdrop-blur-sm px-3 py-1.5 rounded-full tabular-nums">{index + 1} de {total}</p>
+      </div>
+
+      {/* Menu lateral (abre/fecha pelo botão) — clique num nome pula pra ele */}
+      {menuOpen && (
+        <>
+          <div className="absolute inset-0 z-20" onClick={() => setMenuOpen(false)} />
+          <aside className="absolute top-0 right-0 z-30 h-full w-72 max-w-[80vw] bg-bento-panel/95 backdrop-blur-sm border-l border-white/10 overflow-y-auto p-3 pt-16">
             <p className="text-white/50 text-[11px] font-medium px-2 pb-2 truncate">{name}</p>
             <div className="space-y-1">
               {materials.map((m, i) => (
-                <button key={m.id} onClick={e => { blur(e); go(i) }}
+                <button key={m.id} onClick={() => { go(i); setMenuOpen(false) }}
                   className={cn('w-full text-left flex items-center gap-2 px-2 py-2 rounded-lg text-xs transition-colors',
                     i === index ? 'bg-lime/20 text-lime-fg' : 'text-white/70 hover:bg-white/10')}>
                   <span className="flex-none w-5 h-5 rounded bg-white/10 flex items-center justify-center text-[11px] tabular-nums">{i + 1}</span>
@@ -154,54 +172,6 @@ export function PresentationPlayer({ name, materials, initialMode, onClose }: {
               ))}
             </div>
           </aside>
-        )}
-
-        {/* Conteúdo */}
-        <div className="relative flex-1 flex items-center justify-center min-w-0 p-4 sm:p-8">
-          {current ? <MaterialFrame material={current} /> : <p className="text-white/60 text-sm">Sem material disponível.</p>}
-
-          {/* Setas clicáveis (somem no Foco até mexer o mouse) */}
-          {chromeVisible && total > 1 && (
-            <>
-              <button onClick={e => { blur(e); prev() }} disabled={index === 0} aria-label="Anterior"
-                className="absolute left-3 top-1/2 -translate-y-1/2 bg-white/10 hover:bg-white/20 disabled:opacity-20 text-white p-3 rounded-full backdrop-blur-sm transition-colors">
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
-              </button>
-              <button onClick={e => { blur(e); next() }} disabled={index === total - 1} aria-label="Próximo"
-                className="absolute right-3 top-1/2 -translate-y-1/2 bg-white/10 hover:bg-white/20 disabled:opacity-20 text-white p-3 rounded-full backdrop-blur-sm transition-colors">
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
-              </button>
-            </>
-          )}
-        </div>
-      </div>
-
-      {/* Cromo: nome + troca de modo + fechar + contador */}
-      {chromeVisible && (
-        <>
-          {mode !== 'livre' && (
-            <div className="absolute top-4 left-4 z-10">
-              <p className="text-white/60 text-xs font-medium bg-black/40 backdrop-blur-sm px-3 py-1.5 rounded-full max-w-[60vw] truncate">{name}</p>
-            </div>
-          )}
-          <div className="absolute top-4 right-4 z-10 flex items-center gap-2">
-            <div className="hidden sm:flex bg-black/40 backdrop-blur-sm rounded-full p-1 gap-1">
-              {([['sequencia', 'Sequência'], ['livre', 'Livre'], ['foco', 'Foco']] as const).map(([m, label]) => (
-                <button key={m} onClick={e => { blur(e); setMode(m) }}
-                  className={cn('px-2.5 py-1 rounded-full text-[11px] font-medium transition-colors',
-                    mode === m ? 'bg-lime text-lime-ink' : 'text-white/60 hover:text-white')}>
-                  {label}
-                </button>
-              ))}
-            </div>
-            <button onClick={close} title="Fechar (ESC)"
-              className="bg-white/10 hover:bg-white/20 text-white p-2.5 rounded-xl backdrop-blur-sm transition-colors">
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
-            </button>
-          </div>
-          <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-10">
-            <p className="text-white/60 text-xs font-medium bg-black/40 backdrop-blur-sm px-3 py-1.5 rounded-full tabular-nums">{index + 1} / {total}</p>
-          </div>
         </>
       )}
     </div>
