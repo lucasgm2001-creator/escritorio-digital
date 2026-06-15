@@ -6,6 +6,13 @@ Categorias: 🐛 Fix · 🔄 Mudança · ✨ Novidade
 
 ---
 
+🐛 Fix — card "Atividades hoje" zera à meia-noite de Brasília (corrige contagem por fuso).
+- A contagem usava a data em UTC, então atividades do fim da noite de ontem (após ~21h
+  BRT) entravam no "hoje". Agora o dia é calculado no fuso America/Sao_Paulo (zera 00:00
+  BRT). A lista de "Atividades Recentes" e o calendário não mudaram.
+
+---
+
 🔄 Mudança — botão de menu da apresentação à esquerda com cor do tema; apresentar exclusivo da apresentação montada.
 - O botão de menu (☰) do player foi pro canto superior ESQUERDO, mais visível, com a
   cor do tema (verde-limão; hover mais escuro); a lista lateral agora abre pela esquerda.

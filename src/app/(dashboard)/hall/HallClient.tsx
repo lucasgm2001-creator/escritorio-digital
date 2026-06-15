@@ -89,6 +89,11 @@ function toDateStr(d: Date): string {
   return d.toISOString().split('T')[0]
 }
 
+// Dia (YYYY-MM-DD) no fuso de Brasília — pra contar "hoje" certo, zerando 00:00 BRT.
+function saoPauloDay(d: Date): string {
+  return d.toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' })
+}
+
 function getWeekDays(referenceDate: Date): { label: string; date: Date; dateStr: string }[] {
   const jsDay = referenceDate.getDay()
   const daysToMonday = jsDay === 0 ? -6 : 1 - jsDay
@@ -674,7 +679,8 @@ export function HallClient({ initialActivities, initialNotices, userName, userId
   const eventsThisWeek = weekdayBars.reduce((s, d) => s + d.count, 0)
   const maxWeekday = Math.max(1, ...weekdayBars.map(d => d.count))
   const eventsToday = calEvents.filter(e => e.date === todayStr).length
-  const activitiesToday = activities.filter(a => (a.created_at ?? '').slice(0, 10) === todayStr).length
+  const todaySP = saoPauloDay(new Date())
+  const activitiesToday = activities.filter(a => a.created_at && saoPauloDay(new Date(a.created_at)) === todaySP).length
 
   // Proporção por tipo de atividade (funil → barras de proporção).
   const typeCounts = Object.entries(
