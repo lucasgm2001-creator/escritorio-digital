@@ -132,18 +132,19 @@ export function PresentationPlayer({ name, materials, onClose }: {
         </>
       )}
 
-      {/* Nome */}
-      <div className="absolute top-4 left-4 z-10">
-        <p className="text-white/60 text-xs font-medium bg-black/40 backdrop-blur-sm px-3 py-1.5 rounded-full max-w-[60vw] truncate">{name}</p>
-      </div>
-
-      {/* Botão de menu + Fechar (canto superior direito, acima do menu lateral) */}
-      <div className="absolute top-4 right-4 z-40 flex items-center gap-2">
+      {/* Botão de menu (canto superior ESQUERDO, cor do tema) + nome */}
+      <div className="absolute top-4 left-4 z-40 flex items-center gap-2 max-w-[70vw]">
         <button onClick={e => { blur(e); setMenuOpen(o => !o) }} title="Materiais" aria-label="Materiais"
-          className={cn('p-2.5 rounded-xl backdrop-blur-sm transition-colors',
-            menuOpen ? 'bg-lime text-lime-ink' : 'bg-white/10 hover:bg-white/20 text-white')}>
+          className="flex-none bg-lime hover:bg-lime-hover text-lime-ink p-2.5 rounded-xl shadow-card-hover transition-colors">
           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" /></svg>
         </button>
+        {!menuOpen && (
+          <p className="text-white/60 text-xs font-medium bg-black/40 backdrop-blur-sm px-3 py-1.5 rounded-full truncate">{name}</p>
+        )}
+      </div>
+
+      {/* Fechar (canto superior direito) */}
+      <div className="absolute top-4 right-4 z-40">
         <button onClick={close} title="Fechar (ESC)"
           className="bg-white/10 hover:bg-white/20 text-white p-2.5 rounded-xl backdrop-blur-sm transition-colors">
           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
@@ -159,7 +160,7 @@ export function PresentationPlayer({ name, materials, onClose }: {
       {menuOpen && (
         <>
           <div className="absolute inset-0 z-20" onClick={() => setMenuOpen(false)} />
-          <aside className="absolute top-0 right-0 z-30 h-full w-72 max-w-[80vw] bg-bento-panel/95 backdrop-blur-sm border-l border-white/10 overflow-y-auto p-3 pt-16">
+          <aside className="absolute top-0 left-0 z-30 h-full w-72 max-w-[80vw] bg-bento-panel/95 backdrop-blur-sm border-r border-white/10 overflow-y-auto p-3 pt-16">
             <p className="text-white/50 text-[11px] font-medium px-2 pb-2 truncate">{name}</p>
             <div className="space-y-1">
               {materials.map((m, i) => (

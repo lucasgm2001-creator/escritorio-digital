@@ -6,6 +6,16 @@ Categorias: 🐛 Fix · 🔄 Mudança · ✨ Novidade
 
 ---
 
+🔄 Mudança — botão de menu da apresentação à esquerda com cor do tema; apresentar exclusivo da apresentação montada.
+- O botão de menu (☰) do player foi pro canto superior ESQUERDO, mais visível, com a
+  cor do tema (verde-limão; hover mais escuro); a lista lateral agora abre pela esquerda.
+- "Apresentar" deixou de existir na Gaveta e por material individual — virou exclusivo do
+  card de uma apresentação montada (abre o player com o conjunto inteiro).
+- Na Gaveta, cada material tem só "Visualizar" (pré-visualização do arquivo, reusando o
+  MaterialFrame, sem o slideshow/tela cheia) e "Excluir".
+
+---
+
 🔄 Mudança — apresentação com modo único (sequência + menu lateral pra pular).
 - Removidos os 3 modos (Sequência/Livre/Foco), a troca por 1/2/3 e a telinha
   "Como apresentar?". Clicar em "Apresentar" abre direto a apresentação.
