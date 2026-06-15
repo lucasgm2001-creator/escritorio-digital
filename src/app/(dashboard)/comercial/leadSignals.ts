@@ -18,6 +18,25 @@ export function daysStopped(lead: Lead): number {
   return Math.max(0, Math.floor(diff / DAY_MS))
 }
 
+/** Dias na FASE atual (deal rotting do funil novo): desde stage_changed_at (fallback: criação). */
+export function daysInStage(lead: Lead): number {
+  const ref = lead.stage_changed_at || lead.created_at
+  if (!ref) return 0
+  const diff = Date.now() - new Date(ref).getTime()
+  if (Number.isNaN(diff)) return 0
+  return Math.max(0, Math.floor(diff / DAY_MS))
+}
+
+export type Heat = 'hot' | 'warm' | 'cold'
+
+/** Temperatura do funil por dias parado na fase: 0–1 quente, 2–4 atenção, 5+ esfriando. */
+export function heatLevel(lead: Lead): Heat {
+  const d = daysInStage(lead)
+  if (d <= 1) return 'hot'
+  if (d <= 4) return 'warm'
+  return 'cold'
+}
+
 /** Sinal do card. Etapas terminais (ganho/perda) nunca rotulam rotting/quente. */
 export function getLeadSignal(lead: Lead): LeadSignal {
   if (lead.status === 'fechado' || lead.status === 'perdido') return 'none'

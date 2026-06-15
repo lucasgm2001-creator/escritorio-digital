@@ -1,7 +1,7 @@
 'use client'
 
 import type { Lead } from '../types'
-import { MAIN_FLOW, SECONDARY_FLOW } from '../types'
+import { ALL_COLUMNS } from '../types'
 
 interface Props { leads: Lead[] }
 
@@ -12,7 +12,7 @@ function fmt(v: number): string {
   return 'R$ 0'
 }
 
-const ALL_STAGES = [...MAIN_FLOW, ...SECONDARY_FLOW]
+const ALL_STAGES = ALL_COLUMNS
 
 export function PipelineTab({ leads }: Props) {
   const totalPipeline = leads.reduce((sum, l) => sum + (l.value || 0), 0)

@@ -6,6 +6,24 @@ Categorias: 🐛 Fix · 🔄 Mudança · ✨ Novidade
 
 ---
 
+🔄 Mudança — funil horizontal em níveis com fases colapsáveis e deal rotting.
+- Funil do Comercial reconstruído: layout horizontal em 6 tiers (Novo Lead →
+  Interagiu/Não Interagiu → Reunião Agendada → No-Show/Reagendamento/Proposta em Análise
+  → Venda Fechada/Venda Perdida → Lixeira), com scroll esquerda→direita e conectores.
+- Cada fase é uma caixa de 240px que começa FECHADA (nome, nº de leads, total US$ e
+  heat dots) e abre ao clicar (tema verde; lista de leads com scroll). Mesmo tamanho aberta/fechada.
+- Lead card colapsável: dot de deal rotting + nome + empresa + dias parado; ao abrir mostra
+  responsável/nicho/temperatura/próxima ação, pills pra mover de fase e Ligar/Msg/Nota.
+- Deal rotting por dias na fase (stage_changed_at): 0–1 quente, 2–4 atenção, 5+ esfriando.
+  Venda Fechada/Perdida não têm rotting (dot fixo verde/vermelho).
+- Lixeira arquiva o lead (sai dos outros tiers; dá pra restaurar movendo de volta, ou
+  excluir de vez no painel do lead).
+- Barra de resumo no rodapé (pipeline US$, conversão, ativos, fechados, perdidos + legenda).
+- Mover lead: arrastar (drag) ou pills. Valores do funil passam a ser exibidos em US$.
+- Fases renomeadas são só rótulo (chaves no banco inalteradas). Requer a migration 020.
+
+---
+
 🐛 Fix — campo de cliente da reunião e da venda mostra leads além de clientes (corrige Livia não aparecendo).
 - Na aba Comissão, o campo de cliente (reunião e venda) sugeria só os clientes formais
   (tabela clients), então leads como a Livia não apareciam. Agora o datalist junta

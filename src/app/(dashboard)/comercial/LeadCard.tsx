@@ -13,9 +13,9 @@ interface Props {
 }
 
 function formatValue(val: number): string {
-  if (val >= 1_000_000) return `R$ ${(val / 1_000_000).toFixed(1)}M`
-  if (val >= 1_000)     return `R$ ${(val / 1_000).toFixed(0)}k`
-  if (val > 0)          return `R$ ${val.toLocaleString('pt-BR')}`
+  if (val >= 1_000_000) return `US$ ${(val / 1_000_000).toFixed(1)}M`
+  if (val >= 1_000)     return `US$ ${(val / 1_000).toFixed(0)}k`
+  if (val > 0)          return `US$ ${val.toLocaleString('pt-BR')}`
   return ''
 }
 

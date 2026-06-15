@@ -6,6 +6,7 @@ import {
   type DragStartEvent, type DragEndEvent,
 } from '@dnd-kit/core'
 import { createClient } from '@/lib/supabase/client'
+import { cn } from '@/lib/utils'
 import { DraggableTabs } from '@/components/DraggableTabs'
 import { KanbanColumn } from './KanbanColumn'
 import { PhaseAccordion } from './PhaseAccordion'
@@ -18,13 +19,55 @@ import { MetricasTab } from './tabs/MetricasTab'
 import { AgendaTab } from './tabs/AgendaTab'
 import { VendedoresTab } from './tabs/VendedoresTab'
 import { ApresentacaoTab } from './tabs/ApresentacaoTab'
-import { MAIN_FLOW, SECONDARY_FLOW, ALL_COLUMNS } from './types'
+import { TIERS, ALL_COLUMNS } from './types'
 import type { Lead, LeadStatus } from './types'
 export type { LeadStatus, Lead, ColumnConfig } from './types'
 
 type Tab = 'funil' | 'pipeline' | 'metricas' | 'agenda' | 'vendedores' | 'apresentacao'
 
 interface CurrentUser { id: string; name: string }
+
+// ── Barra de resumo do funil (rodapé) ──────────────────────────────────────────
+function fmtUSDc(val: number): string {
+  if (val >= 1_000_000) return `US$ ${(val / 1_000_000).toFixed(1)}M`
+  if (val >= 1_000)     return `US$ ${(val / 1_000).toFixed(0)}k`
+  if (val > 0)          return `US$ ${val.toLocaleString('pt-BR')}`
+  return 'US$ 0'
+}
+const isTerminal = (s: LeadStatus) => s === 'fechado' || s === 'perdido' || s === 'lixeira'
+
+function FunnelSummary({ leads }: { leads: Lead[] }) {
+  const ativos = leads.filter(l => !isTerminal(l.status))
+  const fechados = leads.filter(l => l.status === 'fechado').length
+  const perdidos = leads.filter(l => l.status === 'perdido').length
+  const pipeline = ativos.reduce((s, l) => s + (l.value || 0), 0)
+  const conv = (fechados + perdidos) > 0 ? Math.round((fechados / (fechados + perdidos)) * 100) : 0
+  return (
+    <div className="flex-none border-t border-bento-border bg-bento-panel px-4 sm:px-6 py-2.5 flex items-center gap-x-6 gap-y-1 flex-wrap">
+      <SummaryStat label="Pipeline" value={fmtUSDc(pipeline)} />
+      <SummaryStat label="Conversão" value={`${conv}%`} />
+      <SummaryStat label="Ativos" value={String(ativos.length)} />
+      <SummaryStat label="Fechados" value={String(fechados)} accent="text-green-500" />
+      <SummaryStat label="Perdidos" value={String(perdidos)} accent="text-red-400" />
+      <div className="ml-auto flex items-center gap-3 font-tech text-[10px] text-bento-muted">
+        <SummaryLegend cls="bg-lime" t="Quente" />
+        <SummaryLegend cls="bg-amber-500" t="Atenção" />
+        <SummaryLegend cls="bg-red-500" t="Esfriando" />
+      </div>
+    </div>
+  )
+}
+function SummaryStat({ label, value, accent }: { label: string; value: string; accent?: string }) {
+  return (
+    <div className="flex items-baseline gap-1.5">
+      <span className="font-tech text-[10px] uppercase tracking-wide text-bento-muted">{label}</span>
+      <span className={cn('font-display text-sm font-bold tabular-nums', accent ?? 'text-bento-text')}>{value}</span>
+    </div>
+  )
+}
+function SummaryLegend({ cls, t }: { cls: string; t: string }) {
+  return <span className="flex items-center gap-1"><span className={cn('w-2 h-2 rounded-full', cls)} />{t}</span>
+}
 
 export function KanbanBoard({ initialLeads, currentUser }: { initialLeads: Lead[], currentUser: CurrentUser }) {
   const [leads, setLeads] = useState<Lead[]>(initialLeads)
@@ -101,12 +144,15 @@ export function KanbanBoard({ initialLeads, currentUser }: { initialLeads: Lead[
   const moveLeadToStatus = useCallback(async (lead: Lead, newStatus: LeadStatus): Promise<boolean> => {
     if (lead.status === newStatus) return true
     const prevStatus = lead.status
-    setLeads(prev => prev.map(l => l.id === lead.id ? { ...l, status: newStatus } : l))   // otimista
+    const prevStage = lead.stage_changed_at
+    const nowIso = new Date().toISOString()
+    // Marca a entrada na nova fase (deal rotting) ao mover.
+    setLeads(prev => prev.map(l => l.id === lead.id ? { ...l, status: newStatus, stage_changed_at: nowIso } : l))   // otimista
 
     const { error } = await supabase
-      .from('leads').update({ status: newStatus, updated_at: new Date().toISOString() }).eq('id', lead.id)
+      .from('leads').update({ status: newStatus, stage_changed_at: nowIso, updated_at: nowIso }).eq('id', lead.id)
     if (error) {
-      setLeads(prev => prev.map(l => l.id === lead.id ? { ...l, status: prevStatus } : l))   // rollback
+      setLeads(prev => prev.map(l => l.id === lead.id ? { ...l, status: prevStatus, stage_changed_at: prevStage } : l))   // rollback
       showToast(`Não foi possível mover o lead: ${error.message}`, 'error')
       return false
     }
@@ -119,8 +165,11 @@ export function KanbanBoard({ initialLeads, currentUser }: { initialLeads: Lead[
     const { active, over } = e
     if (!over) return
     const leadId = active.id as string
-    const newStatus = over.id as LeadStatus
-    if (!ALL_COLUMNS.find(c => c.key === newStatus)) return
+    const overId = over.id as string
+    // "over" pode ser a coluna (droppable) ou outro card (soltou sobre um card).
+    const newStatus = ALL_COLUMNS.find(c => c.key === overId)?.key
+      ?? leads.find(l => l.id === overId)?.status
+    if (!newStatus) return
     const lead = leads.find(l => l.id === leadId)
     if (!lead) return
     await moveLeadToStatus(lead, newStatus)
@@ -160,59 +209,35 @@ export function KanbanBoard({ initialLeads, currentUser }: { initialLeads: Lead[
 
       {/* Content */}
       <div className="flex-1 overflow-hidden">
-        {/* Funil — DESKTOP: colunas com drag */}
+        {/* Funil — DESKTOP: tiers horizontais (esq→dir) com caixas colapsáveis */}
         {tab === 'funil' && isDesktop && (
           <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
-            <div className="h-full overflow-auto p-3 sm:p-5 bg-bento-bg overscroll-x-contain snap-x snap-mandatory lg:snap-none">
-              {/* Mobile: scroll horizontal com snap (flex). Desktop (lg+): funil em grade
-                  posicional de 5 colunas com conectores. */}
-              <div className="flex lg:grid lg:grid-cols-5 gap-3 relative lg:min-w-[860px]">
-                {/* Row 1: Main flow */}
-                {MAIN_FLOW.map((col, idx) => (
-                  <div key={col.key} className="relative snap-start shrink-0 w-[82vw] max-w-[300px] lg:w-auto lg:max-w-none lg:shrink">
-                    {/* Horizontal right-arrow connector (só no funil de desktop) */}
-                    {idx < MAIN_FLOW.length - 1 && (
-                      <div className="absolute top-[22px] -right-2 z-20 hidden lg:flex items-center gap-0">
-                        <div className="w-1.5 h-px bg-bento-border" />
-                        <svg className="w-2.5 h-2.5 text-bento-muted" fill="currentColor" viewBox="0 0 20 20">
+            <div className="h-full flex flex-col bg-bento-bg">
+              <div className="flex-1 overflow-x-auto overflow-y-hidden p-4 sm:p-5">
+                <div className="flex items-stretch gap-3 min-w-max h-full">
+                  {TIERS.map((tier, ti) => (
+                    <div key={ti} className="flex items-center gap-3 h-full">
+                      <div className="flex flex-col gap-3 self-start">
+                        {tier.map(col => (
+                          <KanbanColumn
+                            key={col.key}
+                            column={col}
+                            leads={filteredLeads.filter(l => l.status === col.key)}
+                            onMove={moveLeadToStatus}
+                            onOpenDiary={setSelectedLead}
+                          />
+                        ))}
+                      </div>
+                      {ti < TIERS.length - 1 && (
+                        <svg className="w-5 h-5 text-bento-border flex-none self-center" fill="currentColor" viewBox="0 0 20 20">
                           <path fillRule="evenodd" d="M10.293 3.293a1 1 0 011.414 0l6 6a1 1 0 010 1.414l-6 6a1 1 0 01-1.414-1.414L14.586 11H3a1 1 0 110-2h11.586l-4.293-4.293a1 1 0 010-1.414z" clipRule="evenodd" />
                         </svg>
-                      </div>
-                    )}
-                    {/* Vertical down-arrow connector for Interagiu and Proposta */}
-                    {(idx === 1 || idx === 3) && (
-                      <div className="absolute -bottom-3.5 left-1/2 -translate-x-1/2 z-20 hidden lg:flex flex-col items-center">
-                        <div className="w-px h-2 bg-bento-border" />
-                        <svg className="w-2.5 h-2.5 text-bento-muted -mt-0.5" fill="currentColor" viewBox="0 0 20 20">
-                          <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
-                        </svg>
-                      </div>
-                    )}
-                    <KanbanColumn
-                      column={col}
-                      leads={filteredLeads.filter(l => l.status === col.key)}
-                      onLeadClick={setSelectedLead}
-                    />
-                  </div>
-                ))}
-
-                {/* Row 2: Secondary columns */}
-                {SECONDARY_FLOW.map(col => (
-                  <div
-                    key={col.key}
-                    className="relative snap-start shrink-0 w-[82vw] max-w-[300px] mt-0 lg:mt-4 lg:w-auto lg:max-w-none lg:shrink"
-                    style={{ gridColumnStart: col.parentIndex + 1 }}
-                  >
-                    {/* Vertical connector line up (só no funil de desktop) */}
-                    <div className="absolute -top-3.5 left-1/2 -translate-x-1/2 w-px h-3.5 bg-bento-border hidden lg:block" />
-                    <KanbanColumn
-                      column={col}
-                      leads={filteredLeads.filter(l => l.status === col.key)}
-                      onLeadClick={setSelectedLead}
-                    />
-                  </div>
-                ))}
+                      )}
+                    </div>
+                  ))}
+                </div>
               </div>
+              <FunnelSummary leads={filteredLeads} />
             </div>
             <DragOverlay>
               {activeLead ? <LeadCard lead={activeLead} isDragging /> : null}

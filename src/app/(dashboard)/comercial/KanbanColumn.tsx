@@ -1,79 +1,109 @@
 'use client'
 
+import { useState } from 'react'
 import { useDroppable } from '@dnd-kit/core'
 import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable'
+import { ChevronRight, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { LeadCard } from './LeadCard'
-import type { Lead, ColumnConfig, ColumnTone } from './types'
+import { FunnelLeadCard } from './FunnelLeadCard'
+import { heatLevel } from './leadSignals'
+import type { Lead, ColumnConfig, ColumnTone, LeadStatus } from './types'
 
-interface Props {
+function fmtUSD(val: number): string {
+  if (val >= 1_000_000) return `US$ ${(val / 1_000_000).toFixed(1)}M`
+  if (val >= 1_000)     return `US$ ${(val / 1_000).toFixed(0)}k`
+  if (val > 0)          return `US$ ${val.toLocaleString('pt-BR')}`
+  return 'US$ 0'
+}
+
+// Acento do tema quando a fase está ABERTA. Exceções: ganho=verde, perda=vermelho.
+const ACCENT: Record<ColumnTone, { bl: string; ring: string; glow: string; grad: string; name: string }> = {
+  neutral: { bl: 'border-l-lime',      ring: 'border-lime/25',      glow: 'shadow-[0_0_18px_rgba(194,247,58,0.10)]', grad: 'from-lime/[0.04]',      name: 'text-lime-fg' },
+  win:     { bl: 'border-l-green-500', ring: 'border-green-500/30', glow: 'shadow-[0_0_18px_rgba(34,197,94,0.12)]',  grad: 'from-green-500/[0.05]', name: 'text-green-500' },
+  loss:    { bl: 'border-l-red-500',   ring: 'border-red-500/30',   glow: 'shadow-[0_0_18px_rgba(239,68,68,0.12)]',  grad: 'from-red-500/[0.05]',   name: 'text-red-400' },
+}
+
+export function KanbanColumn({ column, leads, onMove, onOpenDiary }: {
   column: ColumnConfig
   leads: Lead[]
-  onLeadClick: (lead: Lead) => void
-}
-
-function formatValue(val: number): string {
-  if (val >= 1_000_000) return `R$ ${(val / 1_000_000).toFixed(1)}M`
-  if (val >= 1_000)     return `R$ ${(val / 1_000).toFixed(0)}k`
-  if (val > 0)          return `R$ ${val.toLocaleString('pt-BR')}`
-  return 'R$ 0'
-}
-
-// Estilo do header por tom. Meio do funil = neutro; só ganho/perda têm cor suave.
-const TONE: Record<ColumnTone, { headBg: string; dot: string; name: string }> = {
-  neutral: { headBg: '',                                                  dot: 'bg-bento-muted',                                              name: 'text-bento-dim' },
-  win:     { headBg: 'bg-gradient-to-b from-lime/[0.08] to-transparent',  dot: 'bg-lime shadow-[0_0_6px_rgba(182,255,59,0.5)]',               name: 'text-lime-fg' },
-  loss:    { headBg: 'bg-gradient-to-b from-red-500/[0.07] to-transparent', dot: 'bg-red-400',                                                name: 'text-red-400' },
-}
-
-export function KanbanColumn({ column, leads, onLeadClick }: Props) {
+  onMove: (lead: Lead, status: LeadStatus) => void
+  onOpenDiary: (lead: Lead) => void
+}) {
   const { isOver, setNodeRef } = useDroppable({ id: column.key })
-  const totalValue = leads.reduce((sum, l) => sum + (l.value || 0), 0)
-  const tone = TONE[column.tone]
+  const [collapsed, setCollapsed] = useState(true)
+  const total = leads.reduce((s, l) => s + (l.value || 0), 0)
+  const terminal = column.tone !== 'neutral' || column.key === 'lixeira'
+  const accent = ACCENT[column.tone]
+
+  // Heat dots — só nas fases de trabalho (terminais não têm deal rotting).
+  const heat = { hot: 0, warm: 0, cold: 0 }
+  if (!terminal) for (const l of leads) heat[heatLevel(l)]++
 
   return (
-    <div className="flex flex-col min-w-0">
-      {/* Column header — neutro; contagem + soma à direita (mono) */}
-      <div className={cn(
-        'flex items-center gap-2 px-3 py-2.5 rounded-t-xl border border-b-0 border-bento-border bg-bento-panel',
-        tone.headBg,
-      )}>
-        <span className={cn('w-[7px] h-[7px] rounded-full flex-none', tone.dot)} />
-        <span className={cn('text-xs font-semibold truncate flex-1', tone.name)}>
-          {column.label}
-        </span>
-        <span className="text-right leading-tight flex-none">
-          <span className="block font-tech text-[11px] text-bento-muted tabular-nums">{leads.length}</span>
-          <span className="block font-tech text-[10px] font-semibold text-bento-dim tabular-nums">{formatValue(totalValue)}</span>
-        </span>
-      </div>
-
-      {/* Drop zone */}
-      <div
-        ref={setNodeRef}
-        className={cn(
-          'flex-1 rounded-b-xl p-2 space-y-2 overflow-y-auto transition-all border border-t-0 min-h-[180px]',
-          isOver
-            ? 'border-dashed border-lime/50 bg-lime/5'
-            : 'bg-bento-panel border-bento-border/60',
-        )}
-        style={{ maxHeight: 'calc(55vh - 130px)' }}
-      >
-        <SortableContext items={leads.map(l => l.id)} strategy={verticalListSortingStrategy}>
-          {leads.length === 0 ? (
-            <div className={cn(
-              'flex items-center justify-center h-16 text-xs rounded-lg border border-dashed font-tech',
-              isOver ? 'text-lime-fg border-lime/50' : 'text-bento-muted/50 border-bento-border/50',
-            )}>
-              {isOver ? 'Soltar aqui' : 'vazio'}
+    <div
+      ref={setNodeRef}
+      className={cn(
+        'w-60 flex-none rounded-[10px] border bg-bento-panel overflow-hidden transition-colors',
+        collapsed
+          ? 'border-bento-border'
+          : cn('border-l-[3px] bg-gradient-to-br to-transparent', accent.bl, accent.ring, accent.glow, accent.grad),
+        isOver && 'border-dashed border-lime/60 bg-lime/5',
+      )}
+    >
+      {collapsed ? (
+        <button onClick={() => setCollapsed(false)} className="w-full text-left p-3">
+          <div className="flex items-center gap-2">
+            <span className={cn('w-[7px] h-[7px] rounded-full flex-none', column.dotColor)} />
+            <span className={cn('text-xs font-semibold flex-1 truncate', column.textColor)}>{column.label}</span>
+            <ChevronRight className="w-4 h-4 text-bento-muted flex-none" />
+          </div>
+          <div className="mt-2 flex items-end justify-between">
+            <span className="font-display text-3xl font-bold text-bento-text tabular-nums leading-none">{leads.length}</span>
+            <span className="font-tech text-[11px] font-semibold text-bento-dim tabular-nums">{fmtUSD(total)}</span>
+          </div>
+          {!terminal && leads.length > 0 && (
+            <div className="mt-2.5 flex items-center gap-2.5">
+              {heat.hot > 0 && <HeatDot cls="bg-lime" n={heat.hot} />}
+              {heat.warm > 0 && <HeatDot cls="bg-amber-500" n={heat.warm} />}
+              {heat.cold > 0 && <HeatDot cls="bg-red-500" n={heat.cold} />}
             </div>
-          ) : (
-            leads.map(lead => (
-              <LeadCard key={lead.id} lead={lead} onClick={() => onLeadClick(lead)} />
-            ))
           )}
-        </SortableContext>
-      </div>
+        </button>
+      ) : (
+        <>
+          <div className="flex items-center gap-2 px-3 py-2.5 border-b border-bento-border/60">
+            <span className={cn('w-[7px] h-[7px] rounded-full flex-none', column.dotColor)} />
+            <span className={cn('text-xs font-semibold flex-1 truncate', accent.name)}>{column.label}</span>
+            <span className="font-tech text-[11px] text-bento-muted tabular-nums">{leads.length}</span>
+            <button onClick={() => setCollapsed(true)} aria-label="Fechar" className="text-bento-muted hover:text-bento-text">
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </div>
+          <div className="p-2 space-y-2 overflow-y-auto" style={{ maxHeight: 'calc(100vh - 320px)' }}>
+            <SortableContext items={leads.map(l => l.id)} strategy={verticalListSortingStrategy}>
+              {leads.length === 0 ? (
+                <div className={cn('flex items-center justify-center h-14 text-xs rounded-lg border border-dashed font-tech',
+                  isOver ? 'text-lime-fg border-lime/50' : 'text-bento-muted/50 border-bento-border/50')}>
+                  {isOver ? 'Soltar aqui' : 'vazio'}
+                </div>
+              ) : (
+                leads.map(l => (
+                  <FunnelLeadCard key={l.id} lead={l} onMove={(s) => onMove(l, s)} onOpenDiary={() => onOpenDiary(l)} />
+                ))
+              )}
+            </SortableContext>
+          </div>
+        </>
+      )}
     </div>
+  )
+}
+
+function HeatDot({ cls, n }: { cls: string; n: number }) {
+  return (
+    <span className="flex items-center gap-1">
+      <span className={cn('w-2 h-2 rounded-full', cls)} />
+      <span className="font-tech text-[10px] text-bento-dim tabular-nums">{n}</span>
+    </span>
   )
 }
