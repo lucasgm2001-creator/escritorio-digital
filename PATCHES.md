@@ -6,6 +6,21 @@ Categorias: 🐛 Fix · 🔄 Mudança · ✨ Novidade
 
 ---
 
+✨ Novidade — 3 modos de apresentação: Sequência, Livre e Foco (Bloco 3 do Studio).
+- Cada apresentação salva ganha botão "Apresentar" → telinha "Como apresentar?" com 3 modos:
+  Sequência (padrão, passa material por material), Livre (índice lateral sempre visível,
+  pula pra qualquer um) e Foco (um por vez, sem distração; controles somem sozinhos).
+- Tela cheia de verdade (Fullscreen API, com fallback e suporte Safari). Sai com ESC.
+- Navegação por teclado (←/→/espaço, Home/End) e por setas clicáveis sempre na tela;
+  troca de modo na hora com 1/2/3.
+- Imagem: encaixada em fundo preto. PDF: visualizador nativo com a barra escondida
+  (#toolbar=0). PDF multipágina = role dentro dele; ◀▶ troca de material.
+- Card salvo agora tem ações separadas: Apresentar / Editar / Excluir.
+- Novo componente PresentationPlayer.tsx; o MaterialFrame é reusado na Gaveta também.
+- Só frontend — sem SQL e sem bucket (usa os arquivos dos Blocos 1 e 2).
+
+---
+
 ✨ Novidade — Montador de apresentações (Bloco 2 do Studio).
 - Na aba Apresentação (Comercial), novo seletor "Gaveta | Apresentações".
 - Em "Apresentações": botão "Nova apresentação" abre o Montador — dá nome, escolhe o lead
