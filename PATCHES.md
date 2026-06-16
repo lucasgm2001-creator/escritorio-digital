@@ -6,6 +6,20 @@ Categorias: 🐛 Fix · 🔄 Mudança · ✨ Novidade
 
 ---
 
+✨ Novidade — relatório de atividades comerciais com histórico filtrável e exportação PDF.
+- Na aba Tarefas, novo seletor "Tarefas | Relatório". O Relatório mostra 3 números do
+  período em destaque: Leads recebidos, Leads engajados (responderam) e Reuniões agendadas,
+  + a lista detalhada das atividades.
+- Filtros de período: Dia / Semana / Mês / Semestre / Ano + intervalo personalizado. A
+  semana é SEGUNDA a DOMINGO; padrão = semana atual.
+- Botão "Gerar Relatório da Semana" calcula a semana ANTERIOR completa (segunda→domingo) —
+  pronto pro chefe na segunda.
+- Botão "PDF" exporta o período (cabeçalho DR Growth + os 3 números + lista) via jsPDF.
+- Sem banco: leads recebidos = leads.created_at; engajados = leads distintos com interação
+  "Atendeu"/"Mensagem" (lead_interactions); reuniões = meetings criadas — tudo por período.
+
+---
+
 🐛 Fix — header da fase do funil alterna abrir/fechar (não só o X).
 - Clicar no cabeçalho de uma fase aberta agora FECHA a fase (o cabeçalho inteiro virou o
   toggle); o X segue como atalho visual. Fase fechada continua abrindo ao clicar em

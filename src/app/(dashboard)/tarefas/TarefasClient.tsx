@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { cn } from '@/lib/utils'
 import { TaskModal, type TaskPrefill } from './TaskModal'
+import { RelatorioComercial } from './RelatorioComercial'
 import type { Task, LinkOption, ParsedTask } from './types'
 import { useToast } from '@/components/ui/toast'
 
@@ -98,6 +99,7 @@ function sortPending(a: Task, b: Task): number {
 
 export function TarefasClient({ initialTasks, linkOptions, currentUser }: Props) {
   const [tasks, setTasks] = useState<Task[]>(initialTasks)
+  const [view, setView] = useState<'tarefas' | 'relatorio'>('tarefas')
   const { toast } = useToast()
   const [modalOpen, setModalOpen] = useState(false)
   const [editing, setEditing] = useState<Task | null>(null)
@@ -355,29 +357,45 @@ export function TarefasClient({ initialTasks, linkOptions, currentUser }: Props)
     <div className="h-full overflow-auto bg-bento-bg font-body">
       {/* Header */}
       <div className="flex items-center justify-between gap-2 flex-wrap px-4 sm:px-6 pt-5 pb-3 sticky top-0 bg-bento-bg/95 backdrop-blur z-10 border-b border-bento-border">
-        <div className="flex items-center gap-3">
-          <h1 className="font-display font-bold text-bento-text text-lg tracking-tight">Tarefas</h1>
-          <span className="font-tech text-xs text-bento-muted tabular-nums">{pendingCount} pendentes</span>
+        <div className="flex items-center gap-3 flex-wrap">
+          <div className="flex bg-bento-bg border border-bento-border rounded-btn p-1 gap-1">
+            {(['tarefas', 'relatorio'] as const).map(v => (
+              <button key={v} onClick={() => setView(v)}
+                className={cn('px-3 py-1.5 rounded-[8px] text-sm font-medium transition-colors',
+                  view === v ? 'bg-lime text-lime-ink' : 'text-bento-muted hover:text-bento-text')}>
+                {v === 'tarefas' ? 'Tarefas' : 'Relatório'}
+              </button>
+            ))}
+          </div>
+          {view === 'tarefas' && <span className="font-tech text-xs text-bento-muted tabular-nums">{pendingCount} pendentes</span>}
         </div>
-        <div className="flex items-center gap-2 w-full sm:w-auto">
-          <button onClick={handleSummary} disabled={summaryLoading}
-            className="flex items-center justify-center gap-2 px-3 py-2 min-h-[44px] rounded-btn text-sm font-medium border border-bento-border text-bento-dim hover:border-lime hover:text-bento-text transition-colors disabled:opacity-50 flex-1 sm:flex-none">
-            <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M13 10V3L4 14h7v7l9-11h-7z" />
-            </svg>
-            {summaryLoading ? 'Resumindo...' : 'Resumo do dia'}
-          </button>
-          <button onClick={openNew}
-            className="bento-btn flex items-center justify-center gap-2 px-4 py-2 min-h-[44px] rounded-btn text-sm font-semibold flex-1 sm:flex-none">
-            <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-            </svg>
-            Nova tarefa
-          </button>
-        </div>
+        {view === 'tarefas' && (
+          <div className="flex items-center gap-2 w-full sm:w-auto">
+            <button onClick={handleSummary} disabled={summaryLoading}
+              className="flex items-center justify-center gap-2 px-3 py-2 min-h-[44px] rounded-btn text-sm font-medium border border-bento-border text-bento-dim hover:border-lime hover:text-bento-text transition-colors disabled:opacity-50 flex-1 sm:flex-none">
+              <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M13 10V3L4 14h7v7l9-11h-7z" />
+              </svg>
+              {summaryLoading ? 'Resumindo...' : 'Resumo do dia'}
+            </button>
+            <button onClick={openNew}
+              className="bento-btn flex items-center justify-center gap-2 px-4 py-2 min-h-[44px] rounded-btn text-sm font-semibold flex-1 sm:flex-none">
+              <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+              </svg>
+              Nova tarefa
+            </button>
+          </div>
+        )}
       </div>
 
-      <div className="max-w-3xl mx-auto px-4 sm:px-6 py-5 space-y-6">
+      {view === 'relatorio' && (
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 py-5">
+          <RelatorioComercial />
+        </div>
+      )}
+
+      <div className={cn('max-w-3xl mx-auto px-4 sm:px-6 py-5 space-y-6', view !== 'tarefas' && 'hidden')}>
         {/* Erro de ação (concluir/excluir) */}
         {actionError && (
           <div className="flex items-start gap-2 rounded-bento border border-red-800/40 bg-red-900/20 px-3 py-2.5 text-sm text-red-400">
