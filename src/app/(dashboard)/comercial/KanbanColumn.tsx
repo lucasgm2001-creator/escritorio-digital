@@ -87,14 +87,14 @@ export function KanbanColumn({ column, leads, onMove, onOpenDiary }: {
         </button>
       ) : (
         <>
-          <div className="flex items-center gap-2 px-3 py-2.5 border-b border-bento-border/60">
+          {/* Header inteiro é o toggle (fecha a fase). O corpo abaixo fica independente. */}
+          <button type="button" onClick={() => setCollapsed(c => !c)} aria-label="Fechar fase"
+            className="w-full flex items-center gap-2 px-3 py-2.5 border-b border-bento-border/60 text-left hover:bg-bento-bg/40 transition-colors">
             <span className="w-[7px] h-[7px] rounded-full flex-none bg-bento-muted" />
             <span className={cn('text-xs font-semibold flex-1 truncate', NAME_COLOR[column.tone])}>{column.label}</span>
             <span className="font-tech text-[11px] text-bento-muted tabular-nums">{leads.length}</span>
-            <button onClick={() => setCollapsed(true)} aria-label="Fechar" className="text-bento-muted hover:text-bento-text">
-              <X className="w-3.5 h-3.5" />
-            </button>
-          </div>
+            <X className="w-3.5 h-3.5 flex-none text-bento-muted" />
+          </button>
           <div className="p-2 space-y-2 overflow-y-auto max-h-[340px]">
             <SortableContext items={leads.map(l => l.id)} strategy={verticalListSortingStrategy}>
               {leads.length === 0 ? (

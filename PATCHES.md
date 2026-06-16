@@ -6,6 +6,14 @@ Categorias: 🐛 Fix · 🔄 Mudança · ✨ Novidade
 
 ---
 
+🐛 Fix — header da fase do funil alterna abrir/fechar (não só o X).
+- Clicar no cabeçalho de uma fase aberta agora FECHA a fase (o cabeçalho inteiro virou o
+  toggle); o X segue como atalho visual. Fase fechada continua abrindo ao clicar em
+  qualquer lugar dela.
+- O corpo com os lead cards é independente: cliques nos leads/botões não fecham a fase.
+
+---
+
 🐛 Fix — funil neutro: cor só em Venda Fechada/Perdida e no status dos leads.
 - Tirado o "carnaval" de cores das fases do funil (nomes ciano/laranja/roxo e dots
   coloridos por fase). Agora o nome da fase é neutro e o dot é cinza em todas as fases.
