@@ -33,6 +33,14 @@ const ACCENT: Record<ColumnTone, { box: string; name: string }> = {
   },
 }
 
+// Nome da fase: neutro por padrão. Cor SÓ em resultado terminal (ganho/perda) — é
+// significado, não decoração. Dots ficam neutros pra todas as fases.
+const NAME_COLOR: Record<ColumnTone, string> = {
+  neutral: 'text-bento-text',
+  win:     'text-[#22C55E]',
+  loss:    'text-[#EF4444]',
+}
+
 export function KanbanColumn({ column, leads, onMove, onOpenDiary }: {
   column: ColumnConfig
   leads: Lead[]
@@ -61,8 +69,8 @@ export function KanbanColumn({ column, leads, onMove, onOpenDiary }: {
       {collapsed ? (
         <button onClick={() => setCollapsed(false)} className="w-full text-left p-3">
           <div className="flex items-center gap-2">
-            <span className={cn('w-[7px] h-[7px] rounded-full flex-none', column.dotColor)} />
-            <span className={cn('text-xs font-semibold flex-1 truncate', column.textColor)}>{column.label}</span>
+            <span className="w-[7px] h-[7px] rounded-full flex-none bg-bento-muted" />
+            <span className={cn('text-xs font-semibold flex-1 truncate', NAME_COLOR[column.tone])}>{column.label}</span>
             <ChevronRight className="w-4 h-4 text-bento-muted flex-none" />
           </div>
           <div className="mt-2 flex items-end justify-between">
@@ -80,8 +88,8 @@ export function KanbanColumn({ column, leads, onMove, onOpenDiary }: {
       ) : (
         <>
           <div className="flex items-center gap-2 px-3 py-2.5 border-b border-bento-border/60">
-            <span className={cn('w-[7px] h-[7px] rounded-full flex-none', column.dotColor)} />
-            <span className={cn('text-xs font-semibold flex-1 truncate', accent.name)}>{column.label}</span>
+            <span className="w-[7px] h-[7px] rounded-full flex-none bg-bento-muted" />
+            <span className={cn('text-xs font-semibold flex-1 truncate', NAME_COLOR[column.tone])}>{column.label}</span>
             <span className="font-tech text-[11px] text-bento-muted tabular-nums">{leads.length}</span>
             <button onClick={() => setCollapsed(true)} aria-label="Fechar" className="text-bento-muted hover:text-bento-text">
               <X className="w-3.5 h-3.5" />

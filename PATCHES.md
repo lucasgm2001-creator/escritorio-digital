@@ -6,6 +6,16 @@ Categorias: 🐛 Fix · 🔄 Mudança · ✨ Novidade
 
 ---
 
+🐛 Fix — funil neutro: cor só em Venda Fechada/Perdida e no status dos leads.
+- Tirado o "carnaval" de cores das fases do funil (nomes ciano/laranja/roxo e dots
+  coloridos por fase). Agora o nome da fase é neutro e o dot é cinza em todas as fases.
+- Exceção (cor = significado): "Venda Fechada" verde (#22C55E) e "Venda Perdida" vermelho
+  (#EF4444) — estados terminais de resultado.
+- Mantidos: deal rotting nos lead cards (dot + badge "XD"), o tema verde da fase ABERTA
+  (borda + gradiente), os heat dots do resumo e a legenda do rodapé.
+
+---
+
 🔄 Mudança — Studio de Apresentação vira andar próprio no menu lateral (saiu do Comercial).
 - Nova rota /studio renderiza o Studio (sub-abas Materiais/Montar/Apresentar) — antes era
   uma aba dentro do Comercial. Item adicionado ao menu lateral (ícone Presentation), entre
