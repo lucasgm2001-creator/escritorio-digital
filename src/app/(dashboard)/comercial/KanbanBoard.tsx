@@ -16,12 +16,11 @@ import { LeadDiary } from './LeadDiary'
 import { CommissionModal } from './CommissionModal'
 import { MetricasTab } from './tabs/MetricasTab'
 import { VendedoresTab } from './tabs/VendedoresTab'
-import { ApresentacaoTab } from './tabs/ApresentacaoTab'
 import { TIERS, ALL_COLUMNS } from './types'
 import type { Lead, LeadStatus } from './types'
 export type { LeadStatus, Lead, ColumnConfig } from './types'
 
-type Tab = 'funil' | 'metricas' | 'vendedores' | 'apresentacao'
+type Tab = 'funil' | 'metricas' | 'vendedores'
 
 interface CurrentUser { id: string; name: string }
 
@@ -107,7 +106,6 @@ export function KanbanBoard({ initialLeads, currentUser }: { initialLeads: Lead[
   const TABS: { key: Tab; label: string }[] = [
     { key: 'funil',        label: 'Funil' },
     { key: 'metricas',     label: 'Métricas' },
-    { key: 'apresentacao', label: 'Studio de Apresentação' },
     { key: 'vendedores',   label: 'Equipe e Comissões' },
   ]
 
@@ -260,7 +258,6 @@ export function KanbanBoard({ initialLeads, currentUser }: { initialLeads: Lead[
         )}
 
         {tab === 'metricas'     && <MetricasTab leads={filteredLeads} />}
-        {tab === 'apresentacao' && <ApresentacaoTab />}
         {tab === 'vendedores'   && <VendedoresTab />}
       </div>
 

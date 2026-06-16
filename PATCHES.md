@@ -6,6 +6,16 @@ Categorias: 🐛 Fix · 🔄 Mudança · ✨ Novidade
 
 ---
 
+🔄 Mudança — Studio de Apresentação vira andar próprio no menu lateral (saiu do Comercial).
+- Nova rota /studio renderiza o Studio (sub-abas Materiais/Montar/Apresentar) — antes era
+  uma aba dentro do Comercial. Item adicionado ao menu lateral (ícone Presentation), entre
+  Comercial e Clientes; título no topbar "Studio de Apresentação".
+- Comercial fica com 3 abas: Funil · Métricas · Equipe e Comissões.
+- O componente ApresentacaoTab e toda a lógica (upload, montador, modo apresentar) não
+  mudaram — só mudaram de lugar (é autossuficiente, carrega os próprios dados).
+
+---
+
 🐛 Fix — card do vendedor usa o mesmo cálculo de comissão do perfil (era US$ 0).
 - O card de cada vendedor (Equipe e Comissões) mostrava "Vendas US$ 0" e "Comissão do mês
   US$ 0" porque lia fonte legada (campo total_sales e a tabela antiga commissions). Agora

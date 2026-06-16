@@ -8,6 +8,7 @@ import { getSystemLogoUrl } from '@/lib/logo'
 const PAGE_TITLES: Record<string, string> = {
   '/hall':           'Hall',
   '/comercial':      'Comercial',
+  '/studio':         'Studio de Apresentação',
   '/tarefas':        'Tarefas',
   '/clientes':       'Clientes',
   '/configuracoes':  'Configurações',
