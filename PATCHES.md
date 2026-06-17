@@ -6,6 +6,18 @@ Categorias: 🐛 Fix · 🔄 Mudança · ✨ Novidade
 
 ---
 
+✨ Novidade — Venda Fechada cria deal de comissão automaticamente (idempotente).
+- Mover um lead pra "Venda Fechada" agora LANÇA o deal no módulo de comissão sozinho:
+  deal (seller ativo, client_id, client_name, lead_id, US$ 100 / 4 semanas / US$ 25,
+  em_andamento, data_fechamento = hoje) + a 1ª semana já paga em weekly_payments
+  (semana 1, US$ 25, paid_on = hoje, cotação vigente do fx_config). Semanas 2-4 seguem manuais.
+- Idempotente: não duplica deal nem cliente se o lead sair e voltar pra Venda Fechada
+  (dedup por lead_id, fallback client_name+seller). Cliente é reusado se já existir (por nome).
+- Mover pra fora NÃO apaga o deal. O modal de comissão não abre mais automático (o deal já
+  vem com os padrões; edição fica em Equipe e Comissões). Requer a migration 021 (deals.lead_id).
+
+---
+
 🐛 Fix — persistir interações de lead em lead_interactions (relatório de engajados estava zerado).
 - O card do funil não gravava nada (Ligar/WhatsApp eram só links). Adicionei "Registrar
   contato" no card (Atendeu / Mensagem / Não atend.) que INSERE em lead_interactions
