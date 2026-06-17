@@ -9,6 +9,7 @@ import { Panel } from '@/components/bento/Panel'
 import { Metric } from '@/components/bento/Metric'
 import { LiveDot } from '@/components/bento/LiveDot'
 import { AgentChat } from './AgentChat'
+import { Maximize2, X } from 'lucide-react'
 import type { Activity, Notice } from '@/types'
 
 type Tab = 'activities' | 'agent'
@@ -605,6 +606,80 @@ function Calendar({ userId, events, onEventsChange }: CalendarProps) {
   )
 }
 
+// Modal "ver histórico": abre com os itens já em memória (view maior) e, no botão
+// "Ver histórico", busca o histórico PERSISTIDO inteiro da tabela (activities/notices).
+function HistoryModal({ kind, initial, onClose }: {
+  kind: 'activities' | 'notices'
+  initial: (Activity | Notice)[]
+  onClose: () => void
+}) {
+  const [items, setItems] = useState<(Activity | Notice)[]>(initial)
+  const [full, setFull] = useState(false)
+  const [loading, setLoading] = useState(false)
+
+  const loadFull = async () => {
+    setLoading(true)
+    const supabase = createClient()
+    const { data } = await supabase.from(kind).select('*').order('created_at', { ascending: false }).limit(500)
+    if (data) setItems(data as (Activity | Notice)[])
+    setFull(true)
+    setLoading(false)
+  }
+
+  const title = kind === 'activities' ? 'Atividade Recente' : 'Mural de Avisos'
+
+  return (
+    <div className="fixed inset-0 z-[90] flex items-center justify-center p-4 animate-fade-in">
+      <div className="absolute inset-0 bg-black/50" onClick={onClose} />
+      <div className="relative w-full max-w-lg max-h-[82vh] bg-bento-panel border border-bento-border rounded-bento shadow-card-hover flex flex-col overflow-hidden">
+        <div className="flex items-center justify-between gap-3 p-4 border-b border-bento-border shrink-0">
+          <h3 className="font-display font-bold text-bento-text">{title}</h3>
+          <div className="flex items-center gap-2">
+            {!full && (
+              <button onClick={loadFull} disabled={loading}
+                className="font-tech text-[11px] uppercase tracking-wide text-lime-fg hover:text-lime transition-colors font-semibold disabled:opacity-50">
+                {loading ? 'Carregando…' : 'Ver histórico'}
+              </button>
+            )}
+            <button onClick={onClose} aria-label="Fechar" className="p-1.5 rounded-lg text-bento-muted hover:text-bento-text hover:bg-bento-bg transition-colors"><X className="w-4 h-4" /></button>
+          </div>
+        </div>
+        <div className="flex-1 overflow-y-auto p-4">
+          {items.length === 0 ? (
+            <p className="text-sm text-bento-muted text-center py-10">Nada {kind === 'activities' ? 'registrado' : 'no mural'} ainda.</p>
+          ) : kind === 'activities' ? (
+            <div className="divide-y divide-bento-border/60">
+              {(items as Activity[]).map(a => (
+                <div key={a.id} className="flex items-start gap-3 py-3 first:pt-0">
+                  <div className={`w-7 h-7 rounded-md flex items-center justify-center shrink-0 ${ACTIVITY_COLORS[a.type] ?? 'bg-slate-800/60 text-slate-400'}`}>{ACTIVITY_ICONS[a.type]}</div>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm text-bento-text leading-snug">{a.description}</p>
+                    <p className="font-tech text-xs text-bento-muted mt-0.5">{a.user_name ? `${a.user_name} · ` : ''}{timeAgo(a.created_at)}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="space-y-2.5">
+              {(items as Notice[]).map(n => (
+                <div key={n.id} className={`rounded-bento border p-3 ${NOTICE_BORDER[n.priority] ?? 'border-bento-border'}`}>
+                  <div className="flex items-center justify-between mb-1 gap-2">
+                    <p className="text-sm font-semibold text-bento-text">{n.title}</p>
+                    <span className={`shrink-0 text-[10px] px-2 py-0.5 rounded-full border font-semibold ${NOTICE_PILL[n.priority] ?? 'border-bento-border text-bento-muted'}`}>{NOTICE_LABEL[n.priority] ?? n.priority}</span>
+                  </div>
+                  {n.content && <p className="text-xs text-bento-dim">{n.content}</p>}
+                  {n.author_name && <p className="font-tech text-xs text-bento-muted/70 mt-1">— {n.author_name} · {timeAgo(n.created_at)}</p>}
+                </div>
+              ))}
+            </div>
+          )}
+          {full && <p className="font-tech text-[10px] text-bento-muted text-center pt-3">Histórico completo · {items.length} {items.length === 1 ? 'registro' : 'registros'}</p>}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ─── Main HallClient ──────────────────────────────────────────────────────────
 
 export function HallClient({ initialActivities, initialNotices, userName, userId }: Props) {
@@ -613,7 +688,9 @@ export function HallClient({ initialActivities, initialNotices, userName, userId
   const [notices, setNotices]         = useState<Notice[]>(initialNotices)
   const [greeting, setGreeting]       = useState('')
   const [today, setToday]             = useState('')
-  const [onlineCount, setOnlineCount] = useState(1)
+  const [onlineUsers, setOnlineUsers] = useState<{ id: string; name: string }[]>([{ id: userId, name: userName }])
+  const [onlineOpen, setOnlineOpen] = useState(false)
+  const [history, setHistory] = useState<null | 'activities' | 'notices'>(null)
   const [showNoticeForm, setShowNoticeForm] = useState(false)
   const [noticeForm, setNoticeForm]   = useState({ title: '', content: '', priority: 'info' as 'info' | 'warning' | 'urgent' })
   const [savingNotice, setSavingNotice] = useState(false)
@@ -646,7 +723,15 @@ export function HallClient({ initialActivities, initialNotices, userName, userId
 
     const presenceChannel = supabase.channel('hall-presence', { config: { presence: { key: userId } } })
     presenceChannel
-      .on('presence', { event: 'sync' }, () => setOnlineCount(Object.keys(presenceChannel.presenceState()).length))
+      .on('presence', { event: 'sync' }, () => {
+        const state = presenceChannel.presenceState() as Record<string, Array<{ user_id?: string; name?: string }>>
+        const seen = new Map<string, string>()
+        for (const arr of Object.values(state)) for (const p of arr) {
+          if (p.user_id) seen.set(p.user_id, p.name || 'Usuário')
+        }
+        const list = Array.from(seen, ([id, name]) => ({ id, name }))
+        setOnlineUsers(list.length ? list : [{ id: userId, name: userName }])
+      })
       .subscribe(async status => {
         if (status === 'SUBSCRIBED') await presenceChannel.track({ user_id: userId, name: userName })
       })
@@ -712,9 +797,29 @@ export function HallClient({ initialActivities, initialNotices, userName, userId
           </h1>
           <p className="text-bento-muted mt-0.5 capitalize text-sm">{today}</p>
         </div>
-        <div className="flex items-center gap-2 rounded-full border border-bento-border bg-bento-panel px-3 py-1.5">
-          <LiveDot />
-          <span className="font-tech text-xs font-medium text-lime-fg tabular-nums">{onlineCount} online</span>
+        <div className="relative">
+          <button onClick={() => setOnlineOpen(o => !o)}
+            className="flex items-center gap-2 rounded-full border border-bento-border bg-bento-panel px-3 py-1.5 hover:border-lime transition-colors">
+            <LiveDot />
+            <span className="font-tech text-xs font-medium text-lime-fg tabular-nums">{onlineUsers.length} online</span>
+          </button>
+          {onlineOpen && (
+            <>
+              <div className="fixed inset-0 z-30" onClick={() => setOnlineOpen(false)} />
+              <div className="absolute right-0 top-10 z-40 w-52 bg-bento-panel border border-bento-border rounded-bento shadow-card-hover py-1.5">
+                <p className="px-3 py-1 font-tech text-[10px] uppercase tracking-wide text-bento-muted">Online agora</p>
+                {onlineUsers.map(u => (
+                  <div key={u.id} className="flex items-center gap-2 px-3 py-1.5">
+                    <span className="w-1.5 h-1.5 rounded-full bg-lime flex-none" />
+                    <span className="text-sm text-bento-text truncate">{u.name}{u.id === userId ? ' (você)' : ''}</span>
+                  </div>
+                ))}
+                {/* TODO(presença): vem do Supabase Realtime e conta só quem está com o
+                    Hall aberto — não reflete quem está logado em outras telas. Evoluir
+                    com last_seen/heartbeat se precisar de presença global. */}
+              </div>
+            </>
+          )}
         </div>
       </div>
 
@@ -792,7 +897,13 @@ export function HallClient({ initialActivities, initialNotices, userName, userId
 
             {/* Conteúdo principal */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-              <Panel className="lg:col-span-2" label="Atividades Recentes" action={<LiveDot />}>
+              <Panel className="lg:col-span-2" label="Atividades Recentes" action={
+                <div className="flex items-center gap-2">
+                  <button onClick={() => setHistory('activities')} aria-label="Ampliar e ver histórico"
+                    className="text-bento-muted hover:text-lime-fg transition-colors"><Maximize2 className="w-3.5 h-3.5" /></button>
+                  <LiveDot />
+                </div>
+              }>
                 {/* Resumo por tipo — barras de proporção */}
                 {typeCounts.length > 0 && (
                   <div className="space-y-2 mb-4 pb-4 border-b border-bento-border/60">
@@ -848,15 +959,21 @@ export function HallClient({ initialActivities, initialNotices, userName, userId
 
               <Panel
                 label="Mural de Avisos"
-                action={canPostNotice && (
-                  <button onClick={() => setShowNoticeForm(!showNoticeForm)}
-                    className="font-tech text-[11px] uppercase tracking-wide text-lime-fg hover:text-lime transition-colors font-semibold flex items-center gap-1">
-                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                    </svg>
-                    Postar
-                  </button>
-                )}
+                action={
+                  <div className="flex items-center gap-2.5">
+                    {canPostNotice && (
+                      <button onClick={() => setShowNoticeForm(!showNoticeForm)}
+                        className="font-tech text-[11px] uppercase tracking-wide text-lime-fg hover:text-lime transition-colors font-semibold flex items-center gap-1">
+                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                        </svg>
+                        Postar
+                      </button>
+                    )}
+                    <button onClick={() => setHistory('notices')} aria-label="Ampliar e ver histórico"
+                      className="text-bento-muted hover:text-lime-fg transition-colors"><Maximize2 className="w-3.5 h-3.5" /></button>
+                  </div>
+                }
               >
                 <div className="space-y-2.5">
                   {showNoticeForm && (
@@ -911,6 +1028,10 @@ export function HallClient({ initialActivities, initialNotices, userName, userId
 
         <Calendar userId={userId} events={calEvents} onEventsChange={setCalEvents} />
       </div>
+
+      {history && (
+        <HistoryModal kind={history} initial={history === 'activities' ? activities : notices} onClose={() => setHistory(null)} />
+      )}
     </div>
   )
 }
