@@ -56,9 +56,16 @@ export async function runWonFlow(supabase: SupaClient, lead: MovableLead, userNa
     else clientId = newClient?.id ?? null
   }
 
-  // Vendedor ativo (hoje só o Lucas); fallback pro id conhecido.
-  const { data: sellers } = await supabase.from('sellers').select('id').eq('status', 'ativo').limit(1)
-  const sellerId = sellers?.[0]?.id ?? 'd129ace7-424b-4434-88af-baa3781cb568'
+  // Dono do deal = vendedor ativo (decisão: hoje só há 1). Resolve dinamicamente,
+  // sem id de fallback fixo. Sem vendedor ativo → não cria deal com id inventado.
+  const { data: activeSellers } = await supabase.from('sellers').select('id').eq('status', 'ativo').order('created_at')
+  if (!activeSellers || activeSellers.length === 0) {
+    notes.push({ message: 'Cliente cadastrado, mas não lancei a comissão: nenhum vendedor ativo configurado.', type: 'error' })
+    return notes
+  }
+  // TODO(multi-vendedor): hoje usamos o primeiro ativo. Quando houver vários, atribuir
+  // ao responsável do lead (lead.assigned_to) em vez do primeiro.
+  const sellerId = activeSellers[0].id
 
   // 2) Deal idempotente: não cria se já existe deal deste lead (lead_id) ou mesmo
   //    client_name+seller (cobre deals antigos sem lead_id). Evita comissão dobrada.

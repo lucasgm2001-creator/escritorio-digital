@@ -352,7 +352,8 @@ function SellerProfile({ seller, onClose, onUpdated, onDeleted }: {
                 { label: 'Telefone', value: current.phone ?? '—' },
                 { label: 'Cargo', value: current.cargo ?? '—' },
                 { label: 'Desde', value: current.created_at ? formatDate(current.created_at) : '—' },
-                { label: 'Leads atribuídos', value: String(current.leads_assigned) },
+                // Métricas legadas (leads_assigned/conversion_rate/total_sales) nascem 0 e nunca
+                // atualizam → escondidas. Vendas/comissão reais vivem na seção Comissão (monthlySummary).
               ].map(r => (
                 <div key={r.label} className="flex items-center justify-between py-2 border-b border-bento-border/40 last:border-0">
                   <span className="text-xs text-bento-muted">{r.label}</span>

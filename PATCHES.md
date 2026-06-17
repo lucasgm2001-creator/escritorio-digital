@@ -6,6 +6,17 @@ Categorias: 🐛 Fix · 🔄 Mudança · ✨ Novidade
 
 ---
 
+🐛 Fix — aba Vendedores: dono do deal dinâmico + esconde métricas legadas.
+- A automação Venda Fechada atribuía o deal ao "primeiro vendedor ativo" OU a um id FIXO de
+  fallback (constante mágica) — o deal podia virar órfão (sem aparecer em nenhum vendedor). Agora
+  o deal vai pro vendedor ativo resolvido dinamicamente (hoje há 1; TODO p/ multi-vendedor). Sem
+  vendedor ativo, NÃO cria deal e avisa ("nenhum vendedor ativo configurado"). Resto da automação
+  inalterado (US$ 100 / 4 semanas / 1ª paga / idempotência por lead_id).
+- O card do vendedor escondeu "Leads atribuídos" (e as legadas conversion_rate/total_sales), que
+  nasciam 0 e nunca atualizavam. Vendas/comissão seguem vindo do monthlySummary (engine real). Sem SQL.
+
+---
+
 🔄 Mudança — Comercial: segmentação Brasil/EUA removida + relógios melhorados.
 - O filtro Todos/Brasil/EUA e o campo "Operação" do lead já não existiam na UI; agora todo lead
   nasce EUA por padrão. Migration 022 (PARA REVISÃO) converte leads existentes brasil→eua e muda
