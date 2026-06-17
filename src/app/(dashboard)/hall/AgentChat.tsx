@@ -5,6 +5,7 @@ import { Markdown } from '@/components/ui/Markdown'
 import { createClient } from '@/lib/supabase/client'
 import { moveLead, type MovableLead } from '../comercial/leadActions'
 import { ALL_COLUMNS, type LeadStatus } from '../comercial/types'
+import { ymd } from '@/lib/format'
 
 interface Message {
   id: string
@@ -148,7 +149,7 @@ export function AgentChat({ userId, userName }: { userId: string; userName: stri
     setLoading(true)
     try {
       const now = new Date()
-      const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
+      const today = ymd(now)
       const todayLabel = now.toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' })
 
       const res = await fetch('/api/agent/chat', {

@@ -18,13 +18,12 @@ import { useToast } from '@/components/ui/toast'
 import { cn } from '@/lib/utils'
 import { monthlySummary, resolveRate } from '@/lib/commission/calc'
 import type { SalaryPeriod, Meeting, WeeklyPayment, FxConfig, Deal, DealStatus } from '@/lib/commission/types'
+import { usd, brl } from '@/lib/format'
 
 const inputCls = 'w-full bg-bento-bg border border-bento-border rounded-btn px-3 py-2 text-sm text-bento-text placeholder:text-bento-muted focus:outline-none focus:border-lime'
 const inputSm = 'bg-bento-bg border border-bento-border rounded-btn px-2 py-1 text-[11px] text-bento-text focus:outline-none focus:border-lime'
 
 const pad2 = (n: number) => String(n).padStart(2, '0')
-const usd = (n: number) => `US$ ${n.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-const brl = (n: number) => `R$ ${n.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 const monthName = (y: number, m: number) => new Date(y, m - 1, 1).toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })
 const fmtMonthYear = (iso: string) => { const [y, m] = iso.split('-'); return `${m}/${y}` }
 const fmtDayMonth = (iso: string) => { const [, m, d] = iso.split('-'); return `${d}/${m}` }

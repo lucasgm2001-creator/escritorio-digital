@@ -1,6 +1,9 @@
 import { generateText, tool, jsonSchema } from 'ai'
 import { anthropic } from '@ai-sdk/anthropic'
-import { createClient } from '@/lib/supabase/server'
+import type { createClient } from '@/lib/supabase/server'
+
+// Client supabase do REQUEST atual (server, ligado à sessão/cookies correntes).
+type SupaClient = ReturnType<typeof createClient>
 
 // Modelo das ações: sonnet decide ferramentas com mais confiabilidade que haiku.
 // IMPORTANTE: tem que ser um modelo HABILITADO na conta — claude-3-5-sonnet-20241022
@@ -107,7 +110,9 @@ export type AgentTurn =
   | { type: 'action'; tool: string; params: Record<string, unknown>; requiresConfirm: boolean; resposta: string }
 
 export class SuperAgent {
-  private supabase = createClient()
+  // Recebe o supabase do request atual (não cria o seu próprio): garante que
+  // leituras/escritas usem a sessão/cookies do request corrente, não de um antigo.
+  constructor(private supabase: SupaClient) {}
 
   private async generateAIResponse(
     systemPrompt: string,
@@ -358,11 +363,8 @@ export class SuperAgent {
   }
 }
 
-let instance: SuperAgent | null = null
-
-export function getSuperAgent(): SuperAgent {
-  if (!instance) {
-    instance = new SuperAgent()
-  }
-  return instance
+// Cria um agente com o supabase do REQUEST atual. NÃO cachear num singleton: um
+// client preso ao 1º request usaria cookies/sessão velhos nas requisições seguintes.
+export function getSuperAgent(supabase: SupaClient): SuperAgent {
+  return new SuperAgent(supabase)
 }

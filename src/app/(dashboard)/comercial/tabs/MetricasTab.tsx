@@ -2,15 +2,10 @@
 
 import type { Lead } from '../types'
 import { ALL_COLUMNS } from '../types'
+import { usdCompact as fmt } from '@/lib/format'
 
 interface Props { leads: Lead[] }
 
-function fmt(v: number): string {
-  if (v >= 1_000_000) return `US$ ${(v / 1_000_000).toFixed(1)}M`
-  if (v >= 1_000)     return `US$ ${(v / 1_000).toFixed(0)}k`
-  if (v > 0)          return `US$ ${v.toLocaleString('pt-BR')}`
-  return 'US$ 0'
-}
 
 const isTerminal = (s: string) => s === 'fechado' || s === 'perdido' || s === 'lixeira'
 const card = 'bento-fx p-5'

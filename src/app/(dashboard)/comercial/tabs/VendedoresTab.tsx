@@ -8,6 +8,7 @@ import { cn, formatDate } from '@/lib/utils'
 import { CommissionSection } from './CommissionSection'
 import { monthlySummary } from '@/lib/commission/calc'
 import type { SalaryPeriod, Meeting, WeeklyPayment, FxConfig } from '@/lib/commission/types'
+import { usd, brl } from '@/lib/format'
 
 interface SellerRow {
   id: string
@@ -33,8 +34,6 @@ const SELLER_COLS ='id, name, email, phone, photo_url, cargo, monthly_goal, defa
 const CARGOS = ['SDR', 'Closer', 'Gestor', 'Coordenador', 'Vendedor']
 
 const fmtK = (v: number) => v >= 1000 ? `US$ ${(v / 1000).toFixed(1)}k` : `US$ ${v.toFixed(0)}`
-const usd = (v: number) => `US$ ${v.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-const brl = (v: number) => `R$ ${v.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 const pad2 = (n: number) => String(n).padStart(2, '0')
 
 const inputCls = 'w-full bg-bento-bg border border-bento-border rounded-btn px-3 py-2 text-sm text-bento-text placeholder:text-bento-muted focus:outline-none focus:border-lime'

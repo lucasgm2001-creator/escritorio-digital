@@ -35,5 +35,7 @@ export async function requireAuth(requiredRole?: AuthRole) {
     }
   }
 
-  return { user }
+  // Devolve também o client (já ligado à sessão do request) p/ quem precisar
+  // reusar a MESMA sessão — ex.: o agente, evitando criar um client à parte.
+  return { user, supabase }
 }

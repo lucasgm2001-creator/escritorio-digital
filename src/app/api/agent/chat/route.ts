@@ -62,7 +62,7 @@ export async function POST(req: Request) {
     const todayLabel = typeof body.todayLabel === 'string' ? body.todayLabel : today
 
     // App pessoal de usuário único: sem papéis. O agente responde/age com acesso total.
-    const out = await getSuperAgent().chatWithActions(messages, { today, todayLabel })
+    const out = await getSuperAgent(authResult.supabase).chatWithActions(messages, { today, todayLabel })
 
     if (out.type === 'action') {
       return NextResponse.json({

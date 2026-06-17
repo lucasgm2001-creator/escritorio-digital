@@ -5,6 +5,7 @@ import { CSS } from '@dnd-kit/utilities'
 import { cn } from '@/lib/utils'
 import { getLeadSignal, daysStopped, nextActionLabel, type LeadSignal } from './leadSignals'
 import type { Lead } from './types'
+import { usdCompact } from '@/lib/format'
 
 interface Props {
   lead: Lead
@@ -13,10 +14,7 @@ interface Props {
 }
 
 function formatValue(val: number): string {
-  if (val >= 1_000_000) return `US$ ${(val / 1_000_000).toFixed(1)}M`
-  if (val >= 1_000)     return `US$ ${(val / 1_000).toFixed(0)}k`
-  if (val > 0)          return `US$ ${val.toLocaleString('pt-BR')}`
-  return ''
+  return val > 0 ? usdCompact(val) : ''
 }
 
 // Borda-esquerda do card por sinal (só quando há alerta).

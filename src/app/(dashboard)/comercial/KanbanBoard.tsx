@@ -14,6 +14,7 @@ import { LeadCard } from './LeadCard'
 import { LeadModal } from './LeadModal'
 import { LeadDiary } from './LeadDiary'
 import { moveLead } from './leadActions'
+import { usdCompact as fmtUSDc } from '@/lib/format'
 import { MetricasTab } from './tabs/MetricasTab'
 import { VendedoresTab } from './tabs/VendedoresTab'
 import { TIERS, ALL_COLUMNS } from './types'
@@ -25,12 +26,6 @@ type Tab = 'funil' | 'metricas' | 'vendedores'
 interface CurrentUser { id: string; name: string }
 
 // ── Barra de resumo do funil (rodapé) ──────────────────────────────────────────
-function fmtUSDc(val: number): string {
-  if (val >= 1_000_000) return `US$ ${(val / 1_000_000).toFixed(1)}M`
-  if (val >= 1_000)     return `US$ ${(val / 1_000).toFixed(0)}k`
-  if (val > 0)          return `US$ ${val.toLocaleString('pt-BR')}`
-  return 'US$ 0'
-}
 const isTerminal = (s: LeadStatus) => s === 'fechado' || s === 'perdido' || s === 'lixeira'
 
 function FunnelSummary({ leads }: { leads: Lead[] }) {

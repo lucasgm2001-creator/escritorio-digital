@@ -2,6 +2,7 @@ import { resolveRate } from '@/lib/commission/calc'
 import type { FxConfig } from '@/lib/commission/types'
 import type { createClient } from '@/lib/supabase/client'
 import type { LeadStatus } from './types'
+import { ymd } from '@/lib/format'
 
 type SupaClient = ReturnType<typeof createClient>
 
@@ -27,8 +28,7 @@ export interface MovableLead {
 // Extraído do KanbanBoard pra ser reusado pelo agente do Hall — MESMA lógica, sem duplicar.
 export async function runWonFlow(supabase: SupaClient, lead: MovableLead, userName: string): Promise<ActionNote[]> {
   const notes: ActionNote[] = []
-  const d = new Date()
-  const today = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+  const today = ymd(new Date())
 
   await supabase.from('activities').insert({
     type: 'lead',

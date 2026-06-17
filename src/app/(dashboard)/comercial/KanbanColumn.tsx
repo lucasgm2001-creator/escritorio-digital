@@ -5,16 +5,10 @@ import { useDroppable } from '@dnd-kit/core'
 import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { ChevronRight, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { usdCompact as fmtUSD } from '@/lib/format'
 import { FunnelLeadCard } from './FunnelLeadCard'
 import { heatLevel } from './leadSignals'
 import type { Lead, ColumnConfig, ColumnTone, LeadStatus } from './types'
-
-function fmtUSD(val: number): string {
-  if (val >= 1_000_000) return `US$ ${(val / 1_000_000).toFixed(1)}M`
-  if (val >= 1_000)     return `US$ ${(val / 1_000).toFixed(0)}k`
-  if (val > 0)          return `US$ ${val.toLocaleString('pt-BR')}`
-  return 'US$ 0'
-}
 
 // Acento quando a fase está ABERTA. Lime fixo (#C2F73A) p/ aparecer no light também;
 // gradiente mais forte no light via [html.light_&]. Exceções: ganho=verde, perda=vermelho.

@@ -6,6 +6,20 @@ Categorias: 🐛 Fix · 🔄 Mudança · ✨ Novidade
 
 ---
 
+🔄 Mudança — pacote "saúde do código" (4 itens do code review).
+- 🐛 Agente do Hall usa o supabase do REQUEST atual (antes era um singleton preso à sessão/
+  cookies do 1º request → leituras podiam usar sessão velha). Importante agora que o agente age.
+- ⏰ Scheduler/cron: endpoint aceita GET (exigência do Vercel Cron) + POST, validando CRON_SECRET
+  por `Authorization: Bearer` ou `x-cron-secret`. Criado `vercel.cron.example.json` com agendamento
+  CONSERVADOR (1x/dia), mas DESATIVADO (não há `vercel.json`) — só ativa após o Lucas confirmar o
+  que roda. Obs: pra rodar de verdade, o cron precisa de um client SERVICE_ROLE (sem sessão, o RLS
+  bloqueia as queries).
+- 🧹 Removidos 3 arquivos mortos: CommissionModal, PipelineTab, AgendaTab.
+- 🧱 Formatadores de moeda/data consolidados em `src/lib/format.ts` (usd, brl, usdCompact, ymd, ddmm),
+  reusados por ~10 arquivos. Refactor puro — mesmos formatos de saída.
+
+---
+
 ✨ Novidade — o Agente IA do Hall agora MOVE leads no funil (confirmação só pra Venda Fechada).
 - 3ª ação do agente: "move o Sandro pra reunião", "o João fechou", "manda o lead X pra proposta".
   Ele acha o lead pelo nome (pede esclarecimento se houver ambiguidade) e muda o estágio.

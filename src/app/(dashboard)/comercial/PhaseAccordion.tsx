@@ -3,14 +3,8 @@
 import { useState } from 'react'
 import { cn } from '@/lib/utils'
 import { StaticLeadCard } from './LeadCard'
+import { usdCompact as formatValue } from '@/lib/format'
 import { ALL_COLUMNS, type ColumnTone, type Lead } from './types'
-
-function formatValue(val: number): string {
-  if (val >= 1_000_000) return `US$ ${(val / 1_000_000).toFixed(1)}M`
-  if (val >= 1_000)     return `US$ ${(val / 1_000).toFixed(0)}k`
-  if (val > 0)          return `US$ ${val.toLocaleString('pt-BR')}`
-  return 'US$ 0'
-}
 
 const TONE: Record<ColumnTone, { dot: string; name: string }> = {
   neutral: { dot: 'bg-bento-muted', name: 'text-bento-dim' },

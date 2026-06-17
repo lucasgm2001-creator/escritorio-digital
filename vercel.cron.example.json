@@ -1,0 +1,14 @@
+{
+  "_README": [
+    "TEMPLATE DESATIVADO — a Vercel NÃO lê este arquivo (só lê 'vercel.json').",
+    "Para ATIVAR o cron: renomeie/copie este conteúdo para 'vercel.json' na raiz.",
+    "ANTES de ativar, confirmar com o Lucas:",
+    "  1) Setar CRON_SECRET no ambiente da Vercel (a Vercel manda Authorization: Bearer automaticamente).",
+    "  2) O scheduler precisa de um client SERVICE_ROLE — sem sessão de usuário, o RLS bloqueia as queries/inserts.",
+    "  3) O que roda: 4 checagens (pagamentos atrasados, leads sem contato, campanhas sem resultado, MRR) que POSTAM avisos no Hall; às 01:00 UTC um resumo diário (gasta IA/haiku); segunda 14:00 UTC um relatório semanal (gasta IA/Sonnet).",
+    "Frequência abaixo é CONSERVADORA: 1x/dia às 01:00 UTC (22:00 BRT). Nesse horário o resumo diário dispara; o semanal (14:00 UTC) NÃO dispara com este agendamento — adicionar outra entrada se quiser o semanal (atenção ao limite do plano Hobby: 1 cron/dia)."
+  ],
+  "crons": [
+    { "path": "/api/agent/scheduler", "schedule": "0 1 * * *" }
+  ]
+}

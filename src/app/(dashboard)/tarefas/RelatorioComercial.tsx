@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { cn } from '@/lib/utils'
 import { Inbox, MessageCircle, Calendar, Download } from 'lucide-react'
+import { ymd, ddmm } from '@/lib/format'
 
 type Mode = 'dia' | 'semana' | 'mes' | 'semestre' | 'ano'
 
@@ -11,8 +12,6 @@ interface Range { mode: string; start: Date; end: Date; label: string }
 interface Item { kind: 'recebido' | 'engajou' | 'reuniao'; date: string; label: string; sub?: string }
 
 const MONTHS = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro']
-const ddmm = (d: Date) => `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}`
-const ymd = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 const startOfDay = (d: Date) => { const x = new Date(d); x.setHours(0, 0, 0, 0); return x }
 const endOfDay = (d: Date) => { const x = new Date(d); x.setHours(23, 59, 59, 999); return x }
 // Semana começa na SEGUNDA.
