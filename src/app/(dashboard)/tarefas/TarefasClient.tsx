@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useMemo, useEffect } from 'react'
+import { useRealtimeRows } from '@/lib/hooks/useRealtimeRows'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { cn } from '@/lib/utils'
@@ -101,6 +102,8 @@ export function TarefasClient({ initialTasks, linkOptions, currentUser }: Props)
   const [tasks, setTasks] = useState<Task[]>(initialTasks)
   // Reflete dados frescos do servidor após router.refresh() (revalidação ao focar a aba).
   useEffect(() => { setTasks(initialTasks) }, [initialTasks])
+  // Tempo real: criar/editar/concluir/excluir tarefa reflete ao vivo (merge por id).
+  useRealtimeRows<Task>('tasks', setTasks)
   const [view, setView] = useState<'tarefas' | 'relatorio'>('tarefas')
   const { toast } = useToast()
   const [modalOpen, setModalOpen] = useState(false)

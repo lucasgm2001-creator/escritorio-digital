@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { useRealtimeRows } from '@/lib/hooks/useRealtimeRows'
 import { createClient } from '@/lib/supabase/client'
 import { useSave } from '@/lib/useSave'
 import { formatCurrency, formatDate, timeAgo } from '@/lib/utils'
@@ -194,6 +195,8 @@ export function ClientesClient({ initialClients, currentUser }: Props) {
   const [clients, setClients] = useState<Client[]>(initialClients)
   // Reflete dados frescos do servidor após router.refresh() (revalidação ao focar a aba).
   useEffect(() => { setClients(initialClients) }, [initialClients])
+  // Tempo real: criar/editar/excluir cliente reflete ao vivo (merge por id).
+  useRealtimeRows<Client>('clients', setClients)
   const [search, setSearch] = useState('')
   const [newOpen, setNewOpen] = useState(false)
   const [editClient, setEditClient] = useState<Client | null>(null)

@@ -14,6 +14,7 @@ import { LeadCard } from './LeadCard'
 import { LeadModal } from './LeadModal'
 import { LeadDiary } from './LeadDiary'
 import { moveLead } from './leadActions'
+import { useRealtimeRows } from '@/lib/hooks/useRealtimeRows'
 import { usdCompact as fmtUSDc } from '@/lib/format'
 import { MetricasTab } from './tabs/MetricasTab'
 import { VendedoresTab } from './tabs/VendedoresTab'
@@ -67,6 +68,8 @@ export function KanbanBoard({ initialLeads, currentUser }: { initialLeads: Lead[
   const [leads, setLeads] = useState<Lead[]>(initialLeads)
   // Reflete dados frescos do servidor após router.refresh() (revalidação ao focar a aba).
   useEffect(() => { setLeads(initialLeads) }, [initialLeads])
+  // Tempo real: criar/mover/excluir lead reflete ao vivo (merge por id; reconcilia o eco).
+  useRealtimeRows<Lead>('leads', setLeads)
   const [activeId, setActiveId] = useState<string | null>(null)
   const [newLeadOpen, setNewLeadOpen] = useState(false)
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null)

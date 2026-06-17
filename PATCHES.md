@@ -6,6 +6,17 @@ Categorias: 🐛 Fix · 🔄 Mudança · ✨ Novidade
 
 ---
 
+✨ Novidade — tempo real dentro da página: Comercial, Clientes e Tarefas atualizam ao vivo.
+- Generalizei o realtime do Hall num hook useRealtimeRows(table, setRows): assina postgres_changes
+  (INSERT/UPDATE/DELETE) e aplica por MERGE POR id — adiciona se novo, substitui no lugar, remove.
+  Aplicado em KanbanBoard (leads), ClientesClient (clients) e TarefasClient (tasks).
+- Criar/mover/excluir numa aba reflete na outra AO VIVO, sem refresh nem trocar de página. O merge
+  por id reconcilia o eco das próprias ações otimistas (não duplica nem pisca). O RevalidateOnFocus
+  (volta após >1 min) fica como rede de segurança. Sem mudança de schema (tabelas já no publication
+  supabase_realtime). Comissões ao vivo fica pra depois (deals/weekly_payments/meetings ainda fora do realtime).
+
+---
+
 🐛 Fix — navegação lenta: RevalidateOnFocus estava bustando o Router Cache do Next.
 - O componente disparava router.refresh() no evento 'focus' do window + a cada 3 min → invalidava o
   Router Cache, então CADA navegação entre seções re-buscava tudo (~3s) e a página ainda recarregava
