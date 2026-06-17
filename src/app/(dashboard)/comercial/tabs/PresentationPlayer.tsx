@@ -136,12 +136,12 @@ export function PresentationPlayer({ name, client, materials, onClose }: {
       {/* Corpo: menu lateral (opcional) + material centralizado */}
       <div className="relative flex-1 min-h-0 flex">
         {menuOpen && (
-          <aside className="w-72 max-w-[80vw] shrink-0 bg-bento-panel/95 backdrop-blur-sm border-r border-white/10 overflow-y-auto p-2">
+          <aside className="w-72 max-w-[80vw] shrink-0 bg-zinc-900/95 backdrop-blur-sm border-r border-white/15 shadow-2xl overflow-y-auto p-2">
             {materials.map((m, i) => (
               <button key={m.id} onClick={() => { go(i); setMenuOpen(false) }}
                 className={cn('w-full text-left flex items-center gap-2 px-2 py-2 rounded-lg text-xs transition-colors',
-                  i === index ? 'bg-lime/20 text-lime-fg' : 'text-white/70 hover:bg-white/10')}>
-                <span className="flex-none w-5 h-5 rounded bg-white/10 flex items-center justify-center text-[11px] tabular-nums">{i + 1}</span>
+                  i === index ? 'bg-lime/25 text-lime ring-1 ring-lime/40' : 'text-white/80 hover:bg-white/10')}>
+                <span className="flex-none w-5 h-5 rounded bg-white/15 text-white flex items-center justify-center text-[11px] tabular-nums">{i + 1}</span>
                 <span className="flex-1 truncate">{m.name}</span>
               </button>
             ))}
@@ -153,11 +153,11 @@ export function PresentationPlayer({ name, client, materials, onClose }: {
           {total > 1 && (
             <>
               <button onClick={e => { blur(e); prev() }} disabled={index === 0} aria-label="Anterior"
-                className="absolute left-3 top-1/2 -translate-y-1/2 z-10 bg-white/10 hover:bg-white/20 disabled:opacity-20 text-white p-3 rounded-full backdrop-blur-sm transition-colors">
+                className="absolute left-3 top-1/2 -translate-y-1/2 z-10 bg-black/60 hover:bg-black/80 disabled:opacity-30 text-white p-3 rounded-full ring-1 ring-white/30 shadow-lg backdrop-blur-sm transition-colors">
                 <ChevronLeft className="w-5 h-5" />
               </button>
               <button onClick={e => { blur(e); next() }} disabled={index === total - 1} aria-label="Próximo"
-                className="absolute right-3 top-1/2 -translate-y-1/2 z-10 bg-white/10 hover:bg-white/20 disabled:opacity-20 text-white p-3 rounded-full backdrop-blur-sm transition-colors">
+                className="absolute right-3 top-1/2 -translate-y-1/2 z-10 bg-black/60 hover:bg-black/80 disabled:opacity-30 text-white p-3 rounded-full ring-1 ring-white/30 shadow-lg backdrop-blur-sm transition-colors">
                 <ChevronRight className="w-5 h-5" />
               </button>
             </>

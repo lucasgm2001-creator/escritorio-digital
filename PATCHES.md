@@ -6,6 +6,17 @@ Categorias: 🐛 Fix · 🔄 Mudança · ✨ Novidade
 
 ---
 
+🐛 Fix — apresentar só na aba Apresentar + controles do modo apresentação visíveis.
+- Removido o botão "Apresentar" do rodapé da aba Montar (ao lado do Salvar). Apresentar agora
+  existe só na aba Apresentar, pelo play ▶ de cada apresentação salva. Montar tem só "Salvar".
+- Modo apresentação (tela cheia, fundo escuro): o painel lateral de slides usava bg-bento-panel
+  (theme-aware → quase preto no tema escuro, sumia no fundo) → agora bg-zinc-900/95 + borda +
+  sombra, item ativo em lime com anel. As setas anterior/próximo eram bg-white/10 (contraste
+  baixíssimo) → agora bg-black/60 + anel branco + sombra, visíveis sobre slide claro OU escuro.
+  O ☰ do topo abre/fecha o painel (comportamento já estava certo; faltava o painel ser visível).
+
+---
+
 🔄 Mudança — pacote "saúde do código" (4 itens do code review).
 - 🐛 Agente do Hall usa o supabase do REQUEST atual (antes era um singleton preso à sessão/
   cookies do 1º request → leituras podiam usar sessão velha). Importante agora que o agente age.

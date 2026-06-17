@@ -274,12 +274,6 @@ export function ApresentacaoTab() {
     if (mats.length === 0) { toast({ type: 'error', message: 'Esta apresentação não tem materiais disponíveis para apresentar.' }); return }
     setPlaying({ name: p.name, client: leadName(p.lead_id), materials: mats })
   }
-  const presentDraft = () => {
-    const mats = selectedIds.map(id => matById.get(id)).filter(Boolean) as Material[]
-    if (mats.length === 0) { toast({ type: 'error', message: 'Adicione materiais antes de apresentar.' }); return }
-    setPlaying({ name: form.name.trim() || 'Apresentação', client: leadName(form.leadId || null), materials: mats })
-  }
-
   const filteredMaterials = materials.filter(m => {
     if (search && !m.name.toLowerCase().includes(search.toLowerCase())) return false
     if (filter === 'pdf') return isPdf(m)
@@ -472,12 +466,8 @@ export function ApresentacaoTab() {
               <span className="font-tech text-xs text-bento-muted">{selectedIds.length} {selectedIds.length === 1 ? 'material' : 'materiais'}</span>
               <div className="flex gap-2">
                 <button onClick={savePresentation} disabled={savingPres || !form.name.trim() || selectedIds.length === 0}
-                  className="px-4 py-2 rounded-btn text-sm font-semibold border border-bento-border text-bento-text hover:border-lime transition-colors disabled:opacity-50">
-                  {savingPres ? 'Salvando...' : editingId ? 'Salvar alterações' : 'Salvar'}
-                </button>
-                <button onClick={presentDraft} disabled={selectedIds.length === 0}
                   className="bento-btn flex items-center gap-1.5 px-4 py-2 rounded-btn text-sm font-semibold disabled:opacity-50">
-                  <Play className="w-4 h-4 fill-current" />Apresentar
+                  {savingPres ? 'Salvando...' : editingId ? 'Salvar alterações' : 'Salvar'}
                 </button>
               </div>
             </div>
