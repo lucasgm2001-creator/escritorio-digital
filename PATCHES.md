@@ -6,6 +6,20 @@ Categorias: 🐛 Fix · 🔄 Mudança · ✨ Novidade
 
 ---
 
+✨ Novidade — o Agente IA do Hall agora EXECUTA ações (criar lead, criar tarefa), com confirmação.
+- No Hall › Agente, além de responder perguntas, ele entende pedidos como "cria um lead chamado
+  João da Construtora Silva" ou "me lembra de ligar pro Sandro amanhã 10h" e propõe a ação.
+- Confirmação obrigatória: mostra um preview do que vai criar e só grava após o botão "Confirmar"
+  (ou você responder "sim"/"confirma"). "não/cancela" cancela; qualquer outra resposta vira
+  correção (ex: "não, a empresa é Souza") e ele refaz o preview. Nada toca o banco antes disso.
+- Criar lead: nome (obrigatório) + empresa/telefone/nicho/valor/notas → entra no funil como Novo,
+  atribuído a você. Criar tarefa: título (obrigatório) + data/hora (entende "amanhã", "sexta",
+  "semana que vem") + vínculo opcional a um lead pelo nome.
+- Usa tool use (function calling) da API; modelo Sonnet decide a ferramenta. Esta fase é só
+  criar lead/tarefa (sem mover funil, comissão ou exclusões). Sem mudança de banco.
+
+---
+
 🐛 Fix — cliente fica ativo ao fechar venda (reativa se estava inativo).
 - Na automação Venda Fechada → deal, quando o cliente vinculado já existia como 'inativo',
   o status era mantido 'inativo'. Agora, ao fechar a venda, o cliente vinculado SEMPRE

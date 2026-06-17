@@ -1,6 +1,80 @@
-import { generateText } from 'ai'
+import { generateText, tool, jsonSchema } from 'ai'
 import { anthropic } from '@ai-sdk/anthropic'
 import { createClient } from '@/lib/supabase/server'
+
+// Modelo das ações: sonnet decide ferramentas com mais confiabilidade que haiku.
+// (Trocar aqui caso queira outro modelo habilitado na conta.)
+const ACTION_MODEL = 'claude-3-5-sonnet-20241022'
+
+// Ferramentas que o agente PODE executar (fase 1: criar lead, criar tarefa).
+// SEM `execute`: a chamada é devolvida ao app, que pede confirmação ao usuário
+// ANTES de tocar o banco. O modelo só decide A ação e os parâmetros.
+const createLeadTool = tool({
+  description:
+    'Cria um novo lead no funil comercial. Use quando o usuário pedir para criar, cadastrar ou adicionar um lead/contato. Apenas o nome é obrigatório.',
+  inputSchema: jsonSchema<{
+    name: string; company?: string; phone?: string; niche?: string; value_estimated?: number; notes?: string
+  }>({
+    type: 'object',
+    properties: {
+      name: { type: 'string', description: 'Nome do lead (obrigatório); pode ser só o primeiro nome.' },
+      company: { type: 'string', description: 'Empresa do lead.' },
+      phone: { type: 'string', description: 'Telefone do lead.' },
+      niche: { type: 'string', description: 'Nicho ou segmento de atuação.' },
+      value_estimated: { type: 'number', description: 'Valor estimado da venda, em dólares (US$).' },
+      notes: { type: 'string', description: 'Observações livres sobre o lead.' },
+    },
+    required: ['name'],
+    additionalProperties: false,
+  }),
+})
+
+const createTaskTool = tool({
+  description:
+    'Cria uma nova tarefa/lembrete. Use quando o usuário pedir para criar, agendar ou lembrar de uma tarefa/compromisso. Apenas o título é obrigatório.',
+  inputSchema: jsonSchema<{
+    title: string; due_date?: string; due_time?: string; linked_lead_name?: string
+  }>({
+    type: 'object',
+    properties: {
+      title: { type: 'string', description: 'Título curto e imperativo da tarefa (ex: "Ligar pro João").' },
+      due_date: { type: 'string', description: 'Data no formato YYYY-MM-DD (resolva datas relativas a partir de hoje).' },
+      due_time: { type: 'string', description: 'Hora no formato HH:MM (24h). Só faz sentido junto com due_date.' },
+      linked_lead_name: { type: 'string', description: 'Nome de um lead existente para vincular a tarefa, se o usuário mencionar.' },
+    },
+    required: ['title'],
+    additionalProperties: false,
+  }),
+})
+
+// Texto do preview mostrado ao usuário antes de confirmar a gravação.
+function buildActionPreview(toolName: string, p: Record<string, unknown>): string {
+  if (toolName === 'create_lead') {
+    const lines = ['Vou criar o **lead**:', `- Nome: ${p.name}`]
+    if (p.company) lines.push(`- Empresa: ${p.company}`)
+    if (p.phone) lines.push(`- Telefone: ${p.phone}`)
+    if (p.niche) lines.push(`- Nicho: ${p.niche}`)
+    if (p.value_estimated != null) lines.push(`- Valor estimado: US$ ${p.value_estimated}`)
+    if (p.notes) lines.push(`- Notas: ${p.notes}`)
+    lines.push('', 'Confirma?')
+    return lines.join('\n')
+  }
+  if (toolName === 'create_task') {
+    const lines = ['Vou criar a **tarefa**:', `- Título: ${p.title}`]
+    if (p.due_date) {
+      const quando = p.due_time ? `${p.due_date} às ${p.due_time}` : String(p.due_date)
+      lines.push(`- Quando: ${quando}`)
+    }
+    if (p.linked_lead_name) lines.push(`- Vincular ao lead: ${p.linked_lead_name}`)
+    lines.push('', 'Confirma?')
+    return lines.join('\n')
+  }
+  return 'Confirma?'
+}
+
+export type AgentTurn =
+  | { type: 'text'; resposta: string }
+  | { type: 'action'; tool: string; params: Record<string, unknown>; resposta: string }
 
 export class SuperAgent {
   private supabase = createClient()
@@ -75,6 +149,40 @@ export class SuperAgent {
       400,
       'haiku'
     )
+  }
+
+  // Chat COM ações (tool use). Recebe o histórico da conversa e devolve OU um texto
+  // (perguntas/consultas) OU uma ação pendente (create_lead / create_task) com os
+  // parâmetros decididos pelo modelo. NÃO grava nada: o app confirma antes de executar.
+  async chatWithActions(
+    messages: { role: 'user' | 'assistant'; content: string }[],
+    opts: { today: string; todayLabel: string },
+  ): Promise<AgentTurn> {
+    const context = await this.getContextData()
+    const system = [
+      'Você é o assistente do Escritório Digital DR Growth. Responda em português, de forma concisa e prática.',
+      `Hoje é ${opts.todayLabel} (${opts.today}). Resolva datas relativas (hoje, amanhã, depois de amanhã, sexta, segunda, semana que vem) para datas absolutas no formato YYYY-MM-DD a partir de hoje. Se o dia da semana já passou nesta semana, use a próxima ocorrência.`,
+      'Você PODE executar ações pelas ferramentas: create_lead (criar lead) e create_task (criar tarefa). Use a ferramenta correspondente quando o usuário pedir para criar/cadastrar/adicionar/agendar. Para perguntas, consultas e análises, responda em texto, sem ferramenta.',
+      'Nunca diga que já criou algo: ao chamar uma ferramenta, o aplicativo ainda vai pedir a confirmação do usuário antes de gravar.',
+      'Se faltar um dado obrigatório (nome do lead, ou título da tarefa), peça-o em texto antes de usar a ferramenta.',
+      'Dados atuais do sistema (somente leitura, use apenas para responder perguntas):',
+      JSON.stringify(context),
+    ].join('\n')
+
+    const result = await generateText({
+      model: anthropic(ACTION_MODEL),
+      system,
+      messages,
+      tools: { create_lead: createLeadTool, create_task: createTaskTool },
+      maxOutputTokens: 600,
+    })
+
+    const call = result.toolCalls?.[0]
+    if (call) {
+      const params = (call.input ?? {}) as Record<string, unknown>
+      return { type: 'action', tool: call.toolName, params, resposta: buildActionPreview(call.toolName, params) }
+    }
+    return { type: 'text', resposta: result.text?.trim() || 'Não entendi. Pode reformular?' }
   }
 
   // Gerar relatório semanal completo (para Daniel/admin)

@@ -31,20 +31,43 @@ export async function POST(req: Request) {
   }
 
   try {
-    const { question } = await req.json()
+    const body = await req.json()
 
-    if (!question || typeof question !== 'string' || question.length > 1000) {
-      return NextResponse.json(
-        { error: 'Pergunta inválida. Máximo 1000 caracteres.' },
-        { status: 400 }
-      )
+    // Aceita o histórico da conversa ({messages:[{role,content}]}) ou a forma
+    // antiga ({question}). O histórico permite correções ("não, a empresa é Souza").
+    let messages: { role: 'user' | 'assistant'; content: string }[]
+    if (Array.isArray(body.messages)) {
+      const raw = body.messages as unknown[]
+      messages = raw
+        .filter((m): m is { role: 'user' | 'assistant'; content: string } =>
+          !!m && typeof m === 'object'
+          && ((m as { role?: unknown }).role === 'user' || (m as { role?: unknown }).role === 'assistant')
+          && typeof (m as { content?: unknown }).content === 'string')
+        .map(m => ({ role: m.role, content: m.content.slice(0, 2000) }))
+        .slice(-12)
+    } else if (typeof body.question === 'string') {
+      messages = [{ role: 'user', content: body.question.slice(0, 2000) }]
+    } else {
+      return NextResponse.json({ error: 'Mensagem inválida.' }, { status: 400 })
     }
 
-    // App pessoal de usuário único: sem papéis. O SuperAgent responde com
-    // acesso total (assina internamente o default 'admin').
-    const resposta = await getSuperAgent().chat(question, authResult.user.id)
+    if (messages.length === 0 || messages[messages.length - 1].role !== 'user') {
+      return NextResponse.json({ error: 'Mensagem inválida.' }, { status: 400 })
+    }
+    if (messages.reduce((n, m) => n + m.content.length, 0) > 12000) {
+      return NextResponse.json({ error: 'Conversa muito longa. Recomece o chat.' }, { status: 400 })
+    }
 
-    return NextResponse.json({ resposta })
+    const today = typeof body.today === 'string' ? body.today : new Date().toISOString().slice(0, 10)
+    const todayLabel = typeof body.todayLabel === 'string' ? body.todayLabel : today
+
+    // App pessoal de usuário único: sem papéis. O agente responde/age com acesso total.
+    const out = await getSuperAgent().chatWithActions(messages, { today, todayLabel })
+
+    if (out.type === 'action') {
+      return NextResponse.json({ resposta: out.resposta, pendingAction: { tool: out.tool, params: out.params } })
+    }
+    return NextResponse.json({ resposta: out.resposta })
   } catch (error) {
     console.error('[agent-chat] Failed:', error)
     return NextResponse.json(

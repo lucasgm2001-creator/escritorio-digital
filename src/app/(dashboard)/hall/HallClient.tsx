@@ -905,7 +905,7 @@ export function HallClient({ initialActivities, initialNotices, userName, userId
 
         {activeTab === 'agent' && (
           <div className="bento-fx h-[600px] overflow-hidden">
-            <AgentChat />
+            <AgentChat userId={userId} userName={userName} />
           </div>
         )}
 
