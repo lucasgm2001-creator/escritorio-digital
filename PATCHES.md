@@ -6,6 +6,14 @@ Categorias: 🐛 Fix · 🔄 Mudança · ✨ Novidade
 
 ---
 
+✨ Novidade — migration 023 documenta o drift de schema (DOCUMENTAÇÃO, não aplicada).
+- Arquivo idempotente que reconcilia objetos que JÁ existiam no banco mas faltavam no repo, pra
+  uma instância nova conseguir reconstruir o schema do zero. Cobre o drift real: leads.stage_changed_at,
+  deals.lead_id (+ FK → leads + índice), sellers.photo_url, e as tabelas presentations e
+  presentation_materials (com RLS authenticated). Não altera o banco atual (que já tem tudo) — no-op lá.
+
+---
+
 🐛 Fix — aba Vendedores: dono do deal dinâmico + esconde métricas legadas.
 - A automação Venda Fechada atribuía o deal ao "primeiro vendedor ativo" OU a um id FIXO de
   fallback (constante mágica) — o deal podia virar órfão (sem aparecer em nenhum vendedor). Agora
