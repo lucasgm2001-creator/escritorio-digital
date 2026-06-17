@@ -28,6 +28,15 @@ const monthName = (y: number, m: number) => new Date(y, m - 1, 1).toLocaleDateSt
 const fmtMonthYear = (iso: string) => { const [y, m] = iso.split('-'); return `${m}/${y}` }
 const fmtDayMonth = (iso: string) => { const [, m, d] = iso.split('-'); return `${d}/${m}` }
 const fmtDayMonthYear = (iso: string) => { const [y, m, d] = iso.split('-'); return `${d}/${m}/${y}` }
+
+// Cotação de último caso (regra 5) e rótulo de origem da cotação em uso (status visível).
+const FX_FALLBACK = 5.40
+function fxSourceMeta(source: string | undefined): { text: string; warn: boolean } {
+  if (source === 'manual') return { text: 'manual (travada)', warn: true }
+  if (source === 'fallback') return { text: 'fallback — não atualizada hoje, confira', warn: true }
+  if (source === 'auto') return { text: 'automática (hoje)', warn: false }
+  return { text: 'automática', warn: false }
+}
 const todayISO = () => { const d = new Date(); return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}` }
 // Soma dias a uma data 'YYYY-MM-DD' (aritmética local, segura p/ data pura).
 const addDaysISO = (iso: string, days: number) => {
@@ -331,6 +340,9 @@ export function CommissionSection({ sellerId, sellerName }: { sellerId: string; 
   const [fxTravadaInput, setFxTravadaInput] = useState(false)
   const [savingFx, setSavingFx] = useState(false)
   const [fxError, setFxError] = useState('')
+  const [fxReferencia, setFxReferencia] = useState<number | null>(null)
+  const [fxAuto, setFxAuto] = useState<{ referencia: number; effective: number; source: string } | null>(null)
+  const [fxRefreshing, setFxRefreshing] = useState(false)
 
   // Mês em foco
   const now = new Date()
@@ -363,7 +375,7 @@ export function CommissionSection({ sellerId, sellerName }: { sellerId: string; 
       supabase.from('seller_salaries').select('seller_id, valor_usd, effective_from').eq('seller_id', sellerId).order('effective_from', { ascending: false }),
       supabase.from('meetings').select('id, seller_id, met_on, valor_usd, cotacao_usd_brl, client_name').eq('seller_id', sellerId).order('met_on', { ascending: false }),
       supabase.from('deals').select('id, seller_id, client_name, valor_total_usd, teto_semanas, valor_por_semana_usd, status, data_fechamento').eq('seller_id', sellerId).order('data_fechamento', { ascending: false }),
-      supabase.from('fx_config').select('cotacao_manual, cotacao_travada').eq('id', 1).maybeSingle(),
+      supabase.from('fx_config').select('cotacao_manual, cotacao_travada, cotacao_referencia').eq('id', 1).maybeSingle(),
       supabase.from('clients').select('id, name').order('name'),
       supabase.from('leads').select('id, name').order('name'),
     ])
@@ -386,6 +398,7 @@ export function CommissionSection({ sellerId, sellerName }: { sellerId: string; 
     const m = fxRes.data?.cotacao_manual != null ? Number(fxRes.data.cotacao_manual) : null
     const t = !!fxRes.data?.cotacao_travada
     setFxManual(m); setFxTravada(t)
+    setFxReferencia(fxRes.data?.cotacao_referencia != null ? Number(fxRes.data.cotacao_referencia) : null)
     setFxManualInput(m != null ? String(m) : ''); setFxTravadaInput(t)
 
     setLoading(false)
@@ -393,9 +406,26 @@ export function CommissionSection({ sellerId, sellerName }: { sellerId: string; 
 
   useEffect(() => { load() }, [load])
 
+  // Cotação automática (regra 5): busca server-side com cache diário + fallback. NÃO
+  // bloqueia a tela — o valor aparece na hora (referência do DB) e atualiza quando volta.
+  const refreshFx = useCallback(async (force = false) => {
+    setFxRefreshing(true)
+    try {
+      const res = await fetch('/api/fx', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ force }) })
+      if (res.ok) {
+        const d = await res.json()
+        setFxAuto({ referencia: Number(d.referencia), effective: Number(d.effective), source: String(d.source) })
+      }
+    } catch { /* mantém a referência atual; nunca quebra a página */ }
+    finally { setFxRefreshing(false) }
+  }, [])
+  useEffect(() => { refreshFx(false) }, [refreshFx])
+
   // ── Cálculos ──────────────────────────────────────────────────────────────
   const fx: FxConfig = { cotacaoManual: fxManual, cotacaoTravada: fxTravada }
-  const automaticRate = fxManual ?? 0 // busca automática do dólar vem depois
+  // automaticRate = cotação automática do dia (referência do /api/fx), com fallback à
+  // última conhecida / manual / default — NUNCA 0. A trava manual é aplicada pela engine.
+  const automaticRate = fxAuto?.referencia ?? fxReferencia ?? fxManual ?? FX_FALLBACK
   const currentRate = resolveRate(fx, automaticRate)
   const summary = monthlySummary({ year: refDate.year, month: refDate.month, salaries, meetings, weeks, fx, automaticRate })
   const appliedEff = (() => {
@@ -494,7 +524,6 @@ export function CommissionSection({ sellerId, sellerName }: { sellerId: string; 
   // ── Marcar / desmarcar semana ─────────────────────────────────────────────────
   const markWeek = async (deal: DealUI, numero: number, paidOn: string): Promise<boolean> => {
     if (!paidOn) { toast({ type: 'error', message: 'Informe a data do recebimento.' }); return false }
-    if (currentRate <= 0) { toast({ type: 'error', message: 'Defina a cotação USD→BRL antes de lançar.' }); return false }
     const { ok, data } = await save<WeekRow>({
       run: () => supabase.from('weekly_payments').insert({
         deal_id: deal.id, numero_semana: numero, valor_usd: deal.valorPorSemanaUsd,
@@ -589,7 +618,6 @@ export function CommissionSection({ sellerId, sellerName }: { sellerId: string; 
     const valor = parseFloat(meetingForm.valor)
     if (isNaN(valor) || valor < 0) { setMeetingError('Valor inválido.'); return }
     if (!meetingForm.metOn) { setMeetingError('Informe a data da reunião.'); return }
-    if (currentRate <= 0) { setMeetingError('Defina a cotação USD→BRL antes de lançar.'); return }
     const matched = clients.find(c => c.name.toLowerCase() === meetingForm.client.trim().toLowerCase())
     setSavingMeeting(true)
     const { ok, data } = await save<MeetingRow>({
@@ -888,25 +916,35 @@ export function CommissionSection({ sellerId, sellerName }: { sellerId: string; 
 
       {/* ── CONFIGURAÇÃO: COTAÇÃO ─────────────────────────────────────── */}
       <Collapsible icon={<RefreshCw className="w-4 h-4 text-lime-fg" />} title="Cotação USD → BRL"
-        peek={`R$ ${currentRate.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} · ${fxTravada ? 'travada' : 'auto'}`}
+        peek={`R$ ${currentRate.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} · ${fxTravada ? 'travada' : fxAuto?.source === 'fallback' ? 'fallback' : 'auto'}`}
         open={!!open.cotacao} onToggle={() => toggle('cotacao')}
         headerExtra={<span className="text-[10px] text-bento-muted">global</span>}>
 
-        <div className="flex items-center justify-between bg-bento-bg border border-bento-border/60 rounded-btn px-3 py-2.5">
-          <span className="text-xs text-bento-muted">Cotação em uso</span>
-          <div className="flex items-center gap-2">
+        <div className="flex items-center justify-between gap-2 bg-bento-bg border border-bento-border/60 rounded-btn px-3 py-2.5">
+          <span className="text-xs text-bento-muted shrink-0">Cotação em uso</span>
+          <div className="flex items-center gap-2 min-w-0">
             <span className="text-sm font-semibold text-bento-text tabular-nums">R$ {currentRate.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
-            <span className={cn('text-[10px] px-1.5 py-0.5 rounded-full border', fxTravada ? 'bg-amber-900/30 text-amber-400 border-amber-800/50' : 'bg-lime/15 text-lime-fg border-lime/30')}>
-              {fxTravada ? 'Travada' : 'Automática'}
-            </span>
+            {(() => {
+              const meta = fxSourceMeta(fxTravada ? 'manual' : fxAuto?.source)
+              return (
+                <span className={cn('text-[10px] px-1.5 py-0.5 rounded-full border truncate', meta.warn ? 'bg-amber-900/30 text-amber-400 border-amber-800/50' : 'bg-lime/15 text-lime-fg border-lime/30')}>
+                  {meta.text}
+                </span>
+              )
+            })()}
           </div>
         </div>
+
+        <button onClick={() => refreshFx(true)} disabled={fxRefreshing}
+          className="flex items-center justify-center gap-1.5 w-full px-3 py-2 rounded-btn text-xs font-semibold border border-bento-border text-bento-dim hover:border-lime hover:text-lime-fg transition-colors disabled:opacity-50 min-h-[40px]">
+          <RefreshCw className="w-3.5 h-3.5" /> {fxRefreshing ? 'Atualizando...' : 'Atualizar cotação agora'}
+        </button>
 
         <button onClick={() => setFxTravadaInput(v => !v)}
           className={cn('flex items-center gap-2 w-full px-3 py-2.5 rounded-btn text-sm font-medium border transition-colors min-h-[44px]',
             fxTravadaInput ? 'border-amber-800/50 text-amber-400' : 'border-bento-border text-bento-dim hover:border-lime')}>
           {fxTravadaInput ? <Lock className="w-4 h-4" /> : <Unlock className="w-4 h-4" />}
-          {fxTravadaInput ? 'Valor manual travado' : 'Automática (usa o valor manual por enquanto)'}
+          {fxTravadaInput ? 'Valor manual travado' : 'Automática (cotação do dia)'}
         </button>
 
         <div>
@@ -914,7 +952,7 @@ export function CommissionSection({ sellerId, sellerName }: { sellerId: string; 
           <input type="number" value={fxManualInput} onChange={e => setFxManualInput(e.target.value)} className={inputCls} placeholder="5.40" min="0" step="0.01" />
         </div>
         {fxError && <p className="text-xs text-red-400">{fxError}</p>}
-        <p className="text-[11px] text-bento-muted">A busca do dólar do dia entra numa fase futura. Por ora, defina o valor manual e escolha travar ou deixar automática.</p>
+        <p className="text-[11px] text-bento-muted">Automática busca o dólar do dia (AwesomeAPI) com fallback à última cotação conhecida. Travar fixa no valor manual.</p>
         <button onClick={saveFx} disabled={savingFx} className="w-full bento-btn py-2.5 rounded-btn text-sm font-semibold disabled:opacity-50 min-h-[44px]">
           {savingFx ? 'Salvando...' : 'Salvar cotação'}
         </button>

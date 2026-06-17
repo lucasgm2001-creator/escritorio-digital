@@ -6,6 +6,19 @@ Categorias: 🐛 Fix · 🔄 Mudança · ✨ Novidade
 
 ---
 
+✨ Novidade — cotação USD→BRL automática + fallback nas Comissões (regra 5).
+- Nova rota server-side /api/fx busca o dólar do dia (AwesomeAPI, campo bid) com cache diário (não
+  rebusca se a referência já é de hoje no fuso de Brasília) e fallback: se a API falhar, usa a última
+  cotação conhecida → manual → 5.40. Grava só fx_config.cotacao_referencia + updated_at; NÃO mexe na
+  trava manual nem em nenhuma cotação congelada de lançamentos antigos.
+- A tela Comissões usa essa referência como cotação automática (a trava manual continua mandando quando
+  ligada) e NÃO trava mais lançamento por "cotação ausente" (a efetiva nunca é 0). O status mostra a
+  origem ("automática (hoje)" / "manual (travada)" / "fallback — confira") + botão "Atualizar cotação agora".
+- Sem mudança de schema (fx_config já tinha cotacao_referencia). Regra de ouro: só lançamentos NOVOS
+  congelam a cotação corrente; históricos intactos.
+
+---
+
 ✨ Novidade — migration 023 documenta o drift de schema (DOCUMENTAÇÃO, não aplicada).
 - Arquivo idempotente que reconcilia objetos que JÁ existiam no banco mas faltavam no repo, pra
   uma instância nova conseguir reconstruir o schema do zero. Cobre o drift real: leads.stage_changed_at,
