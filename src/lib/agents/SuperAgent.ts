@@ -3,8 +3,9 @@ import { anthropic } from '@ai-sdk/anthropic'
 import { createClient } from '@/lib/supabase/server'
 
 // Modelo das ações: sonnet decide ferramentas com mais confiabilidade que haiku.
-// (Trocar aqui caso queira outro modelo habilitado na conta.)
-const ACTION_MODEL = 'claude-3-5-sonnet-20241022'
+// IMPORTANTE: tem que ser um modelo HABILITADO na conta — claude-3-5-sonnet-20241022
+// devolvia 404 not_found aqui. claude-sonnet-4-6 está disponível e faz tool use ok.
+const ACTION_MODEL = 'claude-sonnet-4-6'
 
 // Ferramentas que o agente PODE executar (fase 1: criar lead, criar tarefa).
 // SEM `execute`: a chamada é devolvida ao app, que pede confirmação ao usuário

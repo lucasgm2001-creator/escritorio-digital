@@ -69,9 +69,12 @@ export async function POST(req: Request) {
     }
     return NextResponse.json({ resposta: out.resposta })
   } catch (error) {
-    console.error('[agent-chat] Failed:', error)
+    // Não engolir o erro real: logar e devolver o motivo (ajuda a diagnosticar
+    // falhas de modelo/API em vez de mostrar só "a IA demorou" no chat).
+    const detail = error instanceof Error ? error.message : String(error)
+    console.error('[agent-chat] Failed:', detail, error)
     return NextResponse.json(
-      { error: 'Erro ao processar pergunta.' },
+      { error: 'Erro ao processar a mensagem do agente.', detail },
       { status: 500 }
     )
   }

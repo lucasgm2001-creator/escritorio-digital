@@ -133,15 +133,16 @@ export function AgentChat({ userId, userName }: { userId: string; userName: stri
       })
 
       if (!res.ok) {
-        const error = await res.json().catch(() => ({}))
-        throw new Error(error.error || 'Erro ao comunicar com agente')
+        const err = await res.json().catch(() => ({}))
+        throw new Error(err.detail || err.error || 'Erro ao comunicar com agente')
       }
 
       const data = await res.json()
       addAgent(data.resposta)
       setPending(data.pendingAction ?? null)
-    } catch {
-      addAgent('A IA demorou para responder ou está indisponível. Tente novamente em instantes.')
+    } catch (e) {
+      const msg = e instanceof Error && e.message ? e.message : ''
+      addAgent(msg ? `Não consegui processar: ${msg}` : 'A IA demorou para responder ou está indisponível. Tente novamente em instantes.')
       setPending(null)
     } finally {
       setLoading(false)

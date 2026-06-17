@@ -6,6 +6,16 @@ Categorias: 🐛 Fix · 🔄 Mudança · ✨ Novidade
 
 ---
 
+🐛 Fix — agente do Hall com tool use estava falhando (modelo indisponível → 404).
+- Ao pedir pra criar lead/tarefa, o Agente IA respondia sempre "A IA demorou para responder...".
+  Causa real: o modelo das ações era claude-3-5-sonnet-20241022, que NÃO está habilitado nesta
+  conta Anthropic — a API devolvia 404 not_found a cada chamada. O tool use em si estava correto.
+- Troquei pra claude-sonnet-4-6 (disponível na conta e faz function calling normalmente).
+- De quebra: o erro real agora é logado e devolvido ao chat (o catch genérico escondia o motivo).
+  Sem mudança de banco.
+
+---
+
 ✨ Novidade — o Agente IA do Hall agora EXECUTA ações (criar lead, criar tarefa), com confirmação.
 - No Hall › Agente, além de responder perguntas, ele entende pedidos como "cria um lead chamado
   João da Construtora Silva" ou "me lembra de ligar pro Sandro amanhã 10h" e propõe a ação.
