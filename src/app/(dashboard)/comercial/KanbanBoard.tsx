@@ -13,8 +13,7 @@ import { PhaseAccordion } from './PhaseAccordion'
 import { LeadCard } from './LeadCard'
 import { LeadModal } from './LeadModal'
 import { LeadDiary } from './LeadDiary'
-import { resolveRate } from '@/lib/commission/calc'
-import type { FxConfig } from '@/lib/commission/types'
+import { moveLead } from './leadActions'
 import { MetricasTab } from './tabs/MetricasTab'
 import { VendedoresTab } from './tabs/VendedoresTab'
 import { TIERS, ALL_COLUMNS } from './types'
@@ -117,90 +116,23 @@ export function KanbanBoard({ initialLeads, currentUser }: { initialLeads: Lead[
 
   const handleDragStart = (e: DragStartEvent) => setActiveId(e.active.id as string)
 
-  // Fluxo de "ganhou" (lead → Venda Fechada): atividade + cliente (idempotente) +
-  // LANÇA o deal de comissão automaticamente (+1ª semana paga). Não duplica se o lead
-  // sair e voltar (dedup por lead_id, com fallback client_name+seller).
-  const runWonFlow = useCallback(async (lead: Lead) => {
-    const d = new Date()
-    const today = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
-
-    await supabase.from('activities').insert({
-      type: 'lead',
-      description: `Lead ${lead.name} movido para Venda Fechada`,
-      user_name: currentUser.name,
-      entity_id: lead.id,
-    })
-
-    // 1) Cliente idempotente: reusa se já existe (por nome); senão cria.
-    let clientId: string | null = null
-    const { data: existing } = await supabase.from('clients').select('id, status').eq('name', lead.name).limit(1)
-    if (existing && existing.length) {
-      clientId = existing[0].id
-      // Reativa: quem acabou de fechar venda não pode ficar 'inativo'. Mexe só neste cliente.
-      if (existing[0].status !== 'ativo') {
-        await supabase.from('clients').update({ status: 'ativo' }).eq('id', existing[0].id)
-      }
-    } else {
-      const { data: newClient, error: clientErr } = await supabase.from('clients').insert({
-        name: lead.name, email: lead.email ?? null, phone: lead.phone ?? null, company: lead.company ?? null,
-        plan_weekly: 0, status: 'ativo',
-        assigned_to: lead.assigned_to ?? null, assigned_name: lead.assigned_name ?? null,
-        start_date: new Date().toISOString(),
-      }).select('id').single()
-      if (clientErr) showToast(`Lead movido, mas falhou ao cadastrar o cliente: ${clientErr.message}`, 'error')
-      else clientId = newClient?.id ?? null
-    }
-
-    // Vendedor ativo (hoje só o Lucas); fallback pro id conhecido.
-    const { data: sellers } = await supabase.from('sellers').select('id').eq('status', 'ativo').limit(1)
-    const sellerId = sellers?.[0]?.id ?? 'd129ace7-424b-4434-88af-baa3781cb568'
-
-    // 2) Deal idempotente: não cria se já existe deal deste lead (lead_id) ou mesmo
-    //    client_name+seller (cobre deals antigos sem lead_id). Evita comissão dobrada.
-    const { data: deals } = await supabase.from('deals').select('id, lead_id, client_name').eq('seller_id', sellerId)
-    if ((deals ?? []).some(x => x.lead_id === lead.id || x.client_name === lead.name)) return
-
-    const { data: deal, error: dealErr } = await supabase.from('deals').insert({
-      seller_id: sellerId, client_id: clientId, client_name: lead.name, lead_id: lead.id,
-      valor_total_usd: 100, teto_semanas: 4, valor_por_semana_usd: 25,
-      status: 'em_andamento', data_fechamento: today,
-    }).select('id').single()
-    if (dealErr || !deal) {
-      showToast(`Cliente ok, mas não foi possível lançar a comissão: ${dealErr?.message ?? 'erro'}`, 'error')
-      return
-    }
-
-    // 3) 1ª semana já paga, com a cotação vigente (mesma lógica do registro manual).
-    const { data: fx } = await supabase.from('fx_config').select('cotacao_manual, cotacao_travada').eq('id', 1).maybeSingle()
-    const manual = fx?.cotacao_manual != null ? Number(fx.cotacao_manual) : null
-    const fxc: FxConfig = { cotacaoManual: manual, cotacaoTravada: !!fx?.cotacao_travada }
-    const { error: wkErr } = await supabase.from('weekly_payments').insert({
-      deal_id: deal.id, numero_semana: 1, valor_usd: 25, paid_on: today, cotacao_usd_brl: resolveRate(fxc, manual ?? 0),
-    })
-    if (wkErr) { showToast(`Deal criado, mas falhou a 1ª semana: ${wkErr.message}`, 'error'); return }
-
-    showToast('Venda registrada: comissão lançada')
-  }, [supabase, currentUser.name])
-
-  // Move um lead de fase: otimista → persiste → rollback+toast se falhar → won-flow.
+  // Move um lead de fase: otimista → persiste via moveLead (lógica compartilhada que,
+  // ao ir pra "fechado", dispara o won-flow/comissão) → rollback+toast se falhar.
   const moveLeadToStatus = useCallback(async (lead: Lead, newStatus: LeadStatus): Promise<boolean> => {
     if (lead.status === newStatus) return true
     const prevStatus = lead.status
     const prevStage = lead.stage_changed_at
     const nowIso = new Date().toISOString()
-    // Marca a entrada na nova fase (deal rotting) ao mover.
     setLeads(prev => prev.map(l => l.id === lead.id ? { ...l, status: newStatus, stage_changed_at: nowIso } : l))   // otimista
-
-    const { error } = await supabase
-      .from('leads').update({ status: newStatus, stage_changed_at: nowIso, updated_at: nowIso }).eq('id', lead.id)
-    if (error) {
+    const res = await moveLead(supabase, lead, newStatus, currentUser.name)
+    if (!res.ok) {
       setLeads(prev => prev.map(l => l.id === lead.id ? { ...l, status: prevStatus, stage_changed_at: prevStage } : l))   // rollback
-      showToast(`Não foi possível mover o lead: ${error.message}`, 'error')
+      showToast(`Não foi possível mover o lead: ${res.error}`, 'error')
       return false
     }
-    if (newStatus === 'fechado' && prevStatus !== 'fechado') await runWonFlow(lead)
+    for (const n of res.notes) showToast(n.message, n.type)
     return true
-  }, [supabase, runWonFlow])
+  }, [supabase, currentUser.name])
 
   // Registra um contato com o lead em lead_interactions (fundação do relatório de
   // engajamento). atendeu/mensagem = engajou; nao_atendeu NÃO conta como engajado.

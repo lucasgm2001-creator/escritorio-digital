@@ -6,6 +6,20 @@ Categorias: 🐛 Fix · 🔄 Mudança · ✨ Novidade
 
 ---
 
+✨ Novidade — o Agente IA do Hall agora MOVE leads no funil (confirmação só pra Venda Fechada).
+- 3ª ação do agente: "move o Sandro pra reunião", "o João fechou", "manda o lead X pra proposta".
+  Ele acha o lead pelo nome (pede esclarecimento se houver ambiguidade) e muda o estágio.
+- Estágios normais movem DIRETO, sem confirmar ("Pronto! Movi o Sandro pra Reunião Agendada").
+- Venda Fechada PEDE confirmação (mexe em dinheiro): avisa que vai registrar a comissão
+  (deal US$ 100, 1ª semana paga) e só move após o Confirmar.
+- Usa a MESMA função do funil (moveLead/won-flow), extraída pra um módulo compartilhado —
+  então fechar pelo agente dispara os mesmos efeitos (deal + cliente + 1ª semana, idempotente)
+  que arrastar no funil. Sem duplicar lógica nem update solto que pule a automação.
+- Escopo: só mover (criar lead/tarefa já existiam). Registrar comissão/pagamento e editar/deletar
+  ficam pra depois. Sem mudança de banco.
+
+---
+
 🐛 Fix — agente do Hall com tool use estava falhando (modelo indisponível → 404).
 - Ao pedir pra criar lead/tarefa, o Agente IA respondia sempre "A IA demorou para responder...".
   Causa real: o modelo das ações era claude-3-5-sonnet-20241022, que NÃO está habilitado nesta

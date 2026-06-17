@@ -48,6 +48,24 @@ const createTaskTool = tool({
   }),
 })
 
+const moverLeadTool = tool({
+  description:
+    'Move um lead para outro estágio do funil comercial. Use quando o usuário pedir para mover, avançar ou mudar um lead de fase (ex: "move o Sandro pra reunião", "o João fechou").',
+  inputSchema: jsonSchema<{ lead_name: string; destino: string }>({
+    type: 'object',
+    properties: {
+      lead_name: { type: 'string', description: 'Nome do lead a mover.' },
+      destino: {
+        type: 'string',
+        enum: ['novo', 'interagiu', 'nao_interagiu', 'reuniao', 'no_show', 'reagendamento', 'proposta', 'fechado', 'perdido', 'lixeira'],
+        description: 'Estágio de destino (código). Mapeie a linguagem natural: "reunião"/"reunião agendada"→reuniao; "no show"/"não compareceu"→no_show; "reagendar"→reagendamento; "proposta"/"proposta em análise"→proposta; "venda fechada"/"fechou"/"ganhou"→fechado; "perdido"/"perdeu"→perdido; "lixo"/"descartar"→lixeira; "interagiu"→interagiu; "não interagiu"/"sem interação"→nao_interagiu; "novo"/"novo lead"→novo.',
+      },
+    },
+    required: ['lead_name', 'destino'],
+    additionalProperties: false,
+  }),
+})
+
 // Texto do preview mostrado ao usuário antes de confirmar a gravação.
 function buildActionPreview(toolName: string, p: Record<string, unknown>): string {
   if (toolName === 'create_lead') {
@@ -70,12 +88,23 @@ function buildActionPreview(toolName: string, p: Record<string, unknown>): strin
     lines.push('', 'Confirma?')
     return lines.join('\n')
   }
+  if (toolName === 'mover_lead') {
+    // Só chega aqui quando precisa confirmar (destino = Venda Fechada).
+    return `Mover **${p.lead_name}** para **Venda Fechada** vai registrar a comissão (deal de US$ 100, 1ª semana paga). Confirma?`
+  }
   return 'Confirma?'
+}
+
+// Quais ações exigem confirmação antes de executar. Mover é direto, EXCETO pra
+// "fechado" (Venda Fechada), que dispara a comissão. Criar lead/tarefa sempre confirmam.
+function needsConfirm(toolName: string, p: Record<string, unknown>): boolean {
+  if (toolName === 'mover_lead') return p.destino === 'fechado'
+  return true
 }
 
 export type AgentTurn =
   | { type: 'text'; resposta: string }
-  | { type: 'action'; tool: string; params: Record<string, unknown>; resposta: string }
+  | { type: 'action'; tool: string; params: Record<string, unknown>; requiresConfirm: boolean; resposta: string }
 
 export class SuperAgent {
   private supabase = createClient()
@@ -163,7 +192,7 @@ export class SuperAgent {
     const system = [
       'Você é o assistente do Escritório Digital DR Growth. Responda em português, de forma concisa e prática.',
       `Hoje é ${opts.todayLabel} (${opts.today}). Resolva datas relativas (hoje, amanhã, depois de amanhã, sexta, segunda, semana que vem) para datas absolutas no formato YYYY-MM-DD a partir de hoje. Se o dia da semana já passou nesta semana, use a próxima ocorrência.`,
-      'Você PODE executar ações pelas ferramentas: create_lead (criar lead) e create_task (criar tarefa). Use a ferramenta correspondente quando o usuário pedir para criar/cadastrar/adicionar/agendar. Para perguntas, consultas e análises, responda em texto, sem ferramenta.',
+      'Você PODE executar ações pelas ferramentas: create_lead (criar lead), create_task (criar tarefa) e mover_lead (mover um lead de estágio no funil). Use a ferramenta correspondente quando o usuário pedir para criar/cadastrar/adicionar/agendar/mover/avançar. Para perguntas, consultas e análises, responda em texto, sem ferramenta.',
       'Nunca diga que já criou algo: ao chamar uma ferramenta, o aplicativo ainda vai pedir a confirmação do usuário antes de gravar.',
       'Se faltar um dado obrigatório (nome do lead, ou título da tarefa), peça-o em texto antes de usar a ferramenta.',
       'Dados atuais do sistema (somente leitura, use apenas para responder perguntas):',
@@ -174,14 +203,14 @@ export class SuperAgent {
       model: anthropic(ACTION_MODEL),
       system,
       messages,
-      tools: { create_lead: createLeadTool, create_task: createTaskTool },
+      tools: { create_lead: createLeadTool, create_task: createTaskTool, mover_lead: moverLeadTool },
       maxOutputTokens: 600,
     })
 
     const call = result.toolCalls?.[0]
     if (call) {
       const params = (call.input ?? {}) as Record<string, unknown>
-      return { type: 'action', tool: call.toolName, params, resposta: buildActionPreview(call.toolName, params) }
+      return { type: 'action', tool: call.toolName, params, requiresConfirm: needsConfirm(call.toolName, params), resposta: buildActionPreview(call.toolName, params) }
     }
     return { type: 'text', resposta: result.text?.trim() || 'Não entendi. Pode reformular?' }
   }

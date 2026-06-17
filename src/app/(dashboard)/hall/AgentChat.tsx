@@ -3,6 +3,8 @@
 import { useState, useRef, useEffect } from 'react'
 import { Markdown } from '@/components/ui/Markdown'
 import { createClient } from '@/lib/supabase/client'
+import { moveLead, type MovableLead } from '../comercial/leadActions'
+import { ALL_COLUMNS, type LeadStatus } from '../comercial/types'
 
 interface Message {
   id: string
@@ -83,6 +85,33 @@ export function AgentChat({ userId, userName }: { userId: string; userName: stri
       if (error) return `Não consegui criar a tarefa: ${error.message}`
       return `Pronto! Tarefa "${title}" criada${link ? ` e vinculada ao lead ${link.linked_name}` : ''}.`
     }
+    if (action.tool === 'mover_lead') {
+      const leadName = String(p.lead_name ?? '').trim()
+      const destino = String(p.destino ?? '').trim()
+      if (!leadName) return 'Não consegui mover: faltou o nome do lead.'
+      if (!ALL_COLUMNS.some(c => c.key === destino)) return `Não consegui mover: estágio "${destino}" inválido.`
+      // Busca por nome (igual ao vínculo de tarefa); trata "não achei" e ambiguidade.
+      const { data: matches, error: findErr } = await supabase
+        .from('leads')
+        .select('id, name, status, email, phone, company, assigned_to, assigned_name')
+        .ilike('name', `%${leadName}%`)
+      if (findErr) return `Não consegui buscar o lead: ${findErr.message}`
+      if (!matches || matches.length === 0) return `Não achei nenhum lead com "${leadName}".`
+      let lead = matches[0]
+      if (matches.length > 1) {
+        const exact = matches.filter(m => m.name.toLowerCase() === leadName.toLowerCase())
+        if (exact.length === 1) lead = exact[0]
+        else return `Achei mais de um lead parecido com "${leadName}": ${matches.map(m => m.name).join(', ')}. Qual deles?`
+      }
+      const label = ALL_COLUMNS.find(c => c.key === destino)?.label ?? destino
+      if (lead.status === destino) return `O ${lead.name} já está em ${label}.`
+      // MESMA função do funil → dispara o won-flow ao ir pra "fechado".
+      const res = await moveLead(supabase, lead as MovableLead, destino as LeadStatus, userName)
+      if (!res.ok) return `Não consegui mover o ${lead.name}: ${res.error}`
+      let msg = `Pronto! Movi o ${lead.name} pra ${label}.`
+      for (const n of res.notes) if (n.message) msg += `\n${n.message}`
+      return msg
+    }
     return 'Ação desconhecida.'
   }
 
@@ -138,8 +167,17 @@ export function AgentChat({ userId, userName }: { userId: string; userName: stri
       }
 
       const data = await res.json()
-      addAgent(data.resposta)
-      setPending(data.pendingAction ?? null)
+      if (data.pendingAction && data.requiresConfirm === false) {
+        // Ação direta (ex: mover pra estágio normal): executa sem pedir confirmação.
+        addAgent(await executeAction(data.pendingAction))
+        setPending(null)
+      } else if (data.pendingAction) {
+        addAgent(data.resposta)   // preview; aguarda Confirmar/Cancelar
+        setPending(data.pendingAction)
+      } else {
+        addAgent(data.resposta)
+        setPending(null)
+      }
     } catch (e) {
       const msg = e instanceof Error && e.message ? e.message : ''
       addAgent(msg ? `Não consegui processar: ${msg}` : 'A IA demorou para responder ou está indisponível. Tente novamente em instantes.')
@@ -226,7 +264,7 @@ export function AgentChat({ userId, userName }: { userId: string; userName: stri
         <div className="px-4 pb-2">
           <div className="flex items-center gap-2 rounded-btn border border-lime/40 bg-lime/10 px-3 py-2">
             <span className="text-xs text-bento-text flex-1">
-              Confirmar {pending.tool === 'create_lead' ? 'criação do lead' : pending.tool === 'create_task' ? 'criação da tarefa' : 'a ação'}?
+              Confirmar {pending.tool === 'create_lead' ? 'criação do lead' : pending.tool === 'create_task' ? 'criação da tarefa' : pending.tool === 'mover_lead' ? 'mover pra Venda Fechada' : 'a ação'}?
             </span>
             <button
               type="button"

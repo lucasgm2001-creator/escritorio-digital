@@ -65,7 +65,11 @@ export async function POST(req: Request) {
     const out = await getSuperAgent().chatWithActions(messages, { today, todayLabel })
 
     if (out.type === 'action') {
-      return NextResponse.json({ resposta: out.resposta, pendingAction: { tool: out.tool, params: out.params } })
+      return NextResponse.json({
+        resposta: out.resposta,
+        pendingAction: { tool: out.tool, params: out.params },
+        requiresConfirm: out.requiresConfirm,
+      })
     }
     return NextResponse.json({ resposta: out.resposta })
   } catch (error) {
