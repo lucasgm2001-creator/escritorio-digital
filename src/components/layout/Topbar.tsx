@@ -16,21 +16,23 @@ interface TopbarProps {
 }
 
 // O fuso IANA (America/...) já resolve o horário de verão dos EUA automaticamente.
-function LiveClock({ timezone, label }: { timezone: string; label: string }) {
+function LiveClock({ timezone, label, primary }: { timezone: string; label: string; primary?: boolean }) {
   const [time, setTime] = useState('')
   useEffect(() => {
     const update = () => setTime(new Date().toLocaleTimeString('pt-BR', {
       timeZone: timezone, hour: '2-digit', minute: '2-digit',
     }))
     update()
-    const id = setInterval(update, 30_000)
+    const id = setInterval(update, 15_000)
     return () => clearInterval(id)
   }, [timezone])
 
+  // Brasília (principal) destacada em lime; demais fusos em cinza. Hora em JetBrains
+  // Mono (font-mono). Atualização a cada 15s = funcional, não enfeite.
   return (
     <div className="flex flex-col items-center leading-none gap-0.5">
-      <span className="text-[9px] text-muted-foreground whitespace-nowrap">{label}</span>
-      <span className="font-mono text-xs font-semibold text-foreground tabular-nums">{time}</span>
+      <span className={`text-[9px] uppercase tracking-wide whitespace-nowrap ${primary ? 'text-lime font-semibold' : 'text-slate-500'}`}>{label}</span>
+      <span className={`font-mono text-xs font-semibold tabular-nums ${primary ? 'text-white' : 'text-slate-300'}`}>{time || '--:--'}</span>
     </div>
   )
 }
@@ -81,11 +83,11 @@ export function Topbar({ title, onMenuToggle, userName = 'Usuário', userInitial
       <h1 className="font-semibold text-foreground text-sm tracking-tight">{title}</h1>
 
       <div className="ml-auto flex items-center gap-4">
-        {/* Fusos: Brasília (principal) + EUA Leste/Montanha/Oeste. Brasília a partir
-            de sm; os 3 dos EUA a partir de lg (evita lotar a barra em tela média). */}
-        <div className="hidden sm:flex items-center gap-3 border-r border-[#2d3748] pr-4">
-          <LiveClock timezone="America/Sao_Paulo" label="Brasília" />
-          <div className="hidden lg:flex items-center gap-3">
+        {/* Fusos sempre visíveis: Brasília (principal, lime) + EUA Leste/Montanha/Oeste.
+            Brasília a partir de sm; os 3 dos EUA a partir de md (evita lotar no celular). */}
+        <div className="hidden sm:flex items-center gap-2.5 sm:gap-3.5 border-r border-[#2d3748] pr-3 sm:pr-4">
+          <LiveClock timezone="America/Sao_Paulo" label="Brasília" primary />
+          <div className="hidden md:flex items-center gap-3.5">
             <LiveClock timezone="America/New_York"    label="EUA Leste" />
             <LiveClock timezone="America/Denver"      label="EUA Mont." />
             <LiveClock timezone="America/Los_Angeles" label="EUA Oeste" />
