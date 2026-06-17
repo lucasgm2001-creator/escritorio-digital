@@ -4,6 +4,8 @@ import { useState, useEffect } from 'react'
 import { usePathname } from 'next/navigation'
 import { Sidebar } from './Sidebar'
 import { Topbar } from './Topbar'
+import { RevalidateOnFocus } from '@/components/system/RevalidateOnFocus'
+import { ThemeWatcher } from '@/components/system/ThemeWatcher'
 
 interface DashboardShellProps {
   children: React.ReactNode
@@ -50,6 +52,9 @@ export function DashboardShell({ children, userName, userId, avatarUrl, logoUrl,
 
   return (
     <div className="flex h-screen overflow-hidden bg-background">
+      {/* Revalida dados ao focar a aba + reavalia o tema (dia/noite) ao vivo. Sem UI. */}
+      <RevalidateOnFocus />
+      <ThemeWatcher />
       {/* Desktop sidebar */}
       {!isMobile && (
         <Sidebar

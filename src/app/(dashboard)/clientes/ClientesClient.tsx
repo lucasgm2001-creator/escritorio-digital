@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useSave } from '@/lib/useSave'
 import { formatCurrency, formatDate, timeAgo } from '@/lib/utils'
@@ -192,6 +192,8 @@ function ClientRow({
 
 export function ClientesClient({ initialClients, currentUser }: Props) {
   const [clients, setClients] = useState<Client[]>(initialClients)
+  // Reflete dados frescos do servidor após router.refresh() (revalidação ao focar a aba).
+  useEffect(() => { setClients(initialClients) }, [initialClients])
   const [search, setSearch] = useState('')
   const [newOpen, setNewOpen] = useState(false)
   const [editClient, setEditClient] = useState<Client | null>(null)

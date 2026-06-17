@@ -65,6 +65,8 @@ function SummaryLegend({ cls, t }: { cls: string; t: string }) {
 
 export function KanbanBoard({ initialLeads, currentUser }: { initialLeads: Lead[], currentUser: CurrentUser }) {
   const [leads, setLeads] = useState<Lead[]>(initialLeads)
+  // Reflete dados frescos do servidor após router.refresh() (revalidação ao focar a aba).
+  useEffect(() => { setLeads(initialLeads) }, [initialLeads])
   const [activeId, setActiveId] = useState<string | null>(null)
   const [newLeadOpen, setNewLeadOpen] = useState(false)
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null)

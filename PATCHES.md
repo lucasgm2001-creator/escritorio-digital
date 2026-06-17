@@ -6,6 +6,19 @@ Categorias: 🐛 Fix · 🔄 Mudança · ✨ Novidade
 
 ---
 
+✨ Novidade — dashboard atualiza sozinho ao voltar pra aba + tema dia/noite ao vivo.
+- Ao focar/voltar a ficar visível a aba (e a cada 3 min enquanto visível), os dados do servidor são
+  re-buscados em segundo plano (router.refresh) SEM limpar a tela; Hall, Comercial, Clientes e Tarefas
+  passam a refletir o dado fresco no lugar (sync props→estado). Throttle de 10s evita repetir em trocas
+  rápidas. Hook reutilizável useOnFocusVisible + componente RevalidateOnFocus no shell.
+- Tema 'auto' (escuro das 18h às 6h) agora vira sozinho ao cruzar o horário, SEM refresh (checa a cada
+  1 min + ao focar). Manual (claro/escuro fixo) continua mandando; só troca o <html> quando o estado
+  realmente muda (não pisca a tela nem perde foco). Componente ThemeWatcher no shell.
+- Sem mudança de schema. (A preferência de tema já vivia em localStorage — sistema pré-existente; aqui
+  só LEMOS pra respeitar o manual, sem introduzir novo localStorage.)
+
+---
+
 ✨ Novidade — cotação USD→BRL automática + fallback nas Comissões (regra 5).
 - Nova rota server-side /api/fx busca o dólar do dia (AwesomeAPI, campo bid) com cache diário (não
   rebusca se a referência já é de hoje no fuso de Brasília) e fallback: se a API falhar, usa a última

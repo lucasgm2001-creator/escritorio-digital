@@ -686,6 +686,9 @@ export function HallClient({ initialActivities, initialNotices, userName, userId
   const [activeTab, setActiveTab]     = useState<Tab>('activities')
   const [activities, setActivities]   = useState<Activity[]>(initialActivities)
   const [notices, setNotices]         = useState<Notice[]>(initialNotices)
+  // Reflete dados frescos do servidor após router.refresh() (revalidação ao focar a aba).
+  // Realtime continua atualizando entre refreshes; aqui só reconcilia com a verdade do server.
+  useEffect(() => { setActivities(initialActivities); setNotices(initialNotices) }, [initialActivities, initialNotices])
   const [greeting, setGreeting]       = useState('')
   const [today, setToday]             = useState('')
   const [onlineUsers, setOnlineUsers] = useState<{ id: string; name: string }[]>([{ id: userId, name: userName }])
