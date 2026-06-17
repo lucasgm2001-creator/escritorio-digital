@@ -6,6 +6,17 @@ Categorias: 🐛 Fix · 🔄 Mudança · ✨ Novidade
 
 ---
 
+🐛 Fix — navegação lenta: RevalidateOnFocus estava bustando o Router Cache do Next.
+- O componente disparava router.refresh() no evento 'focus' do window + a cada 3 min → invalidava o
+  Router Cache, então CADA navegação entre seções re-buscava tudo (~3s) e a página ainda recarregava
+  sozinha de tempos em tempos ("forçada").
+- Agora SÓ revalida quando a aba volta de escondida (visibilitychange hidden→visible) E ficou escondida
+  por mais de 60s. Sem 'focus' do window, sem intervalo periódico → o cache do Next sobrevive: revisita
+  de seção volta a ser instantânea; alt-tab rápido (<1 min) não recarrega; voltar depois de 1 min+
+  atualiza sozinho. ThemeWatcher intacto (não usa router.refresh) → tema automático segue. Sem schema.
+
+---
+
 ✨ Novidade — dashboard atualiza sozinho ao voltar pra aba + tema dia/noite ao vivo.
 - Ao focar/voltar a ficar visível a aba (e a cada 3 min enquanto visível), os dados do servidor são
   re-buscados em segundo plano (router.refresh) SEM limpar a tela; Hall, Comercial, Clientes e Tarefas
