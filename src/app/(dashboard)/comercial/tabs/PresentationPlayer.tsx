@@ -26,11 +26,27 @@ function fullscreenElement(): Element | null {
   return document.fullscreenElement || (document as unknown as { webkitFullscreenElement?: Element | null }).webkitFullscreenElement || null
 }
 
+// Placeholder de UMA página que falhou (não derruba o PDF inteiro).
+function pagePlaceholder(n: number): HTMLDivElement {
+  const d = document.createElement('div')
+  d.className = 'w-full mb-3 rounded-sm bg-white/5 border border-white/10 text-white/55 text-xs text-center py-10'
+  d.textContent = `Página ${n} não pôde ser exibida`
+  return d
+}
+function showPdfError(container: HTMLElement, msg: string) {
+  container.replaceChildren()
+  const p = document.createElement('p')
+  p.className = 'text-white/70 text-sm text-center py-10'
+  p.textContent = msg
+  container.appendChild(p)
+}
+
 // ─── PDF nítido em telas Retina: renderiza via pdf.js num canvas HiDPI ──────────
 // O <iframe> nativo borrava em dpr 2/3 porque o Chrome rasteriza o conteúdo do
 // iframe a 1x. Aqui o backing store do canvas é viewport × devicePixelRatio (dpr
-// limitado a 2 p/ não estourar memória) e o tamanho de exibição (CSS) fica em 1x.
-// Páginas renderizam sob demanda (IntersectionObserver) — seguro p/ PDFs grandes.
+// limitado a 2), com a escala REDUZIDA por página se estourar o limite de canvas
+// do navegador (lado ~16384px / área ~16M px no Safari → mancha preta ou falha).
+// Páginas renderizam sob demanda (IntersectionObserver), cada uma isolada.
 function PdfView({ url }: { url: string }) {
   const containerRef = useRef<HTMLDivElement>(null)
 
@@ -42,24 +58,33 @@ function PdfView({ url }: { url: string }) {
     if (!container) return
 
     ;(async () => {
+      // Só falha de CARREGAR o documento inteiro vira erro geral (zera o preview).
       try {
         const pdfjs = await import('pdfjs-dist')
         // Worker casado com a versão instalada (evita config de worker no bundler).
         pdfjs.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`
         doc = await pdfjs.getDocument(url).promise
-        if (cancelled || !container) { doc?.destroy(); return }
-        container.replaceChildren()
+      } catch {
+        if (!cancelled && container) showPdfError(container, 'Não foi possível abrir o PDF.')
+        return
+      }
+      if (!doc || cancelled || !container) { doc?.destroy(); return }
+      container.replaceChildren()
 
-        const dpr = Math.min(window.devicePixelRatio || 1, 2)
-        const cw = Math.max(container.clientWidth - 16, 100)
+      const dpr = Math.min(window.devicePixelRatio || 1, 2)
+      // Limites conservadores (abaixo do máximo do browser) p/ não gerar mancha
+      // preta nem falha: por lado e por área total.
+      const MAX_SIDE = 8192
+      const MAX_AREA = 16_000_000
+      const cw = Math.max(container.clientWidth - 16, 100)
 
-        for (let n = 1; n <= doc.numPages; n++) {
+      for (let n = 1; n <= doc.numPages; n++) {
+        if (cancelled) return
+        // Cada página isolada: a que falhar vira placeholder; as outras seguem.
+        try {
           const page = await doc.getPage(n)
-          if (cancelled) return
           const base = page.getViewport({ scale: 1 })
-          const cssScale = cw / base.width
           const canvas = document.createElement('canvas')
-          // Exibição em tamanho de tela; backing store em dpr → HiDPI/nítido.
           canvas.style.width = '100%'
           canvas.style.aspectRatio = `${base.width} / ${base.height}`
           canvas.className = 'block w-full mb-3 bg-white rounded-sm shadow-lg'
@@ -70,22 +95,25 @@ function PdfView({ url }: { url: string }) {
             if (done || cancelled || !entries.some(e => e.isIntersecting)) return
             done = true
             io.disconnect()
-            const viewport = page.getViewport({ scale: cssScale * dpr })
-            canvas.width = Math.floor(viewport.width)
-            canvas.height = Math.floor(viewport.height)
+            // Encaixe na largura × dpr, REDUZIDO se estourar lado/área do canvas.
+            const fit = cw / base.width
+            let scale = fit * dpr
+            const w = base.width * scale, h = base.height * scale
+            const cap = Math.min(1, MAX_SIDE / w, MAX_SIDE / h, Math.sqrt(MAX_AREA / (w * h)))
+            if (cap < 1) scale *= cap
+            const viewport = page.getViewport({ scale })
+            canvas.width = Math.max(1, Math.floor(viewport.width))
+            canvas.height = Math.max(1, Math.floor(viewport.height))
             const ctx = canvas.getContext('2d')
-            if (ctx) page.render({ canvasContext: ctx, viewport })
+            if (!ctx) { canvas.replaceWith(pagePlaceholder(n)); return }
+            page.render({ canvasContext: ctx, viewport }).promise.catch(() => {
+              canvas.replaceWith(pagePlaceholder(n))
+            })
           }, { root: container, rootMargin: '400px 0px' })
           io.observe(canvas)
           observers.push(io)
-        }
-      } catch {
-        if (!cancelled && container) {
-          container.replaceChildren()
-          const p = document.createElement('p')
-          p.className = 'text-white/70 text-sm text-center py-10'
-          p.textContent = 'Não foi possível renderizar o PDF.'
-          container.appendChild(p)
+        } catch {
+          container.appendChild(pagePlaceholder(n))
         }
       }
     })()

@@ -6,6 +6,17 @@ Categorias: 🐛 Fix · 🔄 Mudança · ✨ Novidade
 
 ---
 
+🐛 Fix — PDF grande renderiza sem mancha preta nem falha (limita canvas/dpr por página, erro gracioso).
+- A correção HiDPI anterior estourava o limite de canvas do navegador (lado ~16384px / área ~16M px
+  no Safari) em páginas grandes → mancha preta (overflow parcial) ou falha total. Pior: o try/catch
+  envolvia o loop INTEIRO, então 1 página com erro apagava TODOS os canvas ("Não foi possível renderizar").
+- Agora cada página tem a escala REDUZIDA automaticamente se passar do limite seguro (lado 8192 /
+  área 16M px): páginas pequenas seguem em 2x (nítidas), grandes caem o suficiente pra caber. Cada
+  página é isolada num try/catch — a que falhar vira placeholder ("Página X não pôde ser exibida"),
+  sem derrubar as outras. Só falha em ABRIR o documento inteiro mostra erro geral.
+
+---
+
 🐛 Fix — preview de PDF nítido no Studio (renderização HiDPI / devicePixelRatio).
 - O PDF no "Visualizar" (e no modo apresentação) era um <iframe> nativo que, em telas Retina
   (dpr 2/3), o Chrome rasterizava a 1x → borrado. Agora o PDF é renderizado por nós via pdf.js
