@@ -10,13 +10,13 @@
 import { useState, useEffect, useCallback, type ReactNode } from 'react'
 import {
   ChevronLeft, ChevronRight, Plus, Lock, Unlock, Wallet, DollarSign, RefreshCw,
-  Receipt, Handshake, Trash2, Check, Pencil, CalendarDays, Download,
+  Receipt, Handshake, Trash2, Check, Pencil, CalendarDays, Download, Users,
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { useSave } from '@/lib/useSave'
 import { useToast } from '@/components/ui/toast'
 import { cn } from '@/lib/utils'
-import { monthlySummary, resolveRate } from '@/lib/commission/calc'
+import { monthlySummary, resolveRate, dealTotal } from '@/lib/commission/calc'
 import type { SalaryPeriod, Meeting, WeeklyPayment, FxConfig, Deal, DealStatus } from '@/lib/commission/types'
 import { usd, brl } from '@/lib/format'
 
@@ -36,6 +36,13 @@ function fxSourceMeta(source: string | undefined): { text: string; warn: boolean
   if (source === 'fallback') return { text: 'fallback — não atualizada hoje, confira', warn: true }
   if (source === 'auto') return { text: 'automática (hoje)', warn: false }
   return { text: 'automática', warn: false }
+}
+
+// Cor SÓ pra status (cor = significado): concluído verde, andamento neutro, interrompido vermelho.
+const CLIENT_STATUS: Record<DealStatus, { label: string; cls: string; bar: string }> = {
+  em_andamento: { label: 'em andamento', cls: 'border-bento-border text-bento-muted', bar: 'bg-bento-muted' },
+  concluido:    { label: 'concluído',    cls: 'border-[#22C55E]/40 text-[#22C55E] bg-[#22C55E]/10', bar: 'bg-[#22C55E]' },
+  interrompido: { label: 'interrompido', cls: 'border-red-400/40 text-red-400 bg-red-400/10', bar: 'bg-red-400' },
 }
 const todayISO = () => { const d = new Date(); return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}` }
 // Soma dias a uma data 'YYYY-MM-DD' (aritmética local, segura p/ data pura).
@@ -828,6 +835,49 @@ export function CommissionSection({ sellerId, sellerName }: { sellerId: string; 
                   onEditDeal={(patch) => editDeal(d, patch)} onDeleteDeal={() => deleteDeal(d)} />
               ))}
             </div>}
+      </Collapsible>
+
+      {/* ── POR CLIENTE: recebido × falta (acumulado por venda — regra 7) ─── */}
+      <Collapsible icon={<Users className="w-4 h-4 text-lime-fg" />} title="Por cliente"
+        peek={`${deals.length} venda(s)`} open={!!open.porCliente} onToggle={() => toggle('porCliente')}
+        headerExtra={<span className="text-[10px] text-bento-muted">acumulado</span>}>
+        {deals.length === 0 ? (
+          <p className="text-xs text-bento-muted py-2">Nenhuma venda lançada ainda.</p>
+        ) : (
+          <div className="space-y-2.5">
+            {deals.map(d => {
+              const dt = dealTotal(d, weeks)
+              const meta = CLIENT_STATUS[d.status]
+              const pct = d.tetoSemanas > 0 ? Math.min(100, (dt.semanasPagas / d.tetoSemanas) * 100) : 0
+              return (
+                <div key={d.id} className="bg-bento-bg border border-bento-border/60 rounded-btn p-3">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-sm font-medium text-bento-text truncate">{d.clientName || 'Venda sem cliente'}</span>
+                    <span className={cn('text-[10px] px-1.5 py-0.5 rounded-full border font-medium flex-none', meta.cls)}>{meta.label}</span>
+                  </div>
+                  <div className="mt-2 flex items-center gap-2">
+                    <div className="flex-1 h-1.5 rounded-full bg-bento-border/50 overflow-hidden">
+                      <div className={cn('h-full rounded-full', meta.bar)} style={{ width: `${pct}%` }} />
+                    </div>
+                    <span className="font-tech text-[11px] text-bento-muted tabular-nums flex-none">{dt.semanasPagas}/{d.tetoSemanas} sem.</span>
+                  </div>
+                  <div className="mt-2.5 grid grid-cols-2 gap-2">
+                    <div>
+                      <p className="font-tech text-[10px] uppercase tracking-wide text-bento-muted">Recebido</p>
+                      <p className="font-display text-base font-bold text-bento-text tabular-nums leading-tight">{usd(dt.recebidoUsd)}</p>
+                      <p className="font-mono text-[10px] text-bento-dim tabular-nums">~ {brl(dt.recebidoBrl)}</p>
+                    </div>
+                    <div>
+                      <p className="font-tech text-[10px] uppercase tracking-wide text-bento-muted">Falta</p>
+                      <p className="font-display text-base font-bold text-bento-text tabular-nums leading-tight">{usd(dt.projetadoRestanteUsd)}</p>
+                      <p className="font-mono text-[10px] text-bento-dim tabular-nums">~ {brl(dt.projetadoRestanteUsd * currentRate)}</p>
+                    </div>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        )}
       </Collapsible>
 
       {/* ── REUNIÕES (do mês em foco) ─────────────────────────────────── */}

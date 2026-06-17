@@ -6,6 +6,18 @@ Categorias: 🐛 Fix · 🔄 Mudança · ✨ Novidade
 
 ---
 
+✨ Novidade — Comissões: visão "Por cliente" (recebido × falta) — regra 7, só exibição.
+- Nova seção (Collapsible "Por cliente") mostra por venda/cliente: Recebido (semanas pagas), Falta
+  (semanas restantes × valor enquanto em andamento; US$ 0 se interrompido/concluído), barra de progresso
+  X/teto e status com cor só de significado (verde=concluído, neutro=andamento, vermelho=interrompido).
+  USD principal; BRL discreto como estimativa (recebido pela cotação congelada de cada semana; falta
+  pela cotação efetiva atual — nunca trava por falta de cotação).
+- ACUMULADO por venda (vida do contrato), NÃO filtrado pelo seletor de mês: "recebido vs falta" é
+  progresso do contrato, não do mês (o seletor de mês segue para o resumo mensal).
+- Reusa dealTotal da engine (calc.ts) — NÃO recalcula comissão. Sem mudança de cálculo nem de schema.
+
+---
+
 ✨ Novidade — tempo real dentro da página: Comercial, Clientes e Tarefas atualizam ao vivo.
 - Generalizei o realtime do Hall num hook useRealtimeRows(table, setRows): assina postgres_changes
   (INSERT/UPDATE/DELETE) e aplica por MERGE POR id — adiciona se novo, substitui no lugar, remove.
