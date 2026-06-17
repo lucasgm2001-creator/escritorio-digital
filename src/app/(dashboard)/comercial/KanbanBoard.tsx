@@ -280,6 +280,7 @@ export function KanbanBoard({ initialLeads, currentUser }: { initialLeads: Lead[
                             onMove={moveLeadToStatus}
                             onOpenDiary={setSelectedLead}
                             onLog={logInteraction}
+                            userId={currentUser.id}
                           />
                         ))}
                       </div>

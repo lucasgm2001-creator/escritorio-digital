@@ -6,6 +6,7 @@ import { CSS } from '@dnd-kit/utilities'
 import { Phone, MessageCircle, FileText, ArrowRight, ChevronDown, Check } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { daysInStage, heatLevel, nextActionLabel, type Heat } from './leadSignals'
+import { LeadTasks } from './LeadTasks'
 import { ALL_COLUMNS, type Lead, type LeadStatus } from './types'
 
 const HEAT: Record<Heat, { dot: string; text: string; label: string }> = {
@@ -16,11 +17,12 @@ const HEAT: Record<Heat, { dot: string; text: string; label: string }> = {
 
 const onlyDigits = (s?: string) => (s ?? '').replace(/\D/g, '')
 
-export function FunnelLeadCard({ lead, onMove, onOpenDiary, onLog }: {
+export function FunnelLeadCard({ lead, onMove, onOpenDiary, onLog, userId }: {
   lead: Lead
   onMove: (status: LeadStatus) => void
   onOpenDiary: () => void
   onLog: (type: string) => void
+  userId: string
 }) {
   const [open, setOpen] = useState(false)
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: lead.id })
@@ -112,6 +114,9 @@ export function FunnelLeadCard({ lead, onMove, onOpenDiary, onLog }: {
               })}
             </div>
           </div>
+
+          {/* Tarefas vinculadas a este lead (tasks.linked_type='lead') */}
+          <LeadTasks leadId={lead.id} leadName={lead.name} userId={userId} />
 
           {/* Registrar contato (alimenta o relatório de engajamento) */}
           <div>

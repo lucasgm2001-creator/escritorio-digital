@@ -6,6 +6,7 @@ import { useToast } from '@/components/ui/toast'
 import { getScoreInfo } from '@/lib/utils/score'
 import { cn, timeAgo } from '@/lib/utils'
 import { ALL_COLUMNS, type Lead, type LeadStatus, type ColumnTone } from './types'
+import { LeadTasks } from './LeadTasks'
 
 interface Interaction {
   id: string
@@ -357,6 +358,11 @@ export function LeadDiary({ lead, onClose, onUpdated, onMoveStage, onDeleted, cu
               </div>
             </div>
           )}
+        </div>
+
+        {/* Tarefas vinculadas a este lead (tasks.linked_type='lead') */}
+        <div className="px-5 py-3 border-b border-border">
+          <LeadTasks leadId={currentLead.id} leadName={currentLead.name} userId={currentUser.id} compact={false} />
         </div>
 
         {/* IA */}

@@ -6,6 +6,17 @@ Categorias: 🐛 Fix · 🔄 Mudança · ✨ Novidade
 
 ---
 
+✨ Novidade — tarefas vinculadas aparecem no detalhe do lead no funil.
+- Abrir um lead (card expandido no funil OU painel de detalhe) agora mostra uma seção
+  "Tarefas (N)" com as tarefas ligadas àquele lead (tasks.linked_type='lead'): título +
+  data/hora + status. Concluídas ficam riscadas/esmaecidas com check verde; pendentes
+  primeiro, depois concluídas, ordenadas por data.
+- Dá pra concluir/reabrir clicando no check e criar tarefa rápida ("+ Nova") já vinculada
+  ao lead — sem ir até a página Tarefas. Vale desktop e mobile (mesma seção nos dois).
+- Só exibição/atalho; o CRUD completo continua na página Tarefas. Sem mudança de banco.
+
+---
+
 🔄 Mudança — seletor de fase do lead em caixinha compacta (era pills espalhados).
 - No card de lead expandido do funil, a seção "Mover para" agora é uma caixinha única,
   contida (borda sutil + fundo recuado), com as 10 fases em grid de 2 colunas — em vez
