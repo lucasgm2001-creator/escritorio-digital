@@ -11,7 +11,7 @@ import { useToast } from '@/components/ui/toast'
 import { cn, formatDate } from '@/lib/utils'
 import {
   Upload, Search, Plus, Play, X, ChevronUp, ChevronDown, Trash2, Pencil,
-  GripVertical, FileText, FolderOpen, Layers, Star,
+  GripVertical, FileText, FolderOpen, Layers, Star, Folder,
 } from 'lucide-react'
 import { PresentationPlayer, MaterialFrame } from './PresentationPlayer'
 
@@ -116,6 +116,11 @@ export function ApresentacaoTab() {
   const [search, setSearch] = useState('')
   const [filter, setFilter] = useState<'todos' | 'pdf' | 'imagem'>('todos')
   const [favOnly, setFavOnly] = useState(false)
+  const [pastaFilter, setPastaFilter] = useState('')
+  const [uploadPasta, setUploadPasta] = useState('')
+  const [editMat, setEditMat] = useState<Material | null>(null)
+  const [editForm, setEditForm] = useState({ pasta: '' })
+  const [savingMeta, setSavingMeta] = useState(false)
 
   // Montar / Apresentações
   const [leads, setLeads] = useState<Lead[]>([])
@@ -179,7 +184,7 @@ export function ApresentacaoTab() {
       if (upErr) { toast({ type: 'error', message: `Falha ao enviar "${file.name}": ${upErr.message}` }); continue }
       const { data: { publicUrl } } = supabase.storage.from('materiais').getPublicUrl(path)
       const { data, error } = await supabase.from('presentation_materials')
-        .insert({ name: file.name, storage_path: path, url: publicUrl, mime_type: file.type || null, size_bytes: file.size })
+        .insert({ name: file.name, storage_path: path, url: publicUrl, mime_type: file.type || null, size_bytes: file.size, pasta: uploadPasta.trim() || null })
         .select(COLS).single()
       if (error || !data) {
         await supabase.storage.from('materiais').remove([path])
@@ -211,6 +216,25 @@ export function ApresentacaoTab() {
     setSelectedIds(prev => prev.filter(id => id !== m.id))
     setConfirmingId(null); setDeletingId(null)
     toast({ type: 'success', message: 'Material excluído.' })
+  }
+
+  // Editar metadados do material (pasta) — abre modal e salva no lugar.
+  const openEditMat = (m: Material) => { setEditMat(m); setEditForm({ pasta: m.pasta ?? '' }) }
+  const saveMaterialMeta = async () => {
+    if (!editMat) return
+    const m = editMat
+    const patch = { pasta: editForm.pasta.trim() || null }
+    setSavingMeta(true)
+    setMaterials(prev => prev.map(x => (x.id === m.id ? { ...x, ...patch } : x)))
+    const { error } = await supabase.from('presentation_materials').update(patch).eq('id', m.id)
+    setSavingMeta(false)
+    if (error) {
+      setMaterials(prev => prev.map(x => (x.id === m.id ? m : x)))
+      toast({ type: 'error', message: `Não foi possível salvar: ${error.message}` })
+      return
+    }
+    setEditMat(null)
+    toast({ type: 'success', message: 'Material atualizado.' })
   }
 
   // Favoritar/desfavoritar — update otimista da linha (sem recarregar a lista).
@@ -289,10 +313,13 @@ export function ApresentacaoTab() {
     if (mats.length === 0) { toast({ type: 'error', message: 'Esta apresentação não tem materiais disponíveis para apresentar.' }); return }
     setPlaying({ name: p.name, client: leadName(p.lead_id), materials: mats })
   }
-  const filtering = !!search || filter !== 'todos' || favOnly
+  const pastas = Array.from(new Set(materials.map(m => m.pasta).filter((p): p is string => !!p))).sort((a, b) => a.localeCompare(b))
+  const filtering = !!search || filter !== 'todos' || favOnly || !!pastaFilter
   const filteredMaterials = materials.filter(m => {
     if (search && !m.name.toLowerCase().includes(search.toLowerCase())) return false
     if (favOnly && !m.favorito) return false
+    if (pastaFilter === '__none__' && m.pasta) return false
+    if (pastaFilter && pastaFilter !== '__none__' && m.pasta !== pastaFilter) return false
     if (filter === 'pdf') return isPdf(m)
     if (filter === 'imagem') return isImage(m)
     return true
@@ -323,6 +350,7 @@ export function ApresentacaoTab() {
       </div>
 
       <input ref={inputRef} type="file" multiple accept=".pdf,.ppt,.pptx,.png,.jpg,.jpeg,.gif,.webp,.svg" className="hidden" onChange={pickFiles} />
+      <datalist id="pasta-list">{pastas.map(p => <option key={p} value={p} />)}</datalist>
 
       {loading ? (
         <div className="flex-1 flex items-center justify-center text-bento-muted text-sm">Carregando...</div>
@@ -334,10 +362,14 @@ export function ApresentacaoTab() {
               <h3 className="font-display font-bold text-bento-text text-lg">Materiais</h3>
               <span className="font-tech text-xs text-bento-muted">{materials.length} arquivo{materials.length === 1 ? '' : 's'}</span>
             </div>
-            <button onClick={() => inputRef.current?.click()} disabled={uploading}
-              className="bento-btn flex items-center gap-2 px-4 py-2 min-h-[44px] rounded-btn text-sm font-semibold disabled:opacity-50">
-              <Upload className="w-4 h-4" />{uploading ? 'Enviando...' : 'Upload'}
-            </button>
+            <div className="flex items-center gap-2">
+              <input list="pasta-list" value={uploadPasta} onChange={e => setUploadPasta(e.target.value)} placeholder="Pasta (opcional)"
+                className="bg-bento-bg border border-bento-border rounded-btn px-3 py-2 text-sm text-bento-text placeholder:text-bento-muted focus:outline-none focus:border-lime w-36 sm:w-44" />
+              <button onClick={() => inputRef.current?.click()} disabled={uploading}
+                className="bento-btn flex items-center gap-2 px-4 py-2 min-h-[44px] rounded-btn text-sm font-semibold disabled:opacity-50">
+                <Upload className="w-4 h-4" />{uploading ? 'Enviando...' : 'Upload'}
+              </button>
+            </div>
           </div>
 
           {/* Toolbar: busca + chips */}
@@ -361,6 +393,14 @@ export function ApresentacaoTab() {
                 favOnly ? 'bg-lime/15 border-lime/40 text-lime-fg' : 'bg-bento-bg border-bento-border text-bento-muted hover:text-bento-text')}>
               <Star className={cn('w-3.5 h-3.5', favOnly && 'fill-lime-fg')} /> Favoritos
             </button>
+            {pastas.length > 0 && (
+              <select value={pastaFilter} onChange={e => setPastaFilter(e.target.value)}
+                className="bg-bento-bg border border-bento-border rounded-btn px-2 py-2 text-xs text-bento-text focus:outline-none focus:border-lime">
+                <option value="">Todas as pastas</option>
+                <option value="__none__">Sem pasta</option>
+                {pastas.map(p => <option key={p} value={p}>{p}</option>)}
+              </select>
+            )}
           </div>
 
           {fetchError && <div className="bg-amber-900/20 border border-amber-800/40 rounded-btn px-4 py-3 text-xs text-amber-400">{fetchError}</div>}
@@ -382,6 +422,7 @@ export function ApresentacaoTab() {
                 <div className="p-2.5">
                   <p className="text-xs font-medium text-bento-text truncate">{m.name}</p>
                   <p className="font-tech text-[10px] text-bento-muted mt-0.5">{fmtSize(m.size_bytes)} · {formatDate(m.created_at)}</p>
+                  {m.pasta && <span className="inline-flex items-center gap-1 mt-1 max-w-full font-tech text-[9px] text-bento-dim"><Folder className="w-2.5 h-2.5 flex-none" /><span className="truncate">{m.pasta}</span></span>}
                 </div>
                 <div className={cn('absolute inset-0 bg-black/70 transition-opacity flex items-center justify-center gap-2 p-2',
                   confirmingId === m.id ? 'opacity-100' : 'opacity-0 group-hover:opacity-100')}>
@@ -396,6 +437,7 @@ export function ApresentacaoTab() {
                   ) : (
                     <>
                       <button onClick={() => setPresenting(m)} className="bento-btn flex items-center gap-1.5 px-3 py-1.5 rounded-btn text-xs font-semibold min-h-0"><Search className="w-3.5 h-3.5" />Visualizar</button>
+                      <button onClick={() => openEditMat(m)} aria-label="Editar" className="bg-white/10 hover:bg-white/20 text-white p-1.5 rounded-lg transition-colors"><Pencil className="w-3.5 h-3.5" /></button>
                       <button onClick={() => setConfirmingId(m.id)} aria-label="Excluir" className="bg-red-900/60 hover:bg-red-900 text-red-300 p-1.5 rounded-lg transition-colors"><Trash2 className="w-3.5 h-3.5" /></button>
                     </>
                   )}
@@ -570,6 +612,28 @@ export function ApresentacaoTab() {
       {/* Player de apresentação (single-mode, redesenhado) */}
       {playing && (
         <PresentationPlayer name={playing.name} client={playing.client} materials={playing.materials} onClose={() => setPlaying(null)} />
+      )}
+
+      {/* Editar metadados do material (pasta) */}
+      {editMat && (
+        <div className="fixed inset-0 z-[90] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/50" onClick={() => setEditMat(null)} />
+          <div className="relative w-full max-w-sm bg-bento-panel border border-bento-border rounded-bento shadow-card-hover p-4 space-y-3">
+            <div className="flex items-center justify-between">
+              <h3 className="font-display font-bold text-bento-text">Editar material</h3>
+              <button onClick={() => setEditMat(null)} aria-label="Fechar" className="p-1 text-bento-muted hover:text-bento-text"><X className="w-4 h-4" /></button>
+            </div>
+            <p className="text-xs text-bento-muted truncate">{editMat.name}</p>
+            <div>
+              <label className="block text-xs font-medium text-bento-dim mb-1">Pasta</label>
+              <input list="pasta-list" value={editForm.pasta} onChange={e => setEditForm(f => ({ ...f, pasta: e.target.value }))} className={inputCls} placeholder="Ex: Cases, Propostas..." />
+            </div>
+            <div className="flex gap-2 pt-1">
+              <button onClick={() => setEditMat(null)} className="flex-1 border border-bento-border text-bento-dim py-2 rounded-btn text-sm hover:border-lime transition-colors">Cancelar</button>
+              <button onClick={saveMaterialMeta} disabled={savingMeta} className="flex-1 bento-btn py-2 rounded-btn text-sm font-semibold disabled:opacity-50">{savingMeta ? 'Salvando...' : 'Salvar'}</button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Pré-visualização de um material */}

@@ -6,6 +6,13 @@ Categorias: 🐛 Fix · 🔄 Mudança · ✨ Novidade
 
 ---
 
+✨ Novidade — Studio: pastas de material (Bloco 4, parte 2).
+- Campo "pasta" (texto livre) no upload (aplica aos próximos arquivos) e no editar material (lápis no
+  card → modal), com autocompletar das pastas já usadas (datalist). Tag de pasta no card.
+- Filtro de pasta na biblioteca (select: Todas / Sem pasta / cada pasta). Sem tabela nova (coluna `pasta`).
+
+---
+
 ✨ Novidade — Studio: favoritos de material (Bloco 4, parte 1).
 - Estrela (Lucide) em cada material da biblioteca pra marcar/desmarcar favorito (update no lugar, sem
   recarregar) + chip "Favoritos" pra listar só os marcados (compõe com busca e filtro de tipo).
