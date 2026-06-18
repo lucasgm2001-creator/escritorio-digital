@@ -6,6 +6,15 @@ Categorias: 🐛 Fix · 🔄 Mudança · ✨ Novidade
 
 ---
 
+✨ Novidade — Configurações reestruturada (incremento 1): navegação Andares/Sistema + Tema e Acessibilidade reais.
+- Nav em 2 grupos: **ANDARES** (Hall/Comercial/Tarefas/Studio/Clientes → placeholders "Em breve") e **SISTEMA**.
+- **Tema** (reusa a lógica existente): claro/escuro/auto + **horários da virada configuráveis** (client/localStorage); `src/lib/theme.ts` virou a fonte única dos horários (ThemeWatcher + script inline do layout leem dela).
+- **Acessibilidade** (real, client/localStorage, classes no `<html>` + globals.css): tamanho da fonte (normal/grande/maior), alto contraste, mais espaçamento, reduzir movimento. Aplicado **antes do paint** pelo script do layout.
+- Logo do sistema preservada; placeholders "Em breve": Conta, Aparência, Dados & Export, Integrações, Sobre.
+- Sem schema, sem dinheiro. localStorage só p/ preferências de cliente (tema/horários/acessibilidade), mesma categoria do tema.
+
+---
+
 ✨ Novidade — Visão por PERÍODO na aba Métricas do Comercial.
 - Seletor Dia/Semana/Mês/Semestre/Ano (espelha o Relatório), padrão **Semana atual**; helper compartilhado `src/lib/period.ts`.
 - KPIs do topo respeitam o período: **Recebidos, Fechados, Taxa de Conversão** (fechados÷recebidos), **Pipeline** (ativos criados no período), **Ticket Médio** e **Receita Fechada**; + card **Conversão Reunião→Venda**. Fontes reusadas: `leads.created_at` + `lead_milestones` (nada de contagem nova).
