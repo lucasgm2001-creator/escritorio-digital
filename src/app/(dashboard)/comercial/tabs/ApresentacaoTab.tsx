@@ -11,7 +11,7 @@ import { useToast } from '@/components/ui/toast'
 import { cn, formatDate } from '@/lib/utils'
 import {
   Upload, Search, Plus, Play, X, ChevronUp, ChevronDown, Trash2, Pencil,
-  GripVertical, FileText, FolderOpen, Layers, Star, Folder,
+  GripVertical, FileText, FolderOpen, Layers, Star, Folder, Tag,
 } from 'lucide-react'
 import { PresentationPlayer, MaterialFrame } from './PresentationPlayer'
 
@@ -117,9 +117,11 @@ export function ApresentacaoTab() {
   const [filter, setFilter] = useState<'todos' | 'pdf' | 'imagem'>('todos')
   const [favOnly, setFavOnly] = useState(false)
   const [pastaFilter, setPastaFilter] = useState('')
+  const [nichoFilter, setNichoFilter] = useState('')
   const [uploadPasta, setUploadPasta] = useState('')
+  const [uploadNicho, setUploadNicho] = useState('')
   const [editMat, setEditMat] = useState<Material | null>(null)
-  const [editForm, setEditForm] = useState({ pasta: '' })
+  const [editForm, setEditForm] = useState({ pasta: '', nicho: '' })
   const [savingMeta, setSavingMeta] = useState(false)
 
   // Montar / Apresentações
@@ -143,7 +145,7 @@ export function ApresentacaoTab() {
     const load = async () => {
       const [matRes, leadRes, presRes] = await Promise.all([
         supabase.from('presentation_materials').select(COLS).order('created_at', { ascending: false }),
-        supabase.from('leads').select('id, name').order('name'),
+        supabase.from('leads').select('id, name, nicho').order('name'),
         supabase.from('presentations').select(PRES_COLS).order('created_at', { ascending: false }),
       ])
       if (matRes.error) {
@@ -184,7 +186,7 @@ export function ApresentacaoTab() {
       if (upErr) { toast({ type: 'error', message: `Falha ao enviar "${file.name}": ${upErr.message}` }); continue }
       const { data: { publicUrl } } = supabase.storage.from('materiais').getPublicUrl(path)
       const { data, error } = await supabase.from('presentation_materials')
-        .insert({ name: file.name, storage_path: path, url: publicUrl, mime_type: file.type || null, size_bytes: file.size, pasta: uploadPasta.trim() || null })
+        .insert({ name: file.name, storage_path: path, url: publicUrl, mime_type: file.type || null, size_bytes: file.size, pasta: uploadPasta.trim() || null, nicho: uploadNicho.trim() || null })
         .select(COLS).single()
       if (error || !data) {
         await supabase.storage.from('materiais').remove([path])
@@ -219,11 +221,11 @@ export function ApresentacaoTab() {
   }
 
   // Editar metadados do material (pasta) — abre modal e salva no lugar.
-  const openEditMat = (m: Material) => { setEditMat(m); setEditForm({ pasta: m.pasta ?? '' }) }
+  const openEditMat = (m: Material) => { setEditMat(m); setEditForm({ pasta: m.pasta ?? '', nicho: m.nicho ?? '' }) }
   const saveMaterialMeta = async () => {
     if (!editMat) return
     const m = editMat
-    const patch = { pasta: editForm.pasta.trim() || null }
+    const patch = { pasta: editForm.pasta.trim() || null, nicho: editForm.nicho.trim() || null }
     setSavingMeta(true)
     setMaterials(prev => prev.map(x => (x.id === m.id ? { ...x, ...patch } : x)))
     const { error } = await supabase.from('presentation_materials').update(patch).eq('id', m.id)
@@ -314,16 +316,41 @@ export function ApresentacaoTab() {
     setPlaying({ name: p.name, client: leadName(p.lead_id), materials: mats })
   }
   const pastas = Array.from(new Set(materials.map(m => m.pasta).filter((p): p is string => !!p))).sort((a, b) => a.localeCompare(b))
-  const filtering = !!search || filter !== 'todos' || favOnly || !!pastaFilter
+  const nichos = Array.from(new Set([...materials.map(m => m.nicho), ...leads.map(l => l.nicho)]
+    .map(n => (n ?? '').trim()).filter(Boolean))).sort((a, b) => a.localeCompare(b))
+  const filtering = !!search || filter !== 'todos' || favOnly || !!pastaFilter || !!nichoFilter
   const filteredMaterials = materials.filter(m => {
     if (search && !m.name.toLowerCase().includes(search.toLowerCase())) return false
     if (favOnly && !m.favorito) return false
     if (pastaFilter === '__none__' && m.pasta) return false
     if (pastaFilter && pastaFilter !== '__none__' && m.pasta !== pastaFilter) return false
+    if (nichoFilter === '__none__' && m.nicho) return false
+    if (nichoFilter && nichoFilter !== '__none__' && (m.nicho ?? '').trim().toLowerCase() !== nichoFilter.toLowerCase()) return false
     if (filter === 'pdf') return isPdf(m)
     if (filter === 'imagem') return isImage(m)
     return true
   })
+  // Sugestão por nicho na aba Montar: casa o nicho do material com o do lead selecionado
+  // (trim + case-insensitive). Sem lead/nicho → sem sugestão.
+  const selectedLead = leads.find(l => l.id === form.leadId)
+  const leadNicho = (selectedLead?.nicho ?? '').trim()
+  const suggested = leadNicho ? materials.filter(m => (m.nicho ?? '').trim().toLowerCase() === leadNicho.toLowerCase()) : []
+  const renderPickItem = (m: Material) => {
+    const added = selectedIds.includes(m.id)
+    return (
+      <button key={m.id} onClick={() => addToSelection(m.id)} disabled={added}
+        className="group/it flex items-center gap-2 w-full text-left bg-bento-bg border border-bento-border rounded-md p-2 hover:border-lime/50 transition-colors disabled:opacity-50 disabled:hover:border-bento-border">
+        <Thumb m={m} className="w-9 h-9 rounded shrink-0" />
+        <div className="min-w-0 flex-1">
+          <p className="text-xs font-medium text-bento-text truncate">{m.name}</p>
+          <p className="font-tech text-[10px] text-bento-muted">{fmtSize(m.size_bytes)}</p>
+        </div>
+        {added
+          ? <span className="font-tech text-[10px] text-lime-fg shrink-0">Adicionado</span>
+          : <Plus className="w-4 h-4 text-lime-fg shrink-0 opacity-0 group-hover/it:opacity-100 transition-opacity" />}
+      </button>
+    )
+  }
 
   const TABS = [
     { key: 'materiais' as const, label: 'Materiais', Icon: FolderOpen, count: materials.length },
@@ -351,6 +378,7 @@ export function ApresentacaoTab() {
 
       <input ref={inputRef} type="file" multiple accept=".pdf,.ppt,.pptx,.png,.jpg,.jpeg,.gif,.webp,.svg" className="hidden" onChange={pickFiles} />
       <datalist id="pasta-list">{pastas.map(p => <option key={p} value={p} />)}</datalist>
+      <datalist id="nicho-list">{nichos.map(n => <option key={n} value={n} />)}</datalist>
 
       {loading ? (
         <div className="flex-1 flex items-center justify-center text-bento-muted text-sm">Carregando...</div>
@@ -364,7 +392,9 @@ export function ApresentacaoTab() {
             </div>
             <div className="flex items-center gap-2">
               <input list="pasta-list" value={uploadPasta} onChange={e => setUploadPasta(e.target.value)} placeholder="Pasta (opcional)"
-                className="bg-bento-bg border border-bento-border rounded-btn px-3 py-2 text-sm text-bento-text placeholder:text-bento-muted focus:outline-none focus:border-lime w-36 sm:w-44" />
+                className="bg-bento-bg border border-bento-border rounded-btn px-3 py-2 text-sm text-bento-text placeholder:text-bento-muted focus:outline-none focus:border-lime w-28 sm:w-36" />
+              <input list="nicho-list" value={uploadNicho} onChange={e => setUploadNicho(e.target.value)} placeholder="Nicho (opcional)"
+                className="bg-bento-bg border border-bento-border rounded-btn px-3 py-2 text-sm text-bento-text placeholder:text-bento-muted focus:outline-none focus:border-lime w-28 sm:w-36" />
               <button onClick={() => inputRef.current?.click()} disabled={uploading}
                 className="bento-btn flex items-center gap-2 px-4 py-2 min-h-[44px] rounded-btn text-sm font-semibold disabled:opacity-50">
                 <Upload className="w-4 h-4" />{uploading ? 'Enviando...' : 'Upload'}
@@ -401,6 +431,14 @@ export function ApresentacaoTab() {
                 {pastas.map(p => <option key={p} value={p}>{p}</option>)}
               </select>
             )}
+            {nichos.length > 0 && (
+              <select value={nichoFilter} onChange={e => setNichoFilter(e.target.value)}
+                className="bg-bento-bg border border-bento-border rounded-btn px-2 py-2 text-xs text-bento-text focus:outline-none focus:border-lime">
+                <option value="">Todos os nichos</option>
+                <option value="__none__">Sem nicho</option>
+                {nichos.map(n => <option key={n} value={n}>{n}</option>)}
+              </select>
+            )}
           </div>
 
           {fetchError && <div className="bg-amber-900/20 border border-amber-800/40 rounded-btn px-4 py-3 text-xs text-amber-400">{fetchError}</div>}
@@ -422,7 +460,12 @@ export function ApresentacaoTab() {
                 <div className="p-2.5">
                   <p className="text-xs font-medium text-bento-text truncate">{m.name}</p>
                   <p className="font-tech text-[10px] text-bento-muted mt-0.5">{fmtSize(m.size_bytes)} · {formatDate(m.created_at)}</p>
-                  {m.pasta && <span className="inline-flex items-center gap-1 mt-1 max-w-full font-tech text-[9px] text-bento-dim"><Folder className="w-2.5 h-2.5 flex-none" /><span className="truncate">{m.pasta}</span></span>}
+                  {(m.pasta || m.nicho) && (
+                    <div className="flex items-center gap-2 mt-1 max-w-full">
+                      {m.pasta && <span className="inline-flex items-center gap-1 min-w-0 font-tech text-[9px] text-bento-dim"><Folder className="w-2.5 h-2.5 flex-none" /><span className="truncate">{m.pasta}</span></span>}
+                      {m.nicho && <span className="inline-flex items-center gap-1 min-w-0 font-tech text-[9px] text-lime-fg"><Tag className="w-2.5 h-2.5 flex-none" /><span className="truncate">{m.nicho}</span></span>}
+                    </div>
+                  )}
                 </div>
                 <div className={cn('absolute inset-0 bg-black/70 transition-opacity flex items-center justify-center gap-2 p-2',
                   confirmingId === m.id ? 'opacity-100' : 'opacity-0 group-hover:opacity-100')}>
@@ -474,22 +517,19 @@ export function ApresentacaoTab() {
             <div className="flex-1 overflow-y-auto p-2 space-y-1.5 min-h-[120px]">
               {materials.length === 0 ? (
                 <p className="text-xs text-bento-muted text-center py-6">Suba arquivos na aba Materiais primeiro.</p>
-              ) : materials.map(m => {
-                const added = selectedIds.includes(m.id)
-                return (
-                  <button key={m.id} onClick={() => addToSelection(m.id)} disabled={added}
-                    className="group/it flex items-center gap-2 w-full text-left bg-bento-bg border border-bento-border rounded-md p-2 hover:border-lime/50 transition-colors disabled:opacity-50 disabled:hover:border-bento-border">
-                    <Thumb m={m} className="w-9 h-9 rounded shrink-0" />
-                    <div className="min-w-0 flex-1">
-                      <p className="text-xs font-medium text-bento-text truncate">{m.name}</p>
-                      <p className="font-tech text-[10px] text-bento-muted">{fmtSize(m.size_bytes)}</p>
+              ) : (
+                <>
+                  {leadNicho && suggested.length > 0 && (
+                    <div className="space-y-1.5 pb-1.5 mb-1.5 border-b border-bento-border/60">
+                      <p className="font-tech text-[10px] uppercase tracking-wide text-lime-fg flex items-center gap-1">
+                        <Tag className="w-3 h-3" />Sugeridos para {leadNicho}
+                      </p>
+                      {suggested.map(renderPickItem)}
                     </div>
-                    {added
-                      ? <span className="font-tech text-[10px] text-lime-fg shrink-0">Adicionado</span>
-                      : <Plus className="w-4 h-4 text-lime-fg shrink-0 opacity-0 group-hover/it:opacity-100 transition-opacity" />}
-                  </button>
-                )
-              })}
+                  )}
+                  {materials.map(renderPickItem)}
+                </>
+              )}
             </div>
           </div>
 
@@ -627,6 +667,10 @@ export function ApresentacaoTab() {
             <div>
               <label className="block text-xs font-medium text-bento-dim mb-1">Pasta</label>
               <input list="pasta-list" value={editForm.pasta} onChange={e => setEditForm(f => ({ ...f, pasta: e.target.value }))} className={inputCls} placeholder="Ex: Cases, Propostas..." />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-bento-dim mb-1">Nicho</label>
+              <input list="nicho-list" value={editForm.nicho} onChange={e => setEditForm(f => ({ ...f, nicho: e.target.value }))} className={inputCls} placeholder="Ex: dentista, advogado..." />
             </div>
             <div className="flex gap-2 pt-1">
               <button onClick={() => setEditMat(null)} className="flex-1 border border-bento-border text-bento-dim py-2 rounded-btn text-sm hover:border-lime transition-colors">Cancelar</button>

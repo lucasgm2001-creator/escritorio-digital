@@ -6,6 +6,14 @@ Categorias: 🐛 Fix · 🔄 Mudança · ✨ Novidade
 
 ---
 
+✨ Novidade — Studio: nicho do material + sugestão por nicho do lead (Bloco 4, parte 3).
+- Campo "nicho" no upload e no editar material, com autocompletar de nichos já usados em materiais E
+  nos leads (leads.nicho). Tag de nicho no card + filtro de nicho na biblioteca.
+- Aba Montar: com um lead selecionado, seção "Sugeridos para [nicho do lead]" lista os materiais cujo
+  nicho casa (trim + case-insensitive); sem nicho no lead, a seção some. Não mexe em clients.
+
+---
+
 ✨ Novidade — Studio: pastas de material (Bloco 4, parte 2).
 - Campo "pasta" (texto livre) no upload (aplica aos próximos arquivos) e no editar material (lápis no
   card → modal), com autocompletar das pastas já usadas (datalist). Tag de pasta no card.
