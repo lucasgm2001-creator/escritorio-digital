@@ -67,8 +67,9 @@ export function KanbanColumn({ column, leads, onMove, onOpenDiary, onLog, userId
             <span className={cn('text-xs font-semibold flex-1 truncate', NAME_COLOR[column.tone])}>{column.label}</span>
             <ChevronRight className="w-4 h-4 text-bento-muted flex-none" />
           </div>
-          <div className="mt-2">
-            <span className="font-display text-2xl font-bold text-bento-text tabular-nums leading-none">{leads.length}</span>
+          <div className="mt-2 flex items-baseline gap-1.5">
+            <span className="font-display text-4xl font-bold text-bento-text tabular-nums leading-none">{leads.length}</span>
+            <span className="font-tech text-[10px] text-bento-muted">leads</span>
           </div>
           {!terminal && leads.length > 0 && (
             <div className="mt-2.5 flex items-center gap-2.5">
