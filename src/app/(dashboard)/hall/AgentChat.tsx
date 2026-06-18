@@ -40,6 +40,8 @@ export function AgentChat({ userId, userName }: { userId: string; userName: stri
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
   const [pending, setPending] = useState<PendingAction | null>(null)
+  const [confirming, setConfirming] = useState(false)
+  const busyRef = useRef(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const supabase = createClient()
 
@@ -165,11 +167,20 @@ export function AgentChat({ userId, userName }: { userId: string; userName: stri
   }
 
   const confirmAction = async (action: PendingAction) => {
-    setPending(null)
-    setLoading(true)
-    const msg = await executeAction(action)
-    addAgent(msg)
-    setLoading(false)
+    if (busyRef.current) return // guarda síncrona: 2º clique no mesmo tick não dispara 2x
+    busyRef.current = true
+    setConfirming(true)
+    try {
+      addAgent(await executeAction(action))
+    } catch {
+      // Belt-and-suspenders: executeAction é throw-safe, mas se algo inesperado
+      // estourar, nunca deixa a barra/loading travado.
+      addAgent('Algo deu errado ao executar a ação. Tente de novo.')
+    } finally {
+      busyRef.current = false
+      setConfirming(false)
+      setPending(null)
+    }
   }
 
   const cancelAction = () => {
@@ -318,14 +329,16 @@ export function AgentChat({ userId, userName }: { userId: string; userName: stri
             <button
               type="button"
               onClick={() => confirmAction(pending)}
-              className="bento-btn px-3 py-1 rounded-btn text-xs font-medium"
+              disabled={confirming}
+              className="bento-btn px-3 py-1 rounded-btn text-xs font-medium disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              Confirmar
+              {confirming ? 'Salvando...' : 'Confirmar'}
             </button>
             <button
               type="button"
               onClick={cancelAction}
-              className="px-3 py-1 rounded-btn text-xs border border-bento-border text-bento-dim hover:text-bento-text transition-colors"
+              disabled={confirming}
+              className="px-3 py-1 rounded-btn text-xs border border-bento-border text-bento-dim hover:text-bento-text transition-colors disabled:opacity-50"
             >
               Cancelar
             </button>

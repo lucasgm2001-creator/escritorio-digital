@@ -6,6 +6,15 @@ Categorias: 🐛 Fix · 🔄 Mudança · ✨ Novidade
 
 ---
 
+🐛 Fix — endurecimento das ações de dinheiro do agente (try/catch + anti-duplo-clique).
+- confirmAction passou a envolver a execução em try/catch/finally: erro inesperado vira aviso amigável
+  e SEMPRE libera o estado — nunca deixa "Salvando..."/barra travados.
+- Botão "Confirmar" desabilita durante o save (mostra "Salvando...") + guarda síncrona (ref) contra
+  clique duplo no mesmo tick disparar 2 gravações; "Cancelar" também trava durante o save.
+- Sem mudança de regra (payWeek/registerMeeting/updateClient intactos) nem de schema.
+
+---
+
 🐛 Fix — semana de comissão duplicada vira aviso amigável (erro 23505 tratado).
 - Com o índice único (migration 025), uma 2ª tentativa da MESMA semana (corrida de 2 cliques /
   estado desatualizado) é recusada pelo banco (erro 23505). O payWeek agora detecta o 23505 e devolve
