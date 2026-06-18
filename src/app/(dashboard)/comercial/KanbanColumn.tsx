@@ -5,7 +5,6 @@ import { useDroppable } from '@dnd-kit/core'
 import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { ChevronRight, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { usdCompact as fmtUSD } from '@/lib/format'
 import { FunnelLeadCard } from './FunnelLeadCard'
 import { heatLevel } from './leadSignals'
 import type { Lead, ColumnConfig, ColumnTone, LeadStatus } from './types'
@@ -45,7 +44,6 @@ export function KanbanColumn({ column, leads, onMove, onOpenDiary, onLog, userId
 }) {
   const { isOver, setNodeRef } = useDroppable({ id: column.key })
   const [collapsed, setCollapsed] = useState(true)
-  const total = leads.reduce((s, l) => s + (l.value || 0), 0)
   const terminal = column.tone !== 'neutral' || column.key === 'lixeira'
   const accent = ACCENT[column.tone]
 
@@ -69,9 +67,8 @@ export function KanbanColumn({ column, leads, onMove, onOpenDiary, onLog, userId
             <span className={cn('text-xs font-semibold flex-1 truncate', NAME_COLOR[column.tone])}>{column.label}</span>
             <ChevronRight className="w-4 h-4 text-bento-muted flex-none" />
           </div>
-          <div className="mt-2 flex items-end justify-between">
+          <div className="mt-2">
             <span className="font-display text-2xl font-bold text-bento-text tabular-nums leading-none">{leads.length}</span>
-            <span className="font-tech text-[11px] font-semibold text-bento-dim tabular-nums">{fmtUSD(total)}</span>
           </div>
           {!terminal && leads.length > 0 && (
             <div className="mt-2.5 flex items-center gap-2.5">
