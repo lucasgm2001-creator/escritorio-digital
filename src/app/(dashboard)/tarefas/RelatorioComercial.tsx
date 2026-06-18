@@ -3,13 +3,13 @@
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { cn } from '@/lib/utils'
-import { Inbox, MessageCircle, Calendar, Download } from 'lucide-react'
-import { ymd, ddmm } from '@/lib/format'
+import { Inbox, MessageCircle, Calendar, Trophy, Download } from 'lucide-react'
+import { ddmm } from '@/lib/format'
 
 type Mode = 'dia' | 'semana' | 'mes' | 'semestre' | 'ano'
 
 interface Range { mode: string; start: Date; end: Date; label: string }
-interface Item { kind: 'recebido' | 'engajou' | 'reuniao'; date: string; label: string; sub?: string }
+interface Item { kind: 'recebido' | 'interagiu' | 'reuniao' | 'fechou'; date: string; label: string; sub?: string }
 
 const MONTHS = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro']
 const startOfDay = (d: Date) => { const x = new Date(d); x.setHours(0, 0, 0, 0); return x }
@@ -63,8 +63,9 @@ export function RelatorioComercial() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [recebidos, setRecebidos] = useState(0)
-  const [engajados, setEngajados] = useState(0)
+  const [interagiram, setInteragiram] = useState(0)
   const [reunioes, setReunioes] = useState(0)
+  const [fecharam, setFecharam] = useState(0)
   const [items, setItems] = useState<Item[]>([])
   const [pdfBusy, setPdfBusy] = useState(false)
 
@@ -74,34 +75,30 @@ export function RelatorioComercial() {
   useEffect(() => {
     const load = async () => {
       setLoading(true)
-      const startYMD = ymd(range.start)
-      const endYMD = ymd(range.end)
-      const [leadRes, engRes, mtgRes] = await Promise.all([
-        // Leads recebidos: criados no período.
+      const [leadRes, msRes] = await Promise.all([
+        // Recebidos: leads criados no período (fonte inalterada).
         supabase.from('leads').select('id, name, created_at')
           .gte('created_at', startISO).lte('created_at', endISO).order('created_at', { ascending: false }),
-        // Engajados: interações em que o lead RESPONDEU (atendeu/mensagem/reuniao). "nao_atendeu"/"nota" não contam.
-        supabase.from('lead_interactions').select('id, type, created_at, lead_id, leads(name)')
-          .in('type', ['atendeu', 'mensagem', 'reuniao']).gte('created_at', startISO).lte('created_at', endISO).order('created_at', { ascending: false }),
-        // Reuniões agendadas: pela DATA da reunião (met_on) no período.
-        supabase.from('meetings').select('id, met_on, client_name')
-          .gte('met_on', startYMD).lte('met_on', endYMD).order('met_on', { ascending: false }),
+        // Interagiu / Reunião / Fechou: marcos do ciclo, pela DATA do marco (achieved_on).
+        // Fonte ÚNICA (lead_milestones) — NÃO soma lead_interactions/meetings p/ não dobrar.
+        supabase.from('lead_milestones').select('id, marco, achieved_on, lead_id, leads(name)')
+          .gte('achieved_on', startISO).lte('achieved_on', endISO).order('achieved_on', { ascending: false }),
       ])
-      const err = leadRes.error || engRes.error || mtgRes.error
+      const err = leadRes.error || msRes.error
       setError(err ? `Erro ao carregar o relatório: ${err.message}` : null)
 
       const leads = leadRes.data ?? []
-      const eng = engRes.data ?? []
-      const mtg = mtgRes.data ?? []
+      const ms = msRes.data ?? []
+      const distinctLeads = (marco: string) => new Set(ms.filter(x => x.marco === marco).map(x => x.lead_id)).size
 
       setRecebidos(leads.length)
-      setEngajados(new Set(eng.map(e => e.lead_id)).size)   // leads distintos que responderam
-      setReunioes(mtg.length)
+      setInteragiram(distinctLeads('interagiu'))
+      setReunioes(distinctLeads('reuniao'))
+      setFecharam(distinctLeads('fechou'))
 
       const merged: Item[] = [
         ...leads.map(l => ({ kind: 'recebido' as const, date: l.created_at as string, label: (l.name as string) || 'Lead' })),
-        ...eng.map(e => ({ kind: 'engajou' as const, date: e.created_at as string, label: leadNameOf(e.leads), sub: e.type === 'atendeu' ? 'Atendeu' : 'Mensagem' })),
-        ...mtg.map(m => ({ kind: 'reuniao' as const, date: `${m.met_on as string}T12:00:00`, label: (m.client_name as string) || 'Reunião' })),
+        ...ms.map(x => ({ kind: x.marco as 'interagiu' | 'reuniao' | 'fechou', date: x.achieved_on as string, label: leadNameOf(x.leads) })),
       ].sort((a, b) => (a.date < b.date ? 1 : -1))
       setItems(merged)
       setLoading(false)
@@ -135,12 +132,12 @@ export function RelatorioComercial() {
       doc.text(`Gerado em: ${new Date().toLocaleDateString('pt-BR')}`, 14, 38)
       doc.setDrawColor(...green); doc.setLineWidth(0.5); doc.line(14, 43, 196, 43)
 
-      const kpis: [string, number][] = [['Leads recebidos', recebidos], ['Leads engajados', engajados], ['Reuniões agendadas', reunioes]]
+      const kpis: [string, number][] = [['Leads recebidos', recebidos], ['Interagiram', interagiram], ['Reuniões', reunioes], ['Fecharam', fecharam]]
       let x = 14
       for (const [label, val] of kpis) {
         doc.setFont('helvetica', 'bold'); doc.setFontSize(26); doc.setTextColor(...dark); doc.text(String(val), x, 60)
         doc.setFont('helvetica', 'normal'); doc.setFontSize(9); doc.setTextColor(110, 110, 110); doc.text(label, x, 66)
-        x += 64
+        x += 46
       }
 
       if (items.length) {
@@ -149,7 +146,7 @@ export function RelatorioComercial() {
           head: [['Data', 'Tipo', 'Detalhe']],
           body: items.map(i => [
             new Date(i.date).toLocaleDateString('pt-BR'),
-            i.kind === 'recebido' ? 'Lead recebido' : i.kind === 'engajou' ? 'Engajou' : 'Reunião agendada',
+            i.kind === 'recebido' ? 'Lead recebido' : i.kind === 'interagiu' ? 'Interagiu' : i.kind === 'reuniao' ? 'Reunião' : 'Fechou',
             i.label + (i.sub ? ` (${i.sub})` : ''),
           ]),
           styles: { fontSize: 9, cellPadding: 2 },
@@ -165,8 +162,9 @@ export function RelatorioComercial() {
 
   const KPIS = [
     { label: 'Leads recebidos', value: recebidos, Icon: Inbox, sub: 'novos no período' },
-    { label: 'Leads engajados', value: engajados, Icon: MessageCircle, sub: 'responderam' },
-    { label: 'Reuniões agendadas', value: reunioes, Icon: Calendar, sub: 'no período' },
+    { label: 'Interagiram', value: interagiram, Icon: MessageCircle, sub: 'engajaram' },
+    { label: 'Reuniões', value: reunioes, Icon: Calendar, sub: 'reunião feita' },
+    { label: 'Fecharam', value: fecharam, Icon: Trophy, sub: 'viraram venda' },
   ]
 
   return (
@@ -219,7 +217,7 @@ export function RelatorioComercial() {
       {error && <div className="bg-amber-900/20 border border-amber-800/40 rounded-btn px-4 py-3 text-xs text-amber-400">{error}</div>}
 
       {/* 3 números em destaque */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
         {KPIS.map(k => (
           <div key={k.label} className="bento-fx p-5">
             <div className="flex items-center gap-2 text-bento-muted">
@@ -246,8 +244,8 @@ export function RelatorioComercial() {
           ) : items.length === 0 ? (
             <p className="text-sm text-bento-muted text-center py-8">Nenhuma atividade neste período.</p>
           ) : items.map((i, idx) => {
-            const Icon = i.kind === 'recebido' ? Inbox : i.kind === 'engajou' ? MessageCircle : Calendar
-            const tipo = i.kind === 'recebido' ? 'Lead recebido' : i.kind === 'engajou' ? 'Engajou' : 'Reunião agendada'
+            const Icon = i.kind === 'recebido' ? Inbox : i.kind === 'interagiu' ? MessageCircle : i.kind === 'reuniao' ? Calendar : Trophy
+            const tipo = i.kind === 'recebido' ? 'Lead recebido' : i.kind === 'interagiu' ? 'Interagiu' : i.kind === 'reuniao' ? 'Reunião' : 'Fechou'
             return (
               <div key={idx} className="flex items-center gap-3 px-4 py-2.5">
                 <Icon className="w-4 h-4 text-bento-muted flex-none" />

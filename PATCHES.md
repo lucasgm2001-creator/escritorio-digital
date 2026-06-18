@@ -6,6 +6,16 @@ Categorias: 🐛 Fix · 🔄 Mudança · ✨ Novidade
 
 ---
 
+✨ Novidade — Relatório do ciclo do lead automático (marcos: interagiu / reunião / fechou).
+- Nova tabela `lead_milestones` (1x por lead por marco, idempotente) — migration 026 (revisar/aplicar).
+- Marcos gravados sozinhos: ao mover de estágio (`moveLead` — interagiu/reuniao/fechou pela regra de avanço),
+  ao "Registrar contato" (atendeu/mensagem → interagiu) e ao registrar reunião (→ reuniao, via novo `meetings.lead_id`).
+- Relatório conta interagiu/reunião/fechou SÓ pelos marcos (fonte única, sem dobrar com lead_interactions/meetings);
+  recebidos seguem de `leads.created_at`; novo KPI "Fecharam".
+- Dinheiro/comissão 100% manual e intacto (US$15 por reunião e o won-flow não mudaram).
+
+---
+
 🐛 Fix — endurecimento das ações de dinheiro do agente (try/catch + anti-duplo-clique).
 - confirmAction passou a envolver a execução em try/catch/finally: erro inesperado vira aviso amigável
   e SEMPRE libera o estado — nunca deixa "Salvando..."/barra travados.
