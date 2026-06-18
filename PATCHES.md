@@ -6,6 +6,13 @@ Categorias: 🐛 Fix · 🔄 Mudança · ✨ Novidade
 
 ---
 
+✨ Novidade — Visão por PERÍODO na aba Métricas do Comercial.
+- Seletor Dia/Semana/Mês/Semestre/Ano (espelha o Relatório), padrão **Semana atual**; helper compartilhado `src/lib/period.ts`.
+- KPIs do topo respeitam o período: **Recebidos, Fechados, Taxa de Conversão** (fechados÷recebidos), **Pipeline** (ativos criados no período), **Ticket Médio** e **Receita Fechada**; + card **Conversão Reunião→Venda**. Fontes reusadas: `leads.created_at` + `lead_milestones` (nada de contagem nova).
+- Cards de composição (funil por etapa, valor por estágio/vendedor, temperatura, resumo) seguem como **estado atual** (snapshot). Sem schema, sem dinheiro.
+
+---
+
 🔄 Mudança — Funil configurável: INCREMENTO 1 (fundação). Código lê as fases de `funnel_stages`; comportamento IDÊNTICO.
 - Migration **028 (funnel_stages)** JÁ APLICADA por Lucas — arquivo só filado (10 fases seedadas, mapa de marcos idêntico, is_won=Venda Fechada, is_lost=Venda Perdida).
 - Fonte única: `src/lib/funnelStages.ts` (tipos + helpers + loader client memoizado) e `funnelStages.server.ts` (`getStages` com React cache).
