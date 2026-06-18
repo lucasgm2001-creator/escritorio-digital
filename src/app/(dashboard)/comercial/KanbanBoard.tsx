@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useCallback, useEffect } from 'react'
+import { useState, useCallback, useEffect, useMemo } from 'react'
 import {
   DndContext, DragOverlay, PointerSensor, useSensor, useSensors,
   type DragStartEvent, type DragEndEvent,
@@ -19,8 +19,8 @@ import { useRealtimeRows } from '@/lib/hooks/useRealtimeRows'
 import { usdCompact as fmtUSDc } from '@/lib/format'
 import { MetricasTab } from './tabs/MetricasTab'
 import { VendedoresTab } from './tabs/VendedoresTab'
-import { TIERS, ALL_COLUMNS } from './types'
 import type { Lead, LeadStatus } from './types'
+import { columnsFromStages, tiersFromColumns, type FunnelStage } from '@/lib/funnelStages'
 export type { LeadStatus, Lead, ColumnConfig } from './types'
 
 type Tab = 'funil' | 'metricas' | 'vendedores'
@@ -65,7 +65,7 @@ function SummaryLegend({ cls, t }: { cls: string; t: string }) {
   return <span className="flex items-center gap-1"><span className={cn('w-2 h-2 rounded-full', cls)} />{t}</span>
 }
 
-export function KanbanBoard({ initialLeads, currentUser }: { initialLeads: Lead[], currentUser: CurrentUser }) {
+export function KanbanBoard({ initialLeads, initialStages, currentUser }: { initialLeads: Lead[], initialStages: FunnelStage[], currentUser: CurrentUser }) {
   const [leads, setLeads] = useState<Lead[]>(initialLeads)
   // Reflete dados frescos do servidor após router.refresh() (revalidação ao focar a aba).
   useEffect(() => { setLeads(initialLeads) }, [initialLeads])
@@ -88,6 +88,9 @@ export function KanbanBoard({ initialLeads, currentUser }: { initialLeads: Lead[
   }, [])
 
   const supabase = createClient()
+  // Fases do funil vindas do banco (incremento 1: idênticas ao estático). Render + won-flow leem daqui.
+  const cols = useMemo(() => columnsFromStages(initialStages), [initialStages])
+  const tiers = useMemo(() => tiersFromColumns(cols), [cols])
 
   const showToast = (message: string, type: 'success' | 'error' = 'success') => {
     setToast({ message, type })
@@ -125,7 +128,7 @@ export function KanbanBoard({ initialLeads, currentUser }: { initialLeads: Lead[
     const prevStage = lead.stage_changed_at
     const nowIso = new Date().toISOString()
     setLeads(prev => prev.map(l => l.id === lead.id ? { ...l, status: newStatus, stage_changed_at: nowIso } : l))   // otimista
-    const res = await moveLead(supabase, lead, newStatus, currentUser.name)
+    const res = await moveLead(supabase, lead, newStatus, currentUser.name, initialStages)
     if (!res.ok) {
       setLeads(prev => prev.map(l => l.id === lead.id ? { ...l, status: prevStatus, stage_changed_at: prevStage } : l))   // rollback
       showToast(`Não foi possível mover o lead: ${res.error}`, 'error')
@@ -133,7 +136,7 @@ export function KanbanBoard({ initialLeads, currentUser }: { initialLeads: Lead[
     }
     for (const n of res.notes) showToast(n.message, n.type)
     return true
-  }, [supabase, currentUser.name])
+  }, [supabase, currentUser.name, initialStages])
 
   // Registra um contato com o lead em lead_interactions (fundação do relatório de
   // engajamento). atendeu/mensagem = engajou; nao_atendeu NÃO conta como engajado.
@@ -160,13 +163,13 @@ export function KanbanBoard({ initialLeads, currentUser }: { initialLeads: Lead[
     const leadId = active.id as string
     const overId = over.id as string
     // "over" pode ser a coluna (droppable) ou outro card (soltou sobre um card).
-    const newStatus = ALL_COLUMNS.find(c => c.key === overId)?.key
+    const newStatus = cols.find(c => c.key === overId)?.key
       ?? leads.find(l => l.id === overId)?.status
     if (!newStatus) return
     const lead = leads.find(l => l.id === leadId)
     if (!lead) return
     await moveLeadToStatus(lead, newStatus)
-  }, [leads, moveLeadToStatus])
+  }, [leads, cols, moveLeadToStatus])
 
   const handleLeadCreated = (lead: Lead) => setLeads(prev => [lead, ...prev])
   const handleLeadUpdated = (lead: Lead) => setLeads(prev => prev.map(l => l.id === lead.id ? lead : l))
@@ -208,7 +211,7 @@ export function KanbanBoard({ initialLeads, currentUser }: { initialLeads: Lead[
             <div className="h-full flex flex-col bg-bento-bg">
               <div className="flex-1 overflow-x-auto overflow-y-hidden p-4 sm:p-5">
                 <div className="flex items-stretch gap-3 min-w-max h-full">
-                  {TIERS.map((tier, ti) => (
+                  {tiers.map((tier, ti) => (
                     <div key={ti} className="flex items-center gap-3 h-full">
                       <div className="flex flex-col gap-3 self-start">
                         {tier.map(col => (
@@ -223,7 +226,7 @@ export function KanbanBoard({ initialLeads, currentUser }: { initialLeads: Lead[
                           />
                         ))}
                       </div>
-                      {ti < TIERS.length - 1 && (
+                      {ti < tiers.length - 1 && (
                         <svg className="w-5 h-5 text-bento-border flex-none self-center" fill="currentColor" viewBox="0 0 20 20">
                           <path fillRule="evenodd" d="M10.293 3.293a1 1 0 011.414 0l6 6a1 1 0 010 1.414l-6 6a1 1 0 01-1.414-1.414L14.586 11H3a1 1 0 110-2h11.586l-4.293-4.293a1 1 0 010-1.414z" clipRule="evenodd" />
                         </svg>
@@ -243,7 +246,7 @@ export function KanbanBoard({ initialLeads, currentUser }: { initialLeads: Lead[
         {/* Funil — MOBILE: acordeão compacto de fases (tocar p/ abrir) */}
         {tab === 'funil' && !isDesktop && (
           <div className="h-full overflow-auto p-3 bg-bento-bg">
-            <PhaseAccordion leads={filteredLeads} onLeadClick={setSelectedLead} />
+            <PhaseAccordion columns={cols} leads={filteredLeads} onLeadClick={setSelectedLead} />
           </div>
         )}
 

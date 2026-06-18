@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { cn } from '@/lib/utils'
 import { StaticLeadCard } from './LeadCard'
-import { ALL_COLUMNS, type ColumnTone, type Lead } from './types'
+import { type ColumnConfig, type ColumnTone, type Lead } from './types'
 
 const TONE: Record<ColumnTone, { dot: string; name: string }> = {
   neutral: { dot: 'bg-bento-muted', name: 'text-bento-dim' },
@@ -16,7 +16,7 @@ const TONE: Record<ColumnTone, { dot: string; name: string }> = {
  * daquela etapa (visão focada). Sem drag (no celular usa-se o seletor de fase no
  * detalhe do lead). Desktop continua com as colunas/dnd.
  */
-export function PhaseAccordion({ leads, onLeadClick }: { leads: Lead[]; onLeadClick: (l: Lead) => void }) {
+export function PhaseAccordion({ columns, leads, onLeadClick }: { columns: ColumnConfig[]; leads: Lead[]; onLeadClick: (l: Lead) => void }) {
   const [open, setOpen] = useState<Set<string>>(new Set())
   const toggle = (k: string) =>
     setOpen(prev => {
@@ -27,7 +27,7 @@ export function PhaseAccordion({ leads, onLeadClick }: { leads: Lead[]; onLeadCl
 
   return (
     <div className="space-y-2">
-      {ALL_COLUMNS.map(col => {
+      {columns.map(col => {
         const items = leads.filter(l => l.status === col.key)
         const tone = TONE[col.tone]
         const isOpen = open.has(col.key)
