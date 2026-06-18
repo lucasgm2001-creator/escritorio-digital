@@ -5,6 +5,7 @@ import { Markdown } from '@/components/ui/Markdown'
 import { createClient } from '@/lib/supabase/client'
 import { moveLead, type MovableLead } from '../comercial/leadActions'
 import { ALL_COLUMNS, type LeadStatus } from '../comercial/types'
+import { payWeek, payWeekMessage, registerMeeting, updateClient } from '@/lib/commission/actions'
 import { ymd } from '@/lib/format'
 
 interface Message {
@@ -24,6 +25,15 @@ interface PendingAction {
 // Precisam casar a mensagem inteira — "não, a empresa é Souza" NÃO é cancelar (é correção).
 const YES = /^(sim|claro|confirmo|confirmar|confirma|pode|pode ser|pode criar|ok|okay|isso|isso a[ií]|manda|manda ver|vai|fechou|beleza|blz)[.!]*$/i
 const NO = /^(n[ãa]o|cancela|cancelar|deixa|deixa pra l[áa]|esquece|para)[.!]*$/i
+
+// Cotação efetiva atual (mesma do /api/fx) pra congelar em pagamentos/reuniões. Nunca 0.
+async function getFxRate(): Promise<number> {
+  try {
+    const res = await fetch('/api/fx', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}) })
+    if (res.ok) { const d = await res.json(); const r = Number(d.effective); if (r > 0) return r }
+  } catch { /* usa o fallback abaixo */ }
+  return 5.40
+}
 
 export function AgentChat({ userId, userName }: { userId: string; userName: string }) {
   const [messages, setMessages] = useState<Message[]>([])
@@ -112,6 +122,44 @@ export function AgentChat({ userId, userName }: { userId: string; userName: stri
       let msg = `Pronto! Movi o ${lead.name} pra ${label}.`
       for (const n of res.notes) if (n.message) msg += `\n${n.message}`
       return msg
+    }
+    if (action.tool === 'editar_cliente') {
+      const clientId = String(p.clientId ?? '')
+      const clientName = String(p.clientName ?? 'cliente')
+      const patch = (p.patch ?? {}) as Record<string, string>
+      if (!clientId || Object.keys(patch).length === 0) return 'Não consegui editar: faltou o cliente ou o que mudar.'
+      const { error } = await updateClient(supabase, clientId, patch)
+      if (error) return `Não consegui editar o ${clientName}: ${error.message}`
+      return `Pronto! Cliente ${clientName} atualizado.`
+    }
+    if (action.tool === 'registrar_pagamento') {
+      const dealId = String(p.dealId ?? '')
+      const clientName = String(p.clientName ?? 'cliente')
+      const numero = Number(p.numero)
+      const teto = Number(p.teto)
+      const paidOn = String(p.paidOn ?? '')
+      if (!dealId || !numero || !paidOn) return 'Não consegui registrar o pagamento: dados incompletos.'
+      // Re-confere venda + semanas na hora (anti-duplicação) e congela a cotação efetiva.
+      const { data: deal } = await supabase.from('deals').select('id, valor_por_semana_usd, teto_semanas, status').eq('id', dealId).single()
+      if (!deal) return `Não achei mais a venda do ${clientName}.`
+      const { data: wk } = await supabase.from('weekly_payments').select('numero_semana').eq('deal_id', dealId)
+      const paidNums = (wk ?? []).map(w => Number(w.numero_semana))
+      const rate = await getFxRate()
+      const res = await payWeek(supabase, { id: deal.id, valorPorSemanaUsd: Number(deal.valor_por_semana_usd), tetoSemanas: deal.teto_semanas, status: deal.status }, paidNums, numero, paidOn, rate)
+      if (!res.ok) return `Não registrei o pagamento do ${clientName}: ${payWeekMessage(res.reason, res.message)}`
+      return `Pronto! ${clientName}: semana ${numero} de ${teto} registrada (US$ ${Number(p.valorUsd)}).`
+    }
+    if (action.tool === 'registrar_reuniao') {
+      const sellerId = String(p.sellerId ?? '')
+      const metOn = String(p.metOn ?? '')
+      const valorUsd = Number(p.valorUsd)
+      const clientId = p.clientId ? String(p.clientId) : null
+      const clientName = p.clientName ? String(p.clientName) : null
+      if (!sellerId || !metOn) return 'Não consegui registrar a reunião: dados incompletos.'
+      const rate = await getFxRate()
+      const { error } = await registerMeeting(supabase, sellerId, { metOn, valorUsd, clientId, clientName }, rate)
+      if (error) return `Não consegui lançar a reunião: ${error.message}`
+      return `Pronto! Reunião${clientName ? ` com ${clientName}` : ''} lançada (US$ ${valorUsd}, ${metOn}).`
     }
     return 'Ação desconhecida.'
   }
@@ -265,7 +313,7 @@ export function AgentChat({ userId, userName }: { userId: string; userName: stri
         <div className="px-4 pb-2">
           <div className="flex items-center gap-2 rounded-btn border border-lime/40 bg-lime/10 px-3 py-2">
             <span className="text-xs text-bento-text flex-1">
-              Confirmar {pending.tool === 'create_lead' ? 'criação do lead' : pending.tool === 'create_task' ? 'criação da tarefa' : pending.tool === 'mover_lead' ? 'mover pra Venda Fechada' : 'a ação'}?
+              Confirmar {pending.tool === 'create_lead' ? 'criação do lead' : pending.tool === 'create_task' ? 'criação da tarefa' : pending.tool === 'mover_lead' ? 'mover pra Venda Fechada' : pending.tool === 'editar_cliente' ? 'a edição do cliente' : pending.tool === 'registrar_pagamento' ? 'o pagamento da semana' : pending.tool === 'registrar_reuniao' ? 'a reunião' : 'a ação'}?
             </span>
             <button
               type="button"

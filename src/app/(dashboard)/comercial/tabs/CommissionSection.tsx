@@ -17,6 +17,7 @@ import { useSave } from '@/lib/useSave'
 import { useToast } from '@/components/ui/toast'
 import { cn } from '@/lib/utils'
 import { monthlySummary, resolveRate, dealTotal } from '@/lib/commission/calc'
+import { payWeek, payWeekMessage, registerMeeting } from '@/lib/commission/actions'
 import type { SalaryPeriod, Meeting, WeeklyPayment, FxConfig, Deal, DealStatus } from '@/lib/commission/types'
 import { usd, brl } from '@/lib/format'
 
@@ -74,7 +75,6 @@ const toMeeting = (r: { id: string; seller_id: string; met_on: string; valor_usd
   id: r.id, sellerId: r.seller_id, metOn: r.met_on, valorUsd: Number(r.valor_usd), cotacaoUsdBrl: Number(r.cotacao_usd_brl), clientName: r.client_name,
 })
 type DealRow = Parameters<typeof toDealUI>[0]
-type WeekRow = Parameters<typeof toWeek>[0]
 type MeetingRow = Parameters<typeof toMeeting>[0]
 
 // ── Card de uma venda: semanas (marcar/desmarcar) + status ────────────────────
@@ -531,16 +531,15 @@ export function CommissionSection({ sellerId, sellerName }: { sellerId: string; 
   // ── Marcar / desmarcar semana ─────────────────────────────────────────────────
   const markWeek = async (deal: DealUI, numero: number, paidOn: string): Promise<boolean> => {
     if (!paidOn) { toast({ type: 'error', message: 'Informe a data do recebimento.' }); return false }
-    const { ok, data } = await save<WeekRow>({
-      run: () => supabase.from('weekly_payments').insert({
-        deal_id: deal.id, numero_semana: numero, valor_usd: deal.valorPorSemanaUsd,
-        paid_on: paidOn, cotacao_usd_brl: currentRate,
-      }).select('id, deal_id, numero_semana, valor_usd, paid_on, cotacao_usd_brl').single(),
-      success: `Semana ${numero} recebida em ${fmtDayMonthYear(paidOn)}.`,
-      error: 'Não foi possível marcar a semana',
-    })
-    if (ok && data) { setWeeks(prev => [...prev, toWeek(data)]); return true }
-    return false
+    const paidNums = weeks.filter(w => w.dealId === deal.id).map(w => w.numeroSemana)
+    const res = await payWeek(supabase, deal, paidNums, numero, paidOn, currentRate)
+    if (!res.ok) { toast({ type: 'error', message: payWeekMessage(res.reason, res.message) }); return false }
+    if (res.row) {
+      const row = res.row
+      setWeeks(prev => [...prev, toWeek(row)])
+      toast({ type: 'success', message: `Semana ${numero} recebida em ${fmtDayMonthYear(paidOn)}.` })
+    }
+    return true
   }
 
   const unmarkWeek = async (week: WeeklyPayment) => {
@@ -628,10 +627,10 @@ export function CommissionSection({ sellerId, sellerName }: { sellerId: string; 
     const matched = clients.find(c => c.name.toLowerCase() === meetingForm.client.trim().toLowerCase())
     setSavingMeeting(true)
     const { ok, data } = await save<MeetingRow>({
-      run: () => supabase.from('meetings').insert({
-        seller_id: sellerId, met_on: meetingForm.metOn, valor_usd: valor, cotacao_usd_brl: currentRate,
-        client_id: matched?.id ?? null, client_name: meetingForm.client.trim() || null, note: meetingForm.note.trim() || null,
-      }).select('id, seller_id, met_on, valor_usd, cotacao_usd_brl, client_name').single(),
+      run: () => registerMeeting(supabase, sellerId, {
+        metOn: meetingForm.metOn, valorUsd: valor,
+        clientId: matched?.id ?? null, clientName: meetingForm.client.trim() || null, note: meetingForm.note.trim() || null,
+      }, currentRate),
       success: 'Reunião lançada.',
       error: 'Não foi possível lançar a reunião',
     })

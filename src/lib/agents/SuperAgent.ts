@@ -1,6 +1,8 @@
 import { generateText, tool, jsonSchema } from 'ai'
 import { anthropic } from '@ai-sdk/anthropic'
 import type { createClient } from '@/lib/supabase/server'
+import { nextUnpaidWeek } from '@/lib/commission/actions'
+import { ymd } from '@/lib/format'
 
 // Client supabase do REQUEST atual (server, ligado à sessão/cookies correntes).
 type SupaClient = ReturnType<typeof createClient>
@@ -65,6 +67,49 @@ const moverLeadTool = tool({
       },
     },
     required: ['lead_name', 'destino'],
+    additionalProperties: false,
+  }),
+})
+
+const editarClienteTool = tool({
+  description:
+    'Edita os dados de um cliente existente (nome, telefone, e-mail, empresa). Use quando o usuário pedir para alterar/atualizar/corrigir dados de um cliente. NUNCA exclui clientes.',
+  inputSchema: jsonSchema<{ client_name: string; name?: string; phone?: string; email?: string; company?: string }>({
+    type: 'object',
+    properties: {
+      client_name: { type: 'string', description: 'Nome do cliente a editar (para localizar).' },
+      name: { type: 'string', description: 'Novo nome, se for mudar.' },
+      phone: { type: 'string', description: 'Novo telefone.' },
+      email: { type: 'string', description: 'Novo e-mail.' },
+      company: { type: 'string', description: 'Nova empresa.' },
+    },
+    required: ['client_name'],
+    additionalProperties: false,
+  }),
+})
+
+const registrarPagamentoTool = tool({
+  description:
+    'Registra o pagamento da PRÓXIMA semana de uma venda JÁ EXISTENTE de um cliente (teto de 4 semanas). Use quando o usuário disser que um cliente pagou (mais) uma semana. NÃO cria vendas — para registrar uma venda nova, o caminho é mover o lead para "Venda Fechada" (tool mover_lead).',
+  inputSchema: jsonSchema<{ client_name: string }>({
+    type: 'object',
+    properties: { client_name: { type: 'string', description: 'Nome do cliente da venda.' } },
+    required: ['client_name'],
+    additionalProperties: false,
+  }),
+})
+
+const registrarReuniaoTool = tool({
+  description:
+    'Registra uma reunião realizada (US$ 15 por padrão) numa data. Use quando o usuário disser que teve/fez uma reunião.',
+  inputSchema: jsonSchema<{ client_name?: string; date?: string; valor_usd?: number }>({
+    type: 'object',
+    properties: {
+      client_name: { type: 'string', description: 'Nome do cliente/lead da reunião (opcional; pode ser avulsa).' },
+      date: { type: 'string', description: 'Data YYYY-MM-DD (resolva datas relativas; padrão hoje).' },
+      valor_usd: { type: 'number', description: 'Valor em dólares (padrão 15).' },
+    },
+    required: [],
     additionalProperties: false,
   }),
 })
@@ -197,7 +242,7 @@ export class SuperAgent {
     const system = [
       'Você é o assistente do Escritório Digital DR Growth. Responda em português, de forma concisa e prática.',
       `Hoje é ${opts.todayLabel} (${opts.today}). Resolva datas relativas (hoje, amanhã, depois de amanhã, sexta, segunda, semana que vem) para datas absolutas no formato YYYY-MM-DD a partir de hoje. Se o dia da semana já passou nesta semana, use a próxima ocorrência.`,
-      'Você PODE executar ações pelas ferramentas: create_lead (criar lead), create_task (criar tarefa) e mover_lead (mover um lead de estágio no funil). Use a ferramenta correspondente quando o usuário pedir para criar/cadastrar/adicionar/agendar/mover/avançar. Para perguntas, consultas e análises, responda em texto, sem ferramenta.',
+      'Você PODE executar ações pelas ferramentas: create_lead (criar lead), create_task (criar tarefa), mover_lead (mover lead de estágio), editar_cliente (editar dados de um cliente — NUNCA excluir), registrar_pagamento (registrar o pagamento da próxima semana de uma venda JÁ existente) e registrar_reuniao (registrar reunião, US$ 15 padrão). Use a ferramenta quando o usuário pedir a ação correspondente. IMPORTANTE: NÃO existe ferramenta de criar venda/deal — registrar uma venda nova = mover o lead para "Venda Fechada" (mover_lead). Para perguntas, consultas e análises, responda em texto, sem ferramenta.',
       'Nunca diga que já criou algo: ao chamar uma ferramenta, o aplicativo ainda vai pedir a confirmação do usuário antes de gravar.',
       'Se faltar um dado obrigatório (nome do lead, ou título da tarefa), peça-o em texto antes de usar a ferramenta.',
       'Dados atuais do sistema (somente leitura, use apenas para responder perguntas):',
@@ -208,16 +253,117 @@ export class SuperAgent {
       model: anthropic(ACTION_MODEL),
       system,
       messages,
-      tools: { create_lead: createLeadTool, create_task: createTaskTool, mover_lead: moverLeadTool },
+      tools: {
+        create_lead: createLeadTool, create_task: createTaskTool, mover_lead: moverLeadTool,
+        editar_cliente: editarClienteTool, registrar_pagamento: registrarPagamentoTool, registrar_reuniao: registrarReuniaoTool,
+      },
       maxOutputTokens: 600,
     })
 
     const call = result.toolCalls?.[0]
     if (call) {
       const params = (call.input ?? {}) as Record<string, unknown>
+      // Ações que resolvem no banco (preview rico / pergunta se ambíguo):
+      if (call.toolName === 'editar_cliente') return this.prepEditClient(params)
+      if (call.toolName === 'registrar_pagamento') return this.prepPayWeek(params)
+      if (call.toolName === 'registrar_reuniao') return this.prepMeeting(params)
+      // Ações de preview estático (resolução acontece na execução):
       return { type: 'action', tool: call.toolName, params, requiresConfirm: needsConfirm(call.toolName, params), resposta: buildActionPreview(call.toolName, params) }
     }
     return { type: 'text', resposta: result.text?.trim() || 'Não entendi. Pode reformular?' }
+  }
+
+  // ── Preparação das ações que resolvem no banco (preview rico; pergunta se ambíguo) ──
+
+  // Editar cliente: localiza por nome; monta o patch só com campos informados e
+  // diferentes (de→para). Pergunta se ambíguo/não achar. NUNCA exclui.
+  private async prepEditClient(params: Record<string, unknown>): Promise<AgentTurn> {
+    const name = String(params.client_name ?? '').trim()
+    if (!name) return { type: 'text', resposta: 'Qual cliente você quer editar?' }
+    const { data } = await this.supabase.from('clients').select('id, name, phone, email, company').ilike('name', `%${name}%`).limit(6)
+    const matches = data ?? []
+    if (matches.length === 0) return { type: 'text', resposta: `Não achei nenhum cliente com "${name}".` }
+    let c = matches[0]
+    if (matches.length > 1) {
+      const exact = matches.filter(m => (m.name ?? '').toLowerCase() === name.toLowerCase())
+      if (exact.length === 1) c = exact[0]
+      else return { type: 'text', resposta: `Achei mais de um cliente parecido com "${name}": ${matches.map(m => m.name).join(', ')}. Qual deles?` }
+    }
+    const patch: Record<string, string> = {}
+    const lines: string[] = []
+    const consider = (key: 'name' | 'phone' | 'email' | 'company', label: string) => {
+      const v = params[key]
+      if (v == null) return
+      const nv = String(v).trim()
+      if (!nv) return
+      const cur = (c as Record<string, unknown>)[key]
+      if (nv === (cur == null ? '' : String(cur))) return
+      patch[key] = nv
+      lines.push(`- ${label}: ${cur ? String(cur) : '—'} → ${nv}`)
+    }
+    consider('name', 'Nome'); consider('phone', 'Telefone'); consider('email', 'E-mail'); consider('company', 'Empresa')
+    if (lines.length === 0) return { type: 'text', resposta: `O que você quer mudar no cliente ${c.name}? (nome, telefone, e-mail ou empresa)` }
+    return {
+      type: 'action', tool: 'editar_cliente', requiresConfirm: true,
+      params: { clientId: c.id, clientName: c.name, patch },
+      resposta: `Vou editar o cliente **${c.name}**:\n${lines.join('\n')}\n\nConfirma?`,
+    }
+  }
+
+  // Registrar pagamento: localiza a venda do cliente, calcula a PRÓXIMA semana não paga
+  // (respeitando teto e status). NÃO cria venda. Pergunta/explica se ambíguo/cheio/congelado.
+  private async prepPayWeek(params: Record<string, unknown>): Promise<AgentTurn> {
+    const name = String(params.client_name ?? '').trim()
+    if (!name) return { type: 'text', resposta: 'De qual cliente é o pagamento da semana?' }
+    const { data } = await this.supabase.from('deals').select('id, client_name, valor_por_semana_usd, teto_semanas, status').ilike('client_name', `%${name}%`)
+    const matches = data ?? []
+    if (matches.length === 0) return { type: 'text', resposta: `Não achei nenhuma venda do cliente "${name}". (Para registrar uma venda nova, mova o lead para "Venda Fechada".)` }
+    let d = matches[0]
+    if (matches.length > 1) {
+      const active = matches.filter(x => x.status === 'em_andamento')
+      const exact = matches.filter(x => (x.client_name ?? '').toLowerCase() === name.toLowerCase())
+      if (active.length === 1) d = active[0]
+      else if (exact.length === 1) d = exact[0]
+      else return { type: 'text', resposta: `Achei mais de uma venda para "${name}": ${matches.map(x => x.client_name).join(', ')}. De qual cliente?` }
+    }
+    if (d.status !== 'em_andamento') return { type: 'text', resposta: `A venda do ${d.client_name} está ${d.status === 'interrompido' ? 'interrompida' : 'concluída'} — não dá pra registrar mais semanas.` }
+    const { data: wk } = await this.supabase.from('weekly_payments').select('numero_semana').eq('deal_id', d.id)
+    const paidNums = (wk ?? []).map(w => Number(w.numero_semana))
+    const numero = nextUnpaidWeek({ tetoSemanas: d.teto_semanas, status: d.status }, paidNums)
+    if (numero == null) return { type: 'text', resposta: `A venda do ${d.client_name} já tem todas as ${d.teto_semanas} semanas pagas.` }
+    const valorUsd = Number(d.valor_por_semana_usd)
+    const today = ymd(new Date())
+    return {
+      type: 'action', tool: 'registrar_pagamento', requiresConfirm: true,
+      params: { dealId: d.id, clientName: d.client_name, numero, valorUsd, teto: d.teto_semanas, paidOn: today },
+      resposta: `Registrar pagamento — **${d.client_name}**: semana ${numero} de ${d.teto_semanas}, US$ ${valorUsd}, hoje (${today}).\n\nConfirma?`,
+    }
+  }
+
+  // Registrar reunião (US$ 15 padrão): vendedor ativo + cliente opcional (avulsa permitida).
+  private async prepMeeting(params: Record<string, unknown>): Promise<AgentTurn> {
+    const { data: sellers } = await this.supabase.from('sellers').select('id').eq('status', 'ativo').order('created_at')
+    if (!sellers || sellers.length === 0) return { type: 'text', resposta: 'Não há vendedor ativo configurado para lançar a reunião.' }
+    const sellerId = sellers[0].id
+    const name = String(params.client_name ?? '').trim()
+    let clientId: string | null = null
+    let clientName: string | null = name || null
+    if (name) {
+      const { data: cs } = await this.supabase.from('clients').select('id, name').ilike('name', `%${name}%`).limit(6)
+      const list = cs ?? []
+      const exact = list.filter(c => (c.name ?? '').toLowerCase() === name.toLowerCase())
+      if (list.length === 1) { clientId = list[0].id; clientName = list[0].name }
+      else if (exact.length === 1) { clientId = exact[0].id; clientName = exact[0].name }
+      // senão: reunião avulsa com o nome dito (clientId null)
+    }
+    const valorUsd = typeof params.valor_usd === 'number' ? params.valor_usd : 15
+    const date = String(params.date ?? '')
+    const metOn = /^\d{4}-\d{2}-\d{2}$/.test(date) ? date : ymd(new Date())
+    return {
+      type: 'action', tool: 'registrar_reuniao', requiresConfirm: true,
+      params: { sellerId, clientId, clientName, metOn, valorUsd },
+      resposta: `Registrar reunião${clientName ? ` com **${clientName}**` : ''}: ${metOn}, US$ ${valorUsd}.\n\nConfirma?`,
+    }
   }
 
   // Gerar relatório semanal completo (para Daniel/admin)

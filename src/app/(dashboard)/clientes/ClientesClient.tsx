@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useRealtimeRows } from '@/lib/hooks/useRealtimeRows'
+import { updateClient } from '@/lib/commission/actions'
 import { createClient } from '@/lib/supabase/client'
 import { useSave } from '@/lib/useSave'
 import { formatCurrency, formatDate, timeAgo } from '@/lib/utils'
@@ -281,13 +282,13 @@ export function ClientesClient({ initialClients, currentUser }: Props) {
     }
     const { ok } = await save({
       optimistic: () => setClients(prev => prev.map(c => c.id === target.id ? { ...c, ...patch } : c)),
-      run: () => supabase.from('clients').update({
+      run: () => updateClient(supabase, target.id, {
         name: patch.name,
         company: editForm.company || null,
         email: editForm.email || null,
         phone: editForm.phone || null,
         plan_weekly: patch.plan_weekly,
-      }).eq('id', target.id),
+      }),
       rollback: () => setClients(prev => prev.map(c => c.id === target.id ? target : c)),
       success: 'Cliente atualizado.',
       error: 'Não foi possível salvar o cliente',

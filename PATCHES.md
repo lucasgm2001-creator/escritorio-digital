@@ -6,6 +6,20 @@ Categorias: 🐛 Fix · 🔄 Mudança · ✨ Novidade
 
 ---
 
+✨ Novidade — Agente do Hall: editar cliente, registrar pagamento de semana e reunião (com confirmação).
+- 3 ações novas, TODAS pedindo confirmação antes de gravar:
+  • editar_cliente — acha por nome (pergunta se ambíguo/não achar), mostra "campo: de X → Y", grava. NUNCA exclui.
+  • registrar_pagamento — só p/ venda JÁ existente; acha a venda do cliente, calcula a PRÓXIMA semana não
+    paga (teto 4, sem duplicar, só em_andamento), preview "semana N de 4 — US$ 25 — hoje". Não cria deal.
+  • registrar_reuniao — vendedor ativo + cliente (ou avulsa), data própria, US$ 15 padrão.
+- Regra de ouro (dinheiro): as ações chamam as MESMAS funções da UI — extraí payWeek/registerMeeting/
+  updateClient pra src/lib/commission/actions.ts; Comissões (markWeek/addMeeting) e Clientes (edição)
+  passaram a usá-las também. Zero regra duplicada. "Registrar venda" continua sendo mover o lead pra
+  "Venda Fechada" (sem insert paralelo de deal). Cotação congelada vem da efetiva (/api/fx).
+- Sem mudança de schema. Agente não exclui nada.
+
+---
+
 ✨ Novidade — Comissões: visão "Por cliente" (recebido × falta) — regra 7, só exibição.
 - Nova seção (Collapsible "Por cliente") mostra por venda/cliente: Recebido (semanas pagas), Falta
   (semanas restantes × valor enquanto em andamento; US$ 0 se interrompido/concluído), barra de progresso
