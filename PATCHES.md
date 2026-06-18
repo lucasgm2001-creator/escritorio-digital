@@ -6,6 +6,14 @@ Categorias: 🐛 Fix · 🔄 Mudança · ✨ Novidade
 
 ---
 
+🐛 Fix — semana de comissão duplicada vira aviso amigável (erro 23505 tratado).
+- Com o índice único (migration 025), uma 2ª tentativa da MESMA semana (corrida de 2 cliques /
+  estado desatualizado) é recusada pelo banco (erro 23505). O payWeek agora detecta o 23505 e devolve
+  "Essa semana já está registrada." (reason 'dup') em vez do erro cru — vale pro funil (Comissões) E
+  pro agente do Hall (reusam a mesma função). Sem mudança de schema.
+
+---
+
 ✨ Novidade — trava no banco contra semana de comissão duplicada.
 - Índice único uq_weekly_payments_deal_semana em weekly_payments(deal_id, numero_semana): a mesma
   semana de uma venda não pode ser lançada duas vezes (corrida de 2 cliques agora é recusada pelo banco).

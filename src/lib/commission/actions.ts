@@ -28,7 +28,14 @@ export async function payWeek(
   const { data, error } = await supabase.from('weekly_payments').insert({
     deal_id: deal.id, numero_semana: numero, valor_usd: deal.valorPorSemanaUsd, paid_on: paidOn, cotacao_usd_brl: rate,
   }).select('id, deal_id, numero_semana, valor_usd, paid_on, cotacao_usd_brl').single()
-  if (error || !data) return { ok: false, reason: 'db', message: error?.message }
+  if (error) {
+    // 23505 = índice único uq_weekly_payments_deal_semana (deal_id, numero_semana):
+    // corrida de 2 cliques / paidNumbers desatualizado → a semana já existe no banco.
+    // Vira mensagem amigável ('dup') em vez de estourar o erro cru na tela.
+    if (error.code === '23505') return { ok: false, reason: 'dup' }
+    return { ok: false, reason: 'db', message: error.message }
+  }
+  if (!data) return { ok: false, reason: 'db' }
   return { ok: true, row: data as WeekRowDb }
 }
 
