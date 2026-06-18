@@ -6,6 +6,17 @@ Categorias: 🐛 Fix · 🔄 Mudança · ✨ Novidade
 
 ---
 
+🔄 Mudança — Lote de ajustes de UI (Comercial, tema, Mural).
+- Comercial/Métricas: novo card "Conversão Reunião → Venda" (% + "X de Y reuniões viraram venda").
+  Base = marcos do ciclo (`lead_milestones`); enquanto a 026/backfill não estiverem aplicadas, cai automático
+  no proxy do funil (status proposta+fechado ÷ fechado).
+- Funil: número de leads por etapa maior/destacado (Space Grotesk) — leitura fácil no celular.
+- Funil: removido o "US$ 0" das etapas (somava `value` que ninguém preenche) — mostra só a quantidade.
+- Tema claro: relógios da Topbar (Brasília + EUA) passam a usar tokens de tema (contraste no claro; `lime-fg` mantém o realce).
+- Mural de Avisos: ✨ ícone de lixeira por aviso com confirmação inline (✓/✕). Exclui só o aviso; não toca em activities.
+
+---
+
 ✨ Novidade — Relatório do ciclo do lead automático (marcos: interagiu / reunião / fechou).
 - Nova tabela `lead_milestones` (1x por lead por marco, idempotente) — migration 026 (revisar/aplicar).
 - Marcos gravados sozinhos: ao mover de estágio (`moveLead` — interagiu/reuniao/fechou pela regra de avanço),

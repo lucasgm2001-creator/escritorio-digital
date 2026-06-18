@@ -9,7 +9,7 @@ import { Panel } from '@/components/bento/Panel'
 import { Metric } from '@/components/bento/Metric'
 import { LiveDot } from '@/components/bento/LiveDot'
 import { AgentChat } from './AgentChat'
-import { Maximize2, X } from 'lucide-react'
+import { Maximize2, X, Trash2, Check } from 'lucide-react'
 import type { Activity, Notice } from '@/types'
 
 type Tab = 'activities' | 'agent'
@@ -697,6 +697,8 @@ export function HallClient({ initialActivities, initialNotices, userName, userId
   const [showNoticeForm, setShowNoticeForm] = useState(false)
   const [noticeForm, setNoticeForm]   = useState({ title: '', content: '', priority: 'info' as 'info' | 'warning' | 'urgent' })
   const [savingNotice, setSavingNotice] = useState(false)
+  const [confirmDelete, setConfirmDelete] = useState<string | null>(null)   // aviso aguardando confirmação
+  const [deletingNotice, setDeletingNotice] = useState<string | null>(null) // aviso sendo excluído
   const [calEvents, setCalEvents]     = useState<CalendarEvent[]>([])
   const [agendaOpen, setAgendaOpen]   = useState(false)
   const [activitiesExpanded, setActivitiesExpanded] = useState(false)
@@ -722,6 +724,8 @@ export function HallClient({ initialActivities, initialNotices, userName, userId
         p => setActivities(prev => [p.new as Activity, ...prev.slice(0, 19)]))
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'notices' },
         p => setNotices(prev => [p.new as Notice, ...prev.slice(0, 9)]))
+      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'notices' },
+        p => setNotices(prev => prev.filter(n => n.id !== (p.old as { id?: string }).id)))
       .subscribe()
 
     const presenceChannel = supabase.channel('hall-presence', { config: { presence: { key: userId } } })
@@ -757,6 +761,17 @@ export function HallClient({ initialActivities, initialNotices, userName, userId
     } finally {
       setSavingNotice(false)
     }
+  }
+
+  // Exclui só o aviso (notices). NÃO toca em activities. RLS já permite delete (migration 005).
+  const handleDeleteNotice = async (id: string) => {
+    setDeletingNotice(id)
+    const supabase = createClient()
+    const { error } = await supabase.from('notices').delete().eq('id', id)
+    if (error) { alert('Não foi possível excluir o aviso.'); setDeletingNotice(null); return }
+    setNotices(prev => prev.filter(n => n.id !== id))
+    setConfirmDelete(null)
+    setDeletingNotice(null)
   }
 
   // ── Métricas reais (estáticas) para os painéis ──────────────────────────────
@@ -1007,10 +1022,29 @@ export function HallClient({ initialActivities, initialNotices, userName, userId
                     : notices.map(n => (
                       <div key={n.id} className={`rounded-bento border p-3 ${NOTICE_BORDER[n.priority] ?? 'border-bento-border'}`}>
                         <div className="flex items-center justify-between mb-1 gap-2">
-                          <p className="text-sm font-semibold text-bento-text">{n.title}</p>
-                          <span className={`shrink-0 text-[10px] px-2 py-0.5 rounded-full border font-semibold ${NOTICE_PILL[n.priority] ?? 'border-bento-border text-bento-muted'}`}>
-                            {NOTICE_LABEL[n.priority] ?? n.priority}
-                          </span>
+                          <p className="text-sm font-semibold text-bento-text truncate">{n.title}</p>
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            <span className={`text-[10px] px-2 py-0.5 rounded-full border font-semibold ${NOTICE_PILL[n.priority] ?? 'border-bento-border text-bento-muted'}`}>
+                              {NOTICE_LABEL[n.priority] ?? n.priority}
+                            </span>
+                            {confirmDelete === n.id ? (
+                              <span className="flex items-center gap-1">
+                                <button onClick={() => handleDeleteNotice(n.id)} disabled={deletingNotice === n.id}
+                                  className="p-1 rounded-btn text-red-400 hover:bg-red-900/20 disabled:opacity-50 transition-colors" aria-label="Confirmar exclusão" title="Confirmar exclusão">
+                                  <Check className="w-3.5 h-3.5" />
+                                </button>
+                                <button onClick={() => setConfirmDelete(null)} disabled={deletingNotice === n.id}
+                                  className="p-1 rounded-btn text-bento-muted hover:text-bento-text hover:bg-bento-bg disabled:opacity-50 transition-colors" aria-label="Cancelar" title="Cancelar">
+                                  <X className="w-3.5 h-3.5" />
+                                </button>
+                              </span>
+                            ) : (
+                              <button onClick={() => setConfirmDelete(n.id)}
+                                className="p-1 rounded-btn text-bento-muted hover:text-red-400 hover:bg-red-900/20 transition-colors" aria-label="Excluir aviso" title="Excluir aviso">
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            )}
+                          </div>
                         </div>
                         <p className="text-xs text-bento-dim">{n.content}</p>
                         {n.author_name && <p className="font-tech text-xs text-bento-muted/70 mt-1">— {n.author_name} · {timeAgo(n.created_at)}</p>}
