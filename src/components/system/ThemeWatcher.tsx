@@ -1,10 +1,10 @@
 'use client'
 
 import { useOnFocusVisible } from '@/lib/hooks/useOnFocusVisible'
+import { isDarkByTime } from '@/lib/theme'
 
-// 'auto' = escuro das 18h às 6h — MESMA regra do script inline do layout e do seletor de
-// tema. NÃO há prefers-color-scheme aqui: é por HORÁRIO.
-const isDarkByTime = () => { const h = new Date().getHours(); return h >= 18 || h < 6 }
+// 'auto' = escuro na janela configurável (default 18h–6h) — MESMA regra do script inline do
+// layout e do seletor de tema. NÃO há prefers-color-scheme aqui: é por HORÁRIO.
 
 // Reaplica o tema 'auto' sem refresh: vira escuro/claro sozinho ao cruzar 18h/6h. Manual
 // (light/dark fixos) GANHA — não é tocado. Só mexe no <html> quando o estado realmente

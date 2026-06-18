@@ -35,12 +35,22 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         {/* Aplica o tema salvo antes do React hidratar — evita flash de tema errado */}
         <script dangerouslySetInnerHTML={{ __html: `
 (function(){try{
-  var t=localStorage.getItem('theme');
-  var h=new Date().getHours();
-  var dark=t==='dark'||((!t||t==='auto')&&(h>=18||h<6));
   var el=document.documentElement;
+  var t=localStorage.getItem('theme');
+  var s=parseInt(localStorage.getItem('theme_dark_start'),10); if(isNaN(s)||s<0||s>23)s=18;
+  var e=parseInt(localStorage.getItem('theme_dark_end'),10); if(isNaN(e)||e<0||e>23)e=6;
+  var h=new Date().getHours();
+  var inDark = s<=e ? (h>=s&&h<e) : (h>=s||h<e);
+  var dark=t==='dark'||((!t||t==='auto')&&inDark);
   if(dark){el.classList.add('dark');el.classList.remove('light');}
   else{el.classList.add('light');el.classList.remove('dark');}
+  var a=localStorage.getItem('a11y'); if(a){var o=JSON.parse(a);
+    if(o.font==='grande')el.classList.add('a11y-font-grande');
+    if(o.font==='maior')el.classList.add('a11y-font-maior');
+    if(o.contrast)el.classList.add('a11y-contrast');
+    if(o.spacing)el.classList.add('a11y-spacing');
+    if(o.reduceMotion)el.classList.add('a11y-reduce-motion');
+  }
 }catch(e){}}())
         `}} />
       </head>

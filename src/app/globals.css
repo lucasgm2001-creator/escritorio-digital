@@ -456,3 +456,26 @@ html.light [class*="border-indigo-800/"]  { border-color: #c7d2fe !important; }
 html.light [class*="border-purple-800/"]  { border-color: #e9d5ff !important; }
 html.light [class*="border-primary-800/"] { border-color: #c7d2fe !important; }
 html.light [class*="border-slate-700/"]   { border-color: #cbd5e1 !important; }
+
+/* ─── Acessibilidade (Configurações → Sistema) — classes no <html>, prefs em localStorage ─── */
+/* Tamanho da fonte: escala o rem (afeta a maior parte do texto). */
+html.a11y-font-grande { font-size: 17.5px; }
+html.a11y-font-maior  { font-size: 19px; }
+/* Mais espaçamento: respiro maior na leitura. */
+html.a11y-spacing body { line-height: 1.7; letter-spacing: 0.01em; }
+/* Alto contraste: aproxima textos secundários/bordas do contraste total (claro e escuro). */
+html.a11y-contrast {
+  --c-foreground: 255 255 255; --c-muted-foreground: 210 219 205; --c-border: 96 116 100;
+  --bento-text: 255 255 255; --bento-dim: 224 230 220; --bento-muted: 200 210 196; --bento-border: 96 116 100;
+}
+html.a11y-contrast.light {
+  --c-foreground: 0 0 0; --c-muted-foreground: 33 43 30; --c-border: 110 128 100;
+  --bento-text: 0 0 0; --bento-dim: 33 43 30; --bento-muted: 55 66 50; --bento-border: 110 128 100;
+}
+/* Reduzir movimento: corta animações/transições. */
+html.a11y-reduce-motion *, html.a11y-reduce-motion *::before, html.a11y-reduce-motion *::after {
+  animation-duration: 0.001ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.001ms !important;
+  scroll-behavior: auto !important;
+}
