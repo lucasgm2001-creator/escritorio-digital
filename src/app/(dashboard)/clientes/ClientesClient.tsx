@@ -1,8 +1,8 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useRealtimeRows } from '@/lib/hooks/useRealtimeRows'
-import { updateClient } from '@/lib/commission/actions'
+import { updateClient, payClientWeek } from '@/lib/commission/actions'
 import { createClient } from '@/lib/supabase/client'
 import { useSave } from '@/lib/useSave'
 import { formatCurrency, formatDate, timeAgo } from '@/lib/utils'
@@ -48,6 +48,12 @@ const inputCls = 'w-full bg-bento-bg border border-bento-border rounded-btn px-3
 interface ClientRowProps {
   client: Client
   plans: Plan[]
+  paidWeeks: Record<string, number[]>
+  payOpenId: string | null
+  payBusyId: string | null
+  onTogglePay: (id: string) => void
+  onMarkWeek: (client: Client) => void
+  onPayMonth: (client: Client) => void
   inactive?: boolean
   editingJobsId: string | null
   jobInput: string
@@ -65,12 +71,17 @@ interface ClientRowProps {
 }
 
 function ClientRow({
-  client, plans, inactive, editingJobsId, jobInput, expandedId, activities, loadingActivities,
+  client, plans, paidWeeks, payOpenId, payBusyId, onTogglePay, onMarkWeek, onPayMonth,
+  inactive, editingJobsId, jobInput, expandedId, activities, loadingActivities,
   onEdit, onToggleJobs, setJobInput, onAddJob, onRemoveJob, onToggleActivities, onReativar, onInativar,
 }: ClientRowProps) {
   // Plano do banco manda; plan_weekly é só fallback legado.
   const plan = plans.find(p => p.id === client.plano_id)
   const weekly = plan?.valor_semanal ?? client.plan_weekly
+  const paidNums = paidWeeks[client.id] ?? []
+  const payOpen = payOpenId === client.id
+  const payBusy = payBusyId === client.id
+  let nextUnpaid = 1; { const s = new Set(paidNums); while (s.has(nextUnpaid)) nextUnpaid++ }
   return (
     <div className={`bento-fx transition-colors duration-150 ${inactive ? 'opacity-60' : 'hover:border-lime/40'}`}>
       {/* Main row */}
@@ -123,6 +134,15 @@ function ClientRow({
           >
             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+          </button>
+          <button
+            onClick={() => onTogglePay(client.id)}
+            className="p-1.5 text-bento-muted hover:text-bento-text hover:bg-bento-bg rounded-lg transition-colors"
+            title="Pagamentos"
+          >
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 7v1m0 8v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
           </button>
           {inactive ? (
@@ -193,6 +213,28 @@ function ClientRow({
           )}
         </div>
       )}
+
+      {/* Pagamentos (semanas pagas do cliente) — registra receita + deriva comissão */}
+      {payOpen && (
+        <div className="px-4 pb-3.5 border-t border-bento-border/60 pt-3">
+          <p className="font-tech text-[10px] uppercase tracking-[0.12em] text-bento-muted mb-2">Pagamentos</p>
+          <p className="text-xs text-bento-dim mb-3 tabular-nums">
+            {paidNums.length} semana(s) registrada(s){plan ? ` · ${formatCurrency(weekly, 'en-US', 'USD')}/sem` : ''}
+          </p>
+          {!inactive && (
+            <div className="flex flex-wrap gap-2">
+              <button onClick={() => onMarkWeek(client)} disabled={payBusy}
+                className="bento-btn px-3 py-1.5 rounded-btn text-xs font-semibold disabled:opacity-50">
+                {payBusy ? 'Registrando...' : `Marcar semana ${nextUnpaid}`}
+              </button>
+              <button onClick={() => onPayMonth(client)} disabled={payBusy}
+                className="px-3 py-1.5 rounded-btn text-xs border border-bento-border text-bento-dim hover:border-lime hover:text-bento-text transition-colors disabled:opacity-50">
+                Pagar mês (4 semanas)
+              </button>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   )
 }
@@ -209,6 +251,10 @@ export function ClientesClient({ initialClients, currentUser }: Props) {
   const [form, setForm] = useState({ name: '', company: '', email: '', phone: '', plano_id: '' })
   const [editForm, setEditForm] = useState({ name: '', company: '', email: '', phone: '', plano_id: '' })
   const [plans, setPlans] = useState<Plan[]>([])
+  const [paidWeeks, setPaidWeeks] = useState<Record<string, number[]>>({})
+  const [payOpenId, setPayOpenId] = useState<string | null>(null)
+  const [payBusyId, setPayBusyId] = useState<string | null>(null)
+  const payBusyRef = useRef(false)
   const [loading, setLoading] = useState(false)
   const [editingJobsId, setEditingJobsId] = useState<string | null>(null)
   const [jobInput, setJobInput] = useState('')
@@ -230,6 +276,61 @@ export function ClientesClient({ initialClients, currentUser }: Props) {
       })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  // Semanas pagas por cliente (client_payments) — pra saber a próxima e exibir a contagem.
+  useEffect(() => {
+    supabase.from('client_payments').select('client_id, numero_semana').then(({ data }) => {
+      const map: Record<string, number[]> = {}
+      for (const r of data ?? []) (map[r.client_id as string] ??= []).push(r.numero_semana as number)
+      setPaidWeeks(map)
+    })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // Cotação efetiva (mesma do /api/fx) — congela no lançamento, nunca 0.
+  const getRate = async (): Promise<number> => {
+    try {
+      const res = await fetch('/api/fx', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}) })
+      if (res.ok) { const d = await res.json(); const r = Number(d.effective); if (r > 0) return r }
+    } catch { /* fallback abaixo */ }
+    return 5.40
+  }
+  const todayISO = () => new Date().toISOString().slice(0, 10)
+
+  // Marca a PRÓXIMA semana não paga do cliente: receita + comissão derivada (via actions.ts).
+  // Guarda síncrona anti-duplo-clique (como no agente).
+  const handleMarkWeek = async (client: Client) => {
+    if (payBusyRef.current) return
+    payBusyRef.current = true; setPayBusyId(client.id)
+    try {
+      const rate = await getRate()
+      const set = new Set(paidWeeks[client.id] ?? [])
+      let n = 1; while (set.has(n)) n++
+      const res = await payClientWeek(supabase, client.id, n, todayISO(), rate)
+      if (!res.ok) { alert(res.reason === 'dup' ? 'Essa semana já está registrada.' : 'Não foi possível registrar a semana.'); return }
+      setPaidWeeks(prev => ({ ...prev, [client.id]: [...(prev[client.id] ?? []), n] }))
+    } finally { payBusyRef.current = false; setPayBusyId(null) }
+  }
+
+  // "Pagar o mês" = roda a de 1 semana 4× nas próximas 4 não pagas (working set local).
+  const handlePayMonth = async (client: Client) => {
+    if (payBusyRef.current) return
+    payBusyRef.current = true; setPayBusyId(client.id)
+    try {
+      const rate = await getRate()
+      const working = new Set(paidWeeks[client.id] ?? [])
+      const added: number[] = []
+      for (let i = 0; i < 4; i++) {
+        let n = 1; while (working.has(n)) n++
+        const res = await payClientWeek(supabase, client.id, n, todayISO(), rate)
+        if (!res.ok) { if (i === 0) alert(res.reason === 'dup' ? 'Essa semana já está registrada.' : 'Não foi possível registrar a semana.'); break }
+        working.add(n); added.push(n)
+      }
+      if (added.length) setPaidWeeks(prev => ({ ...prev, [client.id]: [...(prev[client.id] ?? []), ...added] }))
+    } finally { payBusyRef.current = false; setPayBusyId(null) }
+  }
+
+  const togglePay = (id: string) => setPayOpenId(payOpenId === id ? null : id)
 
   const filtered = clients.filter(c => {
     if (!search) return true
@@ -400,6 +501,8 @@ export function ClientesClient({ initialClients, currentUser }: Props) {
 
   const rowProps = {
     plans,
+    paidWeeks, payOpenId, payBusyId,
+    onTogglePay: togglePay, onMarkWeek: handleMarkWeek, onPayMonth: handlePayMonth,
     editingJobsId, jobInput, expandedId, activities, loadingActivities,
     onEdit: openEdit, onToggleJobs: toggleJobs, setJobInput,
     onAddJob: handleAddJob, onRemoveJob: handleRemoveJob,

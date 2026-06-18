@@ -6,6 +6,14 @@ Categorias: 🐛 Fix · 🔄 Mudança · ✨ Novidade
 
 ---
 
+🔄 Mudança (DINHEIRO) — Comissão nova, INCREMENTO 2: pagamento parte do CLIENTE → receita + comissão derivada.
+- `actions.ts` NOVO: `resolveClientPlan` + `payClientWeek` — grava `client_payments` (receita = valor do plano, **sem teto**) e **deriva** a comissão chamando o **MESMO `payWeek`** (US$25, ≤4, trava). `deriveCommission` acha o deal `em_andamento` do cliente. **`payWeek`/`calc.ts`/`registerMeeting` INALTERADOS** (só novos chamadores).
+- Clientes: painel **"Pagamentos"** por cliente → **"Marcar semana N"** (próxima não paga) + **"Pagar mês (4 semanas)"**; anti-duplo-clique; trava `unique(client_id,numero_semana)` → "já registrada". **N>4** só receita; **cliente sem deal** só receita.
+- `runWonFlow`: passa a gravar TAMBÉM a `client_payments` da semana 1 (receita = valor do plano; padrão 140 se sem plano) — **ADITIVO**, sem tocar na comissão.
+- Sem mudança de número/regra de comissão. Sem localStorage.
+
+---
+
 🔄 Mudança — Comissão nova, INCREMENTO 1: planos + plano do cliente (estrutura/exibição; sem pagamento).
 - Migration **029** (`plans` + `clients.plano_id` + `client_payments`) JÁ APLICADA por Lucas — arquivo só filado (idempotente).
 - Clientes: **plano via dropdown** (lê `plans` ativos por ordem) no criar/editar → grava `clients.plano_id`. Badge mostra "Plano · $valor/sem" (valor do plano quando houver, senão `plan_weekly` legado); MRR usa o valor efetivo. `plan_weekly` mantido como legado (não removido).
