@@ -1,4 +1,4 @@
--- 026_lead_milestones.sql  (PARA REVISÃO — NÃO RODADO)
+-- 026_lead_milestones.sql  (JÁ APLICADA no banco — documentação, idempotente)
 -- Marcos do ciclo do lead p/ o RELATÓRIO (1x por lead por marco). NÃO mexe em dinheiro/comissão.
 -- Idempotente.
 
@@ -13,17 +13,17 @@ alter table public.lead_milestones enable row level security;
 
 do $$
 begin
-  if not exists (select 1 from pg_policies where schemaname='public' and tablename='lead_milestones' and policyname='Auth le marcos') then
-    create policy "Auth le marcos" on public.lead_milestones for select using (auth.role() = 'authenticated');
+  if not exists (select 1 from pg_policies where schemaname='public' and tablename='lead_milestones' and policyname='Auth le milestones') then
+    create policy "Auth le milestones" on public.lead_milestones for select using (auth.role() = 'authenticated');
   end if;
-  if not exists (select 1 from pg_policies where schemaname='public' and tablename='lead_milestones' and policyname='Auth insere marcos') then
-    create policy "Auth insere marcos" on public.lead_milestones for insert with check (auth.role() = 'authenticated');
+  if not exists (select 1 from pg_policies where schemaname='public' and tablename='lead_milestones' and policyname='Auth insere milestones') then
+    create policy "Auth insere milestones" on public.lead_milestones for insert with check (auth.role() = 'authenticated');
   end if;
-  if not exists (select 1 from pg_policies where schemaname='public' and tablename='lead_milestones' and policyname='Auth atualiza marcos') then
-    create policy "Auth atualiza marcos" on public.lead_milestones for update using (auth.role() = 'authenticated') with check (auth.role() = 'authenticated');
+  if not exists (select 1 from pg_policies where schemaname='public' and tablename='lead_milestones' and policyname='Auth atualiza milestones') then
+    create policy "Auth atualiza milestones" on public.lead_milestones for update using (auth.role() = 'authenticated') with check (auth.role() = 'authenticated');
   end if;
-  if not exists (select 1 from pg_policies where schemaname='public' and tablename='lead_milestones' and policyname='Auth deleta marcos') then
-    create policy "Auth deleta marcos" on public.lead_milestones for delete using (auth.role() = 'authenticated');
+  if not exists (select 1 from pg_policies where schemaname='public' and tablename='lead_milestones' and policyname='Auth deleta milestones') then
+    create policy "Auth deleta milestones" on public.lead_milestones for delete using (auth.role() = 'authenticated');
   end if;
 end $$;
 
