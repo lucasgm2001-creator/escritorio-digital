@@ -18,6 +18,7 @@ import { useToast } from '@/components/ui/toast'
 import { cn } from '@/lib/utils'
 import { monthlySummary, resolveRate, dealTotal } from '@/lib/commission/calc'
 import { payWeek, payWeekMessage, registerMeeting } from '@/lib/commission/actions'
+import { markMilestones } from '@/lib/leadMilestones'
 import type { SalaryPeriod, Meeting, WeeklyPayment, FxConfig, Deal, DealStatus } from '@/lib/commission/types'
 import { usd, brl } from '@/lib/format'
 
@@ -624,18 +625,23 @@ export function CommissionSection({ sellerId, sellerName }: { sellerId: string; 
     const valor = parseFloat(meetingForm.valor)
     if (isNaN(valor) || valor < 0) { setMeetingError('Valor inválido.'); return }
     if (!meetingForm.metOn) { setMeetingError('Informe a data da reunião.'); return }
-    const matched = clients.find(c => c.name.toLowerCase() === meetingForm.client.trim().toLowerCase())
+    const q = meetingForm.client.trim().toLowerCase()
+    const matched = clients.find(c => c.name.toLowerCase() === q)
+    const matchedLead = leads.find(l => l.name.toLowerCase() === q)
     setSavingMeeting(true)
     const { ok, data } = await save<MeetingRow>({
       run: () => registerMeeting(supabase, sellerId, {
         metOn: meetingForm.metOn, valorUsd: valor,
         clientId: matched?.id ?? null, clientName: meetingForm.client.trim() || null, note: meetingForm.note.trim() || null,
+        leadId: matchedLead?.id ?? null,
       }, currentRate),
       success: 'Reunião lançada.',
       error: 'Não foi possível lançar a reunião',
     })
     if (ok && data) {
       setMeetings(prev => [toMeeting(data), ...prev])
+      // Marco do relatório: reunião feita com este lead (separado da comissão). Idempotente.
+      if (matchedLead) await markMilestones(supabase, matchedLead.id, ['reuniao'])
       setShowNewMeeting(false)
       setMeetingForm({ metOn: todayISO(), valor: '15', client: '', note: '' })
     }

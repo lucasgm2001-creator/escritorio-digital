@@ -6,6 +6,7 @@ import { createClient } from '@/lib/supabase/client'
 import { moveLead, type MovableLead } from '../comercial/leadActions'
 import { ALL_COLUMNS, type LeadStatus } from '../comercial/types'
 import { payWeek, payWeekMessage, registerMeeting, updateClient } from '@/lib/commission/actions'
+import { markMilestones } from '@/lib/leadMilestones'
 import { ymd } from '@/lib/format'
 
 interface Message {
@@ -157,10 +158,13 @@ export function AgentChat({ userId, userName }: { userId: string; userName: stri
       const valorUsd = Number(p.valorUsd)
       const clientId = p.clientId ? String(p.clientId) : null
       const clientName = p.clientName ? String(p.clientName) : null
+      const leadId = p.leadId ? String(p.leadId) : null
       if (!sellerId || !metOn) return 'Não consegui registrar a reunião: dados incompletos.'
       const rate = await getFxRate()
-      const { error } = await registerMeeting(supabase, sellerId, { metOn, valorUsd, clientId, clientName }, rate)
+      const { error } = await registerMeeting(supabase, sellerId, { metOn, valorUsd, clientId, clientName, leadId }, rate)
       if (error) return `Não consegui lançar a reunião: ${error.message}`
+      // Marco do relatório: reunião feita com o lead (separado da comissão). Idempotente.
+      if (leadId) await markMilestones(supabase, leadId, ['reuniao'])
       return `Pronto! Reunião${clientName ? ` com ${clientName}` : ''} lançada (US$ ${valorUsd}, ${metOn}).`
     }
     return 'Ação desconhecida.'

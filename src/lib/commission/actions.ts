@@ -54,11 +54,11 @@ export function payWeekMessage(reason: PayWeekReason | undefined, dbMessage?: st
 // da UI e no `await` direto do agente. MESMA escrita. Congela a cotação `rate`.
 export function registerMeeting(
   supabase: SupaClient, sellerId: string,
-  m: { metOn: string; valorUsd: number; clientId?: string | null; clientName?: string | null; note?: string | null }, rate: number,
+  m: { metOn: string; valorUsd: number; clientId?: string | null; clientName?: string | null; note?: string | null; leadId?: string | null }, rate: number,
 ) {
   return supabase.from('meetings').insert({
     seller_id: sellerId, met_on: m.metOn, valor_usd: m.valorUsd, cotacao_usd_brl: rate,
-    client_id: m.clientId ?? null, client_name: m.clientName ?? null, note: m.note ?? null,
+    client_id: m.clientId ?? null, client_name: m.clientName ?? null, note: m.note ?? null, lead_id: m.leadId ?? null,
   }).select('id, seller_id, met_on, valor_usd, cotacao_usd_brl, client_name').single()
 }
 

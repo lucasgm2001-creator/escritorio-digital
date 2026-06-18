@@ -356,12 +356,21 @@ export class SuperAgent {
       else if (exact.length === 1) { clientId = exact[0].id; clientName = exact[0].name }
       // senão: reunião avulsa com o nome dito (clientId null)
     }
+    // Resolve também um LEAD pelo nome → marco 'reuniao' do relatório (separado da comissão). Best-effort.
+    let leadId: string | null = null
+    if (name) {
+      const { data: ls } = await this.supabase.from('leads').select('id, name').ilike('name', `%${name}%`).limit(6)
+      const ll = ls ?? []
+      const lex = ll.filter(l => (l.name ?? '').toLowerCase() === name.toLowerCase())
+      if (ll.length === 1) leadId = ll[0].id
+      else if (lex.length === 1) leadId = lex[0].id
+    }
     const valorUsd = typeof params.valor_usd === 'number' ? params.valor_usd : 15
     const date = String(params.date ?? '')
     const metOn = /^\d{4}-\d{2}-\d{2}$/.test(date) ? date : ymd(new Date())
     return {
       type: 'action', tool: 'registrar_reuniao', requiresConfirm: true,
-      params: { sellerId, clientId, clientName, metOn, valorUsd },
+      params: { sellerId, clientId, clientName, leadId, metOn, valorUsd },
       resposta: `Registrar reunião${clientName ? ` com **${clientName}**` : ''}: ${metOn}, US$ ${valorUsd}.\n\nConfirma?`,
     }
   }
