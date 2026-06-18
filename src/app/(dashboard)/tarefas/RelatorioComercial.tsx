@@ -132,7 +132,7 @@ export function RelatorioComercial() {
       doc.text(`Gerado em: ${new Date().toLocaleDateString('pt-BR')}`, 14, 38)
       doc.setDrawColor(...green); doc.setLineWidth(0.5); doc.line(14, 43, 196, 43)
 
-      const kpis: [string, number][] = [['Leads recebidos', recebidos], ['Interagiram', interagiram], ['Reuniões', reunioes], ['Fecharam', fecharam]]
+      const kpis: [string, number][] = [['Leads recebidos', recebidos], ['Interagiram', interagiram], ['Reuniões', reunioes], ['Convertidos', fecharam]]
       let x = 14
       for (const [label, val] of kpis) {
         doc.setFont('helvetica', 'bold'); doc.setFontSize(26); doc.setTextColor(...dark); doc.text(String(val), x, 60)
@@ -164,7 +164,7 @@ export function RelatorioComercial() {
     { label: 'Leads recebidos', value: recebidos, Icon: Inbox, sub: 'novos no período' },
     { label: 'Interagiram', value: interagiram, Icon: MessageCircle, sub: 'engajaram' },
     { label: 'Reuniões', value: reunioes, Icon: Calendar, sub: 'reunião feita' },
-    { label: 'Fecharam', value: fecharam, Icon: Trophy, sub: 'viraram venda' },
+    { label: 'Convertido em cliente', value: fecharam, Icon: Trophy, sub: 'viraram cliente' },
   ]
 
   return (
