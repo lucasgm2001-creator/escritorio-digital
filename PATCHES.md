@@ -6,6 +6,14 @@ Categorias: 🐛 Fix · 🔄 Mudança · ✨ Novidade
 
 ---
 
+✨ Novidade — Studio: favoritos de material (Bloco 4, parte 1).
+- Estrela (Lucide) em cada material da biblioteca pra marcar/desmarcar favorito (update no lugar, sem
+  recarregar) + chip "Favoritos" pra listar só os marcados (compõe com busca e filtro de tipo).
+- Migration 024 (PARA REVISÃO — NÃO RODADA) adiciona favorito/pasta/nicho em presentation_materials
+  (+ índices) — uma migration cobre as 3 features do Bloco 4. Sem outra mudança de schema.
+
+---
+
 🔄 Mudança — 1ª carga das telas mais rápida (paralelização + cache + skeletons).
 - Layout: as 4 queries em SÉRIE (getUser → profile → avatar → logo) viraram getUser + Promise.all
   (profile com name+avatar numa query só, em paralelo com a logo). getUser/profile passaram a ser

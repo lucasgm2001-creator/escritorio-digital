@@ -11,12 +11,12 @@ import { useToast } from '@/components/ui/toast'
 import { cn, formatDate } from '@/lib/utils'
 import {
   Upload, Search, Plus, Play, X, ChevronUp, ChevronDown, Trash2, Pencil,
-  GripVertical, FileText, FolderOpen, Layers,
+  GripVertical, FileText, FolderOpen, Layers, Star,
 } from 'lucide-react'
 import { PresentationPlayer, MaterialFrame } from './PresentationPlayer'
 
 const MAX_BYTES = 50 * 1024 * 1024 // 50 MB — mesmo limite do bucket "materiais"
-const COLS = 'id, name, storage_path, url, mime_type, size_bytes, created_at'
+const COLS = 'id, name, storage_path, url, mime_type, size_bytes, created_at, favorito, pasta, nicho'
 const PRES_COLS = 'id, name, lead_id, items, created_at, updated_at'
 const inputCls = 'w-full bg-bento-bg border border-bento-border rounded-btn px-3 py-2 text-sm text-bento-text placeholder:text-bento-muted focus:outline-none focus:border-lime'
 
@@ -28,8 +28,11 @@ interface Material {
   mime_type: string | null
   size_bytes: number | null
   created_at: string
+  favorito: boolean
+  pasta: string | null
+  nicho: string | null
 }
-interface Lead { id: string; name: string }
+interface Lead { id: string; name: string; nicho: string | null }
 interface Presentation {
   id: string
   name: string
@@ -112,6 +115,7 @@ export function ApresentacaoTab() {
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [search, setSearch] = useState('')
   const [filter, setFilter] = useState<'todos' | 'pdf' | 'imagem'>('todos')
+  const [favOnly, setFavOnly] = useState(false)
 
   // Montar / Apresentações
   const [leads, setLeads] = useState<Lead[]>([])
@@ -209,6 +213,17 @@ export function ApresentacaoTab() {
     toast({ type: 'success', message: 'Material excluído.' })
   }
 
+  // Favoritar/desfavoritar — update otimista da linha (sem recarregar a lista).
+  const toggleFavorito = async (m: Material) => {
+    const next = !m.favorito
+    setMaterials(prev => prev.map(x => (x.id === m.id ? { ...x, favorito: next } : x)))
+    const { error } = await supabase.from('presentation_materials').update({ favorito: next }).eq('id', m.id)
+    if (error) {
+      setMaterials(prev => prev.map(x => (x.id === m.id ? { ...x, favorito: m.favorito } : x)))
+      toast({ type: 'error', message: `Não foi possível favoritar: ${error.message}` })
+    }
+  }
+
   // ─── Montar: rascunho / salvar ──────────────────────────────────────────────
   const openNew = () => { setEditingId(null); setForm({ name: '', leadId: '' }); setSelectedIds([]); setView('montar') }
   const openPresentation = (p: Presentation) => {
@@ -274,8 +289,10 @@ export function ApresentacaoTab() {
     if (mats.length === 0) { toast({ type: 'error', message: 'Esta apresentação não tem materiais disponíveis para apresentar.' }); return }
     setPlaying({ name: p.name, client: leadName(p.lead_id), materials: mats })
   }
+  const filtering = !!search || filter !== 'todos' || favOnly
   const filteredMaterials = materials.filter(m => {
     if (search && !m.name.toLowerCase().includes(search.toLowerCase())) return false
+    if (favOnly && !m.favorito) return false
     if (filter === 'pdf') return isPdf(m)
     if (filter === 'imagem') return isImage(m)
     return true
@@ -339,6 +356,11 @@ export function ApresentacaoTab() {
                 </button>
               ))}
             </div>
+            <button onClick={() => setFavOnly(v => !v)} aria-pressed={favOnly}
+              className={cn('flex items-center gap-1.5 px-3 py-2 rounded-btn text-xs font-medium border transition-colors',
+                favOnly ? 'bg-lime/15 border-lime/40 text-lime-fg' : 'bg-bento-bg border-bento-border text-bento-muted hover:text-bento-text')}>
+              <Star className={cn('w-3.5 h-3.5', favOnly && 'fill-lime-fg')} /> Favoritos
+            </button>
           </div>
 
           {fetchError && <div className="bg-amber-900/20 border border-amber-800/40 rounded-btn px-4 py-3 text-xs text-amber-400">{fetchError}</div>}
@@ -352,6 +374,10 @@ export function ApresentacaoTab() {
                     ? <img src={m.url} alt={m.name} className="w-full h-full object-cover" />
                     : <FileText className={cn('w-10 h-10', isPdf(m) ? 'text-[#F87171]' : 'text-bento-muted')} />}
                   <span className="absolute top-2 right-2"><TypeBadge m={m} /></span>
+                  <button onClick={() => toggleFavorito(m)} aria-label={m.favorito ? 'Desfavoritar' : 'Favoritar'}
+                    className="absolute top-2 left-2 z-10 p-1 rounded-full bg-black/50 backdrop-blur-sm hover:bg-black/70 transition-colors">
+                    <Star className={cn('w-3.5 h-3.5', m.favorito ? 'fill-lime text-lime' : 'text-white/80')} />
+                  </button>
                 </div>
                 <div className="p-2.5">
                   <p className="text-xs font-medium text-bento-text truncate">{m.name}</p>
@@ -378,7 +404,7 @@ export function ApresentacaoTab() {
             ))}
 
             {/* Zona de upload */}
-            {filter === 'todos' && !search && (
+            {!filtering && (
               <button onClick={() => inputRef.current?.click()} disabled={uploading}
                 onDragOver={e => { e.preventDefault(); setDragging(true) }} onDragLeave={() => setDragging(false)} onDrop={handleDrop}
                 className={cn('h-full min-h-[200px] border-2 border-dashed rounded-xl flex flex-col items-center justify-center gap-2 transition-colors text-bento-muted',
@@ -390,7 +416,7 @@ export function ApresentacaoTab() {
             )}
           </div>
 
-          {filteredMaterials.length === 0 && (search || filter !== 'todos') && (
+          {filteredMaterials.length === 0 && filtering && (
             <p className="text-center text-sm text-bento-muted py-8">Nenhum material encontrado.</p>
           )}
         </div>
