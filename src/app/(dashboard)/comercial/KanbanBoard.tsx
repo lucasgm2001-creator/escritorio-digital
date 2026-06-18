@@ -14,6 +14,7 @@ import { LeadCard } from './LeadCard'
 import { LeadModal } from './LeadModal'
 import { LeadDiary } from './LeadDiary'
 import { moveLead } from './leadActions'
+import { markMilestones } from '@/lib/leadMilestones'
 import { useRealtimeRows } from '@/lib/hooks/useRealtimeRows'
 import { usdCompact as fmtUSDc } from '@/lib/format'
 import { MetricasTab } from './tabs/MetricasTab'
@@ -144,6 +145,8 @@ export function KanbanBoard({ initialLeads, currentUser }: { initialLeads: Lead[
       created_by: currentUser.id, created_by_name: currentUser.name,
     })
     if (error) { showToast(`Não foi possível registrar o contato: ${error.message}`, 'error'); return }
+    // Marco do relatório: contato real = interagiu (nao_atendeu NÃO conta). Idempotente.
+    if (type === 'atendeu' || type === 'mensagem') await markMilestones(supabase, lead.id, ['interagiu'])
     const newScore = Math.max(0, Math.min(1000, (lead.score ?? 0) + delta))
     await supabase.from('leads').update({ score: newScore, last_contact_at: nowIso }).eq('id', lead.id)
     setLeads(prev => prev.map(l => l.id === lead.id ? { ...l, score: newScore, last_contact_at: nowIso } : l))

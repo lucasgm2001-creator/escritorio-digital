@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useToast } from '@/components/ui/toast'
 import { getScoreInfo } from '@/lib/utils/score'
+import { markMilestones } from '@/lib/leadMilestones'
 import { cn, timeAgo } from '@/lib/utils'
 import { ALL_COLUMNS, type Lead, type LeadStatus, type ColumnTone } from './types'
 import { LeadTasks } from './LeadTasks'
@@ -161,6 +162,9 @@ export function LeadDiary({ lead, onClose, onUpdated, onMoveStage, onDeleted, cu
       setLoadingInteraction(false)
       return
     }
+
+    // Marco do relatório: contato real = interagiu (nao_atendeu/nota não contam). Idempotente.
+    if (type === 'atendeu' || type === 'mensagem') await markMilestones(supabase, lead.id, ['interagiu'])
 
     const { error: scoreErr } = await supabase
       .from('leads')
