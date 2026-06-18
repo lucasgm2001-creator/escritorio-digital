@@ -3,7 +3,8 @@ import type { FxConfig } from '@/lib/commission/types'
 import type { createClient } from '@/lib/supabase/client'
 import type { LeadStatus } from './types'
 import { ymd } from '@/lib/format'
-import { markMilestones, marcosForStage } from '@/lib/leadMilestones'
+import { markMilestones } from '@/lib/leadMilestones'
+import { wonSlug, marcosForSlug, type FunnelStage } from '@/lib/funnelStages'
 
 type SupaClient = ReturnType<typeof createClient>
 
@@ -100,15 +101,17 @@ export async function runWonFlow(supabase: SupaClient, lead: MovableLead, userNa
 // dispara o won-flow (comissão). NÃO faz UI — devolve resultado + notas pro chamador
 // decidir como mostrar (toast no funil / texto no chat do agente).
 export async function moveLead(
-  supabase: SupaClient, lead: MovableLead, newStatus: LeadStatus, userName: string,
+  supabase: SupaClient, lead: MovableLead, newStatus: LeadStatus, userName: string, stages: FunnelStage[],
 ): Promise<{ ok: boolean; error?: string; notes: ActionNote[] }> {
   if (lead.status === newStatus) return { ok: true, notes: [] }
   const nowIso = new Date().toISOString()
   const { error } = await supabase
     .from('leads').update({ status: newStatus, stage_changed_at: nowIso, updated_at: nowIso }).eq('id', lead.id)
   if (error) return { ok: false, error: error.message, notes: [] }
-  // Marcos do ciclo (relatório) — idempotente, NÃO mexe em comissão. Avançar acumula.
-  await markMilestones(supabase, lead.id, marcosForStage(newStatus))
-  const notes = (newStatus === 'fechado' && lead.status !== 'fechado') ? await runWonFlow(supabase, lead, userName) : []
+  // Marcos do ciclo (relatório) — significado lido de funnel_stages. Idempotente, NÃO mexe em comissão.
+  await markMilestones(supabase, lead.id, marcosForSlug(stages, newStatus))
+  // Won-flow (DINHEIRO) dispara pela FLAG is_won da fase (não por slug fixo). Comportamento idêntico.
+  const won = wonSlug(stages)
+  const notes = (newStatus === won && lead.status !== won) ? await runWonFlow(supabase, lead, userName) : []
   return { ok: true, notes }
 }
