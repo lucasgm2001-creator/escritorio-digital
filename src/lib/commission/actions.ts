@@ -70,3 +70,69 @@ export function updateClient(
 ) {
   return supabase.from('clients').update(patch).eq('id', id)
 }
+
+// ─── Comissão nova (incremento 2): pagamento parte do CLIENTE → receita + comissão derivada ───
+
+// Valor semanal do cliente (snapshot): plano (plans.valor_semanal) → plan_weekly → 140 (padrão).
+export async function resolveClientPlan(
+  supabase: SupaClient, clientId: string,
+): Promise<{ planoId: string | null; valorUsd: number }> {
+  const { data: cli } = await supabase.from('clients').select('plano_id, plan_weekly').eq('id', clientId).maybeSingle()
+  const planoId: string | null = (cli?.plano_id as string | null) ?? null
+  let valor = Number(cli?.plan_weekly) || 0
+  if (planoId) {
+    const { data: pl } = await supabase.from('plans').select('valor_semanal').eq('id', planoId).maybeSingle()
+    if (pl?.valor_semanal != null) valor = Number(pl.valor_semanal)
+  }
+  if (!valor || valor <= 0) valor = 140 // padrão p/ não quebrar (cliente sem plano)
+  return { planoId, valorUsd: valor }
+}
+
+export type CommissionOutcome = 'paid' | 'capped' | 'no_deal' | 'dup' | 'frozen' | 'error'
+
+// Deriva a semana de comissão a partir da semana paga do cliente — pelo MESMO payWeek
+// (US$25, teto 4, trava). NÃO muda a regra; só decide SE chama e com quais paidNumbers.
+async function deriveCommission(
+  supabase: SupaClient, clientId: string, numero: number, paidOn: string, rate: number,
+): Promise<CommissionOutcome> {
+  const { data: deals } = await supabase.from('deals')
+    .select('id, valor_por_semana_usd, teto_semanas, status')
+    .eq('client_id', clientId).eq('status', 'em_andamento').order('data_fechamento', { ascending: false }).limit(1)
+  const deal = deals?.[0]
+  if (!deal) return 'no_deal'
+  if (numero > deal.teto_semanas) return 'capped'
+  const { data: wk } = await supabase.from('weekly_payments').select('numero_semana').eq('deal_id', deal.id)
+  const paidNumbers = (wk ?? []).map(w => w.numero_semana as number)
+  const res = await payWeek(
+    supabase,
+    { id: deal.id, valorPorSemanaUsd: Number(deal.valor_por_semana_usd), tetoSemanas: deal.teto_semanas, status: deal.status },
+    paidNumbers, numero, paidOn, rate,
+  )
+  if (res.ok) return 'paid'
+  if (res.reason === 'dup') return 'dup'
+  if (res.reason === 'frozen') return 'frozen'
+  return 'error'
+}
+
+// Registra a semana N paga DO CLIENTE: RECEITA (valor do plano, SEM teto) + deriva a comissão.
+// Fonte única do fluxo novo — reusa payWeek (mantém trava/regra/números). Receita idempotente
+// (unique client_id+numero_semana → 'dup'). A comissão é derivada mesmo em 'dup' (auto-corrige).
+export async function payClientWeek(
+  supabase: SupaClient, clientId: string, numero: number, paidOn: string, rate: number,
+): Promise<{ ok: boolean; reason?: 'dup' | 'invalid' | 'db'; message?: string; valorUsd?: number; commission?: CommissionOutcome }> {
+  if (!Number.isInteger(numero) || numero < 1) return { ok: false, reason: 'invalid' }
+  const { planoId, valorUsd } = await resolveClientPlan(supabase, clientId)
+
+  const { error } = await supabase.from('client_payments').insert({
+    client_id: clientId, numero_semana: numero, valor_usd: valorUsd, paid_on: paidOn, cotacao_usd_brl: rate, plano_id: planoId,
+  })
+  let dup = false
+  if (error) {
+    if (error.code === '23505') dup = true
+    else return { ok: false, reason: 'db', message: error.message }
+  }
+
+  const commission = await deriveCommission(supabase, clientId, numero, paidOn, rate)
+  if (dup) return { ok: false, reason: 'dup', commission, valorUsd }
+  return { ok: true, valorUsd, commission }
+}

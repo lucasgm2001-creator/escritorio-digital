@@ -5,6 +5,7 @@ import type { LeadStatus } from './types'
 import { ymd } from '@/lib/format'
 import { markMilestones } from '@/lib/leadMilestones'
 import { wonSlug, marcosForSlug, type FunnelStage } from '@/lib/funnelStages'
+import { resolveClientPlan } from '@/lib/commission/actions'
 
 type SupaClient = ReturnType<typeof createClient>
 
@@ -92,6 +93,16 @@ export async function runWonFlow(supabase: SupaClient, lead: MovableLead, userNa
     deal_id: deal.id, numero_semana: 1, valor_usd: 25, paid_on: today, cotacao_usd_brl: resolveRate(fxc, manual ?? 0),
   })
   if (wkErr) { notes.push({ message: `Deal criado, mas falhou a 1ª semana: ${wkErr.message}`, type: 'error' }); return notes }
+
+  // RECEITA da semana 1 (ledger do cliente) — espelha a comissão da semana 1. ADITIVO: NÃO
+  // toca na comissão; best-effort (não quebra o fechamento). Cliente sem plano → padrão (140).
+  if (clientId) {
+    const plan = await resolveClientPlan(supabase, clientId)
+    await supabase.from('client_payments').insert({
+      client_id: clientId, numero_semana: 1, valor_usd: plan.valorUsd, paid_on: today,
+      cotacao_usd_brl: resolveRate(fxc, manual ?? 0), plano_id: plan.planoId,
+    })
+  }
 
   notes.push({ message: 'Venda registrada: comissão lançada', type: 'success' })
   return notes
