@@ -280,6 +280,7 @@ export class SuperAgent {
       'Você PODE executar ações pelas ferramentas: create_lead (criar lead), create_task (criar tarefa), mover_lead (mover lead de estágio), editar_cliente (editar dados de um cliente — NUNCA excluir), registrar_pagamento (registrar o pagamento da próxima semana de uma venda JÁ existente) e registrar_reuniao (registrar reunião, US$ 15 padrão). Use a ferramenta quando o usuário pedir a ação correspondente. IMPORTANTE: NÃO existe ferramenta de criar venda/deal — registrar uma venda nova = mover o lead para "Venda Fechada" (mover_lead). Para perguntas, consultas e análises, responda em texto, sem ferramenta.',
       'Nunca diga que já criou algo: ao chamar uma ferramenta, o aplicativo ainda vai pedir a confirmação do usuário antes de gravar.',
       'Se faltar um dado obrigatório (nome do lead, ou título da tarefa), peça-o em texto antes de usar a ferramenta.',
+      'MRR: use SEMPRE o número já calculado no campo "mrrUsd" do contexto. Ao explicar, descreva como "clientes ativos × valor semanal × 4 (quatro semanas)" — a MESMA base da tela de Clientes. NUNCA invente multiplicadores como "4,33 semanas/mês", "× 4,3" ou "média mensal", nem converta para mês: é sempre × 4. A explicação TEM que bater com o número (não recalcule).',
       'Dados atuais do sistema (somente leitura, use apenas para responder perguntas):',
       JSON.stringify(context),
     ].join('\n')

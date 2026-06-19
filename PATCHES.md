@@ -6,6 +6,12 @@ Categorias: 🐛 Fix · 🔄 Mudança · ✨ Novidade
 
 ---
 
+🐛 Agente: explicação do MRR consistente com o número.
+- O número já estava certo (`mrrUsd` = ativos × valor semanal × 4), mas ao **explicar** o agente inventava "× ~4,33 semanas/mês" → contradizia o próprio valor (ex.: 140 × 4,33 × 3 = 1.818 ≠ 1.680).
+- **Só instrução** no system prompt (`chatWithActions`): explicar SEMPRE como **ativos × valor semanal × 4 (quatro semanas)**, usar o `mrrUsd` do contexto, **proibido** inventar 4,33/× 4,3/média mensal. Número e fórmula **intactos** (vêm prontos via `mrrUsd`).
+
+---
+
 🐛 Agente (SuperAgent): leitura financeira nas tabelas certas.
 - Contexto financeiro lia **tabelas mortas** (`payments`/`campaigns`). Agora: **receita = `client_payments`** + **comissão = `weekly_payments`** (mesmas queries/colunas da tela de Clientes e de Comissões).
 - **MRR** usa a **mesma fórmula da tela de Clientes** (`plano_id` → `plans.valor_semanal`, fallback `plan_weekly`, × 4), em **USD**. Antes divergia (só `plan_weekly`).
