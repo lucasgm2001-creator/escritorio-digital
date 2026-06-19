@@ -1,4 +1,4 @@
--- 030_negocio_futuro.sql
+-- 032_negocio_futuro.sql
 -- Semeia a fase "Negócio Futuro" no funil configurável (funnel_stages, criada em 028).
 -- OPCIONAL / idempotente: a aba "Fases" no Comercial também cria fases pela UI.
 -- NÃO mexe em dinheiro: nasce neutra (is_won/is_lost/is_system = false), então não

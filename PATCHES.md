@@ -29,7 +29,7 @@ Categorias: 🐛 Fix · 🔄 Mudança · ✨ Novidade
 - Nova aba **Fases** (Comercial): criar, renomear e reordenar estágios (escreve em `funnel_stages`, RLS autenticado).
 - **Renomear muda só o rótulo** (`nome`); o slug interno é preservado → **nenhum lead muda de fase**.
 - Fases novas nascem **neutras** (`is_won`/`is_lost`/`is_system` = false) → **não** disparam won-flow/comissão.
-- "Negócio Futuro": criada pela UI **ou** via `030_negocio_futuro.sql` (idempotente, opcional).
+- "Negócio Futuro": criada pela UI **ou** via `032_negocio_futuro.sql` (idempotente, opcional).
 - A tabela `funnel_stages` e a leitura no kanban/gráficos já existiam (028); esta entrega é a **UI de gestão**. Excluir/mesclar = TODO.
 
 ---
