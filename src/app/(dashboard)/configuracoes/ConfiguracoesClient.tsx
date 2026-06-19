@@ -5,7 +5,7 @@ import Image from 'next/image'
 import {
   Sun, Moon, Monitor, Home, Briefcase, ListChecks, Projector, Users,
   Palette, Accessibility, Image as ImageIcon, User, LayoutGrid, Database, Plug, Info,
-  Download, RefreshCw, ExternalLink, BadgePercent,
+  Download, RefreshCw, ExternalLink, BadgePercent, Workflow,
   type LucideIcon,
 } from 'lucide-react'
 import { Panel } from '@/components/bento/Panel'
@@ -17,6 +17,7 @@ import { isDarkByTime, getDarkHours, DEFAULT_DARK_START, DEFAULT_DARK_END } from
 import { loadA11y, saveA11y, applyA11y, DEFAULT_A11Y, type A11ySettings, type FontScale } from '@/lib/a11y'
 import { loadDensity, saveDensity, applyDensity, type Density } from '@/lib/uiPrefs'
 import { weeklyCommissionUsd, hasCommissionPct, DEFAULT_TETO_SEMANAS, LEGACY_VPS_USD } from '@/lib/commission/planCommission'
+import { FasesTab } from '../comercial/tabs/FasesTab'
 
 // classes compartilhadas
 const inputCls = 'w-full bg-bento-bg border border-bento-border rounded-btn px-3 py-2 text-sm text-bento-text placeholder:text-bento-muted focus:outline-none focus:border-lime min-h-[44px]'
@@ -461,6 +462,9 @@ const ANDARES: NavItem[] = [
   { key: 'andar-studio', label: 'Studio', Icon: Projector },
   { key: 'andar-clientes', label: 'Clientes', Icon: Users },
 ]
+const COMERCIAL: NavItem[] = [
+  { key: 'fases', label: 'Fases do funil', Icon: Workflow },
+]
 const SISTEMA: NavItem[] = [
   { key: 'tema', label: 'Tema', Icon: Palette },
   { key: 'acessibilidade', label: 'Acessibilidade', Icon: Accessibility },
@@ -599,6 +603,7 @@ export function ConfiguracoesClient({ userId }: Props) {
       case 'dados': return <DadosSection />
       case 'integracoes': return <IntegracoesSection />
       case 'planos': return <PlanosSection />
+      case 'fases': return <FasesTab />
       default: return null
     }
   })()
@@ -612,6 +617,7 @@ export function ConfiguracoesClient({ userId }: Props) {
       <div className="flex flex-col md:flex-row gap-5">
         <nav className="md:w-56 shrink-0 space-y-4">
           <NavGroup title="Andares" items={ANDARES} active={active} onSelect={setActive} />
+          <NavGroup title="Comercial" items={COMERCIAL} active={active} onSelect={setActive} />
           <NavGroup title="Sistema" items={SISTEMA} active={active} onSelect={setActive} />
         </nav>
         <div className="flex-1 min-w-0">{content}</div>

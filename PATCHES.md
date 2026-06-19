@@ -6,6 +6,12 @@ Categorias: 🐛 Fix · 🔄 Mudança · ✨ Novidade
 
 ---
 
+🔄 Fases do funil: movida de Comercial → Configurações.
+- A aba **Fases** saiu do Comercial e virou **Configurações › Comercial › Fases do funil**.
+- Função **idêntica** (criar / renomear / reordenar estágios); só mudou de lugar (é configuração, não operação).
+
+---
+
 🔄 Mural enxuto — só o DIA.
 - Mural mostra **somente tarefas de hoje** (`due_date = hoje`, Brasília) **pendentes**. Atrasadas/futuras/concluídas **não aparecem** (a Agenda continua mostrando tudo).
 - **Máx 4** tarefas + botão **"ver mais"** (revela o resto do dia). Cards **compactos** (1 linha, título truncado) no mobile e desktop.

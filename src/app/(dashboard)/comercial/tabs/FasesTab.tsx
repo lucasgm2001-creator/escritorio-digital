@@ -70,7 +70,7 @@ export function FasesTab() {
   }
 
   return (
-    <div className="p-4 sm:p-6 max-w-2xl mx-auto space-y-4 overflow-auto h-full bg-bento-bg font-body">
+    <div className="space-y-4 max-w-2xl font-body">
       <div>
         <h2 className="font-display font-bold text-bento-text text-base">Fases do funil</h2>
         <p className="text-bento-muted text-xs mt-0.5">Criar, renomear e reordenar os estágios. Renomear muda só o rótulo — o identificador interno é preservado, então nenhum lead muda de fase.</p>

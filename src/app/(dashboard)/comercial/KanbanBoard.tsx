@@ -19,14 +19,13 @@ import { useRealtimeRows } from '@/lib/hooks/useRealtimeRows'
 import { usdCompact as fmtUSDc } from '@/lib/format'
 import { MetricasTab } from './tabs/MetricasTab'
 import { VendedoresTab } from './tabs/VendedoresTab'
-import { FasesTab } from './tabs/FasesTab'
 import { ClientesClient, type Client as ClienteRow } from '../clientes/ClientesClient'
 import type { Lead, LeadStatus } from './types'
 import { columnsFromStages, tiersFromColumns, wonSlug, type FunnelStage } from '@/lib/funnelStages'
 import { WonPlanModal } from './WonPlanModal'
 export type { LeadStatus, Lead, ColumnConfig } from './types'
 
-type Tab = 'funil' | 'clientes' | 'metricas' | 'vendedores' | 'fases'
+type Tab = 'funil' | 'clientes' | 'metricas' | 'vendedores'
 
 interface CurrentUser { id: string; name: string }
 
@@ -106,7 +105,7 @@ export function KanbanBoard({ initialLeads, initialStages, initialClients, curre
   useEffect(() => {
     const params = new URLSearchParams(window.location.search)
     const tabParam = params.get('tab')
-    if (tabParam && ['funil', 'clientes', 'metricas', 'vendedores', 'fases'].includes(tabParam)) setTab(tabParam as Tab)
+    if (tabParam && ['funil', 'clientes', 'metricas', 'vendedores'].includes(tabParam)) setTab(tabParam as Tab)
     const leadId = params.get('lead')
     if (leadId) {
       const lead = leads.find(l => l.id === leadId)
@@ -120,7 +119,6 @@ export function KanbanBoard({ initialLeads, initialStages, initialClients, curre
     { key: 'clientes',     label: 'Clientes' },
     { key: 'metricas',     label: 'Métricas' },
     { key: 'vendedores',   label: 'Equipe e Comissões' },
-    { key: 'fases',        label: 'Fases' },
   ]
 
   const sensors = useSensors(
@@ -284,7 +282,6 @@ export function KanbanBoard({ initialLeads, initialStages, initialClients, curre
         {tab === 'clientes'     && <div className="h-full overflow-auto bg-bento-bg"><ClientesClient initialClients={initialClients} currentUser={currentUser} /></div>}
         {tab === 'metricas'     && <MetricasTab leads={filteredLeads} />}
         {tab === 'vendedores'   && <VendedoresTab />}
-        {tab === 'fases'        && <FasesTab />}
       </div>
 
       {/* Modals */}
