@@ -892,7 +892,7 @@ export function HallClient({ initialActivities, initialNotices, initialTasks, li
   ]
 
   return (
-    <div className="p-4 sm:p-6 max-w-7xl mx-auto space-y-5 animate-fade-in font-body">
+    <div className="p-4 sm:p-6 max-w-7xl mx-auto space-y-4 animate-fade-in font-body">
 
       {/* Header */}
       <div className="flex items-center justify-between">
@@ -946,30 +946,31 @@ export function HallClient({ initialActivities, initialNotices, initialTasks, li
 
         {activeTab === 'activities' && (
           <>
-            {/* KPIs do dia — cards iguais, alinhados */}
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            {/* KPIs — faixa fina (label + número numa linha) */}
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
               {[
-                { label: 'Leads',        value: counts.leads,     sub: 'no funil' },
-                { label: 'Clientes',     value: counts.clientes,  sub: 'ativos' },
-                { label: 'Tarefas hoje', value: tasksToday,       sub: 'pendentes' },
-                { label: 'Reuniões',     value: reunioesUpcoming, sub: 'próximas' },
+                { label: 'Leads',        value: counts.leads },
+                { label: 'Clientes',     value: counts.clientes },
+                { label: 'Tarefas hoje', value: tasksToday },
+                { label: 'Reuniões',     value: reunioesUpcoming },
               ].map(k => (
-                <div key={k.label} className="bento-fx p-4">
-                  <p className="font-tech text-[11px] uppercase tracking-wide text-bento-muted">{k.label}</p>
-                  <p className="font-display text-3xl font-bold text-bento-text tabular-nums mt-1 leading-none">{k.value}</p>
-                  <p className="font-tech text-[11px] text-bento-muted mt-1">{k.sub}</p>
+                <div key={k.label} className="bento-fx px-3 py-2 flex items-baseline justify-between gap-2">
+                  <span className="font-tech text-[11px] uppercase tracking-wide text-bento-muted truncate">{k.label}</span>
+                  <span className="font-display text-xl font-bold text-bento-text tabular-nums leading-none">{k.value}</span>
                 </div>
               ))}
             </div>
 
-            {/* NOTÍCIAS — briefing do dia, em destaque no topo */}
-            <NewsSection />
-
-            {/* AGENDA — calendário Diário/Semanal/Mensal/Anual (largura total: precisa da largura) */}
-            <Calendar userId={userId} events={calEvents} onEventsChange={setCalEvents} focusEvent={focusEvent} onFocusHandled={() => setFocusEvent(null)} />
+            {/* AGENDA + NOTÍCIAS — lado a lado, mesma altura (calendário 2/3, notícias 1/3 compacta) */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 items-stretch">
+              <div className="lg:col-span-2">
+                <Calendar userId={userId} events={calEvents} onEventsChange={setCalEvents} focusEvent={focusEvent} onFocusHandled={() => setFocusEvent(null)} />
+              </div>
+              <NewsSection />
+            </div>
 
             {/* ATIVIDADES RECENTES + MURAL — lado a lado, mesma altura */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-stretch">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 items-stretch">
               <Panel className="h-full" label="Atividades Recentes" action={
                 <div className="flex items-center gap-2">
                   <button onClick={() => setHistory('activities')} aria-label="Ampliar e ver histórico"

@@ -6,6 +6,15 @@ Categorias: 🐛 Fix · 🔄 Mudança · ✨ Novidade
 
 ---
 
+🔄 Mudança (UI) — Hall › Visão Geral compactado e reequilibrado.
+- **Notícias compactas:** card enxuto (título + chips categoria/estado/severidade + fonte·tempo); **resumo e impacto ocultos**, abrem ao clicar ("ver mais"); mostra **5 mais recentes**, lista em coluna. Acaba a parede de texto.
+- **KPIs em faixa fina** (label + número numa linha, menos padding/altura).
+- **Densidade:** `space-y-4`, `gap-3`, padding menor.
+- **Disposição:** Linha 1 KPIs (faixa) · Linha 2 **Agenda (2/3) + Notícias (1/3) lado a lado, mesma altura** · Linha 3 Atividades Recentes + Mural.
+- Mesmos dados (notícias/agenda/tarefas); nada perdido (resumo/impacto continuam, só ocultos). Sem dinheiro/schema.
+
+---
+
 🐛 Fix (DINHEIRO) — auto/manual marcava semanas FUTURAS com `paid_on=hoje`.
 - NOVO **`payDueWeeks`** (date-gating): `due_date(N)` = N-ésima ocorrência do `dia_pagamento_semana` a partir do `start_date` (+7/sem); marca N só se **`due_date(N) <= hoje`** e ainda não registrada; **`paid_on = due_date(N)`** (data real, não hoje); **NUNCA marca futura**. Semana **anulada** ocupa o número → não re-marca. Inativo congela.
 - Rota `/api/commission/auto` (manual **e** cron) e os botões "Marcar semana" / "Pagar mês" agora usam `payDueWeeks` (acabou a força/marcha). Cron date-gated roda em qualquer dia (corrige o "só no dia exato").
