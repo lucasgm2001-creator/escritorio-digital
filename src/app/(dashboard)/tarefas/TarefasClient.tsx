@@ -124,8 +124,17 @@ export function TarefasClient({ initialTasks, linkOptions, currentUser }: Props)
   const [summaryOpen, setSummaryOpen] = useState(false)
   // Erro de ação (concluir/excluir) — sem falha silenciosa
   const [actionError, setActionError] = useState('')
+  // Filtro por responsável (vendedor). 'todos' = sem filtro.
+  const [respFilter, setRespFilter] = useState<string>('todos')
+  const [sellers, setSellers] = useState<{ id: string; name: string }[]>([])
 
   const supabase = createClient()
+
+  // Vendedores p/ o filtro "Responsável" (extensível; hoje só Lucas).
+  useEffect(() => {
+    supabase.from('sellers').select('id, name').eq('status', 'ativo').order('name').then(({ data }) => setSellers((data ?? []) as { id: string; name: string }[]))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
   const phoneById = useMemo(() => {
     const m = new Map<string, string>()
     linkOptions.forEach(o => { if (o.phone) m.set(o.id, o.phone) })
@@ -134,19 +143,24 @@ export function TarefasClient({ initialTasks, linkOptions, currentUser }: Props)
 
   const today = toISO(new Date()), tomorrow = isoPlus(1), weekEnd = isoPlus(7)
 
+  const visibleTasks = useMemo(
+    () => respFilter === 'todos' ? tasks : tasks.filter(t => t.responsavel_id === respFilter),
+    [tasks, respFilter],
+  )
+
   const { groups, done } = useMemo(() => {
     const groups: Record<SectionId, Task[]> = { atrasadas: [], hoje: [], amanha: [], semana: [], depois: [] }
     const done: Task[] = []
-    for (const t of tasks) {
+    for (const t of visibleTasks) {
       if (t.done) done.push(t)
       else groups[sectionOf(t, today, tomorrow, weekEnd)].push(t)
     }
     ;(Object.keys(groups) as SectionId[]).forEach(k => groups[k].sort(sortPending))
     done.sort((a, b) => (b.completed_at ?? b.updated_at) < (a.completed_at ?? a.updated_at) ? -1 : 1)
     return { groups, done }
-  }, [tasks, today, tomorrow, weekEnd])
+  }, [visibleTasks, today, tomorrow, weekEnd])
 
-  const pendingCount = tasks.filter(t => !t.done).length
+  const pendingCount = visibleTasks.filter(t => !t.done).length
 
   // ── Ações ── (optimistic + await + rollback se o banco recusar)
   const toggleDone = async (t: Task) => {
@@ -356,7 +370,7 @@ export function TarefasClient({ initialTasks, linkOptions, currentUser }: Props)
     )
   }
 
-  const totalTasks = tasks.length
+  const totalTasks = visibleTasks.length
 
   return (
     <div className="h-full overflow-auto bg-bento-bg font-body">
@@ -373,6 +387,16 @@ export function TarefasClient({ initialTasks, linkOptions, currentUser }: Props)
             ))}
           </div>
           {view === 'tarefas' && <span className="font-tech text-xs text-bento-muted tabular-nums">{pendingCount} pendentes</span>}
+          {view === 'tarefas' && sellers.length > 0 && (
+            <label className="flex items-center gap-1.5 font-tech text-[10px] uppercase tracking-wide text-bento-muted">
+              Responsável
+              <select value={respFilter} onChange={e => setRespFilter(e.target.value)}
+                className="bg-bento-bg border border-bento-border rounded-btn px-2 py-1.5 text-xs text-bento-text normal-case focus:outline-none focus:border-lime">
+                <option value="todos">Todos</option>
+                {sellers.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+              </select>
+            </label>
+          )}
         </div>
         {view === 'tarefas' && (
           <div className="flex items-center gap-2 w-full sm:w-auto">

@@ -14,6 +14,8 @@ export interface Task {
   linked_type?: LinkedType | null
   linked_id?: string | null
   linked_name?: string | null
+  responsavel_id?: string | null     // vendedor dono da tarefa (FK sellers)
+  responsavel_nome?: string | null   // nome no momento (exibição/relatório)
   created_at: string
   updated_at: string
 }

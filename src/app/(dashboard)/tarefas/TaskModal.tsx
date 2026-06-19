@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { cn } from '@/lib/utils'
 import type { Task, TaskPriority, LinkOption } from './types'
@@ -61,8 +61,20 @@ export function TaskModal({ onClose, onSaved, currentUser, linkOptions, task, pr
   const [linkQuery, setLinkQuery] = useState('')
   const [linkOpen, setLinkOpen]   = useState(false)
   const [saving, setSaving]       = useState(false)
+  const [sellers, setSellers]     = useState<{ id: string; name: string }[]>([])
+  const [responsavelId, setResponsavelId] = useState<string>(task?.responsavel_id ?? '')
 
   const supabase = createClient()
+
+  // Vendedores p/ o campo Responsável (extensível). Nova tarefa nasce com o 1º ativo (Lucas).
+  useEffect(() => {
+    supabase.from('sellers').select('id, name').eq('status', 'ativo').order('name').then(({ data }) => {
+      const list = (data ?? []) as { id: string; name: string }[]
+      setSellers(list)
+      setResponsavelId(prev => prev || task?.responsavel_id || list[0]?.id || '')
+    })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const results = useMemo(() => {
     const q = linkQuery.trim().toLowerCase()
@@ -84,6 +96,8 @@ export function TaskModal({ onClose, onSaved, currentUser, linkOptions, task, pr
       linked_type: link?.type ?? null,
       linked_id:   link?.id ?? null,
       linked_name: link?.name ?? null,
+      responsavel_id:   responsavelId || null,
+      responsavel_nome: sellers.find(s => s.id === responsavelId)?.name ?? null,
     }
 
     if (editing && task) {
@@ -176,6 +190,13 @@ export function TaskModal({ onClose, onSaved, currentUser, linkOptions, task, pr
                 </button>
               ))}
             </div>
+          </Field>
+
+          <Field label="Responsável">
+            <select value={responsavelId} onChange={e => setResponsavelId(e.target.value)} className={inputCls}>
+              {sellers.length === 0 && <option value="">Carregando…</option>}
+              {sellers.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+            </select>
           </Field>
 
           {/* Conectar a (lead ou cliente) */}

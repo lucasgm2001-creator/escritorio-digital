@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { cn } from '@/lib/utils'
-import { Inbox, MessageCircle, Calendar, Trophy, Download, User, DollarSign } from 'lucide-react'
+import { Inbox, MessageCircle, Calendar, Trophy, Download, User, DollarSign, ListChecks } from 'lucide-react'
 import { ddmm, ymd, usd } from '@/lib/format'
 import { ALL_COLUMNS } from '../comercial/types'
 
@@ -72,6 +72,10 @@ export function RelatorioComercial() {
   const [receitaUsd, setReceitaUsd] = useState(0)
   const [items, setItems] = useState<Item[]>([])
   const [pdfBusy, setPdfBusy] = useState(false)
+  // Vendedor (responsável padrão) + tarefas concluídas no período por responsavel_id.
+  const [sellerId, setSellerId] = useState<string | null>(null)
+  const [sellerName, setSellerName] = useState('Lucas')
+  const [tarefasFeitas, setTarefasFeitas] = useState(0)
 
   const startISO = range.start.toISOString()
   const endISO = range.end.toISOString()
@@ -121,6 +125,22 @@ export function RelatorioComercial() {
     load()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [startISO, endISO])
+
+  // Vendedor ativo (responsável padrão): nome p/ o cabeçalho + id p/ atribuir as tarefas.
+  useEffect(() => {
+    supabase.from('sellers').select('id, name').eq('status', 'ativo').order('created_at').limit(1)
+      .then(({ data }) => { const s = data?.[0]; if (s) { setSellerId(s.id as string); setSellerName(s.name as string) } })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // Tarefas CONCLUÍDAS no período, atribuídas pelo responsavel_id (alinhado ao vendedor).
+  useEffect(() => {
+    let q = supabase.from('tasks').select('id', { count: 'exact', head: true })
+      .eq('done', true).gte('completed_at', startISO).lte('completed_at', endISO)
+    if (sellerId) q = q.eq('responsavel_id', sellerId)
+    q.then(({ count }) => setTarefasFeitas(count ?? 0))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [startISO, endISO, sellerId])
 
   const applyCustom = () => {
     if (!customStart || !customEnd) return
@@ -251,7 +271,7 @@ export function RelatorioComercial() {
       <div className="bento-fx p-5">
         <div className="flex items-center gap-2 mb-3">
           <User className="w-4 h-4 text-lime-fg" />
-          <h3 className="text-sm font-semibold text-bento-text">Vendedor: Lucas</h3>
+          <h3 className="text-sm font-semibold text-bento-text">Vendedor: {sellerName}</h3>
           <span className="font-tech text-[11px] text-bento-muted">· responsável por todos os leads</span>
         </div>
         <p className="font-tech text-[10px] uppercase tracking-wide text-bento-muted mb-2">Leads por fase (atual)</p>
@@ -270,6 +290,7 @@ export function RelatorioComercial() {
         <div className="flex flex-wrap gap-x-6 gap-y-2 mt-4 pt-3 border-t border-bento-border/60">
           <span className="flex items-center gap-2 text-xs text-bento-muted"><DollarSign className="w-4 h-4" /> Comissão no período: <span className="font-tech text-sm font-semibold text-bento-text tabular-nums">{usd(comissaoUsd)}</span></span>
           <span className="flex items-center gap-2 text-xs text-bento-muted">Receita no período: <span className="font-tech text-sm font-semibold text-bento-text tabular-nums">{usd(receitaUsd)}</span></span>
+          <span className="flex items-center gap-2 text-xs text-bento-muted"><ListChecks className="w-4 h-4" /> Tarefas concluídas: <span className="font-tech text-sm font-semibold text-bento-text tabular-nums">{tarefasFeitas}</span></span>
         </div>
       </div>
 

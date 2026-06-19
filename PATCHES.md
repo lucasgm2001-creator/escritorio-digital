@@ -6,6 +6,14 @@ Categorias: 🐛 Fix · 🔄 Mudança · ✨ Novidade
 
 ---
 
+✨ Responsável (vendedor) nas tarefas.
+- Tarefa ganha **"Responsável"** escolhido entre os vendedores (`sellers`); nova tarefa nasce com o vendedor ativo (Lucas). Grava `tasks.responsavel_id` + `responsavel_nome`.
+- Aba Tarefas: **filtro "Responsável: Todos / <vendedor>"**. Como só há Lucas, tudo aparece sob ele (extensível).
+- **Relatório do Vendedor**: nome vem de `sellers` + nova métrica **"Tarefas concluídas no período"** atribuída por `responsavel_id`.
+- Migration `034_tasks_responsavel.sql` (paridade; já em prod): `tasks.responsavel_id` (FK sellers) + `responsavel_nome`. Não cria vendedores novos.
+
+---
+
 🔄 Fases do funil: movida de Comercial → Configurações.
 - A aba **Fases** saiu do Comercial e virou **Configurações › Comercial › Fases do funil**.
 - Função **idêntica** (criar / renomear / reordenar estágios); só mudou de lugar (é configuração, não operação).
