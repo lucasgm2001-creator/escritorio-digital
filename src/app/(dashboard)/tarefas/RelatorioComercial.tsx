@@ -3,8 +3,9 @@
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { cn } from '@/lib/utils'
-import { Inbox, MessageCircle, Calendar, Trophy, Download } from 'lucide-react'
-import { ddmm } from '@/lib/format'
+import { Inbox, MessageCircle, Calendar, Trophy, Download, User, DollarSign } from 'lucide-react'
+import { ddmm, ymd, usd } from '@/lib/format'
+import { ALL_COLUMNS } from '../comercial/types'
 
 type Mode = 'dia' | 'semana' | 'mes' | 'semestre' | 'ano'
 
@@ -66,6 +67,9 @@ export function RelatorioComercial() {
   const [interagiram, setInteragiram] = useState(0)
   const [reunioes, setReunioes] = useState(0)
   const [fecharam, setFecharam] = useState(0)
+  const [porFase, setPorFase] = useState<{ key: string; label: string; count: number; dot: string }[]>([])
+  const [comissaoUsd, setComissaoUsd] = useState(0)
+  const [receitaUsd, setReceitaUsd] = useState(0)
   const [items, setItems] = useState<Item[]>([])
   const [pdfBusy, setPdfBusy] = useState(false)
 
@@ -75,14 +79,19 @@ export function RelatorioComercial() {
   useEffect(() => {
     const load = async () => {
       setLoading(true)
-      const [leadRes, msRes] = await Promise.all([
+      const startYMD = ymd(range.start), endYMD = ymd(range.end)
+      const [leadRes, msRes, allLeadsRes, wkRes, cpRes] = await Promise.all([
         // Recebidos: leads criados no período (fonte inalterada).
         supabase.from('leads').select('id, name, created_at')
           .gte('created_at', startISO).lte('created_at', endISO).order('created_at', { ascending: false }),
         // Interagiu / Reunião / Fechou: marcos do ciclo, pela DATA do marco (achieved_on).
-        // Fonte ÚNICA (lead_milestones) — NÃO soma lead_interactions/meetings p/ não dobrar.
         supabase.from('lead_milestones').select('id, marco, achieved_on, lead_id, leads(name)')
           .gte('achieved_on', startISO).lte('achieved_on', endISO).order('achieved_on', { ascending: false }),
+        // Snapshot de leads por fase (status atual) — sem dinheiro.
+        supabase.from('leads').select('status'),
+        // SÓ EXIBIÇÃO (read-only): comissão/receita já registradas no período. NÃO escreve nem recalcula.
+        supabase.from('weekly_payments').select('valor_usd, paid_on').gte('paid_on', startYMD).lte('paid_on', endYMD),
+        supabase.from('client_payments').select('*').gte('paid_on', startYMD).lte('paid_on', endYMD),
       ])
       const err = leadRes.error || msRes.error
       setError(err ? `Erro ao carregar o relatório: ${err.message}` : null)
@@ -95,6 +104,12 @@ export function RelatorioComercial() {
       setInteragiram(distinctLeads('interagiu'))
       setReunioes(distinctLeads('reuniao'))
       setFecharam(distinctLeads('fechou'))
+
+      const statusCount: Record<string, number> = {}
+      for (const l of (allLeadsRes.data ?? []) as { status: string }[]) statusCount[l.status] = (statusCount[l.status] ?? 0) + 1
+      setPorFase(ALL_COLUMNS.map(c => ({ key: c.key, label: c.label, count: statusCount[c.key] ?? 0, dot: c.dotColor })).filter(f => f.count > 0))
+      setComissaoUsd(((wkRes.data ?? []) as { valor_usd: number }[]).reduce((s, w) => s + Number(w.valor_usd || 0), 0))
+      setReceitaUsd(((cpRes.data ?? []) as { valor_usd: number; anulado?: boolean }[]).filter(r => !r.anulado).reduce((s, r) => s + Number(r.valor_usd || 0), 0))
 
       const merged: Item[] = [
         ...leads.map(l => ({ kind: 'recebido' as const, date: l.created_at as string, label: (l.name as string) || 'Lead' })),
@@ -173,7 +188,7 @@ export function RelatorioComercial() {
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <div className="flex items-center gap-2">
           <Calendar className="w-4 h-4 text-lime-fg" />
-          <h2 className="font-display font-bold text-bento-text text-base">Relatório de Atividades</h2>
+          <h2 className="font-display font-bold text-bento-text text-base">Relatório do Vendedor</h2>
         </div>
         <div className="flex items-center gap-2">
           <button onClick={() => setRange(lastWeek())}
@@ -230,6 +245,32 @@ export function RelatorioComercial() {
             <p className="font-tech text-[11px] text-bento-muted mt-1">{k.sub}</p>
           </div>
         ))}
+      </div>
+
+      {/* Vendedor responsável + leads por fase (snapshot) + receita/comissão (só exibição) */}
+      <div className="bento-fx p-5">
+        <div className="flex items-center gap-2 mb-3">
+          <User className="w-4 h-4 text-lime-fg" />
+          <h3 className="text-sm font-semibold text-bento-text">Vendedor: Lucas</h3>
+          <span className="font-tech text-[11px] text-bento-muted">· responsável por todos os leads</span>
+        </div>
+        <p className="font-tech text-[10px] uppercase tracking-wide text-bento-muted mb-2">Leads por fase (atual)</p>
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
+          {porFase.length === 0 ? (
+            <p className="text-xs text-bento-muted">{loading ? 'Carregando...' : 'Sem leads.'}</p>
+          ) : porFase.map(f => (
+            <div key={f.key} className="flex items-center gap-2 bg-bento-bg border border-bento-border rounded-btn px-2.5 py-1.5">
+              <span className={cn('w-2 h-2 rounded-full flex-none', f.dot)} />
+              <span className="text-xs text-bento-dim truncate flex-1">{f.label}</span>
+              <span className="font-tech text-xs font-semibold text-bento-text tabular-nums">{f.count}</span>
+            </div>
+          ))}
+        </div>
+        {/* Receita/comissão JÁ existentes — leitura, sem recalcular nem escrever (dinheiro intocado) */}
+        <div className="flex flex-wrap gap-x-6 gap-y-2 mt-4 pt-3 border-t border-bento-border/60">
+          <span className="flex items-center gap-2 text-xs text-bento-muted"><DollarSign className="w-4 h-4" /> Comissão no período: <span className="font-tech text-sm font-semibold text-bento-text tabular-nums">{usd(comissaoUsd)}</span></span>
+          <span className="flex items-center gap-2 text-xs text-bento-muted">Receita no período: <span className="font-tech text-sm font-semibold text-bento-text tabular-nums">{usd(receitaUsd)}</span></span>
+        </div>
       </div>
 
       {/* Lista detalhada */}

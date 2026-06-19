@@ -6,6 +6,13 @@ Categorias: 🐛 Fix · 🔄 Mudança · ✨ Novidade
 
 ---
 
+✨ F1 — Relatório do Vendedor (reenquadra o relatório de atividades).
+- Título → "Relatório do Vendedor"; header "Vendedor: Lucas" (único; responsável por todos os leads).
+- Novo bloco "Leads por fase (atual)" (snapshot por status, cor-com-significado) + recebidos/interagiram/reuniões/convertidos (já existiam, por período).
+- Exibe (**SÓ leitura**) Comissão e Receita do período — `SELECT` read-only em `weekly_payments`/`client_payments`; **não escreve nem recalcula** (calc.ts/payWeek intactos).
+
+---
+
 🔄 Mudança (UI) — Apresentação: troca de slide suave, sem flash branco.
 - **Causa:** ao trocar o slide, o material remontava e o **canvas do PDF.js aparecia com fundo branco** antes de pintar → "brancão" no gap (o stage já era preto).
 - **Crossfade:** 2 layers — o slide atual fica embaixo (opaco) e o próximo entra por `opacity` (~200ms); o antigo só sai DEPOIS → sem frame branco. (Funciona como double-buffer: o PDF/img novo renderiza enquanto o antigo cobre.)
