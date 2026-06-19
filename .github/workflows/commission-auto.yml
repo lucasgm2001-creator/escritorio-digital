@@ -7,7 +7,8 @@ name: commission-auto
 
 on:
   schedule:
-    - cron: '30 12 * * *'   # ~09:30 BRT, 1x/dia
+    # GitHub Actions usa UTC. 00:00 BRT (UTC-3) = 03:00 UTC. NÃO usar '0 0 * * *' (= 21h BRT).
+    - cron: '0 3 * * *'   # 03:00 UTC = 00:00 Brasília, 1x/dia
   workflow_dispatch: {}
 
 jobs:
