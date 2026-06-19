@@ -5,14 +5,21 @@ import Image from 'next/image'
 import {
   Sun, Moon, Monitor, Home, Briefcase, ListChecks, Projector, Users,
   Palette, Accessibility, Image as ImageIcon, User, LayoutGrid, Database, Plug, Info,
+  Download, RefreshCw, ExternalLink,
   type LucideIcon,
 } from 'lucide-react'
 import { Panel } from '@/components/bento/Panel'
 import { createClient } from '@/lib/supabase/client'
 import { cn } from '@/lib/utils'
+import { ymd } from '@/lib/format'
 import { SYSTEM_LOGO_BUCKET, SYSTEM_LOGO_PATH } from '@/lib/logo'
 import { isDarkByTime, getDarkHours, DEFAULT_DARK_START, DEFAULT_DARK_END } from '@/lib/theme'
 import { loadA11y, saveA11y, applyA11y, DEFAULT_A11Y, type A11ySettings, type FontScale } from '@/lib/a11y'
+import { loadDensity, saveDensity, applyDensity, type Density } from '@/lib/uiPrefs'
+
+// classes compartilhadas
+const inputCls = 'w-full bg-bento-bg border border-bento-border rounded-btn px-3 py-2 text-sm text-bento-text placeholder:text-bento-muted focus:outline-none focus:border-lime min-h-[44px]'
+const actionBtnCls = 'flex items-center justify-center gap-2 bg-bento-bg border border-bento-border text-bento-text px-4 py-2 rounded-btn text-sm hover:border-lime transition-colors disabled:opacity-50 min-h-[44px]'
 
 type Theme = 'light' | 'dark' | 'auto'
 interface NavItem { key: string; label: string; Icon: LucideIcon }
@@ -154,12 +161,189 @@ function AboutSection() {
   )
 }
 
-function Placeholder({ label, desc }: { label: string; desc: string }) {
+// ─── SISTEMA › Conta (e-mail + trocar senha via Supabase Auth; perfil fica em /perfil) ───
+function ContaSection() {
+  const supabase = createClient()
+  const [email, setEmail] = useState('')
+  const [pw, setPw] = useState('')
+  const [pw2, setPw2] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [msg, setMsg] = useState<{ t: 'ok' | 'err'; m: string } | null>(null)
+
+  useEffect(() => { supabase.auth.getUser().then(({ data }) => setEmail(data.user?.email ?? '')) }, [supabase])
+
+  const trocarSenha = async () => {
+    setMsg(null)
+    if (pw.length < 6) { setMsg({ t: 'err', m: 'A senha precisa de ao menos 6 caracteres.' }); return }
+    if (pw !== pw2) { setMsg({ t: 'err', m: 'As senhas não conferem.' }); return }
+    setBusy(true)
+    const { error } = await supabase.auth.updateUser({ password: pw })
+    setBusy(false)
+    if (error) setMsg({ t: 'err', m: `Não foi possível alterar: ${error.message}` })
+    else { setMsg({ t: 'ok', m: 'Senha alterada com sucesso.' }); setPw(''); setPw2('') }
+  }
+
   return (
-    <Panel label={label}>
-      <div className="py-8 text-center">
-        <p className="text-sm text-bento-muted">{desc}</p>
-        <p className="font-tech text-[11px] text-bento-muted/60 mt-1">Em breve</p>
+    <Panel label="Conta">
+      <div className="space-y-5">
+        <div>
+          <p className="font-tech text-[10px] uppercase tracking-wide text-bento-muted">E-mail</p>
+          <p className="text-sm text-bento-text mt-0.5">{email || '—'}</p>
+        </div>
+        <div className="border-t border-bento-border/60 pt-4 space-y-2 max-w-sm">
+          <p className="text-sm font-medium text-bento-text">Alterar senha</p>
+          <input type="password" value={pw} onChange={e => setPw(e.target.value)} placeholder="Nova senha" autoComplete="new-password" className={inputCls} />
+          <input type="password" value={pw2} onChange={e => setPw2(e.target.value)} placeholder="Confirmar nova senha" autoComplete="new-password" className={inputCls} />
+          <button onClick={trocarSenha} disabled={busy || !pw} className="bento-btn px-4 py-2 rounded-btn text-sm font-semibold disabled:opacity-50 min-h-[44px]">
+            {busy ? 'Salvando...' : 'Salvar senha'}
+          </button>
+          {msg && <p className={cn('text-xs', msg.t === 'ok' ? 'text-green-400' : 'text-red-400')}>{msg.m}</p>}
+        </div>
+        <div className="border-t border-bento-border/60 pt-4">
+          <a href="/perfil" className="inline-flex items-center gap-1.5 text-sm text-lime-fg hover:underline">Editar nome e foto no Perfil <ExternalLink className="w-3.5 h-3.5" /></a>
+        </div>
+      </div>
+    </Panel>
+  )
+}
+
+// ─── SISTEMA › Aparência (densidade — pref visual cliente, classe no <html>) ───
+function AparenciaSection() {
+  const [d, setD] = useState<Density>('confortavel')
+  const [mounted, setMounted] = useState(false)
+  useEffect(() => { setMounted(true); const v = loadDensity(); setD(v); applyDensity(v) }, [])
+  const choose = (v: Density) => { setD(v); saveDensity(v); applyDensity(v) }
+  if (!mounted) return null
+
+  const opts: { id: Density; label: string; desc: string }[] = [
+    { id: 'confortavel', label: 'Confortável', desc: 'Espaçamento padrão.' },
+    { id: 'compact', label: 'Compacto', desc: 'Menos respiro; mostra mais na tela.' },
+  ]
+  return (
+    <Panel label="Aparência">
+      <div className="space-y-3">
+        <p className="text-sm font-medium text-bento-text">Densidade</p>
+        <div className="flex flex-col sm:flex-row gap-2">
+          {opts.map(o => (
+            <button key={o.id} onClick={() => choose(o.id)}
+              className={cn('flex-1 px-3 py-2.5 rounded-btn border text-left min-h-[44px]',
+                d === o.id ? 'bento-btn border-transparent' : 'bg-bento-bg border-bento-border text-bento-dim hover:border-lime transition-colors')}>
+              <span className="text-sm font-medium block">{o.label}</span>
+              <span className="text-[11px] opacity-80">{o.desc}</span>
+            </button>
+          ))}
+        </div>
+        <p className="font-tech text-[11px] text-bento-muted/70">Aplica em todo o sistema. Tema (claro/escuro) e tamanho de fonte ficam em Tema e Acessibilidade.</p>
+      </div>
+    </Panel>
+  )
+}
+
+// ─── SISTEMA › Dados & Export (CSV cliente, somente leitura) ───
+function csvDownload(filename: string, rows: Record<string, unknown>[]) {
+  if (rows.length === 0) { alert('Nada para exportar.'); return }
+  const cols = Object.keys(rows[0])
+  const esc = (v: unknown) => { const s = v == null ? '' : String(v); return /[",\n;]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s }
+  const csv = [cols.join(';'), ...rows.map(r => cols.map(c => esc(r[c])).join(';'))].join('\n')
+  const blob = new Blob([`﻿${csv}`], { type: 'text/csv;charset=utf-8;' })  // BOM → Excel lê acentos
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url; a.download = filename; a.click()
+  URL.revokeObjectURL(url)
+}
+
+function DadosSection() {
+  const supabase = createClient()
+  const [busy, setBusy] = useState('')
+  const run = async (kind: 'leads' | 'tarefas') => {
+    setBusy(kind)
+    // SELECT somente — nada é alterado.
+    const q = kind === 'leads'
+      ? supabase.from('leads').select('name, status, value, source, score, created_at, last_contact_at')
+      : supabase.from('tasks').select('title, notes, due_date, due_time, priority, done, completed_at, created_at')
+    const { data, error } = await q
+    setBusy('')
+    if (error) { alert(`Não foi possível exportar: ${error.message}`); return }
+    csvDownload(`${kind}-${ymd(new Date())}.csv`, (data ?? []) as Record<string, unknown>[])
+  }
+  return (
+    <Panel label="Dados & Export">
+      <div className="space-y-4">
+        <p className="text-xs text-bento-muted">Baixe seus dados em CSV (abre no Excel/Google Sheets). Somente leitura — nada é alterado.</p>
+        <div className="flex flex-col sm:flex-row gap-2">
+          <button onClick={() => run('leads')} disabled={!!busy} className={actionBtnCls}><Download className="w-4 h-4" />{busy === 'leads' ? 'Exportando...' : 'Exportar leads (CSV)'}</button>
+          <button onClick={() => run('tarefas')} disabled={!!busy} className={actionBtnCls}><Download className="w-4 h-4" />{busy === 'tarefas' ? 'Exportando...' : 'Exportar tarefas (CSV)'}</button>
+        </div>
+        <p className="font-tech text-[11px] text-bento-muted/70 border-t border-bento-border/60 pt-3">Apagar conta / dados em massa: em breve (TODO).</p>
+      </div>
+    </Panel>
+  )
+}
+
+// ─── SISTEMA › Integrações (status real do Supabase; demais = TODO) ───
+function IntegStatus({ nome, detalhe, status }: { nome: string; detalhe: string; status: 'ok' | 'err' | 'check' | 'todo' }) {
+  const map = {
+    ok:    { dot: 'bg-lime',        txt: 'text-lime-fg',     label: 'Conectado' },
+    err:   { dot: 'bg-red-500',     txt: 'text-red-400',     label: 'Erro' },
+    check: { dot: 'bg-bento-muted', txt: 'text-bento-muted', label: 'Verificando...' },
+    todo:  { dot: 'bg-bento-muted', txt: 'text-bento-muted', label: 'Em breve' },
+  }[status]
+  return (
+    <div className="flex items-center gap-3 py-3 first:pt-0 last:pb-0">
+      <span className={cn('w-2 h-2 rounded-full flex-none', map.dot)} />
+      <div className="min-w-0 flex-1">
+        <p className="text-sm font-medium text-bento-text">{nome}</p>
+        <p className="font-tech text-[11px] text-bento-muted truncate">{detalhe}</p>
+      </div>
+      <span className={cn('text-xs font-semibold', map.txt)}>{map.label}</span>
+    </div>
+  )
+}
+
+function IntegracoesSection() {
+  const supabase = createClient()
+  const [supaOk, setSupaOk] = useState<'ok' | 'err' | 'check'>('check')
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL ?? ''
+  useEffect(() => {
+    supabase.from('leads').select('id', { count: 'exact', head: true }).then(({ error }) => setSupaOk(error ? 'err' : 'ok'))
+  }, [supabase])
+  const host = (() => { try { return new URL(url).host } catch { return url || '—' } })()
+  return (
+    <Panel label="Integrações">
+      <div className="divide-y divide-bento-border/60">
+        <IntegStatus nome="Supabase" detalhe={host} status={supaOk} />
+        <IntegStatus nome="Anthropic (IA)" detalhe="Chave configurada no servidor (env)" status="todo" />
+        <IntegStatus nome="WhatsApp" detalhe="Ainda não conectado" status="todo" />
+      </div>
+    </Panel>
+  )
+}
+
+// ─── ANDARES › por andar: descrição + abrir + restaurar ordem das abas (DraggableTabs) ───
+const FLOOR_META: Record<string, { route: string; section: string; desc: string }> = {
+  'andar-hall':      { route: '/hall',      section: 'hall',      desc: 'Mural de avisos, agenda e visão geral do dia.' },
+  'andar-comercial': { route: '/comercial', section: 'comercial', desc: 'Funil de leads, clientes, métricas e fases.' },
+  'andar-tarefas':   { route: '/tarefas',   section: 'tarefas',   desc: 'Tarefas e relatório do vendedor.' },
+  'andar-studio':    { route: '/studio',    section: 'studio',    desc: 'Apresentações e materiais.' },
+  'andar-clientes':  { route: '/clientes',  section: 'clientes',  desc: 'Carteira de clientes.' },
+}
+
+function AndarSection({ keyId, label }: { keyId: string; label: string }) {
+  const meta = FLOOR_META[keyId]
+  const [done, setDone] = useState(false)
+  const resetTabs = () => {
+    if (meta) { try { localStorage.removeItem(`dashboard-tabs-order-${meta.section}`) } catch { /* ignore */ } }
+    setDone(true); setTimeout(() => setDone(false), 2500)
+  }
+  return (
+    <Panel label={`Andar — ${label}`}>
+      <div className="space-y-4">
+        <p className="text-sm text-bento-muted">{meta?.desc}</p>
+        <div className="flex flex-wrap gap-2">
+          {meta && <a href={meta.route} className={actionBtnCls}><ExternalLink className="w-4 h-4" />Abrir {label}</a>}
+          <button onClick={resetTabs} className={actionBtnCls}><RefreshCw className="w-4 h-4" />{done ? 'Ordem restaurada' : 'Restaurar ordem das abas'}</button>
+        </div>
+        <p className="font-tech text-[11px] text-bento-muted/70 border-t border-bento-border/60 pt-3">Preferências específicas deste andar: em breve (TODO).</p>
       </div>
     </Panel>
   )
@@ -313,17 +497,17 @@ export function ConfiguracoesClient({ userId }: Props) {
   const content = (() => {
     if (active.startsWith('andar-')) {
       const label = ANDARES.find(a => a.key === active)?.label ?? 'Andar'
-      return <Placeholder label={`Andar — ${label}`} desc={`Ajustes do andar ${label}.`} />
+      return <AndarSection keyId={active} label={label} />
     }
     switch (active) {
       case 'tema': return <ThemeSection />
       case 'acessibilidade': return <AccessibilitySection />
       case 'logo': return <Panel label="Logo do sistema"><LogoUploadSection userId={userId} /></Panel>
       case 'sobre': return <AboutSection />
-      case 'conta': return <Placeholder label="Conta" desc="Perfil, e-mail e senha." />
-      case 'aparencia': return <Placeholder label="Aparência" desc="Densidade e layout." />
-      case 'dados': return <Placeholder label="Dados & Export" desc="Exportar e baixar seus dados." />
-      case 'integracoes': return <Placeholder label="Integrações" desc="Supabase, Anthropic, WhatsApp." />
+      case 'conta': return <ContaSection />
+      case 'aparencia': return <AparenciaSection />
+      case 'dados': return <DadosSection />
+      case 'integracoes': return <IntegracoesSection />
       default: return null
     }
   })()

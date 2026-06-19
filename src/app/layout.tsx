@@ -51,6 +51,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     if(o.spacing)el.classList.add('a11y-spacing');
     if(o.reduceMotion)el.classList.add('a11y-reduce-motion');
   }
+  if(localStorage.getItem('ui_density')==='compact')el.classList.add('ui-compact');
 }catch(e){}}())
         `}} />
       </head>

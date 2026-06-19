@@ -479,3 +479,8 @@ html.a11y-reduce-motion *, html.a11y-reduce-motion *::before, html.a11y-reduce-m
   transition-duration: 0.001ms !important;
   scroll-behavior: auto !important;
 }
+
+/* ─── Aparência (Configurações → Sistema) › Densidade compacta (opt-in) ─── */
+/* Reduz o respiro dos cards/painéis em todo o sistema. Puramente visual e reversível. */
+html.ui-compact .p-5 { padding: 0.85rem; }
+html.ui-compact .p-4 { padding: 0.65rem; }

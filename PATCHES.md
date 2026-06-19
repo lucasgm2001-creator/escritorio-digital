@@ -6,6 +6,16 @@ Categorias: 🐛 Fix · 🔄 Mudança · ✨ Novidade
 
 ---
 
+✨ F3 — Configurações: placeholders viram funcionais.
+- **Conta**: e-mail (real) + **alterar senha** (Supabase Auth) + atalho pro Perfil (nome/foto).
+- **Aparência**: **Densidade** Confortável/Compacto — pref visual no `<html>` (`ui-compact`), aplicada em todo o sistema sem flash (boot script).
+- **Dados & Export**: exportar **leads** e **tarefas** em CSV (cliente, **somente leitura**).
+- **Integrações**: status **real** do Supabase (ping + host); Anthropic/WhatsApp = **TODO**.
+- **Andares** (Hall/Comercial/Tarefas/Studio/Clientes): descrição + abrir andar + **restaurar ordem das abas** (limpa o `dashboard-tabs-order-*`). Prefs específicas por andar = TODO.
+- Sem dado de servidor em localStorage (só prefs visuais, como tema/a11y). Apagar dados/conta = TODO.
+
+---
+
 ✨ F2 — Funil configurável: aba "Fases" no Comercial.
 - Nova aba **Fases** (Comercial): criar, renomear e reordenar estágios (escreve em `funnel_stages`, RLS autenticado).
 - **Renomear muda só o rótulo** (`nome`); o slug interno é preservado → **nenhum lead muda de fase**.
