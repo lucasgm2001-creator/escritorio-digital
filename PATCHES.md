@@ -6,6 +6,15 @@ Categorias: 🐛 Fix · 🔄 Mudança · ✨ Novidade
 
 ---
 
+🔄 Mudança — Navegação enxuta + Hall reequilibrado.
+- **Menu lateral:** só **Hall · Comercial · Studio de Apresentação · [Sistema] Configurações**.
+- **CLIENTES → aba do Comercial** (Funil · Clientes · Métricas · Equipe e Comissões); `/clientes` → `/comercial?tab=clientes`. Plano/pagamento/estorno/comissão **idênticos** (ClientesClient embutido).
+- **TAREFAS → aba do Hall** (Visão Geral · Tarefas · Agente); `/tarefas` → `/hall?tab=tarefas`. Funcionalidade (hora etc.) **idêntica**.
+- **Hall › Visão Geral reequilibrado:** KPIs iguais no topo (Leads/Clientes/Tarefas hoje/Reuniões) · **Notícias** em destaque · **Agenda** (calendário, largura total) · **Atividades Recentes + Mural** lado a lado (mesma altura). Sem caixa solta.
+- Sem schema, sem dinheiro (`calc.ts`/`payWeek` intactos).
+
+---
+
 🔄 Mudança — Notícias: recência + clima extremo + quadro em destaque.
 - **Busca (rota):** prompt exige notícias dos **ÚLTIMOS 7 DIAS** com `published_at` real (descarta antigo); filtro de recência no insert (>10 dias fora). **Nova categoria "clima"** — eventos climáticos extremos (nevasca/frio/furacão/enchente/calor/incêndio) em MA/NJ/CA/NC/SC + nacional que **afetam trabalho de campo**.
 - **Limpeza:** após gravar, apaga `news` com `published_at` > 30 dias (tabela não acumula velharia).

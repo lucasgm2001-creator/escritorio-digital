@@ -6,7 +6,6 @@ import { createClient } from '@/lib/supabase/client'
 import { useToast } from '@/components/ui/toast'
 import { cn, timeAgo } from '@/lib/utils'
 import { Panel } from '@/components/bento/Panel'
-import { Metric } from '@/components/bento/Metric'
 import { LiveDot } from '@/components/bento/LiveDot'
 import { AgentChat } from './AgentChat'
 import { NewsSection } from './NewsSection'
@@ -759,6 +758,7 @@ export function HallClient({ initialActivities, initialNotices, initialTasks, li
   const [calEvents, setCalEvents]     = useState<CalendarEvent[]>([])
   const [focusEvent, setFocusEvent]   = useState<CalendarEvent | null>(null)
   const [tasks, setTasks]             = useState<Task[]>([])
+  const [counts, setCounts]           = useState({ leads: 0, clientes: 0 })
   const [activitiesExpanded, setActivitiesExpanded] = useState(false)
   const router = useRouter()
 
@@ -774,6 +774,15 @@ export function HallClient({ initialActivities, initialNotices, initialTasks, li
   useEffect(() => {
     setGreeting(computeGreeting())
     setToday(new Date().toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }))
+  }, [])
+
+  // Contagens p/ os KPIs (Leads/Clientes) — head count, barato.
+  useEffect(() => {
+    const supabase = createClient()
+    Promise.all([
+      supabase.from('leads').select('id', { count: 'exact', head: true }),
+      supabase.from('clients').select('id', { count: 'exact', head: true }).eq('status', 'ativo'),
+    ]).then(([l, c]) => setCounts({ leads: l.count ?? 0, clientes: c.count ?? 0 }))
   }, [])
 
   useEffect(() => {
@@ -857,7 +866,9 @@ export function HallClient({ initialActivities, initialNotices, initialTasks, li
   const muralVazio = tarefasAtrasadas.length + hojeMesclado.length + notices.length === 0
 
   const todaySP = saoPauloDay(new Date())
-  const activitiesToday = activities.filter(a => a.created_at && saoPauloDay(new Date(a.created_at)) === todaySP).length
+  // KPIs do dia (reusa dados já carregados): tarefas de hoje pendentes + próximas reuniões na agenda.
+  const tasksToday = tasks.filter(t => t.due_date === todaySP && !t.done).length
+  const reunioesUpcoming = calEvents.filter(e => e.type === 'reuniao' && e.date >= todaySP).length
 
   // Proporção por tipo de atividade (funil → barras de proporção).
   const typeCounts = Object.entries(
@@ -935,24 +946,31 @@ export function HallClient({ initialActivities, initialNotices, initialTasks, li
 
         {activeTab === 'activities' && (
           <>
-            {/* Resumo compacto */}
-            <Panel label="Atividades hoje">
-              <div className="flex items-end gap-2">
-                <Metric size="sm">{activitiesToday}</Metric>
-                <span className="font-tech text-[11px] text-bento-muted pb-1">hoje</span>
-              </div>
-              <p className="font-tech text-[11px] text-bento-muted mt-1.5">{activities.length} no total</p>
-            </Panel>
+            {/* KPIs do dia — cards iguais, alinhados */}
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+              {[
+                { label: 'Leads',        value: counts.leads,     sub: 'no funil' },
+                { label: 'Clientes',     value: counts.clientes,  sub: 'ativos' },
+                { label: 'Tarefas hoje', value: tasksToday,       sub: 'pendentes' },
+                { label: 'Reuniões',     value: reunioesUpcoming, sub: 'próximas' },
+              ].map(k => (
+                <div key={k.label} className="bento-fx p-4">
+                  <p className="font-tech text-[11px] uppercase tracking-wide text-bento-muted">{k.label}</p>
+                  <p className="font-display text-3xl font-bold text-bento-text tabular-nums mt-1 leading-none">{k.value}</p>
+                  <p className="font-tech text-[11px] text-bento-muted mt-1">{k.sub}</p>
+                </div>
+              ))}
+            </div>
 
             {/* NOTÍCIAS — briefing do dia, em destaque no topo */}
             <NewsSection />
 
-            {/* AGENDA única — calendário Diário/Semanal/Mensal/Anual (calendar_events + tarefas) */}
+            {/* AGENDA — calendário Diário/Semanal/Mensal/Anual (largura total: precisa da largura) */}
             <Calendar userId={userId} events={calEvents} onEventsChange={setCalEvents} focusEvent={focusEvent} onFocusHandled={() => setFocusEvent(null)} />
 
-            {/* Conteúdo principal */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-              <Panel className="lg:col-span-2" label="Atividades Recentes" action={
+            {/* ATIVIDADES RECENTES + MURAL — lado a lado, mesma altura */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-stretch">
+              <Panel className="h-full" label="Atividades Recentes" action={
                 <div className="flex items-center gap-2">
                   <button onClick={() => setHistory('activities')} aria-label="Ampliar e ver histórico"
                     className="text-bento-muted hover:text-lime-fg transition-colors"><Maximize2 className="w-3.5 h-3.5" /></button>
@@ -1013,6 +1031,7 @@ export function HallClient({ initialActivities, initialNotices, initialTasks, li
               </Panel>
 
               <Panel
+                className="h-full"
                 label="Mural de Avisos"
                 action={
                   <div className="flex items-center gap-2.5">
