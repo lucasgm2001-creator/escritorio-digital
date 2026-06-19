@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react'
 import { useRealtimeRows } from '@/lib/hooks/useRealtimeRows'
-import { updateClient, payClientWeek } from '@/lib/commission/actions'
+import { updateClient, payClientWeek, voidClientWeek } from '@/lib/commission/actions'
 import { createClient } from '@/lib/supabase/client'
 import { useSave } from '@/lib/useSave'
 import { formatCurrency, formatDate, timeAgo } from '@/lib/utils'
@@ -24,6 +24,7 @@ interface Client {
 }
 
 interface Plan { id: string; nome: string; valor_semanal: number }
+interface ClientPayment { id: string; numero_semana: number; valor_usd: number; paid_on: string; anulado?: boolean }
 
 interface Activity {
   id: string
@@ -48,12 +49,14 @@ const inputCls = 'w-full bg-bento-bg border border-bento-border rounded-btn px-3
 interface ClientRowProps {
   client: Client
   plans: Plan[]
-  paidWeeks: Record<string, number[]>
+  payments: Record<string, ClientPayment[]>
   payOpenId: string | null
   payBusyId: string | null
   onTogglePay: (id: string) => void
   onMarkWeek: (client: Client) => void
   onPayMonth: (client: Client) => void
+  onVoidWeek: (client: Client, numero: number) => void
+  onRunAuto: (client: Client) => void
   inactive?: boolean
   editingJobsId: string | null
   jobInput: string
@@ -71,14 +74,16 @@ interface ClientRowProps {
 }
 
 function ClientRow({
-  client, plans, paidWeeks, payOpenId, payBusyId, onTogglePay, onMarkWeek, onPayMonth,
+  client, plans, payments, payOpenId, payBusyId, onTogglePay, onMarkWeek, onPayMonth, onVoidWeek, onRunAuto,
   inactive, editingJobsId, jobInput, expandedId, activities, loadingActivities,
   onEdit, onToggleJobs, setJobInput, onAddJob, onRemoveJob, onToggleActivities, onReativar, onInativar,
 }: ClientRowProps) {
   // Plano do banco manda; plan_weekly é só fallback legado.
   const plan = plans.find(p => p.id === client.plano_id)
   const weekly = plan?.valor_semanal ?? client.plan_weekly
-  const paidNums = paidWeeks[client.id] ?? []
+  const pays = (payments[client.id] ?? []).slice().sort((a, b) => a.numero_semana - b.numero_semana)
+  const paidNums = pays.map(p => p.numero_semana)
+  const totalRecebido = pays.filter(p => !p.anulado).reduce((s, p) => s + Number(p.valor_usd), 0)
   const payOpen = payOpenId === client.id
   const payBusy = payBusyId === client.id
   let nextUnpaid = 1; { const s = new Set(paidNums); while (s.has(nextUnpaid)) nextUnpaid++ }
@@ -214,13 +219,30 @@ function ClientRow({
         </div>
       )}
 
-      {/* Pagamentos (semanas pagas do cliente) — registra receita + deriva comissão */}
+      {/* Pagamentos — semanas pagas do contrato (receita) + derivação/estorno da comissão */}
       {payOpen && (
         <div className="px-4 pb-3.5 border-t border-bento-border/60 pt-3">
-          <p className="font-tech text-[10px] uppercase tracking-[0.12em] text-bento-muted mb-2">Pagamentos</p>
-          <p className="text-xs text-bento-dim mb-3 tabular-nums">
-            {paidNums.length} semana(s) registrada(s){plan ? ` · ${formatCurrency(weekly, 'en-US', 'USD')}/sem` : ''}
-          </p>
+          <div className="flex items-center justify-between mb-2">
+            <p className="font-tech text-[10px] uppercase tracking-[0.12em] text-bento-muted">Semanas pagas{plan ? ` · ${formatCurrency(weekly, 'en-US', 'USD')}/sem` : ''}</p>
+            <p className="font-tech text-[11px] text-bento-text tabular-nums">Recebido {formatCurrency(totalRecebido, 'en-US', 'USD')}</p>
+          </div>
+          {pays.length === 0 ? (
+            <p className="text-xs text-bento-muted mb-3">Nenhuma semana registrada.</p>
+          ) : (
+            <div className="space-y-1 mb-3">
+              {pays.map(p => (
+                <div key={p.id} className="flex items-center justify-between gap-2 text-xs">
+                  <span className="font-tech text-bento-dim tabular-nums">S{p.numero_semana} · {formatDate(p.paid_on)}</span>
+                  <span className="flex items-center gap-2">
+                    <span className={`font-tech tabular-nums ${p.anulado ? 'line-through text-bento-muted' : 'text-bento-text'}`}>{formatCurrency(Number(p.valor_usd), 'en-US', 'USD')}</span>
+                    {p.anulado
+                      ? <span className="text-[10px] text-red-400 font-semibold">anulada</span>
+                      : !inactive && <button onClick={() => onVoidWeek(client, p.numero_semana)} disabled={payBusy} className="text-[10px] text-red-400 hover:text-red-300 disabled:opacity-50">Anular</button>}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
           {!inactive && (
             <div className="flex flex-wrap gap-2">
               <button onClick={() => onMarkWeek(client)} disabled={payBusy}
@@ -230,6 +252,10 @@ function ClientRow({
               <button onClick={() => onPayMonth(client)} disabled={payBusy}
                 className="px-3 py-1.5 rounded-btn text-xs border border-bento-border text-bento-dim hover:border-lime hover:text-bento-text transition-colors disabled:opacity-50">
                 Pagar mês (4 semanas)
+              </button>
+              <button onClick={() => onRunAuto(client)} disabled={payBusy} title="Testa o agendador neste cliente (server-side)"
+                className="px-3 py-1.5 rounded-btn text-xs border border-bento-border text-bento-dim hover:border-lime hover:text-bento-text transition-colors disabled:opacity-50">
+                Rodar auto agora
               </button>
             </div>
           )}
@@ -251,7 +277,7 @@ export function ClientesClient({ initialClients, currentUser }: Props) {
   const [form, setForm] = useState({ name: '', company: '', email: '', phone: '', plano_id: '' })
   const [editForm, setEditForm] = useState({ name: '', company: '', email: '', phone: '', plano_id: '' })
   const [plans, setPlans] = useState<Plan[]>([])
-  const [paidWeeks, setPaidWeeks] = useState<Record<string, number[]>>({})
+  const [payments, setPayments] = useState<Record<string, ClientPayment[]>>({})
   const [payOpenId, setPayOpenId] = useState<string | null>(null)
   const [payBusyId, setPayBusyId] = useState<string | null>(null)
   const payBusyRef = useRef(false)
@@ -277,15 +303,21 @@ export function ClientesClient({ initialClients, currentUser }: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  // Semanas pagas por cliente (client_payments) — pra saber a próxima e exibir a contagem.
+  // Pagamentos por cliente (client_payments). select('*') é tolerante: se a coluna `anulado`
+  // ainda não existir no banco, simplesmente vem undefined (tratado como não-anulada).
   useEffect(() => {
-    supabase.from('client_payments').select('client_id, numero_semana').then(({ data }) => {
-      const map: Record<string, number[]> = {}
-      for (const r of data ?? []) (map[r.client_id as string] ??= []).push(r.numero_semana as number)
-      setPaidWeeks(map)
+    supabase.from('client_payments').select('*').then(({ data }) => {
+      const map: Record<string, ClientPayment[]> = {}
+      for (const r of data ?? []) (map[(r as { client_id: string }).client_id] ??= []).push(r as unknown as ClientPayment)
+      setPayments(map)
     })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  const reloadPayments = async (clientId: string) => {
+    const { data } = await supabase.from('client_payments').select('*').eq('client_id', clientId)
+    setPayments(prev => ({ ...prev, [clientId]: (data ?? []) as unknown as ClientPayment[] }))
+  }
 
   // Cotação efetiva (mesma do /api/fx) — congela no lançamento, nunca 0.
   const getRate = async (): Promise<number> => {
@@ -304,11 +336,11 @@ export function ClientesClient({ initialClients, currentUser }: Props) {
     payBusyRef.current = true; setPayBusyId(client.id)
     try {
       const rate = await getRate()
-      const set = new Set(paidWeeks[client.id] ?? [])
+      const set = new Set((payments[client.id] ?? []).map(p => p.numero_semana))
       let n = 1; while (set.has(n)) n++
       const res = await payClientWeek(supabase, client.id, n, todayISO(), rate)
       if (!res.ok) { alert(res.reason === 'dup' ? 'Essa semana já está registrada.' : 'Não foi possível registrar a semana.'); return }
-      setPaidWeeks(prev => ({ ...prev, [client.id]: [...(prev[client.id] ?? []), n] }))
+      await reloadPayments(client.id)
     } finally { payBusyRef.current = false; setPayBusyId(null) }
   }
 
@@ -318,15 +350,39 @@ export function ClientesClient({ initialClients, currentUser }: Props) {
     payBusyRef.current = true; setPayBusyId(client.id)
     try {
       const rate = await getRate()
-      const working = new Set(paidWeeks[client.id] ?? [])
-      const added: number[] = []
+      const working = new Set((payments[client.id] ?? []).map(p => p.numero_semana))
+      let marked = 0
       for (let i = 0; i < 4; i++) {
         let n = 1; while (working.has(n)) n++
         const res = await payClientWeek(supabase, client.id, n, todayISO(), rate)
         if (!res.ok) { if (i === 0) alert(res.reason === 'dup' ? 'Essa semana já está registrada.' : 'Não foi possível registrar a semana.'); break }
-        working.add(n); added.push(n)
+        working.add(n); marked++
       }
-      if (added.length) setPaidWeeks(prev => ({ ...prev, [client.id]: [...(prev[client.id] ?? []), ...added] }))
+      if (marked) await reloadPayments(client.id)
+    } finally { payBusyRef.current = false; setPayBusyId(null) }
+  }
+
+  // Estorno: anula a semana (receita) + remove a comissão derivada. Confirmação leve.
+  const handleVoidWeek = async (client: Client, numero: number) => {
+    if (payBusyRef.current) return
+    if (!window.confirm(`Anular a semana ${numero} de ${client.name}? A comissão dessa semana também sai.`)) return
+    payBusyRef.current = true; setPayBusyId(client.id)
+    try {
+      const res = await voidClientWeek(supabase, client.id, numero)
+      if (!res.ok) { alert('Não foi possível anular a semana.'); return }
+      await reloadPayments(client.id)
+    } finally { payBusyRef.current = false; setPayBusyId(null) }
+  }
+
+  // Gatilho manual do agendador NESTE cliente (testa o caminho server-side antes de ligar pra todos).
+  const handleRunAuto = async (client: Client) => {
+    if (payBusyRef.current) return
+    payBusyRef.current = true; setPayBusyId(client.id)
+    try {
+      const res = await fetch('/api/commission/auto', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ clientId: client.id }) })
+      const j = await res.json().catch(() => ({}))
+      await reloadPayments(client.id)
+      alert(j?.result ? `Auto: ${j.result}` : (j?.ok ? 'Auto executado.' : 'Falha ao rodar o auto.'))
     } finally { payBusyRef.current = false; setPayBusyId(null) }
   }
 
@@ -501,8 +557,9 @@ export function ClientesClient({ initialClients, currentUser }: Props) {
 
   const rowProps = {
     plans,
-    paidWeeks, payOpenId, payBusyId,
+    payments, payOpenId, payBusyId,
     onTogglePay: togglePay, onMarkWeek: handleMarkWeek, onPayMonth: handlePayMonth,
+    onVoidWeek: handleVoidWeek, onRunAuto: handleRunAuto,
     editingJobsId, jobInput, expandedId, activities, loadingActivities,
     onEdit: openEdit, onToggleJobs: toggleJobs, setJobInput,
     onAddJob: handleAddJob, onRemoveJob: handleRemoveJob,

@@ -444,6 +444,11 @@ export function CommissionSection({ sellerId, sellerName }: { sellerId: string; 
   const semanasPendentes = deals.reduce((acc, d) => d.status === 'em_andamento'
     ? acc + Math.max(0, d.tetoSemanas - weeks.filter(w => w.dealId === d.id).length) : acc, 0)
   const monthPrefix = `${refDate.year}-${pad2(refDate.month)}`
+  // Comissão por SEMANA do mês (US$25/semana), com o cliente de origem. Só exibição.
+  const weeksOfMonth = weeks
+    .filter(w => w.paidOn.slice(0, 7) === monthPrefix)
+    .map(w => ({ ...w, clientName: deals.find(d => d.id === w.dealId)?.clientName ?? null }))
+    .sort((a, b) => (a.paidOn < b.paidOn ? -1 : 1))
   const meetingsDoMes = meetings.filter(m => m.metOn.slice(0, 7) === monthPrefix)
 
   // Sugestões do campo de cliente (reunião e venda): clientes formais + leads, sem repetir nome.
@@ -786,6 +791,34 @@ export function CommissionSection({ sellerId, sellerName }: { sellerId: string; 
         <button onClick={gerarPdf} className="flex items-center justify-center gap-1.5 w-full border border-bento-border text-bento-dim hover:border-lime hover:text-bento-text py-2 rounded-btn text-sm font-medium transition-colors min-h-[44px]">
           <Download className="w-4 h-4" /> Gerar PDF do mês
         </button>
+      </Collapsible>
+
+      {/* ── COMISSÃO POR SEMANA (mês selecionado) ──────────────────────── */}
+      <Collapsible icon={<Wallet className="w-4 h-4 text-lime-fg" />} title="Comissão por semana"
+        peek={`${weeksOfMonth.length} semana(s) · ${usd(weeksOfMonth.reduce((s, w) => s + w.valorUsd, 0))}`}
+        open={!!open.semanas} onToggle={() => toggle('semanas')}>
+        {weeksOfMonth.length === 0 ? (
+          <p className="text-sm text-bento-muted py-2 text-center">Nenhuma semana de comissão neste mês.</p>
+        ) : (
+          <div className="space-y-0.5">
+            {weeksOfMonth.map(w => (
+              <div key={w.id} className="flex items-center justify-between py-2 border-b border-bento-border/40">
+                <div className="min-w-0">
+                  <p className="text-sm text-bento-text truncate">{w.clientName || 'Venda'} <span className="text-bento-muted">· sem {w.numeroSemana}</span></p>
+                  <p className="font-tech text-[11px] text-bento-muted tabular-nums">{fmtDayMonthYear(w.paidOn)}</p>
+                </div>
+                <div className="text-right flex-none">
+                  <p className="text-sm font-medium text-bento-text tabular-nums">{usd(w.valorUsd)}</p>
+                  <p className="text-[11px] text-bento-muted tabular-nums">{brl(w.valorUsd * w.cotacaoUsdBrl)}</p>
+                </div>
+              </div>
+            ))}
+            <div className="flex items-center justify-between pt-2.5">
+              <span className="text-sm font-semibold text-bento-text">Total semanas</span>
+              <p className="text-base font-bold text-lime-fg tabular-nums">{usd(weeksOfMonth.reduce((s, w) => s + w.valorUsd, 0))}</p>
+            </div>
+          </div>
+        )}
       </Collapsible>
 
       {/* ── VENDAS ────────────────────────────────────────────────────── */}

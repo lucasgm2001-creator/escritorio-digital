@@ -6,6 +6,15 @@ Categorias: 🐛 Fix · 🔄 Mudança · ✨ Novidade
 
 ---
 
+🔄 Mudança (DINHEIRO/AUTOMAÇÃO) — Comissão automática (INCREMENTO 3): scheduler + estorno + exibição.
+- **Scheduler** `/api/commission/auto` (GitHub Action 1x/dia, `x-cron-secret`): p/ cada cliente **ativo**, no seu dia (`clients.dia_pagamento_semana`), marca a próxima semana devida via o **MESMO `payClientWeek`** (receita + comissão derivada). Inativo → pula. Idempotente. **SEGURANÇA:** cron p/ TODOS só roda com env **`COMMISSION_AUTO_ENABLED="true"`**; botão **"Rodar auto agora"** testa 1 cliente (`{clientId}`).
+- **Estorno** `voidClientWeek`: anula a receita (flag `client_payments.anulado`, **auditável, sem delete**) e **DELETA a comissão** derivada da semana (calc.ts/payWeek **intactos**). UI "Anular" por semana + confirmação.
+- **Exibição:** Cliente = lista de semanas pagas (nº, data, valor, paga/anulada) + total recebido. Comissões = painel **"Comissão por semana"** do mês (cliente + US$25 + R$).
+- **COLUNAS que Lucas adiciona (eu NÃO rodo):** `client_payments.anulado boolean not null default false`; `anulado_em timestamptz`; `anulado_motivo text`.
+- **ENV:** `COMMISSION_AUTO_ENABLED` (Vercel) liga o cron p/ todos; `CRON_SECRET` + `APP_BASE_URL` (GitHub) já existem. `calc.ts`/`payWeek`/`registerMeeting` **INALTERADOS**.
+
+---
+
 🔄 Mudança (DINHEIRO) — Comissão nova, INCREMENTO 2: pagamento parte do CLIENTE → receita + comissão derivada.
 - `actions.ts` NOVO: `resolveClientPlan` + `payClientWeek` — grava `client_payments` (receita = valor do plano, **sem teto**) e **deriva** a comissão chamando o **MESMO `payWeek`** (US$25, ≤4, trava). `deriveCommission` acha o deal `em_andamento` do cliente. **`payWeek`/`calc.ts`/`registerMeeting` INALTERADOS** (só novos chamadores).
 - Clientes: painel **"Pagamentos"** por cliente → **"Marcar semana N"** (próxima não paga) + **"Pagar mês (4 semanas)"**; anti-duplo-clique; trava `unique(client_id,numero_semana)` → "já registrada". **N>4** só receita; **cliente sem deal** só receita.
