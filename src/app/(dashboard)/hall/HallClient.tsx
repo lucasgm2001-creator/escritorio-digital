@@ -399,17 +399,68 @@ function EventDetailModal({ event, onClose, onDelete }: { event: CalendarEvent; 
   )
 }
 
+// Detalhe do DIA (tarefas + eventos). Fecha por X, ESC, clique fora — e o toggle (clicar
+// de novo no mesmo dia) é tratado no onClick do dia. Read-only.
+function DayDetailModal({ dateStr, events, tasks, todayStr, onClose }: {
+  dateStr: string; events: CalendarEvent[]; tasks: Task[]; todayStr: string; onClose: () => void
+}) {
+  useEscape(onClose)
+  const titulo = new Date(dateStr + 'T12:00:00').toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' })
+  return (
+    <div onClick={onClose} className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-end sm:items-center justify-center z-50 p-0 sm:p-4">
+      <div onClick={e => e.stopPropagation()} className="bento-fx rounded-t-frame sm:rounded-frame shadow-card-hover w-full sm:max-w-md max-h-[85vh] overflow-y-auto animate-slide-up">
+        <div className="flex items-center justify-between p-5 border-b border-bento-border">
+          <h2 className="font-display font-bold text-bento-text text-base capitalize">{titulo}</h2>
+          <button onClick={onClose} aria-label="Fechar" className="text-bento-muted hover:text-bento-text transition-colors p-1">
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+          </button>
+        </div>
+        <div className="p-5 space-y-4">
+          {tasks.length > 0 && (
+            <div className="space-y-1.5">
+              <p className="font-tech text-[10px] uppercase tracking-[0.12em] text-bento-muted">Tarefas</p>
+              {tasks.map(t => (
+                <div key={t.id} className="flex items-center gap-2">
+                  <span className={cn('w-2 h-2 rounded-full flex-none', t.done ? 'bg-bento-muted' : (t.due_date ?? '') < todayStr ? 'bg-red-500' : 'bg-lime')} />
+                  <span className={cn('text-sm flex-1 min-w-0', t.done ? 'line-through text-bento-muted' : 'text-bento-text')}>{t.title}</span>
+                  {t.due_time && <span className="font-tech text-[11px] text-bento-muted flex-none">{t.due_time.slice(0, 5)}</span>}
+                </div>
+              ))}
+            </div>
+          )}
+          {events.length > 0 && (
+            <div className="space-y-1.5">
+              <p className="font-tech text-[10px] uppercase tracking-[0.12em] text-bento-muted">Eventos</p>
+              {events.map(e => (
+                <div key={e.id} className="flex items-center gap-2">
+                  <span className="w-2 h-2 rounded-sm flex-none" style={{ backgroundColor: e.color }} />
+                  <span className="text-sm flex-1 min-w-0 text-bento-text">{e.title}</span>
+                  {e.start_time && <span className="font-tech text-[11px] text-bento-muted flex-none">{e.start_time.slice(0, 5)}</span>}
+                </div>
+              ))}
+            </div>
+          )}
+          {tasks.length === 0 && events.length === 0 && (
+            <p className="text-sm text-bento-muted text-center py-4">Nada neste dia.</p>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ─── Calendar Component ───────────────────────────────────────────────────────
 
 interface CalendarProps {
   userId: string
   events: CalendarEvent[]
+  tasks: Task[]
   onEventsChange: (events: CalendarEvent[]) => void
   focusEvent?: CalendarEvent | null
   onFocusHandled?: () => void
 }
 
-function Calendar({ userId, events, onEventsChange, focusEvent, onFocusHandled }: CalendarProps) {
+function Calendar({ userId, events, tasks, onEventsChange, focusEvent, onFocusHandled }: CalendarProps) {
   const now = new Date()
   const todayStr = toDateStr(now)
 
@@ -430,6 +481,13 @@ function Calendar({ userId, events, onEventsChange, focusEvent, onFocusHandled }
 
   const eventsMap = events.reduce<Record<string, CalendarEvent[]>>((acc, ev) => {
     (acc[ev.date] = acc[ev.date] ?? []).push(ev)
+    return acc
+  }, {})
+
+  // Tarefas por dia (mesma fonte do Mural: tabela tasks; casa pelo dia civil due_date, sem fuso).
+  const [selectedDay, setSelectedDay] = useState<string | null>(null)
+  const tasksByDay = tasks.reduce<Record<string, Task[]>>((acc, t) => {
+    if (t.due_date) (acc[t.due_date] = acc[t.due_date] ?? []).push(t)
     return acc
   }, {})
 
@@ -474,6 +532,7 @@ function Calendar({ userId, events, onEventsChange, focusEvent, onFocusHandled }
         const isCurrentMonth = now.getFullYear() === selectedYear && i === now.getMonth()
         const monthStr = `${selectedYear}-${String(i + 1).padStart(2, '0')}`
         const hasEvents = events.some(e => e.date.startsWith(monthStr))
+        const monthHasTasks = tasks.some(t => !t.done && (t.due_date ?? '').startsWith(monthStr))
         return (
           <button key={i} onClick={() => { setMonth(i); setView('monthly') }}
             className={`rounded-bento p-3 border text-center transition-all hover:border-lime/60 cursor-pointer ${
@@ -482,11 +541,12 @@ function Calendar({ userId, events, onEventsChange, focusEvent, onFocusHandled }
             <p className={`font-display text-sm font-bold capitalize ${isCurrentMonth ? 'text-lime-fg' : 'text-bento-text'}`}>
               {MONTH_ABBR[i]}
             </p>
-            {hasEvents && (
-              <div className="flex justify-center gap-0.5 mt-1.5">
+            {(hasEvents || monthHasTasks) && (
+              <div className="flex justify-center items-center gap-0.5 mt-1.5">
                 {events.filter(e => e.date.startsWith(monthStr)).slice(0, 3).map(e => (
                   <span key={e.id} className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: e.color }} />
                 ))}
+                {monthHasTasks && <span className="w-1.5 h-1.5 rounded-full bg-lime" />}
               </div>
             )}
           </button>
@@ -508,22 +568,25 @@ function Calendar({ userId, events, onEventsChange, focusEvent, onFocusHandled }
         <div className="grid grid-cols-7 gap-1">
           {days.map(({ date, dateStr, isCurrentMonth }, i) => {
             const dayEvents = eventsMap[dateStr] ?? []
+            const pend = (tasksByDay[dateStr] ?? []).filter(t => !t.done)
             const isToday = dateStr === todayStr
             return (
-              <button key={i} onClick={() => { setDailyDate(date); setView('daily') }}
-                className={`rounded-md p-1.5 min-h-[52px] border text-left transition-all hover:border-lime/50 ${
+              <button key={i} onClick={() => setSelectedDay(s => s === dateStr ? null : dateStr)}
+                className={`rounded-md p-1.5 min-h-[56px] border text-left transition-all hover:border-lime/50 ${
                   isToday ? 'bg-lime/15 border-lime/40' :
+                  selectedDay === dateStr ? 'border-lime/60 bg-bento-bg' :
                   isCurrentMonth ? 'bg-bento-bg border-bento-border' : 'bg-transparent border-bento-border/40'
                 }`}>
                 <span className={`font-display text-xs font-medium ${
                   isToday ? 'text-lime-fg' : isCurrentMonth ? 'text-bento-text' : 'text-bento-muted/50'
                 }`}>{date.getDate()}</span>
-                <div className="flex flex-wrap gap-0.5 mt-0.5">
+                <div className="flex flex-wrap items-center gap-0.5 mt-0.5">
                   {dayEvents.slice(0, 3).map(e => (
                     <span key={e.id} className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: e.color }} />
                   ))}
-                  {dayEvents.length > 3 && <span className="text-[9px] text-bento-muted">+{dayEvents.length - 3}</span>}
+                  {pend.length > 0 && <span className={cn('w-1.5 h-1.5 rounded-full', pend.some(t => (t.due_date ?? '') < todayStr) ? 'bg-red-500' : 'bg-lime')} />}
                 </div>
+                {pend.length > 0 && <span className="block text-[9px] text-bento-dim leading-tight truncate mt-0.5">{pend[0].title}{pend.length > 1 ? ` +${pend.length - 1}` : ''}</span>}
               </button>
             )
           })}
@@ -539,22 +602,36 @@ function Calendar({ userId, events, onEventsChange, focusEvent, onFocusHandled }
       <div className="flex gap-2 overflow-x-auto pb-1 snap-x sm:grid sm:grid-cols-7 sm:overflow-visible sm:pb-0">
         {days.map(({ label, date, dateStr }) => {
           const dayEvents = eventsMap[dateStr] ?? []
+          const pend = (tasksByDay[dateStr] ?? []).filter(t => !t.done)
           const isToday = dateStr === todayStr
           return (
-            <button key={dateStr} onClick={() => { setDailyDate(date); setView('daily') }}
-              className={`min-w-[72px] shrink-0 snap-start sm:min-w-0 sm:shrink rounded-bento p-3 border text-center transition-all hover:border-lime/60 cursor-pointer ${
-                isToday ? 'bg-lime/15 border-lime/40' : 'bg-bento-bg border-bento-border'
+            <button key={dateStr} onClick={() => setSelectedDay(s => s === dateStr ? null : dateStr)}
+              className={`min-w-[88px] shrink-0 snap-start sm:min-w-0 sm:shrink rounded-bento p-3 border text-center transition-all hover:border-lime/60 cursor-pointer ${
+                isToday ? 'bg-lime/15 border-lime/40' : selectedDay === dateStr ? 'border-lime/60 bg-bento-bg' : 'bg-bento-bg border-bento-border'
               }`}>
               <p className={`font-tech text-[10px] uppercase tracking-[0.12em] ${isToday ? 'text-lime-fg' : 'text-bento-muted'}`}>{label}</p>
               <p className={`font-display text-xl font-bold mt-1 tabular-nums ${isToday ? 'text-lime-fg' : 'text-bento-text'}`}>
                 {date.getDate()}
               </p>
-              <div className="flex flex-wrap justify-center gap-0.5 mt-1.5">
-                {dayEvents.slice(0, 2).map(e => (
-                  <span key={e.id} className="w-2 h-2 rounded-sm" style={{ backgroundColor: e.color }} />
-                ))}
-                {dayEvents.length > 2 && <span className="text-[9px] text-bento-muted w-full text-center">+{dayEvents.length - 2}</span>}
-              </div>
+              {dayEvents.length > 0 && (
+                <div className="flex flex-wrap justify-center gap-0.5 mt-1.5">
+                  {dayEvents.slice(0, 3).map(e => (
+                    <span key={e.id} className="w-2 h-2 rounded-sm" style={{ backgroundColor: e.color }} />
+                  ))}
+                  {dayEvents.length > 3 && <span className="text-[9px] text-bento-muted w-full text-center">+{dayEvents.length - 3}</span>}
+                </div>
+              )}
+              {pend.length > 0 && (
+                <div className="mt-1.5 space-y-0.5 text-left">
+                  {pend.slice(0, 2).map(t => (
+                    <div key={t.id} className="flex items-center gap-1">
+                      <span className={cn('w-1.5 h-1.5 rounded-full flex-none', (t.due_date ?? '') < todayStr ? 'bg-red-500' : 'bg-lime')} />
+                      <span className="text-[9px] text-bento-dim leading-tight truncate">{t.title}</span>
+                    </div>
+                  ))}
+                  {pend.length > 2 && <span className="block text-[9px] text-bento-muted">+{pend.length - 2}</span>}
+                </div>
+              )}
             </button>
           )
         })}
@@ -566,11 +643,24 @@ function Calendar({ userId, events, onEventsChange, focusEvent, onFocusHandled }
   const DailyView = () => {
     const dailyStr = toDateStr(dailyDate)
     const dayEvents = eventsMap[dailyStr] ?? []
+    const dayTasks = tasksByDay[dailyStr] ?? []
     const slots = getHourSlots()
     const currentHour = now.getHours()
 
     return (
       <div className="space-y-1">
+        {dayTasks.length > 0 && (
+          <div className="mb-3 rounded-bento border border-bento-border bg-bento-bg p-3 space-y-1.5">
+            <p className="font-tech text-[10px] uppercase tracking-[0.12em] text-bento-muted">Tarefas do dia</p>
+            {dayTasks.map(t => (
+              <div key={t.id} className="flex items-center gap-2">
+                <span className={cn('w-1.5 h-1.5 rounded-full flex-none', t.done ? 'bg-bento-muted' : (t.due_date ?? '') < todayStr ? 'bg-red-500' : 'bg-lime')} />
+                <span className={cn('text-xs flex-1 min-w-0 truncate', t.done ? 'line-through text-bento-muted' : 'text-bento-text')}>{t.title}</span>
+                {t.due_time && <span className="font-tech text-[10px] text-bento-muted">{t.due_time.slice(0, 5)}</span>}
+              </div>
+            ))}
+          </div>
+        )}
         {slots.map(({ hour, label }) => {
           const slotEvents = dayEvents.filter(e => {
             if (!e.start_time) return false
@@ -669,6 +759,16 @@ function Calendar({ userId, events, onEventsChange, focusEvent, onFocusHandled }
           event={detailEvent}
           onClose={() => setDetailEvent(null)}
           onDelete={handleEventDeleted}
+        />
+      )}
+
+      {selectedDay && (
+        <DayDetailModal
+          dateStr={selectedDay}
+          events={eventsMap[selectedDay] ?? []}
+          tasks={tasksByDay[selectedDay] ?? []}
+          todayStr={todayStr}
+          onClose={() => setSelectedDay(null)}
         />
       )}
     </>
@@ -975,7 +1075,7 @@ export function HallClient({ initialActivities, initialNotices, initialTasks, li
             </div>
 
             {/* AGENDA — full width, altura NATURAL (sem stretch/h-full → sem buraco no modo Semanal) */}
-            <Calendar userId={userId} events={calEvents} onEventsChange={setCalEvents} focusEvent={focusEvent} onFocusHandled={() => setFocusEvent(null)} />
+            <Calendar userId={userId} events={calEvents} tasks={initialTasks} onEventsChange={setCalEvents} focusEvent={focusEvent} onFocusHandled={() => setFocusEvent(null)} />
 
             {/* ATIVIDADES RECENTES + MURAL — lado a lado, mesma altura */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 items-stretch">

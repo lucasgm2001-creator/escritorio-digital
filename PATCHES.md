@@ -6,6 +6,14 @@ Categorias: 🐛 Fix · 🔄 Mudança · ✨ Novidade
 
 ---
 
+🐛 Fix + ✨ Agenda — fechar o detalhe + tarefas marcadas nos dias.
+- **Fechar (bug):** modais da Agenda (Novo Evento / Detalhe do evento) e o novo Detalhe do Dia fecham por **X + ESC + clique fora (backdrop)** — antes só X. Clicar de novo no mesmo dia **alterna pra fechado** (toggle).
+- **Tarefas nos dias:** a Agenda recebe as tarefas (MESMA fonte do Mural — tabela `tasks`, casa pelo **dia civil** `due_date`, sem fuso). Dia com tarefa pendente ganha **ponto** (vermelho=atrasada, lime=no prazo; concluída=cinza/sem) + **tópico** (título curto, +N). **Semanal/Mensal** = ponto+título; **Diário** = lista do dia; **Anual** = ponto no mês.
+- Clicar no dia abre **DayDetailModal** (tarefas + eventos daquele dia), fechável e em sincronia com o Mural.
+- Sem dinheiro/schema (tasks já tem data/hora); realtime/fontes intactos. (`calc.ts`/`payWeek` intactos.)
+
+---
+
 🔄 Mudança (UI) — Hall reorganizado: mata o buraco no meio.
 - Removido o pareamento **Agenda↔Notícias com `items-stretch`** (causava vão alto: Agenda no modo Semanal é curta e era esticada pela coluna de Notícias).
 - Nova ordem (coluna): **1) Agenda full width, altura NATURAL** (sem stretch/h-full); **2) Atividades Recentes + Mural** lado a lado (items-stretch só nessa linha); **3) Notícias full width embaixo, em GRID 2–3 col** — card com resumo truncado (2 linhas) + **impacto no "ver mais"**, ~6 itens.
