@@ -2,7 +2,7 @@ import { generateText, tool, jsonSchema } from 'ai'
 import { anthropic } from '@ai-sdk/anthropic'
 import type { createClient } from '@/lib/supabase/server'
 import { nextUnpaidWeek } from '@/lib/commission/actions'
-import { ymd } from '@/lib/format'
+import { ymd, usd } from '@/lib/format'
 import { wonSlug, type FunnelStage } from '@/lib/funnelStages'
 
 // Client supabase do REQUEST atual (server, ligado à sessão/cookies correntes).
@@ -198,25 +198,42 @@ export class SuperAgent {
     return text
   }
 
-  // Dados disponíveis para o agente analisar
+  // MRR (USD) IDÊNTICO à tela de Clientes: clientes ativos, (plano.valor_semanal ?? plan_weekly) * 4.
+  // Replica a fórmula de ClientesClient.tsx:391 (hoje não há helper compartilhado — ver resumo).
+  private mrrUsd(
+    clients: { status?: string | null; plano_id?: string | null; plan_weekly?: number | null }[],
+    plans: { id: string; valor_semanal: number }[],
+  ): number {
+    return clients
+      .filter(c => c.status === 'ativo')
+      .reduce((sum, c) => sum + ((plans.find(p => p.id === c.plano_id)?.valor_semanal ?? c.plan_weekly ?? 0) * 4), 0)
+  }
+
+  // Dados disponíveis para o agente analisar. Financeiro = MESMAS tabelas/colunas do app:
+  // receita = client_payments (tela Clientes) · comissão = weekly_payments (Equipe e Comissões).
+  // Campanhas removidas (sem fonte real). MRR via mrrUsd (mesma fórmula da tela de Clientes).
   async getContextData() {
     const [
       { data: leads },
       { data: clients },
-      { data: payments },
-      { data: campaigns },
+      { data: plans },
+      { data: receita },
+      { data: comissao },
     ] = await Promise.all([
       this.supabase.from('leads').select('*').limit(20),
       this.supabase.from('clients').select('*').limit(20),
-      this.supabase.from('payments').select('*').limit(20),
-      this.supabase.from('campaigns').select('*').limit(10),
+      this.supabase.from('plans').select('id, nome, valor_semanal').eq('ativo', true).order('ordem'),
+      this.supabase.from('client_payments').select('*').order('paid_on', { ascending: false }).limit(20),
+      this.supabase.from('weekly_payments').select('id, deal_id, numero_semana, valor_usd, paid_on, cotacao_usd_brl').order('paid_on', { ascending: false }).limit(20),
     ])
 
     return {
       leads: leads || [],
       clients: clients || [],
-      payments: payments || [],
-      campaigns: campaigns || [],
+      plans: plans || [],
+      receita: receita || [],     // client_payments — recebido dos clientes
+      comissao: comissao || [],   // weekly_payments — comissão recebida
+      mrrUsd: this.mrrUsd(clients || [], plans || []),
     }
   }
 
@@ -227,18 +244,18 @@ export class SuperAgent {
     // Filtrar dados pelo role do usuário
     let filteredContext = { ...context }
     if (userRole === 'comercial') {
-      // Comercial só vê leads e seus próprios clientes
-      filteredContext = { leads: context.leads, clients: context.clients, payments: [], campaigns: [] }
+      // Comercial vê leads/clientes; oculta financeiro (receita/comissão/MRR).
+      filteredContext = { ...context, receita: [], comissao: [], mrrUsd: 0 }
     } else if (userRole === 'financeiro') {
-      // Financeiro só vê pagamentos
-      filteredContext = { leads: [], clients: context.clients, payments: context.payments, campaigns: [] }
+      // Financeiro vê clientes + receita/comissão/MRR; oculta leads.
+      filteredContext = { ...context, leads: [] }
     } else if (userRole === 'trafego') {
-      // Tráfego só vê campanhas e leads
-      filteredContext = { leads: context.leads, clients: [], payments: [], campaigns: context.campaigns }
+      // Tráfego só vê leads (sem fonte real de campanhas).
+      filteredContext = { ...context, clients: [], plans: [], receita: [], comissao: [], mrrUsd: 0 }
     }
 
     return this.generateAIResponse(
-      `Você é um assistente inteligente do Escritório Digital DR Growth. Você ajuda a equipe respondendo perguntas sobre leads, clientes, pagamentos e campanhas. Seja conciso, prático e orientado a ações. Responda em português.`,
+      `Você é um assistente inteligente do Escritório Digital DR Growth. Você ajuda a equipe respondendo perguntas sobre leads, clientes, receita e comissões. Seja conciso, prático e orientado a ações. Responda em português.`,
       `Dados disponíveis:\n${JSON.stringify(filteredContext, null, 2)}\n\nPergunta do usuário (${userRole}): ${userQuestion}`,
       400,
       'haiku'
@@ -460,34 +477,25 @@ export class SuperAgent {
     return data
   }
 
-  // Checar pagamentos atrasados
+  // "Pagamentos atrasados": o modelo atual (client_payments) é um LEDGER de semanas PAGAS — não
+  // tem status "pendente"/due_date. "Atrasado" deriva do vencimento (payDueWeeks/dueDateFor, lógica
+  // de dinheiro) → fica pra tarefa específica. Aposentado pra não ler tabela morta (payments).
   async verificarPagamentosAtrasados() {
-    const { data: pagamentos } = await this.supabase
-      .from('payments')
-      .select('*')
-      .eq('status', 'pendente')
-      .lt('due_date', new Date().toISOString().slice(0, 10))
-
-    if (pagamentos && pagamentos.length > 0) {
-      await this.postarNoHall(
-        `⚠️ ${pagamentos.length} pagamento(s) atrasado(s). Thamyris, favor cobrar!`,
-        'warning'
-      )
-    }
+    return
   }
 
-  // Checar MRR
+  // Checar MRR — MESMO número da tela de Clientes (USD): plano_id → plans.valor_semanal (fallback plan_weekly).
   async verificarMRR() {
-    const { data: clients } = await this.supabase
-      .from('clients')
-      .select('plan_weekly')
-      .eq('status', 'ativo')
+    const [{ data: clients }, { data: plans }] = await Promise.all([
+      this.supabase.from('clients').select('plano_id, plan_weekly, status').eq('status', 'ativo'),
+      this.supabase.from('plans').select('id, valor_semanal').eq('ativo', true),
+    ])
 
-    const mrr = (clients || []).reduce((sum, c) => sum + (c.plan_weekly * 4), 0)
+    const mrr = this.mrrUsd(clients || [], plans || [])
 
     if (mrr < 10000) {
       await this.postarNoHall(
-        `📉 MRR baixo: R$ ${mrr.toFixed(2)}. Daniel, revisar conversões!`,
+        `📉 MRR baixo: ${usd(mrr)}. Daniel, revisar conversões!`,
         'alert'
       )
     }
@@ -515,24 +523,10 @@ export class SuperAgent {
     }
   }
 
-  // Checar campanhas sem resultado
+  // Campanhas: sem fonte de dados real (nada popula campanhas hoje). Contexto de campanhas
+  // removido — re-adicionar quando houver tráfego real com fonte de verdade. Não lê tabela morta.
   async verificarCampanhasSemResultado() {
-    const setedasAtras = new Date()
-    setedasAtras.setDate(setedasAtras.getDate() - 7)
-
-    const { data: campaigns } = await this.supabase
-      .from('campaigns')
-      .select('*')
-      .lt('created_at', setedasAtras.toISOString())
-
-    const semResultado = (campaigns || []).filter(c => c.leads === 0)
-
-    if (semResultado.length > 0) {
-      await this.postarNoHall(
-        `🚨 Campanha(s) sem resultado em 7 dias. Gabriel, considere pausar: ${semResultado[0].name}`,
-        'alert'
-      )
-    }
+    return
   }
 }
 

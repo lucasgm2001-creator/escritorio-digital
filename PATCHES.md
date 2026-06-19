@@ -6,6 +6,15 @@ Categorias: 🐛 Fix · 🔄 Mudança · ✨ Novidade
 
 ---
 
+🐛 Agente (SuperAgent): leitura financeira nas tabelas certas.
+- Contexto financeiro lia **tabelas mortas** (`payments`/`campaigns`). Agora: **receita = `client_payments`** + **comissão = `weekly_payments`** (mesmas queries/colunas da tela de Clientes e de Comissões).
+- **MRR** usa a **mesma fórmula da tela de Clientes** (`plano_id` → `plans.valor_semanal`, fallback `plan_weekly`, × 4), em **USD**. Antes divergia (só `plan_weekly`).
+- **Campanhas removidas** (sem fonte real) — não consulta mais a tabela morta.
+- **"Pagamentos atrasados" aposentado**: o ledger `client_payments` não tem pendente/vencimento (atrasado deriva de `payDueWeeks` — tarefa de dinheiro à parte).
+- **Só leitura** para contexto. **Nenhuma** escrita/lógica de dinheiro tocada (calc.ts/payWeek/won-flow/cron intactos). `payments`/`campaigns` não são mais lidas → podem ser dropadas.
+
+---
+
 🐛 Apresentação: fim do "carregamento"/flash branco ao trocar de slide.
 - **Causa:** o visualizador **remontava a cada troca** (`key={index}`) → o `PdfView` re-importava o pdf.js e **re-buscava/re-renderizava o PDF do zero** a cada slide (e o "outgoing" montava um 2º `PdfView`). **Não** era navegação nem `loading.tsx` (o body já é escuro `#080D0A`).
 - **Agora:** **deck montado uma vez** — cada slide é uma camada fixa (key por slot, não por índice); trocar = só alternar `opacity`. **Sem remontar, sem refetch**; voltar a um slide é instantâneo.
