@@ -76,7 +76,7 @@ export function NewsSection() {
   }, [news, nicho, estado])
 
   return (
-    <Panel className="h-full" label="Notícias do setor" action={<Newspaper className="w-3.5 h-3.5 text-bento-muted" />}>
+    <Panel label="Notícias do setor" action={<Newspaper className="w-3.5 h-3.5 text-bento-muted" />}>
       {/* Filtros (client-side): nicho + estado */}
       <div className="flex flex-wrap items-center gap-1 mb-2.5">
         <Chip active={!nicho && !estado} onClick={() => { setNicho(null); setEstado(null) }}>Todas</Chip>
@@ -94,8 +94,8 @@ export function NewsSection() {
           {news.length === 0 ? 'Sem notícias ainda — a primeira atualização chega em breve.' : 'Nada com esse filtro.'}
         </p>
       ) : (
-        <div className="space-y-2">
-          {filtered.slice(0, 5).map(n => <NewsCard key={n.id} n={n} />)}
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+          {filtered.slice(0, 6).map(n => <NewsCard key={n.id} n={n} />)}
         </div>
       )}
     </Panel>
@@ -116,32 +116,26 @@ function NewsCard({ n }: { n: News }) {
   const [open, setOpen] = useState(false)
   const sev = SEV[n.severidade] ?? SEV.media
   const nichoLabel = NICHOS.find(x => x.key === n.categoria)?.label
-  const hasDetail = !!(n.resumo || n.impacto)
+  const hasMore = !!(n.impacto || (n.resumo && n.resumo.length > 110))
   return (
-    <div className="rounded-bento border border-bento-border bg-bento-panel p-2.5">
-      {/* Enxuto: título + chips. Resumo/impacto só ao expandir (nada de parede de texto). */}
-      <button type="button" onClick={() => hasDetail && setOpen(o => !o)} className={cn('w-full text-left', hasDetail && 'cursor-pointer')}>
-        <p className="text-xs font-semibold text-bento-text leading-snug line-clamp-2">{n.titulo}</p>
-        <div className="flex flex-wrap items-center gap-1 mt-1">
-          {nichoLabel && <span className="text-[10px] px-1.5 py-0.5 rounded-full border border-bento-border text-bento-muted font-semibold">{nichoLabel}</span>}
-          {(n.estados ?? []).slice(0, 2).map(e => (
-            <span key={e} className="font-tech text-[10px] px-1.5 py-0.5 rounded-full border border-bento-border text-bento-dim">{e}</span>
-          ))}
-          <span className={cn('text-[10px] px-1.5 py-0.5 rounded-full border font-semibold', sev.cls)}>{sev.label}</span>
-        </div>
-      </button>
-      {open && (
-        <div className="mt-1.5 space-y-1">
-          {n.resumo && <p className="text-[11px] text-bento-dim leading-snug">{n.resumo}</p>}
-          {n.impacto && <p className="text-[11px] text-bento-text leading-snug"><span className="text-bento-muted">Impacto:</span> {n.impacto}</p>}
-        </div>
-      )}
-      <div className="flex items-center justify-between gap-2 mt-1.5">
+    <div className="rounded-bento border border-bento-border bg-bento-panel p-3 flex flex-col gap-1.5">
+      {/* Card "grande" (grid full width): título + chips + resumo truncado; impacto no "ver mais". */}
+      <p className="text-sm font-semibold text-bento-text leading-snug">{n.titulo}</p>
+      <div className="flex flex-wrap items-center gap-1.5">
+        {nichoLabel && <span className="text-[10px] px-2 py-0.5 rounded-full border border-bento-border text-bento-muted font-semibold">{nichoLabel}</span>}
+        {(n.estados ?? []).slice(0, 3).map(e => (
+          <span key={e} className="font-tech text-[10px] px-1.5 py-0.5 rounded-full border border-bento-border text-bento-dim">{e}</span>
+        ))}
+        <span className={cn('text-[10px] px-2 py-0.5 rounded-full border font-semibold', sev.cls)}>{sev.label}</span>
+      </div>
+      {n.resumo && <p className={cn('text-xs text-bento-dim leading-snug', !open && 'line-clamp-2')}>{n.resumo}</p>}
+      {open && n.impacto && <p className="text-xs text-bento-text leading-snug"><span className="text-bento-muted">Impacto:</span> {n.impacto}</p>}
+      <div className="flex items-center justify-between gap-2 mt-auto pt-1">
         {n.fonte_url
           ? <a href={n.fonte_url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 font-tech text-[10px] text-lime-fg hover:underline truncate">{n.fonte_nome || 'Fonte'}<ExternalLink className="w-3 h-3 flex-none" /></a>
           : <span className="font-tech text-[10px] text-bento-muted truncate">{n.fonte_nome || ''}</span>}
         <span className="flex items-center gap-1.5 flex-none">
-          {hasDetail && <button type="button" onClick={() => setOpen(o => !o)} className="font-tech text-[10px] text-lime-fg hover:text-lime">{open ? 'menos' : 'ver mais'}</button>}
+          {hasMore && <button type="button" onClick={() => setOpen(o => !o)} className="font-tech text-[10px] text-lime-fg hover:text-lime">{open ? 'menos' : 'ver mais'}</button>}
           <span className="font-tech text-[10px] text-bento-muted">{timeAgo(n.published_at || n.fetched_at)}</span>
         </span>
       </div>

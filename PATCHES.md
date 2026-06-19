@@ -6,6 +6,13 @@ Categorias: 🐛 Fix · 🔄 Mudança · ✨ Novidade
 
 ---
 
+🔄 Mudança (UI) — Hall reorganizado: mata o buraco no meio.
+- Removido o pareamento **Agenda↔Notícias com `items-stretch`** (causava vão alto: Agenda no modo Semanal é curta e era esticada pela coluna de Notícias).
+- Nova ordem (coluna): **1) Agenda full width, altura NATURAL** (sem stretch/h-full); **2) Atividades Recentes + Mural** lado a lado (items-stretch só nessa linha); **3) Notícias full width embaixo, em GRID 2–3 col** — card com resumo truncado (2 linhas) + **impacto no "ver mais"**, ~6 itens.
+- Filtros mantidos. Mesmas fontes/realtime/fallback. Sem dinheiro/schema.
+
+---
+
 🔄 Mudança (UI) — Hall › Visão Geral compactado e reequilibrado.
 - **Notícias compactas:** card enxuto (título + chips categoria/estado/severidade + fonte·tempo); **resumo e impacto ocultos**, abrem ao clicar ("ver mais"); mostra **5 mais recentes**, lista em coluna. Acaba a parede de texto.
 - **KPIs em faixa fina** (label + número numa linha, menos padding/altura).

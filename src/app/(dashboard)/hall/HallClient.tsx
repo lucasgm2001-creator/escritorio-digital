@@ -961,13 +961,8 @@ export function HallClient({ initialActivities, initialNotices, initialTasks, li
               ))}
             </div>
 
-            {/* AGENDA + NOTÍCIAS — lado a lado, mesma altura (calendário 2/3, notícias 1/3 compacta) */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 items-stretch">
-              <div className="lg:col-span-2">
-                <Calendar userId={userId} events={calEvents} onEventsChange={setCalEvents} focusEvent={focusEvent} onFocusHandled={() => setFocusEvent(null)} />
-              </div>
-              <NewsSection />
-            </div>
+            {/* AGENDA — full width, altura NATURAL (sem stretch/h-full → sem buraco no modo Semanal) */}
+            <Calendar userId={userId} events={calEvents} onEventsChange={setCalEvents} focusEvent={focusEvent} onFocusHandled={() => setFocusEvent(null)} />
 
             {/* ATIVIDADES RECENTES + MURAL — lado a lado, mesma altura */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 items-stretch">
@@ -1121,6 +1116,9 @@ export function HallClient({ initialActivities, initialNotices, initialTasks, li
                 </div>
               </Panel>
             </div>
+
+            {/* NOTÍCIAS DO SETOR — full width embaixo, em grid (pode ocupar altura sem desequilibrar) */}
+            <NewsSection />
           </>
         )}
 
