@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react'
 import { useRealtimeRows } from '@/lib/hooks/useRealtimeRows'
-import { updateClient, payClientWeek, voidClientWeek } from '@/lib/commission/actions'
+import { updateClient, payDueWeeks, voidClientWeek } from '@/lib/commission/actions'
 import { createClient } from '@/lib/supabase/client'
 import { useSave } from '@/lib/useSave'
 import { formatCurrency, formatDate, timeAgo } from '@/lib/utils'
@@ -327,38 +327,26 @@ export function ClientesClient({ initialClients, currentUser }: Props) {
     } catch { /* fallback abaixo */ }
     return 5.40
   }
-  const todayISO = () => new Date().toISOString().slice(0, 10)
-
-  // Marca a PRÓXIMA semana não paga do cliente: receita + comissão derivada (via actions.ts).
+  // Marca a próxima semana VENCIDA (date-gated em payDueWeeks: paid_on = data real; nunca futura).
   // Guarda síncrona anti-duplo-clique (como no agente).
   const handleMarkWeek = async (client: Client) => {
     if (payBusyRef.current) return
     payBusyRef.current = true; setPayBusyId(client.id)
     try {
-      const rate = await getRate()
-      const set = new Set((payments[client.id] ?? []).map(p => p.numero_semana))
-      let n = 1; while (set.has(n)) n++
-      const res = await payClientWeek(supabase, client.id, n, todayISO(), rate)
-      if (!res.ok) { alert(res.reason === 'dup' ? 'Essa semana já está registrada.' : 'Não foi possível registrar a semana.'); return }
+      const r = await payDueWeeks(supabase, client.id, await getRate(), 1)
+      if (r.marked.length === 0) { alert(r.reason === 'inativo' ? 'Cliente inativo — congelado.' : 'Nenhuma semana vencida até hoje.'); return }
       await reloadPayments(client.id)
     } finally { payBusyRef.current = false; setPayBusyId(null) }
   }
 
-  // "Pagar o mês" = roda a de 1 semana 4× nas próximas 4 não pagas (working set local).
+  // "Pagar o mês" = marca as semanas VENCIDAS até hoje (no máx. 4), via payDueWeeks. Nunca futura.
   const handlePayMonth = async (client: Client) => {
     if (payBusyRef.current) return
     payBusyRef.current = true; setPayBusyId(client.id)
     try {
-      const rate = await getRate()
-      const working = new Set((payments[client.id] ?? []).map(p => p.numero_semana))
-      let marked = 0
-      for (let i = 0; i < 4; i++) {
-        let n = 1; while (working.has(n)) n++
-        const res = await payClientWeek(supabase, client.id, n, todayISO(), rate)
-        if (!res.ok) { if (i === 0) alert(res.reason === 'dup' ? 'Essa semana já está registrada.' : 'Não foi possível registrar a semana.'); break }
-        working.add(n); marked++
-      }
-      if (marked) await reloadPayments(client.id)
+      const r = await payDueWeeks(supabase, client.id, await getRate(), 4)
+      if (r.marked.length === 0) { alert(r.reason === 'inativo' ? 'Cliente inativo — congelado.' : 'Nenhuma semana vencida até hoje.'); return }
+      await reloadPayments(client.id)
     } finally { payBusyRef.current = false; setPayBusyId(null) }
   }
 

@@ -1,28 +1,21 @@
 import { NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/supabase/require-auth'
 import { createServiceClient } from '@/lib/supabase/service'
-import { payClientWeek } from '@/lib/commission/actions'
+import { payDueWeeks } from '@/lib/commission/actions'
 import { resolveRate } from '@/lib/commission/calc'
 import type { FxConfig } from '@/lib/commission/types'
 
 export const runtime = 'nodejs'
 export const maxDuration = 60
 
-// Auto-preenchimento da semana paga do cliente → REUSA payClientWeek (receita + comissão derivada
-// via payWeek). NÃO duplica regra. Idempotente (trava unique + checagens). DINHEIRO: não muda
-// calc.ts/payWeek; só decide QUANDO chamar o fluxo do incremento 2.
+// Auto-preenchimento DATE-GATED: payDueWeeks marca só as semanas cuja data real venceu (paid_on =
+// data da semana), via payClientWeek (receita + comissão derivada). NUNCA marca futura. NÃO muda
+// calc.ts/payWeek (US$25/teto/etc.) — só decide QUANDO/QUAL semana e a DATA.
 
 function authorizedByToken(req: Request): boolean {
   const secret = process.env.CRON_SECRET
   const provided = req.headers.get('x-cron-secret')
   return !!secret && !!provided && provided === secret
-}
-
-const spDay = (d: Date) => d.toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' }) // YYYY-MM-DD (Brasília)
-const dowOf = (ymd: string) => { const [y, m, d] = ymd.split('-').map(Number); return new Date(Date.UTC(y, m - 1, d)).getUTCDay() } // 0=Dom..6=Sáb
-const daysBetween = (a: string, b: string) => {
-  const pa = a.split('-').map(Number), pb = b.split('-').map(Number)
-  return Math.floor((Date.UTC(pa[0], pa[1] - 1, pa[2]) - Date.UTC(pb[0], pb[1] - 1, pb[2])) / 86400000)
 }
 
 type SupaService = ReturnType<typeof createServiceClient>
@@ -36,27 +29,6 @@ async function resolveServerRate(supabase: SupaService): Promise<number> {
   return r > 0 ? r : 5.40
 }
 
-type Cli = { id: string; status: string; start_date: string | null; dia_pagamento_semana: number | null }
-
-// force=true (gatilho manual de teste): ignora as travas de calendário e marca a próxima semana.
-async function processClient(supabase: SupaService, cli: Cli, today: string, rate: number, force: boolean): Promise<string> {
-  if (cli.status !== 'ativo') return 'skip:inativo'
-  if (!cli.start_date) return 'skip:sem_inicio'
-  const payday = cli.dia_pagamento_semana ?? dowOf(cli.start_date)
-  if (!force && dowOf(today) !== payday) return 'skip:nao_e_o_dia'
-
-  const { data: cps } = await supabase.from('client_payments').select('numero_semana, paid_on').eq('client_id', cli.id)
-  const nums = (cps ?? []).map(r => r.numero_semana as number)
-  const dueWeeks = Math.floor(daysBetween(today, cli.start_date) / 7) + 1
-  if (!force && nums.length >= dueWeeks) return 'skip:em_dia'
-  if (!force && (cps ?? []).some(r => r.paid_on === today)) return 'skip:ja_pago_hoje'
-
-  let n = 1; const set = new Set(nums); while (set.has(n)) n++
-  const res = await payClientWeek(supabase, cli.id, n, today, rate)
-  if (!res.ok) return `skip:${res.reason ?? 'erro'}`
-  return `pago:semana_${n}:comissao_${res.commission ?? 'na'}`
-}
-
 export async function POST(req: Request) {
   let body: { clientId?: string } = {}
   try { body = await req.json() } catch { /* sem corpo = cron */ }
@@ -68,23 +40,23 @@ export async function POST(req: Request) {
   }
 
   const supabase = createServiceClient()
-  const today = spDay(new Date())
   const rate = await resolveServerRate(supabase)
 
-  // Gatilho MANUAL (1 cliente) — testa o caminho completo server-side antes de ligar pra todos.
+  // Gatilho MANUAL (1 cliente) — marca SÓ o que venceu até hoje (date-gated, nunca futura).
   if (body.clientId) {
-    const { data: cli } = await supabase.from('clients').select('id, status, start_date, dia_pagamento_semana').eq('id', body.clientId).maybeSingle()
-    if (!cli) return NextResponse.json({ ok: false, error: 'cliente não encontrado' }, { status: 404 })
-    const result = await processClient(supabase, cli as Cli, today, rate, true)
-    return NextResponse.json({ ok: true, mode: 'single', result })
+    const r = await payDueWeeks(supabase, body.clientId, rate)
+    return NextResponse.json({ ok: true, mode: 'single', marked: r.marked, reason: r.reason })
   }
 
-  // CRON (todos): SÓ roda se ligado explicitamente (segurança — desligado até validar).
+  // CRON (todos): só roda se ligado explicitamente. Date-gating cobre qualquer dia que o cron rode.
   if (process.env.COMMISSION_AUTO_ENABLED !== 'true') {
     return NextResponse.json({ ok: true, mode: 'all', disabled: true, note: 'COMMISSION_AUTO_ENABLED != "true"' })
   }
-  const { data: clients } = await supabase.from('clients').select('id, status, start_date, dia_pagamento_semana').eq('status', 'ativo')
-  const results: Record<string, string> = {}
-  for (const c of clients ?? []) results[c.id] = await processClient(supabase, c as Cli, today, rate, false)
-  return NextResponse.json({ ok: true, mode: 'all', count: Object.keys(results).length, results })
+  const { data: clients } = await supabase.from('clients').select('id').eq('status', 'ativo')
+  const marked: Record<string, number[]> = {}
+  for (const c of clients ?? []) {
+    const r = await payDueWeeks(supabase, c.id as string, rate)
+    if (r.marked.length) marked[c.id as string] = r.marked
+  }
+  return NextResponse.json({ ok: true, mode: 'all', count: (clients ?? []).length, marked })
 }

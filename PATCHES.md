@@ -6,6 +6,14 @@ Categorias: 🐛 Fix · 🔄 Mudança · ✨ Novidade
 
 ---
 
+🐛 Fix (DINHEIRO) — auto/manual marcava semanas FUTURAS com `paid_on=hoje`.
+- NOVO **`payDueWeeks`** (date-gating): `due_date(N)` = N-ésima ocorrência do `dia_pagamento_semana` a partir do `start_date` (+7/sem); marca N só se **`due_date(N) <= hoje`** e ainda não registrada; **`paid_on = due_date(N)`** (data real, não hoje); **NUNCA marca futura**. Semana **anulada** ocupa o número → não re-marca. Inativo congela.
+- Rota `/api/commission/auto` (manual **e** cron) e os botões "Marcar semana" / "Pagar mês" agora usam `payDueWeeks` (acabou a força/marcha). Cron date-gated roda em qualquer dia (corrige o "só no dia exato").
+- Display: anulada já aparece "anulada" e **fora** do total recebido.
+- `calc.ts`/`payWeek`/`registerMeeting` **INALTERADOS** (US$25/teto 4/salário/US$15). Só mudou QUANDO/QUAL semana e a DATA.
+
+---
+
 🔄 Mudança — Navegação enxuta + Hall reequilibrado.
 - **Menu lateral:** só **Hall · Comercial · Studio de Apresentação · [Sistema] Configurações**.
 - **CLIENTES → aba do Comercial** (Funil · Clientes · Métricas · Equipe e Comissões); `/clientes` → `/comercial?tab=clientes`. Plano/pagamento/estorno/comissão **idênticos** (ClientesClient embutido).

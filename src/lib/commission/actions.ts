@@ -137,6 +137,48 @@ export async function payClientWeek(
   return { ok: true, valorUsd, commission }
 }
 
+// ── Date-gating do auto: marca SÓ as semanas cuja DATA REAL de vencimento já chegou ──
+const spToday = () => new Date().toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' }) // YYYY-MM-DD (Brasília)
+const dowOfYmd = (ymd: string) => { const [y, m, d] = ymd.split('-').map(Number); return new Date(Date.UTC(y, m - 1, d)).getUTCDay() } // 0=Dom..6=Sáb (data civil, sem fuso)
+const addDaysYmd = (ymd: string, days: number) => {
+  const [y, m, d] = ymd.split('-').map(Number)
+  return new Date(Date.UTC(y, m - 1, d) + days * 86400000).toISOString().slice(0, 10)
+}
+// due_date(n) = n-ésima ocorrência do dia de pagamento a partir do start_date (semana 1 = 1º pagamento; +7/sem).
+export function dueDateFor(startYmd: string, diaPagamento: number, n: number): string {
+  const offset = (((diaPagamento - dowOfYmd(startYmd)) % 7) + 7) % 7
+  return addDaysYmd(startYmd, offset + 7 * (n - 1))
+}
+
+// Marca as semanas VENCIDAS até hoje (paid_on = DATA REAL da semana), via payClientWeek (receita +
+// comissão derivada). NUNCA marca semana futura. Anuladas ocupam o número → não re-marca. Inativo congela.
+export async function payDueWeeks(
+  supabase: SupaClient, clientId: string, rate: number, maxWeeks = 12,
+): Promise<{ marked: number[]; reason: string }> {
+  const { data: cli } = await supabase.from('clients').select('status, start_date, dia_pagamento_semana').eq('id', clientId).maybeSingle()
+  if (!cli) return { marked: [], reason: 'nao_encontrado' }
+  if (cli.status !== 'ativo') return { marked: [], reason: 'inativo' }
+  if (!cli.start_date) return { marked: [], reason: 'sem_inicio' }
+  const start = String(cli.start_date).slice(0, 10)
+  const dia = cli.dia_pagamento_semana ?? dowOfYmd(start)
+  const today = spToday()
+
+  const { data: cps } = await supabase.from('client_payments').select('numero_semana').eq('client_id', clientId)
+  const registered = new Set((cps ?? []).map(r => r.numero_semana as number)) // inclui anuladas → não re-marca
+
+  const marked: number[] = []
+  for (let i = 0; i < maxWeeks; i++) {
+    let n = 1; while (registered.has(n)) n++
+    const due = dueDateFor(start, dia, n)
+    if (due > today) break          // ainda não venceu → para (NUNCA marca futura)
+    registered.add(n)               // ocupa n (evita loop mesmo se falhar)
+    const res = await payClientWeek(supabase, clientId, n, due, rate) // paid_on = due (data REAL, não hoje)
+    if (res.ok) marked.push(n)
+    else if (res.reason !== 'dup') break // erro real → para; 'dup' (corrida) segue
+  }
+  return { marked, reason: marked.length ? 'ok' : 'nada_vencido' }
+}
+
 // ESTORNO auditável: ANULA a receita (flag em client_payments, SEM delete) e REMOVE a comissão
 // derivada da semana (DELETE da weekly_payment → calc.ts fica intacto: a linha simplesmente some).
 // Requer as colunas anulado/anulado_em/anulado_motivo em client_payments (Lucas adiciona no banco).
