@@ -233,7 +233,31 @@ export function Calendar({ userId, events, tasks, onEventsChange, focusEvent, on
   const WeeklyView = () => {
     const days = getWeekDays(weekBase)
     return (
-      <div className="flex gap-2 overflow-x-auto pb-1 snap-x sm:grid sm:grid-cols-7 sm:overflow-visible sm:pb-0">
+      <>
+      {/* Mobile: 7 dias compactos numa grade (cabem sem rolagem lateral). Toque abre os eventos do dia. */}
+      <div className="grid grid-cols-7 gap-1 sm:hidden">
+        {days.map(({ label, date, dateStr }) => {
+          const dayEvents = eventsMap[dateStr] ?? []
+          const pend = (tasksByDay[dateStr] ?? []).filter(t => !t.done)
+          const isToday = dateStr === todayStr
+          return (
+            <button key={dateStr} onClick={() => setSelectedDay(s => s === dateStr ? null : dateStr)}
+              className={cn('flex flex-col items-center gap-0.5 rounded-md border px-0.5 py-1.5 text-center transition-colors min-h-[52px]',
+                isToday ? 'bg-lime/15 border-lime/40' : selectedDay === dateStr ? 'border-lime/60 bg-bento-bg' : 'bg-bento-bg border-bento-border')}>
+              <span className={cn('font-tech text-[9px] uppercase tracking-tight', isToday ? 'text-lime-fg' : 'text-bento-muted')}>{label}</span>
+              <span className={cn('font-display text-sm font-bold tabular-nums leading-none', isToday ? 'text-lime-fg' : 'text-bento-text')}>{date.getDate()}</span>
+              <span className="flex items-center justify-center gap-0.5 h-1.5">
+                {dayEvents.slice(0, 2).map(e => <span key={e.id} className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: e.color }} />)}
+                {pend.length > 0 && <span className={cn('w-1.5 h-1.5 rounded-full', pend.some(t => (t.due_date ?? '') < todayStr) ? 'bg-red-500' : 'bg-lime')} />}
+                {dayEvents.length + pend.length > 3 && <span className="font-tech text-[8px] text-bento-muted leading-none">+</span>}
+              </span>
+            </button>
+          )
+        })}
+      </div>
+
+      {/* Desktop (sm+): grade detalhada de 7 colunas — inalterada. */}
+      <div className="hidden gap-2 sm:grid sm:grid-cols-7 sm:overflow-visible sm:pb-0">
         {days.map(({ label, date, dateStr }) => {
           const dayEvents = eventsMap[dateStr] ?? []
           const pend = (tasksByDay[dateStr] ?? []).filter(t => !t.done)
@@ -270,6 +294,7 @@ export function Calendar({ userId, events, tasks, onEventsChange, focusEvent, on
           )
         })}
       </div>
+      </>
     )
   }
 
