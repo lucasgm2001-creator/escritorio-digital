@@ -1,6 +1,6 @@
 name: news-refresh
 
-# Atualiza a área "Notícias do setor" do Hall 2x/dia, chamando POST /api/news/refresh.
+# Atualiza a área "Notícias do setor" do Hall 1x/dia, chamando POST /api/news/refresh.
 # Lucas configura em Settings → Secrets and variables → Actions:
 #   - Secret  CRON_SECRET   (mesmo valor da env CRON_SECRET na Vercel)
 #   - Variable APP_BASE_URL (ex.: https://seu-projeto.vercel.app — sem barra no fim)
@@ -8,8 +8,7 @@ name: news-refresh
 
 on:
   schedule:
-    - cron: '0 11 * * *'   # ~08:00 BRT
-    - cron: '0 21 * * *'   # ~18:00 BRT
+    - cron: '0 10 * * *'   # ~07:00 BRT (1x/dia, manhã)
   workflow_dispatch: {}      # permite rodar manualmente pela aba Actions
 
 jobs:
