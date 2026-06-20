@@ -6,6 +6,14 @@ Categorias: 🐛 Fix · 🔄 Mudança · ✨ Novidade
 
 ---
 
+✨ API: webhook de transcrição de ligação (Magnetic / GoHighLevel).
+- Novo **`POST /api/leads/transcript`** (arquivo novo): no gatilho "Transcript Generated", recebe a transcrição e grava no histórico do lead como interação **`'ligacao'`**. Público, **mesmo segredo** (`INBOUND_WEBHOOK_SECRET`, `x-webhook-secret`/`?secret=`, timing-safe) checado **antes** do banco; **service-role**.
+- **Acha o lead** por email/phone (mesma lógica do inbound). **Não cria** lead — sem lead → 200 `{no_lead:true}`. Transcrição buscada em `transcript`/`message_transcript`/`call_transcript`/`transcription` + `customData`/`customFields`; sem texto → 200 `{ignored:'no_transcript'}`. Cabeçalho de direção/duração na nota: "Ligação (saída, 4min):\\n…".
+- **Dedup** por nota igual (mesmo lead, 'ligacao', últimos 10 min) — cobre reenvio. `created_by_name='Magnetic'`. Respostas: 200 `{interactionId}` / `{duplicate}` / `{no_lead}` / `{ignored}`; 401 / 400 / 500.
+- **Frontend:** `'ligacao' → "Ligação"` no mapa de rótulos (LeadBriefModal). As notas já usam `whitespace-pre-wrap`/`break-words` → transcrição longa não quebra o layout.
+
+---
+
 ✨ API: webhook inbound de leads (Magnetic / GoHighLevel).
 - Novo **`POST /api/leads/inbound`** (arquivo novo): recebe lead do Magnetic e insere no funil. Público, protegido por **segredo compartilhado** (`x-webhook-secret` **ou** `?secret=`, comparação timing-safe) checado **ANTES** de tocar no banco; usa **service-role** (sem sessão).
 - Mapeia `full_name` / `first_name`+`last_name` / `name`; `email`; `phone`; `company_name`/`company`; **notes** legível ("Chave: valor | ...") com serviço/estado/cidade/mensagem + custom fields. Defaults de lead manual: `status:'novo'`, `operation:'eua'`, `prioridade:'media'`, `score:500`, atribuído ao **Lucas** (`assigned_to:null`), `received_at` = default do banco.
