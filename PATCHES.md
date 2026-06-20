@@ -6,6 +6,15 @@ Categorias: 🐛 Fix · 🔄 Mudança · ✨ Novidade
 
 ---
 
+✨ API: webhook inbound de leads (Magnetic / GoHighLevel).
+- Novo **`POST /api/leads/inbound`** (arquivo novo): recebe lead do Magnetic e insere no funil. Público, protegido por **segredo compartilhado** (`x-webhook-secret` **ou** `?secret=`, comparação timing-safe) checado **ANTES** de tocar no banco; usa **service-role** (sem sessão).
+- Mapeia `full_name` / `first_name`+`last_name` / `name`; `email`; `phone`; `company_name`/`company`; **notes** legível ("Chave: valor | ...") com serviço/estado/cidade/mensagem + custom fields. Defaults de lead manual: `status:'novo'`, `operation:'eua'`, `prioridade:'media'`, `score:500`, atribuído ao **Lucas** (`assigned_to:null`), `received_at` = default do banco.
+- **Dedup** por email **ou** phone (200 `{duplicate:true}`). Sem nome/email/phone → 200 `{ignored:'empty'}`. Tudo em try/catch. Loga o payload bruto (nunca o segredo/keys).
+- ⚠️ `origem`: o CHECK do banco só aceita instagram/google/indicacao/tiktok/site/outro → grava `origem='outro'` e marca **"Origem: Magnetic"** nas notas. (Valor 'magnetic' real exigiria migration.)
+- **SÓ arquivo novo** — nada existente foi alterado.
+
+---
+
 ✨ Studio: "Resumo do lead" antes de apresentar.
 - Ao clicar **Apresentar** numa apresentação **com lead vinculado**, abre um painel **"Resumo do lead"** (só leitura) ANTES dos slides: **Observações de cadastro** (`leads.notes`) + **Histórico de contato** (`lead_interactions`: tipo / nota / quem / quando, **recentes primeiro**). Botão **"Apresentar"** inicia a apresentação; "Cancelar"/X fecha. Sem lead vinculado → vai **direto** (sem painel).
 - Trata lead sem `notes` ("Sem observações de cadastro") e sem interações ("Sem histórico de contato"). **Cabe no mobile** (max-w + `overflow-y`/`overflow-x-hidden`, texto quebra). Não toca na apresentação/PDF, dinheiro nem outras telas.
