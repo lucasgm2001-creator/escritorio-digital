@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createHash, timingSafeEqual } from 'crypto'
 import { createServiceClient } from '@/lib/supabase/service'
+import { stateToFuso } from '@/lib/fuso'
 
 // Webhook PÚBLICO — o Magnetic (GoHighLevel) chama a cada lead novo e nós inserimos no funil
 // (tabela `leads`), com os MESMOS defaults de um lead criado à mão. Sem sessão de usuário → usamos
@@ -32,6 +33,15 @@ function secretOk(req: Request): boolean {
 }
 
 const str = (v: unknown): string => (v == null ? '' : String(v).trim())
+
+// Procura, case-insensitive, o 1º valor não-vazio entre as chaves pedidas.
+function findKeyCI(obj: Record<string, unknown>, keys: string[]): string {
+  const want = new Set(keys.map(k => k.toLowerCase()))
+  for (const [k, v] of Object.entries(obj)) {
+    if (want.has(k.toLowerCase())) { const s = str(v); if (s) return s }
+  }
+  return ''
+}
 
 export async function POST(req: Request) {
   // 1) SEGURANÇA antes de qualquer acesso ao banco.
@@ -76,6 +86,16 @@ export async function POST(req: Request) {
     }
     const notes = extras.join(' | ')
 
+    // 3b) Fuso automático a partir do estado: (a) payload (state/estado, inclusive em customData/
+    //     customFields, case-insensitive) → (b) fallback regex nas notes que montamos acima.
+    const customObj = custom && typeof custom === 'object' ? (custom as Record<string, unknown>) : {}
+    let stateRaw = findKeyCI(body, ['state', 'estado']) || findKeyCI(customObj, ['state', 'estado'])
+    if (!stateRaw) {
+      const m = notes.match(/(?:estado|state)\s*:\s*([^|.]+)/i)
+      if (m) stateRaw = m[1].trim()
+    }
+    const fuso = stateToFuso(stateRaw)
+
     // 4) Sem nome, e-mail e telefone → ignora (não insere).
     if (!name && !email && !phone) {
       return NextResponse.json({ ok: true, ignored: 'empty' })
@@ -112,6 +132,7 @@ export async function POST(req: Request) {
         score: 500,
         assigned_to: null,
         assigned_name: 'Lucas',
+        ...(fuso ? { fuso } : {}),   // só seta se reconhecemos o estado (null → não envia)
       })
       .select('id')
       .single()

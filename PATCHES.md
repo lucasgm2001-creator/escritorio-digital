@@ -6,6 +6,13 @@ Categorias: 🐛 Fix · 🔄 Mudança · ✨ Novidade
 
 ---
 
+✨ Inbound de leads: **fuso automático** a partir do estado (US).
+- Novo helper **`src/lib/fuso.ts`** → `stateToFuso(state)`: aceita **sigla (2 letras) ou nome completo** (case-insensitive, com trim), mapa dos **50 estados + DC** pro fuso predominante. **Alaska/Hawaii → null**; não reconhecido → null.
+- **`POST /api/leads/inbound`**: deriva o estado em ordem — (a) payload `state`/`estado` (case-insensitive, inclusive em `customData`/`customFields`) → (b) fallback por regex nas notes (`(Estado|State): valor`). Se reconhece, inclui `fuso` no insert; se null, **não seta**.
+- **Não quebra o webhook atual**: auth/segredo, dedup, mapeamento (name/email/phone/company), status, origem, notes e respostas **intocados** — só ADICIONA a derivação. Dinheiro intocado.
+
+---
+
 ✨ Comercial/Clientes: campos **Fuso** (lead) e **Fuso + Nicho** (cliente) nos formulários.
 - **Lead** (criar em `LeadModal`, editar em `LeadDiary`): seletor **Fuso horário** (Sem fuso / Leste / Central / Montanha / Pacífico) → grava `leads.fuso`. No detalhe do lead a edição é otimista com rollback (igual à "data de chegada").
 - **Cliente** (criar/editar em `ClientesClient`): campos **Nicho** (texto → `clients.nicho`) e **Fuso horário** (→ `clients.fuso`), logo abaixo do Plano.
