@@ -6,6 +6,12 @@ Categorias: 🐛 Fix · 🔄 Mudança · ✨ Novidade
 
 ---
 
+🐛 Mobile — Configurações abre o conteúdo no topo.
+- **Causa:** no celular as abas empilham **acima** do conteúdo (`flex-col`); a lista é alta (~15 itens) → ao trocar de aba, o conteúdo abria "lá embaixo".
+- **Fix (só mobile):** ao tocar numa aba em tela `< md`, o conteúdo é levado pro topo da viewport (`scrollIntoView`) + `scroll-mt-4`. **Desktop (lado a lado) inalterado.** Só layout/scroll — sem mudar lógica.
+
+---
+
 🐛 Agente (Fase 1): fechar venda usa o plano escolhido (comissão Fase 2A, não legado).
 - **Antes:** mover lead pra "Venda Fechada" pelo agente chamava `moveLead` **sem `planoId`** → `runWonFlow` caía no **legado** (US$100 / US$25-sem), furando a comissão por % do plano.
 - **Agora:** ao fechar, o agente **pergunta o plano** (lista os planos do contexto — nome + valor semanal), mapeia nome→`planoId` e fecha com `runWonFlow(planoId)` — **mesmo caminho do modal do funil**. Continua exigindo **confirmação**. Fases não-won seguem diretas (sem mudança).

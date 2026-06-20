@@ -587,6 +587,16 @@ interface Props { userId: string }
 
 export function ConfiguracoesClient({ userId }: Props) {
   const [active, setActive] = useState('tema')
+  const contentRef = useRef<HTMLDivElement>(null)
+  // Mobile: as abas empilham ACIMA do conteúdo (flex-col) → trocar de aba abria o conteúdo "lá
+  // embaixo", depois da lista. Leva o conteúdo pro topo da viewport ao trocar. Desktop (lado a
+  // lado, md:flex-row) o conteúdo já está visível → não dispara.
+  const selectTab = (k: string) => {
+    setActive(k)
+    if (typeof window !== 'undefined' && window.matchMedia('(max-width: 767px)').matches) {
+      requestAnimationFrame(() => contentRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }))
+    }
+  }
 
   const content = (() => {
     if (active.startsWith('andar-')) {
@@ -616,11 +626,11 @@ export function ConfiguracoesClient({ userId }: Props) {
       </div>
       <div className="flex flex-col md:flex-row gap-5">
         <nav className="md:w-56 shrink-0 space-y-4">
-          <NavGroup title="Andares" items={ANDARES} active={active} onSelect={setActive} />
-          <NavGroup title="Comercial" items={COMERCIAL} active={active} onSelect={setActive} />
-          <NavGroup title="Sistema" items={SISTEMA} active={active} onSelect={setActive} />
+          <NavGroup title="Andares" items={ANDARES} active={active} onSelect={selectTab} />
+          <NavGroup title="Comercial" items={COMERCIAL} active={active} onSelect={selectTab} />
+          <NavGroup title="Sistema" items={SISTEMA} active={active} onSelect={selectTab} />
         </nav>
-        <div className="flex-1 min-w-0">{content}</div>
+        <div ref={contentRef} className="flex-1 min-w-0 scroll-mt-4">{content}</div>
       </div>
     </div>
   )
