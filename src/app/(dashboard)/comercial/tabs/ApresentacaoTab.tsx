@@ -96,6 +96,93 @@ function SortableSlide({ id, index, total, m, onUp, onDown, onRemove }: {
   )
 }
 
+// Tipo de interação (lead_interactions.type) → rótulo amigável.
+const INTERACTION_LABEL: Record<string, string> = {
+  atendeu: 'Atendeu', nao_atendeu: 'Não atendeu', mensagem: 'Mensagem', nota: 'Nota',
+}
+interface LeadBriefData { name: string; company: string | null; phone: string | null; notes: string | null }
+interface BriefInteraction { type: string; note: string | null; created_by_name: string | null; created_at: string }
+
+// Resumo do lead (SÓ LEITURA) antes de apresentar: observações de cadastro (leads.notes) + histórico
+// de contato (lead_interactions, recentes primeiro). Cabe no mobile (max-w + overflow-y, sem scroll lateral).
+function LeadBriefModal({ leadId, fallbackName, onContinue, onClose }: {
+  leadId: string; fallbackName: string | null; onContinue: () => void; onClose: () => void
+}) {
+  const supabase = createClient()
+  const [loading, setLoading] = useState(true)
+  const [lead, setLead] = useState<LeadBriefData | null>(null)
+  const [interactions, setInteractions] = useState<BriefInteraction[]>([])
+
+  useEffect(() => {
+    let alive = true
+    ;(async () => {
+      const [{ data: l }, { data: ints }] = await Promise.all([
+        supabase.from('leads').select('name, company, phone, notes').eq('id', leadId).maybeSingle(),
+        supabase.from('lead_interactions').select('type, note, created_by_name, created_at').eq('lead_id', leadId).order('created_at', { ascending: false }),
+      ])
+      if (!alive) return
+      setLead((l ?? null) as LeadBriefData | null)
+      setInteractions((ints ?? []) as BriefInteraction[])
+      setLoading(false)
+    })()
+    return () => { alive = false }
+  }, [supabase, leadId])
+
+  const nome = lead?.name ?? fallbackName ?? 'Lead'
+  const contato = [lead?.company, lead?.phone].filter(Boolean).join(' · ')
+
+  return (
+    <div onClick={onClose} className="fixed inset-0 z-[110] bg-black/60 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4">
+      <div onClick={e => e.stopPropagation()} className="bento-fx rounded-t-frame sm:rounded-frame shadow-card-hover w-full sm:max-w-lg max-h-[90vh] flex flex-col animate-slide-up overflow-hidden">
+        <div className="flex items-start justify-between gap-2 p-5 border-b border-bento-border shrink-0">
+          <div className="min-w-0">
+            <p className="font-tech text-[10px] uppercase tracking-[0.12em] text-lime-fg">Resumo do lead</p>
+            <h2 className="font-display font-bold text-bento-text text-base truncate">{nome}</h2>
+            {contato && <p className="font-tech text-xs text-bento-muted truncate">{contato}</p>}
+          </div>
+          <button onClick={onClose} aria-label="Fechar" className="text-bento-muted hover:text-bento-text shrink-0 p-1"><X className="w-5 h-5" /></button>
+        </div>
+
+        <div className="p-5 space-y-5 overflow-y-auto overflow-x-hidden">
+          <div>
+            <p className="font-tech text-[10px] uppercase tracking-[0.12em] text-bento-muted mb-1.5">Observações de cadastro</p>
+            {loading ? <p className="text-sm text-bento-muted">Carregando...</p>
+              : lead?.notes?.trim()
+                ? <p className="text-sm text-bento-dim whitespace-pre-wrap break-words bg-bento-bg border border-bento-border rounded-btn p-3">{lead.notes}</p>
+                : <p className="text-sm text-bento-muted">Sem observações de cadastro.</p>}
+          </div>
+
+          <div>
+            <p className="font-tech text-[10px] uppercase tracking-[0.12em] text-bento-muted mb-1.5">Histórico de contato</p>
+            {loading ? <p className="text-sm text-bento-muted">Carregando...</p>
+              : interactions.length === 0
+                ? <p className="text-sm text-bento-muted">Sem histórico de contato.</p>
+                : (
+                  <div className="space-y-2">
+                    {interactions.map((i, idx) => (
+                      <div key={idx} className="rounded-btn border border-bento-border bg-bento-bg p-3">
+                        <div className="flex items-center justify-between gap-2 mb-0.5">
+                          <span className="text-xs font-semibold text-bento-text">{INTERACTION_LABEL[i.type] ?? i.type.replace(/_/g, ' ')}</span>
+                          <span className="font-tech text-[10px] text-bento-muted shrink-0">{formatDate(i.created_at)}</span>
+                        </div>
+                        {i.note && <p className="text-sm text-bento-dim whitespace-pre-wrap break-words">{i.note}</p>}
+                        {i.created_by_name && <p className="font-tech text-[10px] text-bento-muted/70 mt-1">— {i.created_by_name}</p>}
+                      </div>
+                    ))}
+                  </div>
+                )}
+          </div>
+        </div>
+
+        <div className="flex items-center justify-end gap-2 p-5 border-t border-bento-border shrink-0">
+          <button onClick={onClose} className="px-4 py-2 rounded-btn text-sm font-medium text-bento-dim border border-bento-border hover:border-lime transition-colors min-h-[44px]">Cancelar</button>
+          <button onClick={onContinue} className="bento-btn px-4 py-2 rounded-btn text-sm font-semibold min-h-[44px]">Apresentar</button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export function ApresentacaoTab() {
   const { toast } = useToast()
   const supabase = createClient()
@@ -137,6 +224,8 @@ export function ApresentacaoTab() {
 
   // Player
   const [playing, setPlaying] = useState<{ name: string; client: string | null; materials: Material[] } | null>(null)
+  // Resumo do lead (cadastro + histórico) mostrado ANTES de apresentar, quando há lead vinculado.
+  const [leadBrief, setLeadBrief] = useState<{ play: { name: string; client: string | null; materials: Material[] }; leadId: string } | null>(null)
 
   const matById = new Map(materials.map(m => [m.id, m]))
   const leadName = (id: string | null) => (id ? leads.find(l => l.id === id)?.name ?? null : null)
@@ -313,7 +402,10 @@ export function ApresentacaoTab() {
   const startPresent = (p: Presentation) => {
     const mats = (p.items ?? []).map(id => matById.get(id)).filter(Boolean) as Material[]
     if (mats.length === 0) { toast({ type: 'error', message: 'Esta apresentação não tem materiais disponíveis para apresentar.' }); return }
-    setPlaying({ name: p.name, client: leadName(p.lead_id), materials: mats })
+    const play = { name: p.name, client: leadName(p.lead_id), materials: mats }
+    // Tem lead vinculado → mostra o resumo (cadastro + histórico) ANTES de apresentar. Sem lead → direto.
+    if (p.lead_id) { setLeadBrief({ play, leadId: p.lead_id }); return }
+    setPlaying(play)
   }
   const pastas = Array.from(new Set(materials.map(m => m.pasta).filter((p): p is string => !!p))).sort((a, b) => a.localeCompare(b))
   const nichos = Array.from(new Set([...materials.map(m => m.nicho), ...leads.map(l => l.nicho)]
@@ -647,6 +739,16 @@ export function ApresentacaoTab() {
             </div>
           )}
         </div>
+      )}
+
+      {/* Resumo do lead (cadastro + histórico) ANTES de apresentar — só leitura. */}
+      {leadBrief && (
+        <LeadBriefModal
+          leadId={leadBrief.leadId}
+          fallbackName={leadBrief.play.client}
+          onContinue={() => { setPlaying(leadBrief.play); setLeadBrief(null) }}
+          onClose={() => setLeadBrief(null)}
+        />
       )}
 
       {/* Player de apresentação (single-mode, redesenhado) */}

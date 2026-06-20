@@ -6,6 +6,12 @@ Categorias: 🐛 Fix · 🔄 Mudança · ✨ Novidade
 
 ---
 
+✨ Studio: "Resumo do lead" antes de apresentar.
+- Ao clicar **Apresentar** numa apresentação **com lead vinculado**, abre um painel **"Resumo do lead"** (só leitura) ANTES dos slides: **Observações de cadastro** (`leads.notes`) + **Histórico de contato** (`lead_interactions`: tipo / nota / quem / quando, **recentes primeiro**). Botão **"Apresentar"** inicia a apresentação; "Cancelar"/X fecha. Sem lead vinculado → vai **direto** (sem painel).
+- Trata lead sem `notes` ("Sem observações de cadastro") e sem interações ("Sem histórico de contato"). **Cabe no mobile** (max-w + `overflow-y`/`overflow-x-hidden`, texto quebra). Não toca na apresentação/PDF, dinheiro nem outras telas.
+
+---
+
 🐛 Mobile — Apresentação cabe na tela (sem scroll lateral).
 - **Causa:** o viewer do PDF (`PdfView`, usado pelo player **e** pelo preview "Visualizar") tinha o container com `overflow-y-auto` → por regra do CSS o `overflow-x` vira `auto`; e o **canvas** tinha `width:100%` **sem `max-width:100%`** → qualquer sobra de sub-pixel/arredondamento gerava **scroll horizontal** (visível no mobile estreito).
 - **Fix (só CSS no viewer):** canvas `max-w-full` + container `overflow-x-hidden`. A área cabe na largura, mantendo o aspect ratio (sem px fixo). **Desktop inalterado** (já cabia; os guards são inertes). Não toquei no carregamento/flatten do PDF nem na lógica.
