@@ -6,6 +6,12 @@ Categorias: 🐛 Fix · 🔄 Mudança · ✨ Novidade
 
 ---
 
+🐛 Mobile — abas de Configurações em barra horizontal (refaz o d8d11f5).
+- O fix anterior (`scrollIntoView` ao tocar a aba) **não funcionava** ao vivo (corrida com o re-render). **Causa real:** a nav vertical (~15 itens, ~600px) empurrava o conteúdo pra baixo da dobra — o problema é a nav alta, não o scroll.
+- **Agora (só < md):** as abas viram uma **barra HORIZONTAL rolável** no topo (3 grupos achatados, edge-to-edge, rótulo discreto por grupo); o conteúdo aparece **logo abaixo**, já visível. **Desktop (md+) mantém a nav vertical** à esquerda. Removido `scrollIntoView`/`matchMedia`.
+
+---
+
 🐛 Mobile — Configurações abre o conteúdo no topo.
 - **Causa:** no celular as abas empilham **acima** do conteúdo (`flex-col`); a lista é alta (~15 itens) → ao trocar de aba, o conteúdo abria "lá embaixo".
 - **Fix (só mobile):** ao tocar numa aba em tela `< md`, o conteúdo é levado pro topo da viewport (`scrollIntoView`) + `scroll-mt-4`. **Desktop (lado a lado) inalterado.** Só layout/scroll — sem mudar lógica.
