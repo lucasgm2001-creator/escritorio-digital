@@ -5,14 +5,11 @@ import { createClient } from '@/lib/supabase/client'
 import { cn } from '@/lib/utils'
 import { Inbox, MessageCircle, Calendar, Trophy, Download, User, DollarSign, ListChecks } from 'lucide-react'
 import { ddmm, ymd, usd } from '@/lib/format'
+import { rangeFor, MODES, type Range } from '@/lib/period'
 import { ALL_COLUMNS } from '../comercial/types'
 
-type Mode = 'dia' | 'semana' | 'mes' | 'semestre' | 'ano'
-
-interface Range { mode: string; start: Date; end: Date; label: string }
 interface Item { kind: 'recebido' | 'interagiu' | 'reuniao' | 'fechou'; date: string; label: string; sub?: string }
 
-const MONTHS = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro']
 const startOfDay = (d: Date) => { const x = new Date(d); x.setHours(0, 0, 0, 0); return x }
 const endOfDay = (d: Date) => { const x = new Date(d); x.setHours(23, 59, 59, 999); return x }
 // Semana começa na SEGUNDA.
@@ -20,28 +17,7 @@ const mondayOf = (d: Date) => { const x = startOfDay(d); const wd = x.getDay(); 
 // Parse seguro: 'YYYY-MM-DD' (received_at) ganha hora local (T12) p/ não cair no dia anterior por fuso.
 const localDate = (s: string) => new Date(s.length === 10 ? `${s}T12:00:00` : s)
 
-function rangeFor(mode: Mode, now = new Date()): Range {
-  if (mode === 'dia') return { mode, start: startOfDay(now), end: endOfDay(now), label: `Dia ${ddmm(now)}` }
-  if (mode === 'semana') {
-    const start = mondayOf(now)
-    const end = endOfDay(new Date(start.getFullYear(), start.getMonth(), start.getDate() + 6))
-    return { mode, start, end, label: `Semana de ${ddmm(start)} a ${ddmm(end)}` }
-  }
-  if (mode === 'mes') {
-    const start = startOfDay(new Date(now.getFullYear(), now.getMonth(), 1))
-    const end = endOfDay(new Date(now.getFullYear(), now.getMonth() + 1, 0))
-    return { mode, start, end, label: `${MONTHS[now.getMonth()]} de ${now.getFullYear()}` }
-  }
-  if (mode === 'semestre') {
-    const h1 = now.getMonth() < 6
-    const start = startOfDay(new Date(now.getFullYear(), h1 ? 0 : 6, 1))
-    const end = endOfDay(new Date(now.getFullYear(), h1 ? 6 : 12, 0))
-    return { mode, start, end, label: `${h1 ? '1º' : '2º'} semestre de ${now.getFullYear()}` }
-  }
-  const start = startOfDay(new Date(now.getFullYear(), 0, 1))
-  const end = endOfDay(new Date(now.getFullYear(), 11, 31))
-  return { mode, start, end, label: `Ano de ${now.getFullYear()}` }
-}
+// rangeFor/MODES vêm de @/lib/period (janelas IDÊNTICAS às que viviam aqui: semana seg→dom).
 
 // Semana ANTERIOR completa (segunda passada → domingo passado).
 function lastWeek(now = new Date()): Range {
@@ -55,8 +31,6 @@ const leadNameOf = (rel: unknown): string => {
   if (Array.isArray(rel)) return (rel[0] as { name?: string })?.name ?? 'Lead'
   return (rel as { name?: string } | null)?.name ?? 'Lead'
 }
-
-const MODES: [Mode, string][] = [['dia', 'Dia'], ['semana', 'Semana'], ['mes', 'Mês'], ['semestre', 'Semestre'], ['ano', 'Ano']]
 
 export function RelatorioComercial() {
   const supabase = createClient()
