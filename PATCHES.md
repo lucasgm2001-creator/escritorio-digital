@@ -6,6 +6,12 @@ Categorias: 🐛 Fix · 🔄 Mudança · ✨ Novidade
 
 ---
 
+🐛 Mobile — Apresentação cabe na tela (sem scroll lateral).
+- **Causa:** o viewer do PDF (`PdfView`, usado pelo player **e** pelo preview "Visualizar") tinha o container com `overflow-y-auto` → por regra do CSS o `overflow-x` vira `auto`; e o **canvas** tinha `width:100%` **sem `max-width:100%`** → qualquer sobra de sub-pixel/arredondamento gerava **scroll horizontal** (visível no mobile estreito).
+- **Fix (só CSS no viewer):** canvas `max-w-full` + container `overflow-x-hidden`. A área cabe na largura, mantendo o aspect ratio (sem px fixo). **Desktop inalterado** (já cabia; os guards são inertes). Não toquei no carregamento/flatten do PDF nem na lógica.
+
+---
+
 🐛 Mobile — abas de Configurações em barra horizontal (refaz o d8d11f5).
 - O fix anterior (`scrollIntoView` ao tocar a aba) **não funcionava** ao vivo (corrida com o re-render). **Causa real:** a nav vertical (~15 itens, ~600px) empurrava o conteúdo pra baixo da dobra — o problema é a nav alta, não o scroll.
 - **Agora (só < md):** as abas viram uma **barra HORIZONTAL rolável** no topo (3 grupos achatados, edge-to-edge, rótulo discreto por grupo); o conteúdo aparece **logo abaixo**, já visível. **Desktop (md+) mantém a nav vertical** à esquerda. Removido `scrollIntoView`/`matchMedia`.

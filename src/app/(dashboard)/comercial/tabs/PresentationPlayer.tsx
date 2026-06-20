@@ -88,7 +88,7 @@ function PdfView({ url }: { url: string }) {
           canvas.style.width = '100%'
           canvas.style.aspectRatio = `${base.width} / ${base.height}`
           // Fundo escuro (não branco): antes da página pintar, micro-gap aparece escuro, não em branco.
-          canvas.className = 'block w-full mb-3 bg-transparent rounded-sm shadow-lg'
+          canvas.className = 'block w-full max-w-full mb-3 bg-transparent rounded-sm shadow-lg'
           container.appendChild(canvas)
 
           let done = false
@@ -126,7 +126,9 @@ function PdfView({ url }: { url: string }) {
     }
   }, [url])
 
-  return <div ref={containerRef} className="w-full h-full overflow-y-auto px-2 py-2" />
+  // overflow-x-hidden: o overflow-y-auto faz o overflow-x virar 'auto' (regra CSS) → sem isto,
+  // qualquer sobra de sub-pixel do canvas do PDF gera scroll lateral no mobile. max-w-full no canvas evita a sobra.
+  return <div ref={containerRef} className="w-full h-full max-w-full overflow-y-auto overflow-x-hidden px-2 py-2" />
 }
 
 // ─── Renderiza UMA peça (imagem / PDF limpo / fallback) — reusado na Gaveta ──────
