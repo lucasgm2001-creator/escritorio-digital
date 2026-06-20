@@ -6,6 +6,14 @@ Categorias: 🐛 Fix · 🔄 Mudança · ✨ Novidade
 
 ---
 
+🔄 Hall (/hall) — **só mobile** (desktop/Bento inalterado a partir de `sm:`).
+- **Nova ordem no mobile:** miniboxes → **Agenda** → **Mural** → **Atividades** → **Notícias** (Mural subiu antes das Atividades). Feito com classes `order-*` resetadas em `sm:` (no desktop a ordem/grid 2-col continua igual).
+- **Agenda (Semanal) cabe sem rolagem lateral:** grade compacta de **7 colunas** (dia abreviado + número + indicador de evento/tarefa); tocar no dia abre os eventos (DayDetailModal). Seletor Diário/Semanal/Mensal/Anual mantido. A grade detalhada do desktop fica `hidden sm:grid` — **byte-idêntica** ao que era.
+- **Atividades Recentes** e **Notícias do Setor** viram **caixas fechadas** no mobile (chevron, teaser da mais recente); toque abre/fecha. No desktop o conteúdo é sempre exibido (`sm:contents` faz o wrapper sumir da árvore → layout idêntico).
+- Diferenciação mobile/desktop: **breakpoint `sm:` + classes de visibilidade** (mesma abordagem do código). Sem libs novas. Dinheiro intocado.
+
+---
+
 ✨ Inbound de leads: **fuso automático** a partir do estado (US).
 - Novo helper **`src/lib/fuso.ts`** → `stateToFuso(state)`: aceita **sigla (2 letras) ou nome completo** (case-insensitive, com trim), mapa dos **50 estados + DC** pro fuso predominante. **Alaska/Hawaii → null**; não reconhecido → null.
 - **`POST /api/leads/inbound`**: deriva o estado em ordem — (a) payload `state`/`estado` (case-insensitive, inclusive em `customData`/`customFields`) → (b) fallback por regex nas notes (`(Estado|State): valor`). Se reconhece, inclui `fuso` no insert; se null, **não seta**.

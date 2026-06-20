@@ -8,7 +8,7 @@ import { Panel } from '@/components/bento/Panel'
 import { LiveDot } from '@/components/bento/LiveDot'
 import { AgentChat } from './AgentChat'
 import { NewsSection } from './NewsSection'
-import { Maximize2, X, Trash2, Check, Clock } from 'lucide-react'
+import { Maximize2, X, Trash2, Check, Clock, ChevronDown } from 'lucide-react'
 import type { Activity, Notice } from '@/types'
 import type { Task, LinkOption } from '../tarefas/types'
 import { TarefasClient } from '../tarefas/TarefasClient'
@@ -194,6 +194,7 @@ export function HallClient({ initialActivities, initialNotices, initialTasks, li
   const [focusEvent, setFocusEvent]   = useState<CalendarEvent | null>(null)
   const [counts, setCounts]           = useState({ leads: 0, clientes: 0 })
   const [activitiesExpanded, setActivitiesExpanded] = useState(false)
+  const [activitiesOpen, setActivitiesOpen] = useState(false)   // só mobile: caixa fechada por padrão (sm+ sempre aberta)
   const [muralVerMais, setMuralVerMais] = useState(false)   // Mural: revela o resto das tarefas de hoje
   const router = useRouter()
 
@@ -399,13 +400,22 @@ export function HallClient({ initialActivities, initialNotices, initialTasks, li
 
             {/* ATIVIDADES RECENTES + MURAL — lado a lado, mesma altura */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 items-stretch">
-              <Panel className="h-full" label="Atividades Recentes" action={
+              <Panel className="h-full order-2 sm:order-1" label="Atividades Recentes" action={
                 <div className="flex items-center gap-2">
                   <button onClick={() => setHistory('activities')} aria-label="Ampliar e ver histórico"
                     className="text-bento-muted hover:text-lime-fg transition-colors"><Maximize2 className="w-3.5 h-3.5" /></button>
                   <LiveDot />
                 </div>
               }>
+                {/* Mobile: cabeçalho clicável (abre/fecha); desktop (sm+): sempre aberto, sem toggle. */}
+                <button type="button" onClick={() => setActivitiesOpen(o => !o)}
+                  className="sm:hidden flex items-center justify-between gap-2 w-full text-left mb-1">
+                  <span className="text-sm text-bento-dim truncate min-w-0">
+                    {activities.length ? activities[0].description : 'Nenhuma atividade ainda.'}
+                  </span>
+                  <ChevronDown className={cn('w-4 h-4 text-bento-muted flex-none transition-transform', activitiesOpen && 'rotate-180')} />
+                </button>
+                <div className={cn('sm:contents', activitiesOpen ? 'flex flex-col' : 'hidden')}>
                 {/* Resumo por tipo — barras de proporção */}
                 {typeCounts.length > 0 && (
                   <div className="space-y-2 mb-4 pb-4 border-b border-bento-border/60">
@@ -457,10 +467,11 @@ export function HallClient({ initialActivities, initialNotices, initialTasks, li
                     {activitiesExpanded ? 'Ver menos' : `Ver mais (${activities.length - 3})`}
                   </button>
                 )}
+                </div>
               </Panel>
 
               <Panel
-                className="h-full"
+                className="h-full order-1 sm:order-2"
                 label="Mural de Avisos"
                 action={
                   <div className="flex items-center gap-2.5">
