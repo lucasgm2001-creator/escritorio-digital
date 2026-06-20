@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import type { Lead } from './types'
 import { useToast } from '@/components/ui/toast'
+import { ymd } from '@/lib/format'
 
 interface Seller { id: string; name: string }
 
@@ -17,7 +18,7 @@ const EMPTY_FORM = {
   name: '', company: '', email: '', phone: '',
   value: '', operation: 'eua', notes: '',
   nicho: '', origem: '', prioridade: 'media',
-  next_contact: '', assigned_to: '', assigned_name: '',
+  next_contact: '', assigned_to: '', assigned_name: '', received_at: '',
 }
 
 const ORIGENS = [
@@ -61,7 +62,7 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 
 export function LeadModal({ onClose, onCreated, currentUser }: Props) {
   const { toast } = useToast()
-  const [form, setForm] = useState({ ...EMPTY_FORM, assigned_to: currentUser.id, assigned_name: currentUser.name })
+  const [form, setForm] = useState({ ...EMPTY_FORM, assigned_to: currentUser.id, assigned_name: currentUser.name, received_at: ymd(new Date()) })
   const [loading, setLoading] = useState(false)
   const [aiPaste, setAiPaste] = useState(false)
   const [rawText, setRawText] = useState('')
@@ -126,6 +127,7 @@ export function LeadModal({ onClose, onCreated, currentUser }: Props) {
       origem: form.origem || null,
       prioridade: form.prioridade || 'media',
       next_contact: form.next_contact || null,
+      received_at: form.received_at || ymd(new Date()),   // data de CHEGADA (default hoje)
       // Só o usuário logado tem linha em profiles (alvo da FK). Vendedores sem conta
       // (ex.: Lucas) não — então grava só o nome e deixa a FK null, evitando o
       // "violates foreign key constraint". Correção plena (contas/FK) fica pra Fase 2.
@@ -206,6 +208,12 @@ export function LeadModal({ onClose, onCreated, currentUser }: Props) {
 
         {/* Form */}
         <form onSubmit={handleSubmit} className="p-5 space-y-4 overflow-y-auto flex-1">
+
+          {/* Data de chegada — separa quando o lead CHEGOU de quando foi cadastrado (default hoje) */}
+          <Field label="Data de chegada">
+            <input type="date" value={form.received_at} onChange={e => set('received_at', e.target.value)}
+              className={inputCls} />
+          </Field>
 
           {/* Linha 1: Nome + Empresa */}
           <div className="grid grid-cols-2 gap-3">

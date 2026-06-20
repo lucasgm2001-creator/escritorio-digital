@@ -23,6 +23,7 @@ export interface Lead {
   stage_changed_at?: string   // quando o lead entrou na fase atual (deal rotting)
   updated_at?: string
   created_at: string
+  received_at?: string        // data de CHEGADA do lead ('YYYY-MM-DD'); default hoje. Separa de created_at (cadastro).
 }
 
 // `tone` governa cor da fase: meio do funil = neutro; só ganho/perda têm cor.

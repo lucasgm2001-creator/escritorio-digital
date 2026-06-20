@@ -112,6 +112,22 @@ export function LeadDiary({ lead, onClose, onUpdated, onMoveStage, onDeleted, cu
     setSavingResp(false)
   }
 
+  // Edita a "data de chegada" (received_at) — dado de lead/relatório, não dinheiro. Otimista + rollback.
+  const changeReceivedAt = async (value: string) => {
+    if (!value || value === (currentLead.received_at ?? '').slice(0, 10)) return
+    const prev = currentLead.received_at
+    const updated = { ...currentLead, received_at: value }
+    setCurrentLead(updated)
+    const { error } = await supabase.from('leads').update({ received_at: value }).eq('id', lead.id)
+    if (error) {
+      setCurrentLead(c => ({ ...c, received_at: prev }))
+      toast({ type: 'error', message: `Não foi possível mudar a data de chegada: ${error.message}` })
+    } else {
+      onUpdated(updated)
+      toast({ type: 'success', message: 'Data de chegada atualizada.' })
+    }
+  }
+
   const handleDelete = async () => {
     setDeleting(true)
     const { error } = await supabase.from('leads').delete().eq('id', lead.id)
@@ -306,6 +322,14 @@ export function LeadDiary({ lead, onClose, onUpdated, onMoveStage, onDeleted, cu
               ))}
             </div>
           )}
+        </div>
+
+        {/* Data de chegada — editável (separa de quando foi cadastrado; usada no relatório por período) */}
+        <div className="px-5 py-3 border-b border-border">
+          <span className="text-xs text-muted-foreground">Data de chegada</span>
+          <input type="date" value={(currentLead.received_at ?? '').slice(0, 10)}
+            onChange={e => changeReceivedAt(e.target.value)}
+            className="mt-1 w-full bg-bento-bg border border-bento-border rounded-btn px-3 py-2 text-sm text-bento-text focus:outline-none focus:border-lime min-h-[44px]" />
         </div>
 
         {/* Score */}
