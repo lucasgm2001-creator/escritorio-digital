@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { ChevronUp, ChevronDown } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
+import { useToast } from '@/components/ui/toast'
 import type { FunnelStage } from '@/lib/funnelStages'
 
 // nome → slug estável (sem acento/espaço). O slug NUNCA muda no renomear → nenhum lead muda de fase.
@@ -14,6 +15,7 @@ function slugify(s: string): string {
 // is_won/is_lost/conta_* não são editáveis aqui (fases novas nascem neutras). Excluir/mesclar = TODO.
 export function FasesTab() {
   const supabase = createClient()
+  const { toast } = useToast()
   const [stages, setStages] = useState<FunnelStage[]>([])
   const [loading, setLoading] = useState(true)
   const [novo, setNovo] = useState('')
@@ -32,7 +34,7 @@ export function FasesTab() {
     const nome = novo.trim()
     if (!nome || busy) return
     let slug = slugify(nome)
-    if (!slug) { alert('Nome inválido.'); return }
+    if (!slug) { toast({ type: 'error', message: 'Nome inválido.' }); return }
     if (stages.some(s => s.slug === slug)) slug = `${slug}_${Date.now().toString().slice(-4)}`
     setBusy(true)
     const posicao = Math.max(0, ...stages.map(s => s.posicao)) + 1
@@ -43,7 +45,7 @@ export function FasesTab() {
       conta_interagiu: true, conta_reuniao: false, conta_fechou: false, arquivada: false,
     })
     setBusy(false)
-    if (error) { alert(`Não foi possível criar a fase: ${error.message}`); return }
+    if (error) { toast({ type: 'error', message: `Não foi possível criar a fase: ${error.message}` }); return }
     setNovo('')
     load()
   }

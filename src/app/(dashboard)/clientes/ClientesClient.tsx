@@ -6,6 +6,7 @@ import { updateClient, payDueWeeks, voidClientWeek } from '@/lib/commission/acti
 import { createClient } from '@/lib/supabase/client'
 import { useSave } from '@/lib/useSave'
 import { formatCurrency, formatDate, timeAgo } from '@/lib/utils'
+import { useToast } from '@/components/ui/toast'
 
 export interface Client {
   id: string
@@ -291,6 +292,7 @@ export function ClientesClient({ initialClients, currentUser }: Props) {
 
   const supabase = createClient()
   const save = useSave()
+  const { toast } = useToast()
 
   // Planos ativos (por ordem). Lê plans; o cliente aponta pra um via plano_id.
   useEffect(() => {
@@ -334,7 +336,7 @@ export function ClientesClient({ initialClients, currentUser }: Props) {
     payBusyRef.current = true; setPayBusyId(client.id)
     try {
       const r = await payDueWeeks(supabase, client.id, await getRate(), 1)
-      if (r.marked.length === 0) { alert(r.reason === 'inativo' ? 'Cliente inativo — congelado.' : 'Nenhuma semana vencida até hoje.'); return }
+      if (r.marked.length === 0) { toast({ type: 'error', message: r.reason === 'inativo' ? 'Cliente inativo — congelado.' : 'Nenhuma semana vencida até hoje.' }); return }
       await reloadPayments(client.id)
     } finally { payBusyRef.current = false; setPayBusyId(null) }
   }
@@ -345,7 +347,7 @@ export function ClientesClient({ initialClients, currentUser }: Props) {
     payBusyRef.current = true; setPayBusyId(client.id)
     try {
       const r = await payDueWeeks(supabase, client.id, await getRate(), 4)
-      if (r.marked.length === 0) { alert(r.reason === 'inativo' ? 'Cliente inativo — congelado.' : 'Nenhuma semana vencida até hoje.'); return }
+      if (r.marked.length === 0) { toast({ type: 'error', message: r.reason === 'inativo' ? 'Cliente inativo — congelado.' : 'Nenhuma semana vencida até hoje.' }); return }
       await reloadPayments(client.id)
     } finally { payBusyRef.current = false; setPayBusyId(null) }
   }
@@ -357,7 +359,7 @@ export function ClientesClient({ initialClients, currentUser }: Props) {
     payBusyRef.current = true; setPayBusyId(client.id)
     try {
       const res = await voidClientWeek(supabase, client.id, numero)
-      if (!res.ok) { alert('Não foi possível anular a semana.'); return }
+      if (!res.ok) { toast({ type: 'error', message: 'Não foi possível anular a semana.' }); return }
       await reloadPayments(client.id)
     } finally { payBusyRef.current = false; setPayBusyId(null) }
   }
@@ -370,7 +372,9 @@ export function ClientesClient({ initialClients, currentUser }: Props) {
       const res = await fetch('/api/commission/auto', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ clientId: client.id }) })
       const j = await res.json().catch(() => ({}))
       await reloadPayments(client.id)
-      alert(j?.result ? `Auto: ${j.result}` : (j?.ok ? 'Auto executado.' : 'Falha ao rodar o auto.'))
+      toast({ type: j?.ok ? 'success' : 'error', message: j?.result ? `Auto: ${j.result}` : (j?.ok ? 'Auto executado.' : 'Falha ao rodar o auto.') })
+    } catch {
+      toast({ type: 'error', message: 'Falha ao rodar o auto (rede).' })
     } finally { payBusyRef.current = false; setPayBusyId(null) }
   }
 
