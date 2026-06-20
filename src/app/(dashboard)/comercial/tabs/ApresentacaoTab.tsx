@@ -98,7 +98,7 @@ function SortableSlide({ id, index, total, m, onUp, onDown, onRemove }: {
 
 // Tipo de interação (lead_interactions.type) → rótulo amigável.
 const INTERACTION_LABEL: Record<string, string> = {
-  atendeu: 'Atendeu', nao_atendeu: 'Não atendeu', mensagem: 'Mensagem', nota: 'Nota', ligacao: 'Ligação',
+  atendeu: 'Atendeu', nao_atendeu: 'Não atendeu', mensagem: 'Mensagem', nota: 'Nota', ligacao: 'Ligação', briefing: 'Briefing IA',
 }
 interface LeadBriefData { name: string; company: string | null; phone: string | null; notes: string | null }
 interface BriefInteraction { type: string; note: string | null; created_by_name: string | null; created_at: string }

@@ -8,6 +8,7 @@ import { markMilestones } from '@/lib/leadMilestones'
 import { cn, timeAgo } from '@/lib/utils'
 import { ALL_COLUMNS, type Lead, type LeadStatus, type ColumnTone } from './types'
 import { LeadTasks } from './LeadTasks'
+import { Sparkles } from 'lucide-react'
 
 interface Interaction {
   id: string
@@ -56,6 +57,15 @@ const INTERACTION_BUTTONS: { type: string; label: string; icon: React.ReactNode;
   },
 ]
 
+interface BriefingResult { resumo: string; pontos_chave: string[]; proximo_passo: string; status_sugerido: string; justificativa_status: string }
+
+// Rótulos legíveis dos tipos de interação no histórico (inclui ligação/briefing); fallback = tipo cru.
+const INTERACTION_LABEL: Record<string, string> = {
+  atendeu: 'Atendeu', nao_atendeu: 'Não atendeu', mensagem: 'Mensagem', nota: 'Nota',
+  ligacao: 'Ligação', reuniao: 'Reunião', proposta: 'Proposta', reagendamento: 'Reagendamento',
+  briefing: 'Briefing IA', sistema: 'Sistema',
+}
+
 export function LeadDiary({ lead, onClose, onUpdated, onMoveStage, onDeleted, currentUser }: Props) {
   const [interactions, setInteractions] = useState<Interaction[]>([])
   const [currentLead, setCurrentLead] = useState<Lead>(lead)
@@ -71,6 +81,8 @@ export function LeadDiary({ lead, onClose, onUpdated, onMoveStage, onDeleted, cu
   const [savingResp, setSavingResp] = useState(false)
   const [confirmingDelete, setConfirmingDelete] = useState(false)
   const [deleting, setDeleting] = useState(false)
+  const [briefing, setBriefing] = useState<BriefingResult | null>(null)
+  const [briefingLoading, setBriefingLoading] = useState(false)
 
   const supabase = createClient()
   const { toast } = useToast()
@@ -200,6 +212,32 @@ export function LeadDiary({ lead, onClose, onUpdated, onMoveStage, onDeleted, cu
     setNoteText('')
     setActiveBtn(null)
     setLoadingInteraction(false)
+  }
+
+  const handleBriefing = async () => {
+    setBriefingLoading(true)
+    try {
+      const res = await fetch('/api/leads/briefing', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ leadId: lead.id }),
+      })
+      const data = await res.json().catch(() => null)
+      if (data?.ok && data.briefing) {
+        setBriefing(data.briefing as BriefingResult)
+        // Recarrega o histórico pra o briefing recém-salvo aparecer na timeline.
+        const { data: ints } = await supabase.from('lead_interactions').select('*').eq('lead_id', lead.id).order('created_at', { ascending: false })
+        setInteractions(ints ?? [])
+      } else if (data?.reason === 'sem_dados') {
+        toast({ type: 'error', message: 'Sem ligações ou notas suficientes para gerar briefing.' })
+      } else {
+        toast({ type: 'error', message: 'Não foi possível gerar o briefing. Tente de novo.' })
+      }
+    } catch {
+      toast({ type: 'error', message: 'Não foi possível gerar o briefing. Tente de novo.' })
+    } finally {
+      setBriefingLoading(false)
+    }
   }
 
   const handleAiAnalysis = async () => {
@@ -393,6 +431,39 @@ export function LeadDiary({ lead, onClose, onUpdated, onMoveStage, onDeleted, cu
           <LeadTasks leadId={currentLead.id} leadName={currentLead.name} userId={currentUser.id} compact={false} />
         </div>
 
+        {/* Briefing IA — resumo das conversas + próximo passo + status SUGERIDO (não move o lead). */}
+        <div className="px-5 py-3 border-b border-border">
+          <div className="flex items-center justify-between gap-2 mb-2">
+            <p className="text-xs font-medium text-muted-foreground">Briefing IA</p>
+            <button onClick={handleBriefing} disabled={briefingLoading}
+              className="bento-btn flex items-center gap-1.5 px-3 py-1.5 rounded-btn text-xs font-semibold disabled:opacity-50 min-h-0">
+              <Sparkles className="w-3.5 h-3.5" />
+              {briefingLoading ? 'Gerando...' : 'Gerar briefing'}
+            </button>
+          </div>
+          {briefing && (
+            <div className="rounded-btn border border-lime/30 bg-lime/5 p-3 space-y-2">
+              {briefing.resumo && <p className="text-xs text-bento-dim leading-relaxed whitespace-pre-wrap break-words">{briefing.resumo}</p>}
+              {briefing.pontos_chave.length > 0 && (
+                <ul className="text-xs text-bento-dim list-disc pl-4 space-y-0.5">
+                  {briefing.pontos_chave.map((p, i) => <li key={i} className="break-words">{p}</li>)}
+                </ul>
+              )}
+              {briefing.proximo_passo && (
+                <p className="text-xs text-bento-text break-words"><span className="font-semibold">Próximo passo:</span> {briefing.proximo_passo}</p>
+              )}
+              {briefing.status_sugerido && (
+                <p className="text-xs text-bento-muted leading-relaxed break-words">
+                  <span className="font-tech uppercase tracking-wide text-[10px]">Status sugerido:</span>{' '}
+                  <span className="text-bento-text font-semibold">{ALL_COLUMNS.find(c => c.key === briefing.status_sugerido)?.label ?? briefing.status_sugerido}</span>
+                  {briefing.justificativa_status ? ` — ${briefing.justificativa_status}` : ''}
+                  <span className="text-bento-muted/70"> (sugestão — não muda o status sozinho)</span>
+                </p>
+              )}
+            </div>
+          )}
+        </div>
+
         {/* IA */}
         <div className="px-5 py-3 border-b border-border">
           <div className="flex items-center justify-between mb-2">
@@ -419,7 +490,7 @@ export function LeadDiary({ lead, onClose, onUpdated, onMoveStage, onDeleted, cu
                   <div className="w-1 shrink-0 bg-border rounded-full" />
                   <div className="flex-1 pb-3">
                     <div className="flex items-center gap-2">
-                      <span className="text-xs font-medium text-foreground capitalize">{i.type.replace('_', ' ')}</span>
+                      <span className="text-xs font-medium text-foreground">{INTERACTION_LABEL[i.type] ?? i.type.replace('_', ' ')}</span>
                       {i.score_delta !== 0 && (
                         <span className={`text-xs font-mono ${i.score_delta > 0 ? 'text-green-400' : 'text-red-400'}`}>
                           {i.score_delta > 0 ? '+' : ''}{i.score_delta}
@@ -427,7 +498,7 @@ export function LeadDiary({ lead, onClose, onUpdated, onMoveStage, onDeleted, cu
                       )}
                       <span className="ml-auto text-xs text-muted-foreground">{timeAgo(i.created_at)}</span>
                     </div>
-                    {i.note && <p className="text-xs text-muted-foreground mt-0.5">{i.note}</p>}
+                    {i.note && <p className="text-xs text-muted-foreground mt-0.5 whitespace-pre-wrap break-words">{i.note}</p>}
                     {i.created_by_name && <p className="text-xs text-muted-foreground mt-0.5">— {i.created_by_name}</p>}
                   </div>
                 </div>

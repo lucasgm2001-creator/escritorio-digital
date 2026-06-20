@@ -6,6 +6,14 @@ Categorias: 🐛 Fix · 🔄 Mudança · ✨ Novidade
 
 ---
 
+✨ Briefing do lead (IA) — botão no detalhe do funil.
+- **`POST /api/leads/briefing`** ({leadId}): lê `leads.notes` + histórico (`lead_interactions` exceto briefing/sistema), pede à IA (modelo do agente, `claude-sonnet-4-6`) um JSON com **resumo / pontos-chave / próximo passo / status sugerido / justificativa**, e **salva** como interação `type='briefing'` (`created_by_name='Briefing IA'`). Sem dados úteis → não chama IA. Auth por sessão + rate-limit; service-role pro banco.
+- **UI (LeadDiary):** botão **"Gerar briefing"** (ícone Sparkles) → card em destaque com o briefing; **status é só SUGESTÃO** ("não muda o status sozinho") — **não move o lead**. O briefing aparece também na timeline (re-fetch após gerar; gerar de novo = append).
+- **Rótulos:** `'briefing' → "Briefing IA"` (LeadDiary + LeadBriefModal). A timeline passou a usar mapa de labels (Ligação/Briefing IA/…) e renderiza notas com `whitespace-pre-wrap`/`break-words` (transcrição/briefing longos não quebram).
+- **Dinheiro intocado** (só leitura + 1 insert de interação; status nunca move o funil).
+
+---
+
 ✨ API: webhook de transcrição de ligação (Magnetic / GoHighLevel).
 - Novo **`POST /api/leads/transcript`** (arquivo novo): no gatilho "Transcript Generated", recebe a transcrição e grava no histórico do lead como interação **`'ligacao'`**. Público, **mesmo segredo** (`INBOUND_WEBHOOK_SECRET`, `x-webhook-secret`/`?secret=`, timing-safe) checado **antes** do banco; **service-role**.
 - **Acha o lead** por email/phone (mesma lógica do inbound). **Não cria** lead — sem lead → 200 `{no_lead:true}`. Transcrição buscada em `transcript`/`message_transcript`/`call_transcript`/`transcription` + `customData`/`customFields`; sem texto → 200 `{ignored:'no_transcript'}`. Cabeçalho de direção/duração na nota: "Ligação (saída, 4min):\\n…".
