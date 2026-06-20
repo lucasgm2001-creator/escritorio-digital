@@ -7,6 +7,7 @@ import { createClient } from '@/lib/supabase/client'
 import { useSave } from '@/lib/useSave'
 import { formatCurrency, formatDate, timeAgo } from '@/lib/utils'
 import { useToast } from '@/components/ui/toast'
+import { FUSO_OPTIONS } from '../comercial/types'
 
 export interface Client {
   id: string
@@ -279,8 +280,8 @@ export function ClientesClient({ initialClients, currentUser, focusClientId, onF
   const [search, setSearch] = useState('')
   const [newOpen, setNewOpen] = useState(false)
   const [editClient, setEditClient] = useState<Client | null>(null)
-  const [form, setForm] = useState({ name: '', company: '', email: '', phone: '', plano_id: '' })
-  const [editForm, setEditForm] = useState({ name: '', company: '', email: '', phone: '', plano_id: '' })
+  const [form, setForm] = useState({ name: '', company: '', email: '', phone: '', plano_id: '', fuso: '', nicho: '' })
+  const [editForm, setEditForm] = useState({ name: '', company: '', email: '', phone: '', plano_id: '', fuso: '', nicho: '' })
   const [plans, setPlans] = useState<Plan[]>([])
   const [payments, setPayments] = useState<Record<string, ClientPayment[]>>({})
   const [payOpenId, setPayOpenId] = useState<string | null>(null)
@@ -422,6 +423,8 @@ export function ClientesClient({ initialClients, currentUser, focusClientId, onF
         status: 'ativo',
         start_date: new Date().toISOString().slice(0, 10),
         assigned_name: currentUser.name,
+        nicho: form.nicho.trim() || null,
+        fuso: form.fuso || null,
       }).select().single(),
       success: 'Cliente criado.',
       error: 'Não foi possível criar o cliente',
@@ -437,7 +440,7 @@ export function ClientesClient({ initialClients, currentUser, focusClientId, onF
         entity_id: data.id,
       })
       setNewOpen(false)
-      setForm({ name: '', company: '', email: '', phone: '', plano_id: plans[0]?.id ?? '' })
+      setForm({ name: '', company: '', email: '', phone: '', plano_id: plans[0]?.id ?? '', fuso: '', nicho: '' })
     }
     setLoading(false)
   }
@@ -454,9 +457,11 @@ export function ClientesClient({ initialClients, currentUser, focusClientId, onF
       phone: editForm.phone || undefined,
       plano_id: editForm.plano_id || target.plano_id || null,
       plan_weekly: editPlan?.valor_semanal ?? target.plan_weekly,
+      nicho: editForm.nicho.trim() || null,
+      fuso: editForm.fuso || null,
     }
     const { ok } = await save({
-      optimistic: () => setClients(prev => prev.map(c => c.id === target.id ? { ...c, ...patch } : c)),
+      optimistic: () => setClients(prev => prev.map(c => c.id === target.id ? ({ ...c, ...patch } as Client) : c)),
       run: () => updateClient(supabase, target.id, {
         name: patch.name,
         company: editForm.company || null,
@@ -464,6 +469,8 @@ export function ClientesClient({ initialClients, currentUser, focusClientId, onF
         phone: editForm.phone || null,
         plano_id: patch.plano_id,
         plan_weekly: patch.plan_weekly,
+        nicho: patch.nicho,
+        fuso: patch.fuso,
       }),
       rollback: () => setClients(prev => prev.map(c => c.id === target.id ? target : c)),
       success: 'Cliente atualizado.',
@@ -556,7 +563,7 @@ export function ClientesClient({ initialClients, currentUser, focusClientId, onF
   // Handlers passados ao ClientRow (escopo de módulo).
   const openEdit = (client: Client) => {
     setEditClient(client)
-    setEditForm({ name: client.name, company: client.company ?? '', email: client.email ?? '', phone: client.phone ?? '', plano_id: client.plano_id ?? '' })
+    setEditForm({ name: client.name, company: client.company ?? '', email: client.email ?? '', phone: client.phone ?? '', plano_id: client.plano_id ?? '', fuso: client.fuso ?? '', nicho: client.nicho ?? '' })
   }
   const toggleJobs = (id: string) => { setEditingJobsId(editingJobsId === id ? null : id); setJobInput('') }
 
@@ -672,6 +679,17 @@ export function ClientesClient({ initialClients, currentUser, focusClientId, onF
                   {plans.map(p => <option key={p.id} value={p.id}>{p.nome} — ${p.valor_semanal}/sem</option>)}
                 </select>
               </div>
+              <div>
+                <label className="block text-xs font-medium text-bento-dim mb-1">Nicho</label>
+                <input value={form.nicho} onChange={e => set('nicho', e.target.value)} placeholder="Ex: Roofing, HVAC..." className={inputCls} />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-bento-dim mb-1">Fuso horário</label>
+                <select value={form.fuso} onChange={e => set('fuso', e.target.value)} className={inputCls}>
+                  <option value="">Sem fuso</option>
+                  {FUSO_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                </select>
+              </div>
               <div className="flex gap-3 pt-1">
                 <button type="button" onClick={() => setNewOpen(false)}
                   className="flex-1 border border-bento-border text-bento-dim py-2.5 rounded-btn text-sm hover:border-lime hover:text-bento-text transition-colors">
@@ -720,6 +738,17 @@ export function ClientesClient({ initialClients, currentUser, focusClientId, onF
                 <label className="block text-xs font-medium text-bento-dim mb-1">Plano</label>
                 <select value={editForm.plano_id} onChange={e => setEditForm(prev => ({ ...prev, plano_id: e.target.value }))} className={inputCls}>
                   {plans.map(p => <option key={p.id} value={p.id}>{p.nome} — ${p.valor_semanal}/sem</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-bento-dim mb-1">Nicho</label>
+                <input value={editForm.nicho} onChange={e => setEditForm(p => ({ ...p, nicho: e.target.value }))} placeholder="Ex: Roofing, HVAC..." className={inputCls} />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-bento-dim mb-1">Fuso horário</label>
+                <select value={editForm.fuso} onChange={e => setEditForm(p => ({ ...p, fuso: e.target.value }))} className={inputCls}>
+                  <option value="">Sem fuso</option>
+                  {FUSO_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
                 </select>
               </div>
               <div className="flex gap-3 pt-1">

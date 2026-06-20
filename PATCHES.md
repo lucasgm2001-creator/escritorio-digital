@@ -6,6 +6,13 @@ Categorias: 🐛 Fix · 🔄 Mudança · ✨ Novidade
 
 ---
 
+✨ Comercial/Clientes: campos **Fuso** (lead) e **Fuso + Nicho** (cliente) nos formulários.
+- **Lead** (criar em `LeadModal`, editar em `LeadDiary`): seletor **Fuso horário** (Sem fuso / Leste / Central / Montanha / Pacífico) → grava `leads.fuso`. No detalhe do lead a edição é otimista com rollback (igual à "data de chegada").
+- **Cliente** (criar/editar em `ClientesClient`): campos **Nicho** (texto → `clients.nicho`) e **Fuso horário** (→ `clients.fuso`), logo abaixo do Plano.
+- Esses campos alimentam os filtros/badges da aba **Contatos**. **Dinheiro intocado** — plano/pagamento/valor/comissão não foram tocados (`updateClient` é genérico; só passei os 2 campos novos).
+
+---
+
 ✨ Comercial: aba "Contatos" (lista unificada leads + clientes).
 - Nova aba **Contatos** (ao lado do Funil): lista única **deduplicada** por telefone/email (**cliente prevalece** sobre lead). Cada linha: nome, empresa, telefone, badge de **fase** (label do funil ou "Cliente"), **nicho**, **fuso**, **data de chegada** (`received_at` / `start_date`). Contador no topo.
 - **Busca** (nome/empresa/telefone/email) + **3 filtros multi-seleção** (Fase, Nicho, Fuso + "Sem fuso") — E entre filtros, OU dentro. Responsivo (linhas, sem scroll horizontal).

@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import type { Lead } from './types'
+import { FUSO_OPTIONS, type Lead } from './types'
 import { useToast } from '@/components/ui/toast'
 import { ymd } from '@/lib/format'
 
@@ -18,7 +18,7 @@ const EMPTY_FORM = {
   name: '', company: '', email: '', phone: '',
   value: '', operation: 'eua', notes: '',
   nicho: '', origem: '', prioridade: 'media',
-  next_contact: '', assigned_to: '', assigned_name: '', received_at: '',
+  next_contact: '', assigned_to: '', assigned_name: '', received_at: '', fuso: '',
 }
 
 const ORIGENS = [
@@ -128,6 +128,7 @@ export function LeadModal({ onClose, onCreated, currentUser }: Props) {
       prioridade: form.prioridade || 'media',
       next_contact: form.next_contact || null,
       received_at: form.received_at || ymd(new Date()),   // data de CHEGADA (default hoje)
+      fuso: form.fuso || null,
       // Só o usuário logado tem linha em profiles (alvo da FK). Vendedores sem conta
       // (ex.: Lucas) não — então grava só o nome e deixa a FK null, evitando o
       // "violates foreign key constraint". Correção plena (contas/FK) fica pra Fase 2.
@@ -213,6 +214,14 @@ export function LeadModal({ onClose, onCreated, currentUser }: Props) {
           <Field label="Data de chegada">
             <input type="date" value={form.received_at} onChange={e => set('received_at', e.target.value)}
               className={inputCls} />
+          </Field>
+
+          {/* Fuso horário (EUA) — opcional */}
+          <Field label="Fuso horário">
+            <select value={form.fuso} onChange={e => set('fuso', e.target.value)} className={inputCls}>
+              <option value="">Sem fuso</option>
+              {FUSO_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+            </select>
           </Field>
 
           {/* Linha 1: Nome + Empresa */}

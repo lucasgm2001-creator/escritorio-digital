@@ -6,7 +6,7 @@ import { useToast } from '@/components/ui/toast'
 import { getScoreInfo } from '@/lib/utils/score'
 import { markMilestones } from '@/lib/leadMilestones'
 import { cn, timeAgo } from '@/lib/utils'
-import { ALL_COLUMNS, type Lead, type LeadStatus, type ColumnTone } from './types'
+import { ALL_COLUMNS, FUSO_OPTIONS, type Lead, type LeadStatus, type ColumnTone } from './types'
 import { LeadTasks } from './LeadTasks'
 import { Sparkles } from 'lucide-react'
 
@@ -137,6 +137,23 @@ export function LeadDiary({ lead, onClose, onUpdated, onMoveStage, onDeleted, cu
     } else {
       onUpdated(updated)
       toast({ type: 'success', message: 'Data de chegada atualizada.' })
+    }
+  }
+
+  // Edita o fuso horário (EUA) — dado de contato, não dinheiro. Otimista + rollback.
+  const changeFuso = async (value: string) => {
+    const next = (value || null) as Lead['fuso']
+    if (next === (currentLead.fuso ?? null)) return
+    const prev = currentLead.fuso
+    const updated = { ...currentLead, fuso: next }
+    setCurrentLead(updated)
+    const { error } = await supabase.from('leads').update({ fuso: next }).eq('id', lead.id)
+    if (error) {
+      setCurrentLead(c => ({ ...c, fuso: prev }))
+      toast({ type: 'error', message: `Não foi possível mudar o fuso: ${error.message}` })
+    } else {
+      onUpdated(updated)
+      toast({ type: 'success', message: 'Fuso atualizado.' })
     }
   }
 
@@ -368,6 +385,16 @@ export function LeadDiary({ lead, onClose, onUpdated, onMoveStage, onDeleted, cu
           <input type="date" value={(currentLead.received_at ?? '').slice(0, 10)}
             onChange={e => changeReceivedAt(e.target.value)}
             className="mt-1 w-full bg-bento-bg border border-bento-border rounded-btn px-3 py-2 text-sm text-bento-text focus:outline-none focus:border-lime min-h-[44px]" />
+        </div>
+
+        {/* Fuso horário (EUA) — editável */}
+        <div className="px-5 py-3 border-b border-border">
+          <span className="text-xs text-muted-foreground">Fuso horário</span>
+          <select value={currentLead.fuso ?? ''} onChange={e => changeFuso(e.target.value)}
+            className="mt-1 w-full bg-bento-bg border border-bento-border rounded-btn px-3 py-2 text-sm text-bento-text focus:outline-none focus:border-lime min-h-[44px]">
+            <option value="">Sem fuso</option>
+            {FUSO_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+          </select>
         </div>
 
         {/* Score */}
