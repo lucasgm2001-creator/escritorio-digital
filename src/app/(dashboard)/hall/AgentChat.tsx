@@ -100,6 +100,25 @@ export function AgentChat({ userId, userName }: { userId: string; userName: stri
       if (error) return `Não consegui criar a tarefa: ${error.message}`
       return `Pronto! Tarefa "${title}" criada${link ? ` e vinculada ao lead ${link.linked_name}` : ''}.`
     }
+    if (action.tool === 'complete_task') {
+      const title = String(p.task_title ?? '').trim()
+      if (!title) return 'Não consegui concluir: faltou o título da tarefa.'
+      // Acha a tarefa PENDENTE por título (igual ao mover_lead por nome); trata "não achei"/ambiguidade.
+      const { data: matches, error: findErr } = await supabase
+        .from('tasks').select('id, title, done').ilike('title', `%${title}%`).eq('done', false)
+      if (findErr) return `Não consegui buscar a tarefa: ${findErr.message}`
+      if (!matches || matches.length === 0) return `Não achei nenhuma tarefa pendente com "${title}".`
+      let task = matches[0]
+      if (matches.length > 1) {
+        const exact = matches.filter(m => m.title.toLowerCase() === title.toLowerCase())
+        if (exact.length === 1) task = exact[0]
+        else return `Achei mais de uma tarefa pendente com "${title}": ${matches.map(m => m.title).join(', ')}. Qual delas?`
+      }
+      // MESMO update do TarefasClient (concluir): done + completed_at.
+      const { error } = await supabase.from('tasks').update({ done: true, completed_at: new Date().toISOString() }).eq('id', task.id)
+      if (error) return `Não consegui concluir a tarefa: ${error.message}`
+      return `Pronto! Tarefa "${task.title}" marcada como concluída.`
+    }
     if (action.tool === 'mover_lead') {
       const leadName = String(p.lead_name ?? '').trim()
       const destino = String(p.destino ?? '').trim()
@@ -331,7 +350,7 @@ export function AgentChat({ userId, userName }: { userId: string; userName: stri
         <div className="px-4 pb-2">
           <div className="flex items-center gap-2 rounded-btn border border-lime/40 bg-lime/10 px-3 py-2">
             <span className="text-xs text-bento-text flex-1">
-              Confirmar {pending.tool === 'create_lead' ? 'criação do lead' : pending.tool === 'create_task' ? 'criação da tarefa' : pending.tool === 'mover_lead' ? 'mover pra Venda Fechada' : pending.tool === 'editar_cliente' ? 'a edição do cliente' : pending.tool === 'registrar_pagamento' ? 'o pagamento da semana' : pending.tool === 'registrar_reuniao' ? 'a reunião' : 'a ação'}?
+              Confirmar {pending.tool === 'create_lead' ? 'criação do lead' : pending.tool === 'create_task' ? 'criação da tarefa' : pending.tool === 'complete_task' ? 'concluir a tarefa' : pending.tool === 'mover_lead' ? 'mover pra Venda Fechada' : pending.tool === 'editar_cliente' ? 'a edição do cliente' : pending.tool === 'registrar_pagamento' ? 'o pagamento da semana' : pending.tool === 'registrar_reuniao' ? 'a reunião' : 'a ação'}?
             </span>
             <button
               type="button"

@@ -54,6 +54,19 @@ const createTaskTool = tool({
   }),
 })
 
+const completeTaskTool = tool({
+  description:
+    'Marca uma tarefa existente como CONCLUÍDA. Use quando o usuário disser que terminou/concluiu/fez uma tarefa (ex: "marca como feita a tarefa de ligar pro João", "conclui o follow-up do Sandro"). As tarefas pendentes estão no contexto (campo "tarefas").',
+  inputSchema: jsonSchema<{ task_title: string }>({
+    type: 'object',
+    properties: {
+      task_title: { type: 'string', description: 'Título (ou trecho) da tarefa PENDENTE a concluir, como aparece no contexto.' },
+    },
+    required: ['task_title'],
+    additionalProperties: false,
+  }),
+})
+
 // Enum de destino DINÂMICO: os slugs vêm de funnel_stages (não-arquivadas).
 function buildMoverLeadTool(slugs: string[]) {
   return tool({
@@ -140,6 +153,9 @@ function buildActionPreview(toolName: string, p: Record<string, unknown>): strin
     lines.push('', 'Confirma?')
     return lines.join('\n')
   }
+  if (toolName === 'complete_task') {
+    return `Vou marcar a tarefa **${p.task_title}** como concluída.\n\nConfirma?`
+  }
   if (toolName === 'mover_lead') {
     // Só chega aqui quando precisa confirmar (destino = Venda Fechada).
     return `Mover **${p.lead_name}** para **Venda Fechada** vai registrar a comissão (deal de US$ 100, 1ª semana paga). Confirma?`
@@ -219,12 +235,14 @@ export class SuperAgent {
       { data: plans },
       { data: receita },
       { data: comissao },
+      { data: tarefas },
     ] = await Promise.all([
       this.supabase.from('leads').select('*').limit(20),
       this.supabase.from('clients').select('*').limit(20),
       this.supabase.from('plans').select('id, nome, valor_semanal').eq('ativo', true).order('ordem'),
       this.supabase.from('client_payments').select('*').order('paid_on', { ascending: false }).limit(20),
       this.supabase.from('weekly_payments').select('id, deal_id, numero_semana, valor_usd, paid_on, cotacao_usd_brl').order('paid_on', { ascending: false }).limit(20),
+      this.supabase.from('tasks').select('id, title, due_date').eq('done', false).order('due_date').limit(30),
     ])
 
     return {
@@ -233,6 +251,7 @@ export class SuperAgent {
       plans: plans || [],
       receita: receita || [],     // client_payments — recebido dos clientes
       comissao: comissao || [],   // weekly_payments — comissão recebida
+      tarefas: tarefas || [],     // tarefas PENDENTES (p/ o agente referenciar e concluir)
       mrrUsd: this.mrrUsd(clients || [], plans || []),
     }
   }
@@ -277,7 +296,7 @@ export class SuperAgent {
     const system = [
       'Você é o assistente do Escritório Digital DR Growth. Responda em português, de forma concisa e prática.',
       `Hoje é ${opts.todayLabel} (${opts.today}). Resolva datas relativas (hoje, amanhã, depois de amanhã, sexta, segunda, semana que vem) para datas absolutas no formato YYYY-MM-DD a partir de hoje. Se o dia da semana já passou nesta semana, use a próxima ocorrência.`,
-      'Você PODE executar ações pelas ferramentas: create_lead (criar lead), create_task (criar tarefa), mover_lead (mover lead de estágio), editar_cliente (editar dados de um cliente — NUNCA excluir), registrar_pagamento (registrar o pagamento da próxima semana de uma venda JÁ existente) e registrar_reuniao (registrar reunião, US$ 15 padrão). Use a ferramenta quando o usuário pedir a ação correspondente. IMPORTANTE: NÃO existe ferramenta de criar venda/deal — registrar uma venda nova = mover o lead para "Venda Fechada" (mover_lead). Para perguntas, consultas e análises, responda em texto, sem ferramenta.',
+      'Você PODE executar ações pelas ferramentas: create_lead (criar lead), create_task (criar tarefa), complete_task (marcar uma tarefa como concluída), mover_lead (mover lead de estágio), editar_cliente (editar dados de um cliente — NUNCA excluir), registrar_pagamento (registrar o pagamento da próxima semana de uma venda JÁ existente) e registrar_reuniao (registrar reunião, US$ 15 padrão). Use a ferramenta quando o usuário pedir a ação correspondente. IMPORTANTE: NÃO existe ferramenta de criar venda/deal — registrar uma venda nova = mover o lead para "Venda Fechada" (mover_lead). Para perguntas, consultas e análises, responda em texto, sem ferramenta.',
       'Nunca diga que já criou algo: ao chamar uma ferramenta, o aplicativo ainda vai pedir a confirmação do usuário antes de gravar.',
       'Se faltar um dado obrigatório (nome do lead, ou título da tarefa), peça-o em texto antes de usar a ferramenta.',
       'MRR: use SEMPRE o número já calculado no campo "mrrUsd" do contexto. Ao explicar, descreva como "clientes ativos × valor semanal × 4 (quatro semanas)" — a MESMA base da tela de Clientes. NUNCA invente multiplicadores como "4,33 semanas/mês", "× 4,3" ou "média mensal", nem converta para mês: é sempre × 4. A explicação TEM que bater com o número (não recalcule).',
@@ -290,7 +309,7 @@ export class SuperAgent {
       system,
       messages,
       tools: {
-        create_lead: createLeadTool, create_task: createTaskTool, mover_lead: buildMoverLeadTool(slugs),
+        create_lead: createLeadTool, create_task: createTaskTool, complete_task: completeTaskTool, mover_lead: buildMoverLeadTool(slugs),
         editar_cliente: editarClienteTool, registrar_pagamento: registrarPagamentoTool, registrar_reuniao: registrarReuniaoTool,
       },
       maxOutputTokens: 600,

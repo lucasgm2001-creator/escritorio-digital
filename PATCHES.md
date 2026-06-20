@@ -6,6 +6,11 @@ Categorias: 🐛 Fix · 🔄 Mudança · ✨ Novidade
 
 ---
 
+✨ Agente (Fase 1): tool "marcar tarefa concluída".
+- Nova tool **`complete_task`**: o agente marca uma tarefa **pendente** como concluída — mesmo `update({done:true, completed_at})` do TarefasClient. Acha por título (`ilike`, trata ambíguo/não-achei) entre as tarefas pendentes (agora no **contexto** do agente). **Confirma antes** de executar. **Sem dinheiro.**
+
+---
+
 🔄 fix+refactor(hall): Agenda no fuso de Brasília + HallClient quebrado.
 - **fix:** o bucketing de dia da Agenda usava `toISOString()` (**UTC**) → à noite (após ~21h BRT) tarefa/evento caía no **dia seguinte**. Agora usa o dia de **Brasília** (`America/Sao_Paulo`). *(mudança de comportamento de propósito)*
 - **refactor (sem mudança de comportamento):** `HallClient.tsx` 1246 → ~577 linhas. Extraídos pra arquivos próprios (verbatim): **Calendar** (Agenda + EventDetailModal interno), **EventModal**, **DayDetailModal**.
