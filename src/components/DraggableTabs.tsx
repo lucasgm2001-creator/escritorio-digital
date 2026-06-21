@@ -32,7 +32,7 @@ function SortableTab({ tab, isActive, onTabChange }: { tab: TabConfig; isActive:
       {...attributes}
       {...listeners}
       onClick={onTabChange}
-      className={`px-4 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap cursor-grab active:cursor-grabbing ${
+      className={`px-4 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap shrink-0 snap-start cursor-grab active:cursor-grabbing ${
         isActive
           ? 'border-lime text-lime-fg'
           : 'border-transparent text-bento-muted hover:text-bento-text'
@@ -104,7 +104,7 @@ export function DraggableTabs({ tabs, activeTab, onTabChange, sectionKey }: Drag
     <div className="flex items-center justify-between border-b border-bento-border">
       <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
         <SortableContext items={tabOrder} strategy={horizontalListSortingStrategy}>
-          <div className="flex gap-0 flex-1 overflow-x-auto">
+          <div className="flex gap-0 flex-1 overflow-x-auto snap-x scroll-smooth [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             {orderedTabs.map(tab => (
               <SortableTab
                 key={tab.key}
