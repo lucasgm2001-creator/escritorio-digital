@@ -6,6 +6,14 @@ Categorias: 🐛 Fix · 🔄 Mudança · ✨ Novidade
 
 ---
 
+🔄 Funil (/comercial) — **só mobile**: fases viram um **seletor de chips** (desktop inalterado).
+- Antes (mobile): acordeão vertical de fases (`PhaseAccordion`) — várias abriam ao mesmo tempo, cards sem drag, mover só pelo seletor dentro do diário.
+- Agora (mobile): **seletor de chips compactos** (grade 2-col, cor do status + nome + contagem) — **uma fase por vez**; tocar no chip mostra os leads da fase abaixo; chip selecionado destacado em lime. Default = primeira fase com leads.
+- **Drag + tap mantidos:** cada card é arrastável e os chips são *droppable* — arrastar um card até um chip move o lead pelo **MESMO** `handleDragEnd`/`moveLeadToStatus` de hoje; tocar abre o `LeadDiary`. Sensors mobile com `TouchSensor` (segurar pra arrastar; tap/scroll não conflitam).
+- Diferenciação: `isDesktop` via `matchMedia('(min-width:1024px)')` (já existente) — **desktop (≥1024) continua com as colunas/tiers idênticas**. Lógica de mover/fechar venda/comissão **intocada**. Componente novo `PhaseSelectorMobile`; `PhaseAccordion` removido.
+
+---
+
 🔄 Hall (/hall) — **só mobile** (desktop/Bento inalterado a partir de `sm:`).
 - **Nova ordem no mobile:** miniboxes → **Agenda** → **Mural** → **Atividades** → **Notícias** (Mural subiu antes das Atividades). Feito com classes `order-*` resetadas em `sm:` (no desktop a ordem/grid 2-col continua igual).
 - **Agenda (Semanal) cabe sem rolagem lateral:** grade compacta de **7 colunas** (dia abreviado + número + indicador de evento/tarefa); tocar no dia abre os eventos (DayDetailModal). Seletor Diário/Semanal/Mensal/Anual mantido. A grade detalhada do desktop fica `hidden sm:grid` — **byte-idêntica** ao que era.
