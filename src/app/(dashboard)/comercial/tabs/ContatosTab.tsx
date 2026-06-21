@@ -1,10 +1,11 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import { Search, ChevronDown, Check, Trash2 } from 'lucide-react'
+import { Search, ChevronDown, Check, Trash2, SlidersHorizontal } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { createClient } from '@/lib/supabase/client'
 import { useToast } from '@/components/ui/toast'
+import { CollapsibleSection } from '@/components/mobile/CollapsibleSection'
 import { ALL_COLUMNS, FUSO_LABELS, type Lead } from '../types'
 import type { Client } from '../../clientes/ClientesClient'
 
@@ -227,9 +228,16 @@ export function ContatosTab({ leads, clients, onOpenLead, onOpenClient }: Props)
             <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Buscar nome, empresa, telefone, e-mail..."
               className="w-full bg-bento-bg border border-bento-border rounded-btn pl-8 pr-3 py-2 text-sm text-bento-text placeholder:text-bento-muted focus:outline-none focus:border-lime min-h-[40px]" />
           </div>
-          <FilterDropdown label="Fase" options={faseOptions} selected={faseSel} onToggle={toggle(faseSel, setFaseSel)} />
-          <FilterDropdown label="Nicho" options={nichoOptions} selected={nichoSel} onToggle={toggle(nichoSel, setNichoSel)} />
-          <FilterDropdown label="Fuso" options={fusoOptions} selected={fusoSel} onToggle={toggle(fusoSel, setFusoSel)} />
+          {/* Mobile: filtros dentro de "Filtros" (fechada por padrão). Desktop (lg:contents): os 3
+              dropdowns voltam a ser itens diretos desta linha — layout idêntico ao de hoje. */}
+          <CollapsibleSection title="Filtros" icon={SlidersHorizontal} className="w-full"
+            badge={faseSel.size + nichoSel.size + fusoSel.size || undefined}>
+            <div className="flex flex-wrap gap-2 lg:contents">
+              <FilterDropdown label="Fase" options={faseOptions} selected={faseSel} onToggle={toggle(faseSel, setFaseSel)} />
+              <FilterDropdown label="Nicho" options={nichoOptions} selected={nichoSel} onToggle={toggle(nichoSel, setNichoSel)} />
+              <FilterDropdown label="Fuso" options={fusoOptions} selected={fusoSel} onToggle={toggle(fusoSel, setFusoSel)} />
+            </div>
+          </CollapsibleSection>
         </div>
 
         {/* Lista (linhas responsivas; sem scroll horizontal) */}
