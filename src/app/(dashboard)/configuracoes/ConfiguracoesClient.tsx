@@ -5,7 +5,7 @@ import Image from 'next/image'
 import {
   Sun, Moon, Monitor, Home, Briefcase, ListChecks, Projector, Users,
   Palette, Accessibility, Image as ImageIcon, User, LayoutGrid, Database, Plug, Info,
-  Download, RefreshCw, ExternalLink, BadgePercent, Workflow, ChevronDown,
+  Download, RefreshCw, ExternalLink, BadgePercent, Workflow, ChevronDown, ChevronRight, ChevronLeft,
   type LucideIcon,
 } from 'lucide-react'
 import { Panel } from '@/components/bento/Panel'
@@ -593,40 +593,19 @@ function NavGroup({ title, items, active, onSelect }: { title: string; items: Na
   )
 }
 
-// Mobile (< md): abas numa barra HORIZONTAL rolável (no lugar da nav vertical alta, que empurrava o
-// conteúdo pra baixo da dobra). Achata os 3 grupos numa faixa edge-to-edge, com rótulo discreto por grupo.
+// Mobile (<1024px): master-detail — lista de categorias (ANDARES + SISTEMA); tocar abre o painel
+// daquela categoria em tela cheia (ver render principal). Desktop (>=1024px) usa a nav vertical (NavGroup).
 const MOBILE_GROUPS: { title: string; items: NavItem[] }[] = [
   { title: 'Andares', items: ANDARES },
   { title: 'Sistema', items: SISTEMA },
 ]
-
-function MobileTabBar({ active, onSelect }: { active: string; onSelect: (k: string) => void }) {
-  return (
-    <nav className="md:hidden -mx-4 sm:-mx-6 px-4 sm:px-6 overflow-x-auto border-b border-bento-border pb-2">
-      <div className="flex items-center gap-1.5 w-max">
-        {MOBILE_GROUPS.map((g, gi) => (
-          <div key={g.title} className="flex items-center gap-1.5">
-            {gi > 0 && <span className="w-px h-5 bg-bento-border mx-1 shrink-0" aria-hidden />}
-            <span className="font-tech text-[9px] uppercase tracking-[0.12em] text-bento-muted shrink-0">{g.title}</span>
-            {g.items.map(it => (
-              <button key={it.key} onClick={() => onSelect(it.key)}
-                className={cn('flex items-center gap-1.5 px-2.5 rounded-btn text-xs whitespace-nowrap shrink-0 min-h-[40px] border transition-colors',
-                  active === it.key ? 'bg-lime/15 text-lime-fg font-semibold border-lime/40' : 'text-bento-dim hover:text-bento-text bg-bento-bg border-bento-border')}>
-                <it.Icon className="w-3.5 h-3.5 flex-none" />{it.label}
-              </button>
-            ))}
-          </div>
-        ))}
-      </div>
-    </nav>
-  )
-}
 
 // ─── Main ───────────────────────────────────────────────────────────────────────
 interface Props { userId: string }
 
 export function ConfiguracoesClient({ userId }: Props) {
   const [active, setActive] = useState('tema')
+  const [mobileOpen, setMobileOpen] = useState(false)   // mobile (<1024): false = lista; true = painel tela cheia
 
   const content = (() => {
     if (active.startsWith('andar-')) {
@@ -649,19 +628,46 @@ export function ConfiguracoesClient({ userId }: Props) {
 
   return (
     <div className="p-4 sm:p-6 max-w-5xl mx-auto font-body">
-      <div className="mb-5">
+      {/* Cabeçalho da LISTA (mobile) + desktop. No painel mobile some (vira "‹ Configurações"). */}
+      <div className={cn('mb-5', mobileOpen && 'hidden lg:block')}>
         <h1 className="font-display text-2xl font-bold text-bento-text tracking-tight">Configurações</h1>
         <p className="text-bento-muted text-sm mt-0.5">Andares e Sistema</p>
       </div>
-      <div className="flex flex-col md:flex-row gap-5">
-        {/* Mobile (< md): barra horizontal rolável no topo → conteúdo logo abaixo, sem nav alta empurrando. */}
-        <MobileTabBar active={active} onSelect={setActive} />
-        {/* Desktop (md+): nav vertical à esquerda — inalterada. */}
-        <nav className="hidden md:block md:w-56 shrink-0 space-y-4">
+
+      <div className="flex flex-col lg:flex-row gap-5">
+        {/* MOBILE (<1024): LISTA agrupada (só quando nenhuma categoria aberta). */}
+        <div className={cn('lg:hidden space-y-4', mobileOpen && 'hidden')}>
+          {MOBILE_GROUPS.map(g => (
+            <div key={g.title}>
+              <p className="font-tech text-[10px] uppercase tracking-[0.12em] text-bento-muted mb-1.5 px-1">{g.title}</p>
+              <div className="bento-fx p-0 overflow-hidden divide-y divide-bento-border/60">
+                {g.items.map(it => (
+                  <button key={it.key} onClick={() => { setActive(it.key); setMobileOpen(true) }}
+                    className="w-full flex items-center gap-3 px-3 min-h-[52px] text-left hover:bg-bento-bg/50 transition-colors">
+                    <it.Icon className="w-4 h-4 text-bento-muted flex-none" />
+                    <span className="text-sm text-bento-text flex-1 min-w-0 truncate">{it.label}</span>
+                    <ChevronRight className="w-4 h-4 text-bento-muted flex-none" />
+                  </button>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* DESKTOP (>=1024): nav vertical à esquerda — inalterada. */}
+        <nav className="hidden lg:block lg:w-56 shrink-0 space-y-4">
           <NavGroup title="Andares" items={ANDARES} active={active} onSelect={setActive} />
           <NavGroup title="Sistema" items={SISTEMA} active={active} onSelect={setActive} />
         </nav>
-        <div className="flex-1 min-w-0">{content}</div>
+
+        {/* CONTEÚDO: desktop sempre; mobile só quando uma categoria está aberta (tela cheia + voltar). */}
+        <div className={cn('flex-1 min-w-0', !mobileOpen && 'hidden lg:block')}>
+          <button type="button" onClick={() => setMobileOpen(false)}
+            className="lg:hidden flex items-center gap-1 -ml-1 mb-4 text-sm font-medium text-bento-dim hover:text-bento-text min-h-[44px]">
+            <ChevronLeft className="w-4 h-4" />Configurações
+          </button>
+          {content}
+        </div>
       </div>
     </div>
   )
