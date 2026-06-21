@@ -21,6 +21,9 @@ interface PanelProps {
   action?: React.ReactNode
   className?: string
   bodyClassName?: string
+  /** Classes extras no cabeçalho (label+action). Ex.: "max-lg:hidden" p/ esconder no mobile quando
+      uma CollapsibleSection já fornece o título — desktop intocado. */
+  headerClassName?: string
   children: React.ReactNode
 }
 
@@ -29,7 +32,7 @@ interface PanelProps {
  * borda, inset highlight no topo, radius 16px, filete do herói) vem da classe
  * `.bento-fx` em globals.css — valores copiados de painel_padrao_tecnico.html.
  */
-export function Panel({ span = '1', hero = false, label, action, className, bodyClassName, children }: PanelProps) {
+export function Panel({ span = '1', hero = false, label, action, className, bodyClassName, headerClassName, children }: PanelProps) {
   return (
     <section
       className={cn(
@@ -40,7 +43,7 @@ export function Panel({ span = '1', hero = false, label, action, className, body
       )}
     >
       {(label || action) && (
-        <div className="flex items-center justify-between gap-2 mb-4 shrink-0">
+        <div className={cn('flex items-center justify-between gap-2 mb-4 shrink-0', headerClassName)}>
           {label && (
             <span className="font-tech text-[10px] uppercase tracking-[0.12em] text-bento-muted truncate">
               {label}

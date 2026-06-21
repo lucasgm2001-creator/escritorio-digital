@@ -364,7 +364,7 @@ export function Calendar({ userId, events, tasks, onEventsChange, focusEvent, on
   return (
     <>
       <section className="bento-fx p-5">
-        <div className="flex items-center gap-2 mb-3">
+        <div className="flex items-center gap-2 mb-3 max-lg:hidden">
           <CalendarDays className="w-4 h-4 text-lime-fg" />
           <h2 className="font-display font-bold text-bento-text text-sm tracking-tight">Agenda</h2>
         </div>

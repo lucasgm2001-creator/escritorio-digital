@@ -5,7 +5,7 @@ import { createClient } from '@/lib/supabase/client'
 import { useRealtimeRows } from '@/lib/hooks/useRealtimeRows'
 import { cn, timeAgo } from '@/lib/utils'
 import { Panel } from '@/components/bento/Panel'
-import { Newspaper, ExternalLink, ChevronDown } from 'lucide-react'
+import { Newspaper, ExternalLink } from 'lucide-react'
 
 interface News {
   id: string
@@ -46,7 +46,6 @@ export function NewsSection() {
   const [news, setNews] = useState<News[]>([])
   const [nicho, setNicho] = useState<string | null>(null)
   const [estado, setEstado] = useState<string | null>(null)
-  const [newsOpen, setNewsOpen] = useState(false)   // só mobile: caixa fechada por padrão (sm+ sempre aberta)
 
   useEffect(() => {
     const supabase = createClient()
@@ -77,16 +76,7 @@ export function NewsSection() {
   }, [news, nicho, estado])
 
   return (
-    <Panel label="Notícias do setor" action={<Newspaper className="w-3.5 h-3.5 text-bento-muted" />}>
-      {/* Mobile: cabeçalho clicável (abre/fecha); desktop (sm+): sempre aberto, sem toggle. */}
-      <button type="button" onClick={() => setNewsOpen(o => !o)}
-        className="sm:hidden flex items-center justify-between gap-2 w-full text-left mb-1">
-        <span className="text-sm text-bento-dim truncate min-w-0">
-          {filtered.length ? filtered[0].titulo : (news.length ? 'Nada com esse filtro' : 'Sem notícias ainda')}
-        </span>
-        <ChevronDown className={cn('w-4 h-4 text-bento-muted flex-none transition-transform', newsOpen && 'rotate-180')} />
-      </button>
-      <div className={cn('sm:contents', newsOpen ? 'block' : 'hidden')}>
+    <Panel label="Notícias do setor" headerClassName="max-lg:hidden" action={<Newspaper className="w-3.5 h-3.5 text-bento-muted" />}>
       {/* Filtros (client-side): nicho + estado */}
       <div className="flex flex-wrap items-center gap-1 mb-2.5">
         <Chip active={!nicho && !estado} onClick={() => { setNicho(null); setEstado(null) }}>Todas</Chip>
@@ -108,7 +98,6 @@ export function NewsSection() {
           {filtered.slice(0, 6).map(n => <NewsCard key={n.id} n={n} />)}
         </div>
       )}
-      </div>
     </Panel>
   )
 }

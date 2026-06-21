@@ -8,7 +8,8 @@ import { Panel } from '@/components/bento/Panel'
 import { LiveDot } from '@/components/bento/LiveDot'
 import { AgentChat } from './AgentChat'
 import { NewsSection } from './NewsSection'
-import { Maximize2, X, Trash2, Check, Clock, ChevronDown } from 'lucide-react'
+import { CollapsibleSection } from '@/components/mobile/CollapsibleSection'
+import { Maximize2, X, Trash2, Check, Clock, LayoutGrid, CalendarDays, Activity as ActivityIcon, Megaphone, Newspaper, Plus } from 'lucide-react'
 import type { Activity, Notice } from '@/types'
 import type { Task, LinkOption } from '../tarefas/types'
 import { TarefasClient } from '../tarefas/TarefasClient'
@@ -194,7 +195,6 @@ export function HallClient({ initialActivities, initialNotices, initialTasks, li
   const [focusEvent, setFocusEvent]   = useState<CalendarEvent | null>(null)
   const [counts, setCounts]           = useState({ leads: 0, clientes: 0 })
   const [activitiesExpanded, setActivitiesExpanded] = useState(false)
-  const [activitiesOpen, setActivitiesOpen] = useState(false)   // só mobile: caixa fechada por padrão (sm+ sempre aberta)
   const [muralVerMais, setMuralVerMais] = useState(false)   // Mural: revela o resto das tarefas de hoje
   const router = useRouter()
 
@@ -380,42 +380,38 @@ export function HallClient({ initialActivities, initialNotices, initialTasks, li
 
         {activeTab === 'activities' && (
           <>
-            {/* KPIs — faixa fina (label + número numa linha) */}
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-              {[
-                { label: 'Leads',        value: counts.leads },
-                { label: 'Clientes',     value: counts.clientes },
-                { label: 'Tarefas hoje', value: tasksToday },
-                { label: 'Reuniões',     value: reunioesUpcoming },
-              ].map(k => (
-                <div key={k.label} className="bento-fx px-3 py-2 flex items-baseline justify-between gap-2">
-                  <span className="font-tech text-[11px] uppercase tracking-wide text-bento-muted truncate">{k.label}</span>
-                  <span className="font-display text-xl font-bold text-bento-text tabular-nums leading-none">{k.value}</span>
-                </div>
-              ))}
-            </div>
+            {/* (1) Visão Geral — números do dia. Mobile: caixa aberta por padrão. */}
+            <CollapsibleSection title="Visão Geral" icon={LayoutGrid} defaultOpen>
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+                {[
+                  { label: 'Leads',        value: counts.leads },
+                  { label: 'Clientes',     value: counts.clientes },
+                  { label: 'Tarefas hoje', value: tasksToday },
+                  { label: 'Reuniões',     value: reunioesUpcoming },
+                ].map(k => (
+                  <div key={k.label} className="bento-fx px-3 py-2 flex items-baseline justify-between gap-2">
+                    <span className="font-tech text-[11px] uppercase tracking-wide text-bento-muted truncate">{k.label}</span>
+                    <span className="font-display text-xl font-bold text-bento-text tabular-nums leading-none">{k.value}</span>
+                  </div>
+                ))}
+              </div>
+            </CollapsibleSection>
 
-            {/* AGENDA — full width, altura NATURAL (sem stretch/h-full → sem buraco no modo Semanal) */}
-            <Calendar userId={userId} events={calEvents} tasks={initialTasks} onEventsChange={setCalEvents} focusEvent={focusEvent} onFocusHandled={() => setFocusEvent(null)} />
+            {/* (2) Agenda — aberta por padrão no mobile. Altura NATURAL (sem stretch/h-full). */}
+            <CollapsibleSection title="Agenda" icon={CalendarDays} defaultOpen>
+              <Calendar userId={userId} events={calEvents} tasks={initialTasks} onEventsChange={setCalEvents} focusEvent={focusEvent} onFocusHandled={() => setFocusEvent(null)} />
+            </CollapsibleSection>
 
             {/* ATIVIDADES RECENTES + MURAL — lado a lado, mesma altura */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 items-stretch">
-              <Panel className="h-full order-2 sm:order-1" label="Atividades Recentes" action={
-                <div className="flex items-center gap-2">
-                  <button onClick={() => setHistory('activities')} aria-label="Ampliar e ver histórico"
-                    className="text-bento-muted hover:text-lime-fg transition-colors"><Maximize2 className="w-3.5 h-3.5" /></button>
-                  <LiveDot />
-                </div>
-              }>
-                {/* Mobile: cabeçalho clicável (abre/fecha); desktop (sm+): sempre aberto, sem toggle. */}
-                <button type="button" onClick={() => setActivitiesOpen(o => !o)}
-                  className="sm:hidden flex items-center justify-between gap-2 w-full text-left mb-1">
-                  <span className="text-sm text-bento-dim truncate min-w-0">
-                    {activities.length ? activities[0].description : 'Nenhuma atividade ainda.'}
-                  </span>
-                  <ChevronDown className={cn('w-4 h-4 text-bento-muted flex-none transition-transform', activitiesOpen && 'rotate-180')} />
-                </button>
-                <div className={cn('sm:contents', activitiesOpen ? 'flex flex-col' : 'hidden')}>
+              <CollapsibleSection title="Atividades Recentes" icon={ActivityIcon}>
+                <Panel className="h-full max-lg:p-3" headerClassName="max-lg:hidden" label="Atividades Recentes" action={
+                  <div className="flex items-center gap-2">
+                    <button onClick={() => setHistory('activities')} aria-label="Ampliar e ver histórico"
+                      className="text-bento-muted hover:text-lime-fg transition-colors"><Maximize2 className="w-3.5 h-3.5" /></button>
+                    <LiveDot />
+                  </div>
+                }>
                 {/* Resumo por tipo — barras de proporção */}
                 {typeCounts.length > 0 && (
                   <div className="space-y-2 mb-4 pb-4 border-b border-bento-border/60">
@@ -467,13 +463,15 @@ export function HallClient({ initialActivities, initialNotices, initialTasks, li
                     {activitiesExpanded ? 'Ver menos' : `Ver mais (${activities.length - 3})`}
                   </button>
                 )}
-                </div>
-              </Panel>
+                </Panel>
+              </CollapsibleSection>
 
-              <Panel
-                className="h-full order-1 sm:order-2"
-                label="Mural de Avisos"
-                action={
+              <CollapsibleSection title="Mural de Avisos" icon={Megaphone}>
+                <Panel
+                  className="h-full max-lg:p-3"
+                  headerClassName="max-lg:hidden"
+                  label="Mural de Avisos"
+                  action={
                   <div className="flex items-center gap-2.5">
                     {canPostNotice && (
                       <button onClick={() => setShowNoticeForm(!showNoticeForm)}
@@ -490,6 +488,13 @@ export function HallClient({ initialActivities, initialNotices, initialTasks, li
                 }
               >
                 <div className="space-y-2.5">
+                  {/* Postar no mobile (no desktop o botão fica no header do painel, escondido aqui). */}
+                  {canPostNotice && (
+                    <button type="button" onClick={() => setShowNoticeForm(s => !s)}
+                      className="lg:hidden w-full flex items-center justify-center gap-1.5 mb-1 py-2 rounded-btn border border-bento-border text-lime-fg font-tech text-[11px] uppercase tracking-wide font-semibold min-h-[40px]">
+                      <Plus className="w-3.5 h-3.5" />Postar aviso
+                    </button>
+                  )}
                   {showNoticeForm && (
                     <div className="bg-bento-bg border border-bento-border rounded-bento p-3 space-y-2 mb-3">
                       <input value={noticeForm.title} onChange={e => setNoticeForm(p => ({ ...p, title: e.target.value }))}
@@ -563,11 +568,14 @@ export function HallClient({ initialActivities, initialNotices, initialTasks, li
                     </>
                   }
                 </div>
-              </Panel>
+                </Panel>
+              </CollapsibleSection>
             </div>
 
-            {/* NOTÍCIAS DO SETOR — full width embaixo, em grid (pode ocupar altura sem desequilibrar) */}
-            <NewsSection />
+            {/* (5) Notícias do Setor — fechada por padrão no mobile */}
+            <CollapsibleSection title="Notícias do Setor" icon={Newspaper}>
+              <NewsSection />
+            </CollapsibleSection>
           </>
         )}
 
