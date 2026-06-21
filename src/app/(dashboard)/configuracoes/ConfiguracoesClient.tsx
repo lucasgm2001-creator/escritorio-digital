@@ -5,7 +5,7 @@ import Image from 'next/image'
 import {
   Sun, Moon, Monitor, Home, Briefcase, ListChecks, Projector, Users,
   Palette, Accessibility, Image as ImageIcon, User, LayoutGrid, Database, Plug, Info,
-  Download, RefreshCw, ExternalLink, BadgePercent, Workflow,
+  Download, RefreshCw, ExternalLink, BadgePercent, Workflow, ChevronDown,
   type LucideIcon,
 } from 'lucide-react'
 import { Panel } from '@/components/bento/Panel'
@@ -333,10 +333,12 @@ const FLOOR_META: Record<string, { route: string; section: string; desc: string 
 function AndarSection({ keyId, label }: { keyId: string; label: string }) {
   const meta = FLOOR_META[keyId]
   const [done, setDone] = useState(false)
+  const [showFases, setShowFases] = useState(false)
   const resetTabs = () => {
     if (meta) { try { localStorage.removeItem(`dashboard-tabs-order-${meta.section}`) } catch { /* ignore */ } }
     setDone(true); setTimeout(() => setDone(false), 2500)
   }
+  const isComercial = keyId === 'andar-comercial'
   return (
     <Panel label={`Andar — ${label}`}>
       <div className="space-y-4">
@@ -345,7 +347,19 @@ function AndarSection({ keyId, label }: { keyId: string; label: string }) {
           {meta && <a href={meta.route} className={actionBtnCls}><ExternalLink className="w-4 h-4" />Abrir {label}</a>}
           <button onClick={resetTabs} className={actionBtnCls}><RefreshCw className="w-4 h-4" />{done ? 'Ordem restaurada' : 'Restaurar ordem das abas'}</button>
         </div>
-        <p className="font-tech text-[11px] text-bento-muted/70 border-t border-bento-border/60 pt-3">Preferências específicas deste andar: em breve (TODO).</p>
+        {isComercial ? (
+          /* Config do andar Comercial num lugar só: editor de "Fases do funil" mora AQUI dentro
+             (antes ficava num grupo "COMERCIAL" separado). Mesma funcionalidade, só mudou o acesso. */
+          <div className="border-t border-bento-border/60 pt-4 space-y-3">
+            <button onClick={() => setShowFases(v => !v)} className={actionBtnCls} aria-expanded={showFases}>
+              <Workflow className="w-4 h-4" />Fases do funil
+              <ChevronDown className={cn('w-4 h-4 transition-transform', showFases && 'rotate-180')} />
+            </button>
+            {showFases && <div className="pt-1"><FasesTab /></div>}
+          </div>
+        ) : (
+          <p className="font-tech text-[11px] text-bento-muted/70 border-t border-bento-border/60 pt-3">Preferências específicas deste andar: em breve (TODO).</p>
+        )}
       </div>
     </Panel>
   )
@@ -461,9 +475,6 @@ const ANDARES: NavItem[] = [
   { key: 'andar-tarefas', label: 'Tarefas', Icon: ListChecks },
   { key: 'andar-studio', label: 'Studio', Icon: Projector },
   { key: 'andar-clientes', label: 'Clientes', Icon: Users },
-]
-const COMERCIAL: NavItem[] = [
-  { key: 'fases', label: 'Fases do funil', Icon: Workflow },
 ]
 const SISTEMA: NavItem[] = [
   { key: 'tema', label: 'Tema', Icon: Palette },
@@ -586,7 +597,6 @@ function NavGroup({ title, items, active, onSelect }: { title: string; items: Na
 // conteúdo pra baixo da dobra). Achata os 3 grupos numa faixa edge-to-edge, com rótulo discreto por grupo.
 const MOBILE_GROUPS: { title: string; items: NavItem[] }[] = [
   { title: 'Andares', items: ANDARES },
-  { title: 'Comercial', items: COMERCIAL },
   { title: 'Sistema', items: SISTEMA },
 ]
 
@@ -633,7 +643,6 @@ export function ConfiguracoesClient({ userId }: Props) {
       case 'dados': return <DadosSection />
       case 'integracoes': return <IntegracoesSection />
       case 'planos': return <PlanosSection />
-      case 'fases': return <FasesTab />
       default: return null
     }
   })()
@@ -650,7 +659,6 @@ export function ConfiguracoesClient({ userId }: Props) {
         {/* Desktop (md+): nav vertical à esquerda — inalterada. */}
         <nav className="hidden md:block md:w-56 shrink-0 space-y-4">
           <NavGroup title="Andares" items={ANDARES} active={active} onSelect={setActive} />
-          <NavGroup title="Comercial" items={COMERCIAL} active={active} onSelect={setActive} />
           <NavGroup title="Sistema" items={SISTEMA} active={active} onSelect={setActive} />
         </nav>
         <div className="flex-1 min-w-0">{content}</div>
