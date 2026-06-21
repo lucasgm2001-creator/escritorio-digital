@@ -13,7 +13,7 @@ export interface Lead {
   email?: string
   phone?: string
   value: number
-  status: 'novo' | 'interagiu' | 'reuniao' | 'proposta' | 'fechado' | 'nao_interagiu' | 'perdido'
+  status: 'novo' | 'interagiu' | 'reuniao' | 'proposta' | 'fechado' | 'nao_interagiu' | 'perdido' | 'negocio_futuro'
   score: number
   operation: 'brasil' | 'eua'
   assigned_to?: string

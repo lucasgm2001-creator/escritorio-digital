@@ -6,6 +6,14 @@ Categorias: 🐛 Fix · 🔄 Mudança · ✨ Novidade
 
 ---
 
+✨ Funil: nova fase **"Negócio Futuro"** (`negocio_futuro`) — entre "Venda Perdida" e "Lixeira".
+- Fase de "guardar pra depois": cor **neutra (zinc/cinza)**, tom `neutral`. Coluna aparece sozinha (funil é DB-driven via `funnel_stages`).
+- Suporte ao slug no frontend: união `LeadStatus` + `ALL_COLUMNS` (comercial/types.ts), `Lead.status` legado (`@/types`), `STATIC_SLUGS` + mapa de linguagem natural do agente (SuperAgent), `VALID_STATUS` do briefing.
+- **Dinheiro/won-flow intocados:** mover pra `negocio_futuro` NÃO dispara o fluxo de venda fechada — o gatilho é a **flag `is_won`** da fase (esta nasce `is_won=false`). Nenhum arquivo de dinheiro alterado.
+- Migration **032** reconciliada (idempotente; aplicada via MCP, não pelo deploy): cria a fase em `posicao 10`, move `lixeira` 10→11, estende a CHECK `leads_status_check` com `negocio_futuro`.
+
+---
+
 🔄 Funil (/comercial) — **só mobile**: fases viram um **seletor de chips** (desktop inalterado).
 - Antes (mobile): acordeão vertical de fases (`PhaseAccordion`) — várias abriam ao mesmo tempo, cards sem drag, mover só pelo seletor dentro do diário.
 - Agora (mobile): **seletor de chips compactos** (grade 2-col, cor do status + nome + contagem) — **uma fase por vez**; tocar no chip mostra os leads da fase abaixo; chip selecionado destacado em lime. Default = primeira fase com leads.

@@ -17,7 +17,7 @@ const MODEL = 'claude-sonnet-4-6'   // mesmo do SuperAgent
 // Tipos de interação que ALIMENTAM o briefing (exclui 'briefing' e 'sistema').
 const INPUT_TYPES = ['ligacao', 'mensagem', 'nota', 'reuniao', 'proposta', 'atendeu', 'nao_atendeu', 'reagendamento']
 // Status válidos do funil (NUNCA 'lixeira') — o mesmo conjunto que o funil usa.
-const VALID_STATUS = ['novo', 'interagiu', 'nao_interagiu', 'reuniao', 'no_show', 'reagendamento', 'proposta', 'fechado', 'perdido']
+const VALID_STATUS = ['novo', 'interagiu', 'nao_interagiu', 'reuniao', 'no_show', 'reagendamento', 'proposta', 'fechado', 'perdido', 'negocio_futuro']
 
 const str = (v: unknown): string => (v == null ? '' : String(v).trim())
 

@@ -1,6 +1,6 @@
 export type LeadStatus =
   | 'novo' | 'interagiu' | 'nao_interagiu' | 'reuniao' | 'no_show'
-  | 'reagendamento' | 'proposta' | 'fechado' | 'perdido' | 'lixeira'
+  | 'reagendamento' | 'proposta' | 'fechado' | 'perdido' | 'negocio_futuro' | 'lixeira'
 
 export interface Lead {
   id: string
@@ -63,6 +63,7 @@ export const ALL_COLUMNS: ColumnConfig[] = [
   { key: 'proposta',      label: 'Proposta em Análise',tier: 4, tone: 'neutral', textColor: 'text-amber-400',  bgColor: 'bg-amber-900/20',  dotColor: 'bg-amber-500',  borderColor: 'border-amber-800/40' },
   { key: 'fechado',       label: 'Venda Fechada',      tier: 5, tone: 'win',     textColor: 'text-lime-fg',    bgColor: 'bg-lime/15',       dotColor: 'bg-lime',       borderColor: 'border-lime/30' },
   { key: 'perdido',       label: 'Venda Perdida',      tier: 5, tone: 'loss',    textColor: 'text-rose-400',   bgColor: 'bg-rose-900/20',   dotColor: 'bg-rose-500',   borderColor: 'border-rose-800/40' },
+  { key: 'negocio_futuro',label: 'Negócio Futuro',     tier: 6, tone: 'neutral', textColor: 'text-zinc-400',   bgColor: 'bg-zinc-800/30',   dotColor: 'bg-zinc-500',   borderColor: 'border-zinc-700/40' },
   { key: 'lixeira',       label: 'Lixeira',            tier: 6, tone: 'neutral', textColor: 'text-bento-muted',bgColor: 'bg-bento-bg',      dotColor: 'bg-bento-muted',borderColor: 'border-bento-border' },
 ]
 

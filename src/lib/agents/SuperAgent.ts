@@ -79,7 +79,7 @@ function buildMoverLeadTool(slugs: string[]) {
         destino: {
           type: 'string',
           enum: slugs,
-          description: 'Estágio de destino (slug). Mapeie a linguagem natural para o slug: "reunião agendada"→reuniao; "no show"→no_show; "reagendar"→reagendamento; "proposta"→proposta; "venda fechada"/"fechou"/"ganhou"→fechado; "perdido"→perdido; "lixo"/"descartar"→lixeira; "não interagiu"→nao_interagiu; "novo"→novo.',
+          description: 'Estágio de destino (slug). Mapeie a linguagem natural para o slug: "reunião agendada"→reuniao; "no show"→no_show; "reagendar"→reagendamento; "proposta"→proposta; "venda fechada"/"fechou"/"ganhou"→fechado; "perdido"→perdido; "negócio futuro"/"guardar pra depois"/"depois"→negocio_futuro; "lixo"/"descartar"→lixeira; "não interagiu"→nao_interagiu; "novo"→novo.',
         },
         plano: { type: 'string', description: 'APENAS para "Venda Fechada": nome do plano/contrato do cliente (um dos planos do contexto, campo "plans"). Se o usuário não disse o plano, deixe vazio — o sistema pergunta.' },
       },
@@ -291,7 +291,7 @@ export class SuperAgent {
   ): Promise<AgentTurn> {
     const context = await this.getContextData()
     const stages = await this.loadStages()
-    const STATIC_SLUGS = ['novo', 'interagiu', 'nao_interagiu', 'reuniao', 'no_show', 'reagendamento', 'proposta', 'fechado', 'perdido', 'lixeira']
+    const STATIC_SLUGS = ['novo', 'interagiu', 'nao_interagiu', 'reuniao', 'no_show', 'reagendamento', 'proposta', 'fechado', 'perdido', 'negocio_futuro', 'lixeira']
     const slugs = stages.length ? stages.filter(s => !s.arquivada).map(s => s.slug) : STATIC_SLUGS
     const won = wonSlug(stages)
     const system = [
