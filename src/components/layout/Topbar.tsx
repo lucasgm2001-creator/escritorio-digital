@@ -80,18 +80,16 @@ export function Topbar({ title, onMenuToggle, userName = 'Usuário', userInitial
         </svg>
       </button>
 
-      <h1 className="font-semibold text-foreground text-sm tracking-tight">{title}</h1>
+      <h1 className="font-semibold text-foreground text-sm tracking-tight truncate min-w-0">{title}</h1>
 
-      <div className="ml-auto flex items-center gap-4">
-        {/* Fusos sempre visíveis: Brasília (principal, lime) + EUA Leste/Montanha/Oeste.
-            Brasília a partir de sm; os 3 dos EUA a partir de md (evita lotar no celular). */}
-        <div className="hidden sm:flex items-center gap-2.5 sm:gap-3.5 border-r border-[#2d3748] pr-3 sm:pr-4">
+      <div className="ml-auto flex items-center gap-3 sm:gap-4 min-w-0">
+        {/* Fusos sempre visíveis (Brasília lime + EUA Leste/Montanha/Oeste). Mobile (<1024): grade 2x2
+            compacta, cabe sem overflow; desktop (lg+): uma linha, igual a hoje. */}
+        <div className="grid grid-cols-2 gap-x-3 gap-y-0 lg:flex lg:items-center lg:gap-3.5 border-r border-[#2d3748] pr-3 sm:pr-4 shrink-0">
           <LiveClock timezone="America/Sao_Paulo" label="Brasília" primary />
-          <div className="hidden md:flex items-center gap-3.5">
-            <LiveClock timezone="America/New_York"    label="EUA Leste" />
-            <LiveClock timezone="America/Denver"      label="EUA Mont." />
-            <LiveClock timezone="America/Los_Angeles" label="EUA Oeste" />
-          </div>
+          <LiveClock timezone="America/New_York"    label="EUA Leste" />
+          <LiveClock timezone="America/Denver"      label="EUA Mont." />
+          <LiveClock timezone="America/Los_Angeles" label="EUA Oeste" />
         </div>
 
         {/* Avatar + dropdown */}
