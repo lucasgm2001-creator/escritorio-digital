@@ -142,25 +142,29 @@ export function ContatosTab({ leads, clients, onOpenLead, onOpenClient }: Props)
   const faseOptions = useMemo(() => [
     ...ALL_COLUMNS.filter(c => c.key !== 'lixeira').map(c => ({ value: c.key, label: c.label })),
     { value: 'cliente', label: 'Cliente' },
-    { value: 'lixeira', label: 'Lixeira' },
   ], [])
   const nichoOptions = useMemo(() => Array.from(new Set(rows.map(r => r.nicho).filter(Boolean)))
     .sort((a, b) => a.localeCompare(b)).map(n => ({ value: n, label: n })), [rows])
   const fusoOptions = [...Object.entries(FUSO_LABELS).map(([value, label]) => ({ value, label })), { value: '__none__', label: 'Sem fuso' }]
 
-  const visible = useMemo(() => {
+  // Lixeira é SEMPRE mostrada, como GRUPO À PARTE (abaixo), independente do filtro de Fase.
+  // Os demais (ativos/cliente) seguem com busca + Fase + Nicho + Fuso (e a dedup de hoje).
+  const { visibleMain, visibleLixeira } = useMemo(() => {
     const q = search.trim().toLowerCase()
-    return rows.filter(r => {
-      if (q && ![r.name, r.company, r.phone, r.email].some(v => v.toLowerCase().includes(q))) return false
-      // Lixeira ESCONDIDA por padrão: só aparece se "Lixeira" estiver explicitamente selecionado.
-      // (Nunca entra no "mostrar tudo" quando nenhum filtro está marcado.)
-      if (r.faseKey === 'lixeira' && !faseSel.has('lixeira')) return false
-      if (faseSel.size && !faseSel.has(r.faseKey)) return false
-      if (nichoSel.size && !nichoSel.has(r.nicho)) return false
-      if (fusoSel.size && !fusoSel.has(r.fuso || '__none__')) return false
-      return true
-    })
+    const matchText = (r: Row) => !q || [r.name, r.company, r.phone, r.email].some(v => v.toLowerCase().includes(q))
+    const matchNichoFuso = (r: Row) =>
+      (!nichoSel.size || nichoSel.has(r.nicho)) && (!fusoSel.size || fusoSel.has(r.fuso || '__none__'))
+    const main: Row[] = []
+    const lix: Row[] = []
+    for (const r of rows) {
+      if (!matchText(r) || !matchNichoFuso(r)) continue
+      if (r.faseKey === 'lixeira') { lix.push(r); continue }     // grupo separado; NÃO usa filtro de Fase
+      if (faseSel.size && !faseSel.has(r.faseKey)) continue
+      main.push(r)
+    }
+    return { visibleMain: main, visibleLixeira: lix }
   }, [rows, search, faseSel, nichoSel, fusoSel])
+  const totalVisible = visibleMain.length + visibleLixeira.length
 
   const open = (r: Row) => {
     if (r.origem === 'lead') { const l = leads.find(x => x.id === r.id); if (l) onOpenLead(l) }
@@ -212,13 +216,49 @@ export function ContatosTab({ leads, clients, onOpenLead, onOpenClient }: Props)
     toast({ type: 'success', message: 'Contato excluído' })
   }
 
+  // Card de contato (reusado nos dois grupos: principais + lixeira). Lixeira = apagado (opacity).
+  const renderRow = (r: Row) => (
+    <div key={`${r.origem}-${r.id}`}
+      onClick={() => open(r)}
+      role="button" tabIndex={0}
+      onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); open(r) } }}
+      className={cn('w-full text-left bento-fx p-3 hover:border-lime/40 transition-colors cursor-pointer',
+        r.faseKey === 'lixeira' && 'opacity-70')}>
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="text-sm font-semibold text-bento-text truncate">{r.name || 'Sem nome'}</p>
+          {r.company && <p className="text-xs text-bento-muted truncate">{r.company}</p>}
+        </div>
+        <div className="flex items-center gap-1 shrink-0">
+          {r.chegada && <span className="font-tech text-[10px] text-bento-muted tabular-nums">{fmtChegada(r.chegada)}</span>}
+          {/* Excluir de vez — SÓ leads. Cliente nunca é excluído (só desativado). */}
+          {r.origem === 'lead' && (
+            <button type="button" aria-label="Excluir de vez" title="Excluir de vez"
+              onClick={e => { e.stopPropagation(); setConfirm(r) }}
+              className="p-1 -mr-1 rounded-md text-bento-muted/50 hover:text-red-400 hover:bg-red-500/10 transition-colors">
+              <Trash2 className="w-3.5 h-3.5" />
+            </button>
+          )}
+        </div>
+      </div>
+      <div className="flex flex-wrap items-center gap-1.5 mt-2">
+        <span className="inline-flex items-center gap-1.5 text-[10px] px-2 py-0.5 rounded-full border border-bento-border text-bento-dim font-semibold">
+          <span className={cn('w-1.5 h-1.5 rounded-full flex-none', r.faseDot)} />{r.faseLabel}
+        </span>
+        {r.nicho && <span className="text-[10px] px-2 py-0.5 rounded-full bg-bento-bg border border-bento-border text-bento-muted">{r.nicho}</span>}
+        {r.fuso && <span className="font-tech text-[10px] px-2 py-0.5 rounded-full bg-bento-bg border border-bento-border text-bento-muted">{FUSO_LABELS[r.fuso] ?? r.fuso}</span>}
+        {r.phone && <span className="font-tech text-[11px] text-bento-muted ml-auto tabular-nums">{r.phone}</span>}
+      </div>
+    </div>
+  )
+
   return (
     <div className="h-full overflow-y-auto bg-bento-bg p-4 sm:p-6">
       <div className="max-w-4xl mx-auto space-y-4">
         {/* Cabeçalho + contador */}
         <div className="flex items-baseline gap-2">
           <h3 className="font-display font-bold text-bento-text text-lg">Contatos</h3>
-          <span className="font-tech text-xs text-bento-muted tabular-nums">{visible.length} contato{visible.length === 1 ? '' : 's'}</span>
+          <span className="font-tech text-xs text-bento-muted tabular-nums">{totalVisible} contato{totalVisible === 1 ? '' : 's'}</span>
         </div>
 
         {/* Busca + filtros */}
@@ -240,44 +280,22 @@ export function ContatosTab({ leads, clients, onOpenLead, onOpenClient }: Props)
           </CollapsibleSection>
         </div>
 
-        {/* Lista (linhas responsivas; sem scroll horizontal) */}
-        {visible.length === 0 ? (
+        {/* Lista (cards empilhados; sem scroll horizontal). Lixeira = grupo separado abaixo. */}
+        {totalVisible === 0 ? (
           <p className="text-sm text-bento-muted text-center py-10">Nenhum contato encontrado.</p>
         ) : (
           <div className="space-y-1.5">
-            {visible.map(r => (
-              <div key={`${r.origem}-${r.id}`}
-                onClick={() => open(r)}
-                role="button" tabIndex={0}
-                onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); open(r) } }}
-                className="w-full text-left bento-fx p-3 hover:border-lime/40 transition-colors cursor-pointer">
-                <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0">
-                    <p className="text-sm font-semibold text-bento-text truncate">{r.name || 'Sem nome'}</p>
-                    {r.company && <p className="text-xs text-bento-muted truncate">{r.company}</p>}
-                  </div>
-                  <div className="flex items-center gap-1 shrink-0">
-                    {r.chegada && <span className="font-tech text-[10px] text-bento-muted tabular-nums">{fmtChegada(r.chegada)}</span>}
-                    {/* Excluir de vez — SÓ leads. Cliente nunca é excluído (só desativado). */}
-                    {r.origem === 'lead' && (
-                      <button type="button" aria-label="Excluir de vez" title="Excluir de vez"
-                        onClick={e => { e.stopPropagation(); setConfirm(r) }}
-                        className="p-1 -mr-1 rounded-md text-bento-muted/50 hover:text-red-400 hover:bg-red-500/10 transition-colors">
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
-                    )}
-                  </div>
+            {visibleMain.map(renderRow)}
+            {visibleLixeira.length > 0 && (
+              <>
+                <div className="flex items-center gap-2 pt-4 pb-1">
+                  <span className="font-tech text-[10px] uppercase tracking-wide text-bento-muted">Lixeira</span>
+                  <span className="font-tech text-[10px] text-bento-muted/70 tabular-nums">{visibleLixeira.length}</span>
+                  <div className="flex-1 border-t border-bento-border/60" />
                 </div>
-                <div className="flex flex-wrap items-center gap-1.5 mt-2">
-                  <span className="inline-flex items-center gap-1.5 text-[10px] px-2 py-0.5 rounded-full border border-bento-border text-bento-dim font-semibold">
-                    <span className={cn('w-1.5 h-1.5 rounded-full flex-none', r.faseDot)} />{r.faseLabel}
-                  </span>
-                  {r.nicho && <span className="text-[10px] px-2 py-0.5 rounded-full bg-bento-bg border border-bento-border text-bento-muted">{r.nicho}</span>}
-                  {r.fuso && <span className="font-tech text-[10px] px-2 py-0.5 rounded-full bg-bento-bg border border-bento-border text-bento-muted">{FUSO_LABELS[r.fuso] ?? r.fuso}</span>}
-                  {r.phone && <span className="font-tech text-[11px] text-bento-muted ml-auto tabular-nums">{r.phone}</span>}
-                </div>
-              </div>
-            ))}
+                {visibleLixeira.map(renderRow)}
+              </>
+            )}
           </div>
         )}
       </div>
