@@ -1,7 +1,7 @@
-import { ApresentacaoTab } from '../comercial/tabs/ApresentacaoTab'
+import { StudioGate } from './StudioGate'
 
-// Studio de Apresentação — andar próprio (saiu de dentro do Comercial). O componente
-// é autossuficiente (carrega materiais/leads/apresentações via client) — só renderiza.
+// Studio de Apresentação — andar próprio (saiu de dentro do Comercial). No desktop renderiza o
+// Studio (ApresentacaoTab) igual a hoje; no mobile (<1024px) mostra um aviso (ver StudioGate).
 export default function StudioPage() {
-  return <ApresentacaoTab />
+  return <StudioGate />
 }
