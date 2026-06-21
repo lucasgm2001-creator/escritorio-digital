@@ -141,7 +141,7 @@ export function KanbanBoard({ initialLeads, initialStages, initialClients, curre
     const prevStage = lead.stage_changed_at
     const nowIso = new Date().toISOString()
     setLeads(prev => prev.map(l => l.id === lead.id ? { ...l, status: newStatus, stage_changed_at: nowIso } : l))   // otimista
-    const res = await moveLead(supabase, lead, newStatus, currentUser.name, initialStages, planoId)
+    const res = await moveLead(supabase, lead, newStatus, currentUser.name, initialStages, planoId, currentUser.id)
     if (!res.ok) {
       setLeads(prev => prev.map(l => l.id === lead.id ? { ...l, status: prevStatus, stage_changed_at: prevStage } : l))   // rollback
       showToast(`Não foi possível mover o lead: ${res.error}`, 'error')

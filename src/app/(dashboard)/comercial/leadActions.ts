@@ -1,7 +1,7 @@
 import { resolveRate } from '@/lib/commission/calc'
 import type { FxConfig } from '@/lib/commission/types'
 import type { createClient } from '@/lib/supabase/client'
-import type { LeadStatus } from './types'
+import { ALL_COLUMNS, type LeadStatus } from './types'
 import { ymd } from '@/lib/format'
 import { markMilestones } from '@/lib/leadMilestones'
 import { wonSlug, marcosForSlug, type FunnelStage } from '@/lib/funnelStages'
@@ -138,7 +138,7 @@ export async function runWonFlow(supabase: SupaClient, lead: MovableLead, userNa
 // dispara o won-flow (comissão). NÃO faz UI — devolve resultado + notas pro chamador
 // decidir como mostrar (toast no funil / texto no chat do agente).
 export async function moveLead(
-  supabase: SupaClient, lead: MovableLead, newStatus: LeadStatus, userName: string, stages: FunnelStage[], planoId: string | null = null,
+  supabase: SupaClient, lead: MovableLead, newStatus: LeadStatus, userName: string, stages: FunnelStage[], planoId: string | null = null, userId: string | null = null,
 ): Promise<{ ok: boolean; error?: string; notes: ActionNote[] }> {
   if (lead.status === newStatus) return { ok: true, notes: [] }
   const nowIso = new Date().toISOString()
@@ -149,6 +149,23 @@ export async function moveLead(
   await markMilestones(supabase, lead.id, marcosForSlug(stages, newStatus))
   // Won-flow (DINHEIRO) dispara pela FLAG is_won da fase (não por slug fixo). Comportamento idêntico.
   const won = wonSlug(stages)
-  const notes = (newStatus === won && lead.status !== won) ? await runWonFlow(supabase, lead, userName, planoId) : []
+  const isWon = newStatus === won && lead.status !== won
+  // Atividade de mudança de fase (QUALQUER fase), mobile E desktop. O caso "won" já é registrado
+  // DENTRO do runWonFlow ("...Venda Fechada") → aqui pulamos o won pra NÃO duplicar. Secundário:
+  // best-effort, NÃO bloqueia o move nem a comissão se falhar.
+  if (!isWon) {
+    const destName = stages.find(s => s.slug === newStatus)?.nome
+      ?? ALL_COLUMNS.find(c => c.key === newStatus)?.label ?? newStatus
+    try {
+      await supabase.from('activities').insert({
+        type: 'lead',
+        description: `Lead ${lead.name} movido para ${destName}`,
+        user_name: userName,
+        user_id: userId,
+        entity_id: lead.id,
+      })
+    } catch { /* registrar atividade é secundário — não quebra o move */ }
+  }
+  const notes = isWon ? await runWonFlow(supabase, lead, userName, planoId) : []
   return { ok: true, notes }
 }

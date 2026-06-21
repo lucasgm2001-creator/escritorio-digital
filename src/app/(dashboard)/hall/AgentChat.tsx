@@ -144,7 +144,7 @@ export function AgentChat({ userId, userName }: { userId: string; userName: stri
       // MESMA função do funil → dispara o won-flow pela flag is_won da fase. planoId (Fase 2A) vem do
       // prepMoverLead no fechamento; nas outras fases é null. Só FORNECE o id (mesmo caminho do modal do funil).
       const planoId = p.planoId ? String(p.planoId) : null
-      const res = await moveLead(supabase, lead as MovableLead, destino as LeadStatus, userName, stages, planoId)
+      const res = await moveLead(supabase, lead as MovableLead, destino as LeadStatus, userName, stages, planoId, userId)
       if (!res.ok) return `Não consegui mover o ${lead.name}: ${res.error}`
       let msg = `Pronto! Movi o ${lead.name} pra ${label}.`
       for (const n of res.notes) if (n.message) msg += `\n${n.message}`
