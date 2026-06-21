@@ -113,10 +113,19 @@ export function ContatosTab({ leads, clients, onOpenLead, onOpenClient }: Props)
       })
     }
     for (const l of leads) {
-      if (l.status === 'lixeira') continue
       const p = onlyDigits(l.phone), e = lower(l.email)
-      if ((p && clientKeys.has('p:' + p)) || (e && clientKeys.has('e:' + e))) continue   // já é cliente
       const st = STATUS_STYLE[l.status]
+      if (l.status === 'lixeira') {
+        // Lixeira = GRUPO À PARTE: não funde com lead ativo nem com cliente; cada lixo é sua própria
+        // linha. Só fica VISÍVEL quando o filtro "Lixeira" está ligado (ver `visible`).
+        out.push({
+          id: l.id, origem: 'lead', name: l.name, company: l.company ?? '', phone: l.phone ?? '', email: l.email ?? '',
+          faseKey: 'lixeira', faseLabel: st?.label ?? 'Lixeira', faseDot: st?.dotColor ?? 'bg-bento-muted',
+          nicho: (l.nicho ?? '').trim(), fuso: (l.fuso ?? '') || '', chegada: l.received_at ?? '',
+        })
+        continue
+      }
+      if ((p && clientKeys.has('p:' + p)) || (e && clientKeys.has('e:' + e))) continue   // já é cliente
       out.push({
         id: l.id, origem: 'lead', name: l.name, company: l.company ?? '', phone: l.phone ?? '', email: l.email ?? '',
         faseKey: l.status, faseLabel: st?.label ?? l.status, faseDot: st?.dotColor ?? 'bg-bento-muted',
@@ -132,6 +141,7 @@ export function ContatosTab({ leads, clients, onOpenLead, onOpenClient }: Props)
   const faseOptions = useMemo(() => [
     ...ALL_COLUMNS.filter(c => c.key !== 'lixeira').map(c => ({ value: c.key, label: c.label })),
     { value: 'cliente', label: 'Cliente' },
+    { value: 'lixeira', label: 'Lixeira' },
   ], [])
   const nichoOptions = useMemo(() => Array.from(new Set(rows.map(r => r.nicho).filter(Boolean)))
     .sort((a, b) => a.localeCompare(b)).map(n => ({ value: n, label: n })), [rows])
@@ -141,6 +151,9 @@ export function ContatosTab({ leads, clients, onOpenLead, onOpenClient }: Props)
     const q = search.trim().toLowerCase()
     return rows.filter(r => {
       if (q && ![r.name, r.company, r.phone, r.email].some(v => v.toLowerCase().includes(q))) return false
+      // Lixeira ESCONDIDA por padrão: só aparece se "Lixeira" estiver explicitamente selecionado.
+      // (Nunca entra no "mostrar tudo" quando nenhum filtro está marcado.)
+      if (r.faseKey === 'lixeira' && !faseSel.has('lixeira')) return false
       if (faseSel.size && !faseSel.has(r.faseKey)) return false
       if (nichoSel.size && !nichoSel.has(r.nicho)) return false
       if (fusoSel.size && !fusoSel.has(r.fuso || '__none__')) return false
@@ -173,9 +186,14 @@ export function ContatosTab({ leads, clients, onOpenLead, onOpenClient }: Props)
     }
 
     // Ids a apagar: o da linha + leads duplicados (mesmo phone/email). Sem contato → só o da linha.
+    // SEGURANÇA por grupo de status: lixo só apaga lixo; ativo só apaga ativo (não-lixeira).
+    // Assim, excluir um lixo nunca apaga um lead ativo sem querer — e vice-versa.
+    const isLixeira = r.faseKey === 'lixeira'
     const ids = new Set<string>([r.id])
     if (p || e) {
       for (const l of leads) {
+        const sameGroup = isLixeira ? l.status === 'lixeira' : l.status !== 'lixeira'
+        if (!sameGroup) continue
         if ((p && onlyDigits(l.phone) === p) || (e && lower(l.email) === e)) ids.add(l.id)
       }
     }
