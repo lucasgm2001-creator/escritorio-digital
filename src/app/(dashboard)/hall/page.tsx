@@ -31,7 +31,6 @@ export default async function HallPage() {
       linkOptions={linkOptions}
       userName={capitalizeName(profile?.name ?? user?.email?.split('@')[0] ?? 'Usuário')}
       userId={user?.id ?? ''}
-      avatarUrl={profile?.avatar_url ?? null}
     />
   )
 }
