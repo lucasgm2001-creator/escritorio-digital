@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { usePathname } from 'next/navigation'
 import { Sidebar } from './Sidebar'
 import { Topbar } from './Topbar'
+import { BottomNav } from '@/components/mobile/BottomNav'
 import { RevalidateOnFocus } from '@/components/system/RevalidateOnFocus'
 import { ThemeWatcher } from '@/components/system/ThemeWatcher'
 
@@ -24,7 +25,8 @@ export function DashboardShell({ children, userName, userId, avatarUrl, logoUrl,
 
   useEffect(() => {
     const check = () => {
-      const mobile = window.innerWidth < 768
+      // Fronteira ÚNICA da reforma mobile: <1024px = mobile (BottomNav); ≥1024px = desktop (Sidebar) intocado.
+      const mobile = window.innerWidth < 1024
       setIsMobile(mobile)
       if (mobile) setSidebarOpen(false)
     }
@@ -95,6 +97,8 @@ export function DashboardShell({ children, userName, userId, avatarUrl, logoUrl,
         <main className="flex-1 overflow-y-auto">
           {children}
         </main>
+        {/* Navegação inferior — só mobile (<1024px); fica no fluxo, abaixo do main, sem cobrir conteúdo. */}
+        {isMobile && <BottomNav />}
       </div>
     </div>
   )

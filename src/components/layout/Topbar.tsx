@@ -72,7 +72,7 @@ export function Topbar({ title, onMenuToggle, userName = 'Usuário', userInitial
     <header className="h-14 border-b border-[#2d3748] bg-[#0d1117] flex items-center px-4 gap-4 shrink-0">
       <button
         onClick={onMenuToggle}
-        className="p-1.5 rounded-lg hover:bg-[#1e2533] transition-colors text-slate-500 hover:text-slate-300 min-w-[36px] min-h-[36px] flex items-center justify-center"
+        className="p-1.5 rounded-lg hover:bg-[#1e2533] transition-colors text-slate-500 hover:text-slate-300 min-w-[36px] min-h-[36px] hidden lg:flex items-center justify-center"
         aria-label="Alternar menu"
       >
         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
