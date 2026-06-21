@@ -30,7 +30,7 @@ const NICHOS: { key: string; label: string }[] = [
   { key: 'clima', label: 'Clima' },
 ]
 const ESTADOS = ['MA', 'NJ', 'CA', 'NC', 'SC', 'US']
-const RECENT_MS = 30 * 24 * 60 * 60 * 1000 // só mostra notícias dos últimos 30 dias
+const WEEK_MS = 7 * 24 * 60 * 60 * 1000 // "Recentes" = últimos 7 dias (semana atual)
 
 // Cor só com significado: crítico = vermelho, alta = âmbar, média = neutro.
 const SEV: Record<string, { label: string; cls: string }> = {
@@ -46,6 +46,7 @@ export function NewsSection() {
   const [news, setNews] = useState<News[]>([])
   const [nicho, setNicho] = useState<string | null>(null)
   const [estado, setEstado] = useState<string | null>(null)
+  const [histMode, setHistMode] = useState(false)   // false = Recentes (≤7 dias) · true = Histórico (todas)
 
   useEffect(() => {
     const supabase = createClient()
@@ -65,18 +66,25 @@ export function NewsSection() {
 
   useRealtimeRows<News>('news', setNews)
 
-  // Recentes primeiro (published_at DESC) e só dos últimos 30 dias; sem data fica por último mas aparece.
+  // Recência SEPARADA e combinada com nicho/estado. Recentes = só ≤7 dias (sem data = tratada como
+  // recente); Histórico = todas. Usa a mesma data exibida no card ("Nd atrás" = published_at). Ordena DESC.
   const filtered = useMemo(() => {
     const now = Date.now()
     const ts = (n: News) => { const t = n.published_at ? Date.parse(n.published_at) : NaN; return Number.isNaN(t) ? 0 : t }
     return news
       .filter(n => (!nicho || n.categoria === nicho) && (!estado || (n.estados ?? []).includes(estado)))
-      .filter(n => { const t = ts(n); return t === 0 ? true : (now - t) <= RECENT_MS })
+      .filter(n => { if (histMode) return true; const t = ts(n); return t === 0 ? true : (now - t) <= WEEK_MS })
       .sort((a, b) => ts(b) - ts(a))
-  }, [news, nicho, estado])
+  }, [news, nicho, estado, histMode])
 
   return (
     <Panel label="Notícias do setor" headerClassName="max-lg:hidden" action={<Newspaper className="w-3.5 h-3.5 text-bento-muted" />}>
+      {/* Recência (Recentes × Histórico) — separada, combina com os filtros de nicho/estado. */}
+      <div className="flex items-center gap-1.5 mb-2.5">
+        <Chip active={!histMode} onClick={() => setHistMode(false)}>Recentes</Chip>
+        <Chip active={histMode} onClick={() => setHistMode(true)}>Histórico</Chip>
+        <span className="font-tech text-[10px] text-bento-muted/70 ml-1">{histMode ? 'todas' : 'últimos 7 dias'}</span>
+      </div>
       {/* Filtros (client-side): nicho + estado */}
       <div className="flex flex-wrap items-center gap-1 mb-2.5">
         <Chip active={!nicho && !estado} onClick={() => { setNicho(null); setEstado(null) }}>Todas</Chip>
@@ -91,11 +99,13 @@ export function NewsSection() {
 
       {filtered.length === 0 ? (
         <p className="text-sm text-bento-muted py-6 text-center">
-          {news.length === 0 ? 'Sem notícias ainda — a primeira atualização chega em breve.' : 'Nada com esse filtro.'}
+          {news.length === 0
+            ? 'Sem notícias ainda — a primeira atualização chega em breve.'
+            : !histMode ? 'Nada nesta semana. Toque em "Histórico" para ver as anteriores.' : 'Nada com esse filtro.'}
         </p>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
-          {filtered.slice(0, 6).map(n => <NewsCard key={n.id} n={n} />)}
+          {(histMode ? filtered : filtered.slice(0, 6)).map(n => <NewsCard key={n.id} n={n} />)}
         </div>
       )}
     </Panel>
