@@ -12,7 +12,9 @@ import { KanbanColumn } from './KanbanColumn'
 import { PhaseSelectorMobile } from './PhaseSelectorMobile'
 import { LeadCard } from './LeadCard'
 import { LeadModal } from './LeadModal'
-import { LeadDiary } from './LeadDiary'
+import dynamic from 'next/dynamic'
+// Modal pesado (detalhe do lead) — carrega sob demanda (client-only). Comportamento idêntico.
+const LeadDiary = dynamic(() => import('./LeadDiary').then(m => ({ default: m.LeadDiary })), { ssr: false })
 import { moveLead } from './leadActions'
 import { markMilestones } from '@/lib/leadMilestones'
 import { useRealtimeRows } from '@/lib/hooks/useRealtimeRows'

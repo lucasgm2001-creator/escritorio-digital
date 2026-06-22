@@ -1,6 +1,7 @@
 'use client'
 
 import Link from 'next/link'
+import Image from 'next/image'
 import { usePathname } from 'next/navigation'
 import { useState } from 'react'
 import { cn } from '@/lib/utils'
@@ -81,10 +82,11 @@ export function Sidebar({ open, onToggle, logoUrl, mobileClose }: SidebarProps) 
       {/* Logo */}
       <div className="flex items-center h-14 px-3.5 border-b border-sidebar-border/10 overflow-hidden">
         {showCustomLogo ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
+          <Image
             src={logoUrl}
             alt="Logo"
+            width={28}
+            height={28}
             onError={() => setLogoFailed(true)}
             className="w-7 h-7 rounded-lg object-contain shrink-0"
           />

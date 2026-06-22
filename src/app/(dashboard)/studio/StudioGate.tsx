@@ -2,7 +2,13 @@
 
 import { useEffect, useState } from 'react'
 import { Monitor } from 'lucide-react'
-import { ApresentacaoTab } from '../comercial/tabs/ApresentacaoTab'
+import dynamic from 'next/dynamic'
+
+// Studio é pesado (visualizador/apresentação) — carrega sob demanda, só no desktop (client-only).
+const ApresentacaoTab = dynamic(() => import('../comercial/tabs/ApresentacaoTab').then(m => ({ default: m.ApresentacaoTab })), {
+  ssr: false,
+  loading: () => <div className="p-6 text-sm text-bento-muted font-body">Carregando Studio…</div>,
+})
 
 /**
  * Studio só faz sentido em tela grande. Fronteira única do projeto: ≥1024px = desktop.

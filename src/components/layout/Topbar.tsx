@@ -32,7 +32,7 @@ function LiveClock({ timezone, label, primary }: { timezone: string; label: stri
   return (
     <div className="flex flex-col items-center leading-none gap-0.5">
       <span className={`text-[9px] uppercase tracking-wide whitespace-nowrap ${primary ? 'text-lime-fg font-semibold' : 'text-bento-muted'}`}>{label}</span>
-      <span className={`font-mono text-xs font-semibold tabular-nums ${primary ? 'text-bento-text' : 'text-bento-dim'}`}>{time || '--:--'}</span>
+      <span suppressHydrationWarning className={`font-mono text-xs font-semibold tabular-nums ${primary ? 'text-bento-text' : 'text-bento-dim'}`}>{time || '--:--'}</span>
     </div>
   )
 }
