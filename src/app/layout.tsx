@@ -1,7 +1,8 @@
-import type { Metadata } from 'next'
+import type { Metadata, Viewport } from 'next'
 import localFont from 'next/font/local'
 import { Space_Grotesk, JetBrains_Mono, Inter } from 'next/font/google'
 import './globals.css'
+import { ServiceWorkerRegister } from '@/components/system/ServiceWorkerRegister'
 
 const geistSans = localFont({
   src: './fonts/GeistVF.woff',
@@ -26,11 +27,21 @@ const inter = Inter({ subsets: ['latin'], variable: '--font-body', display: 'swa
 export const metadata: Metadata = {
   title: 'Escritório Digital — DR Growth',
   description: 'Sistema interno DR Growth',
+  applicationName: 'Escritório Digital',
+  // PWA / iOS: abre em tela cheia (standalone) ao adicionar à tela inicial.
+  appleWebApp: { capable: true, title: 'Escritório Digital', statusBarStyle: 'black-translucent' },
+  icons: { icon: '/icon-192.png', apple: '/apple-touch-icon.png' },
+}
+
+export const viewport: Viewport = {
+  themeColor: '#0D140F',   // combina com o fundo escuro do tema
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="pt-BR">
+    // suppressHydrationWarning: o script de tema abaixo injeta classes em <html> antes do React
+    // hidratar (no-flash) — sem isso o React reclamaria da diferença de className.
+    <html lang="pt-BR" suppressHydrationWarning>
       <head>
         {/* Aplica o tema salvo antes do React hidratar — evita flash de tema errado */}
         <script dangerouslySetInnerHTML={{ __html: `
@@ -57,6 +68,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       </head>
       <body className={`${geistSans.variable} ${geistMono.variable} ${spaceGrotesk.variable} ${jetbrainsMono.variable} ${inter.variable} font-sans antialiased`}>
         {children}
+        <ServiceWorkerRegister />
       </body>
     </html>
   )
