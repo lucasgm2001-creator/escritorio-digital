@@ -171,6 +171,7 @@ export function RelatorioComercial() {
     }
   }
 
+  const maxFase = Math.max(1, ...porFase.map(f => f.count))   // proporção das mini-barras (mobile)
   const KPIS = [
     { label: 'Leads recebidos', value: recebidos, Icon: Inbox, sub: 'novos no período' },
     { label: 'Interagiram', value: interagiram, Icon: MessageCircle, sub: 'engajaram' },
@@ -200,16 +201,16 @@ export function RelatorioComercial() {
 
       {/* Seletor de período */}
       <div className="flex flex-wrap items-center gap-2">
-        <div className="flex bg-bento-bg border border-bento-border rounded-btn p-1 gap-1">
+        <div className="flex bg-bento-bg border border-bento-border rounded-btn p-1 gap-1 max-w-full overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           {MODES.map(([m, label]) => (
             <button key={m} onClick={() => setRange(rangeFor(m))}
-              className={cn('px-3 py-1.5 rounded-[8px] text-xs font-medium transition-colors',
+              className={cn('px-3 py-1.5 rounded-[8px] text-xs font-medium shrink-0 whitespace-nowrap transition-colors',
                 range.mode === m ? 'bg-lime text-lime-ink' : 'text-bento-muted hover:text-bento-text')}>
               {label}
             </button>
           ))}
         </div>
-        <div className="flex items-center gap-1.5">
+        <div className="flex flex-wrap items-center gap-1.5">
           <input type="date" value={customStart} onChange={e => setCustomStart(e.target.value)}
             className="bg-bento-bg border border-bento-border rounded-btn px-2 py-1.5 text-xs text-bento-text focus:outline-none focus:border-lime" />
           <span className="text-bento-muted text-xs">→</span>
@@ -251,7 +252,8 @@ export function RelatorioComercial() {
           <span className="font-tech text-[11px] text-bento-muted">· responsável por todos os leads</span>
         </div>
         <p className="font-tech text-[10px] uppercase tracking-wide text-bento-muted mb-2">Leads por fase (atual)</p>
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
+        {/* Desktop (>=1024): chips em grade — inalterado. */}
+        <div className="hidden lg:grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
           {porFase.length === 0 ? (
             <p className="text-xs text-bento-muted">{loading ? 'Carregando...' : 'Sem leads.'}</p>
           ) : porFase.map(f => (
@@ -259,6 +261,20 @@ export function RelatorioComercial() {
               <span className={cn('w-2 h-2 rounded-full flex-none', f.dot)} />
               <span className="text-xs text-bento-dim truncate flex-1">{f.label}</span>
               <span className="font-tech text-xs font-semibold text-bento-text tabular-nums">{f.count}</span>
+            </div>
+          ))}
+        </div>
+        {/* Mobile (<1024): mini-barras de proporção (nome · barra · número). */}
+        <div className="lg:hidden space-y-1.5">
+          {porFase.length === 0 ? (
+            <p className="text-xs text-bento-muted">{loading ? 'Carregando...' : 'Sem leads.'}</p>
+          ) : porFase.map(f => (
+            <div key={f.key} className="flex items-center gap-2">
+              <span className="text-xs text-bento-dim truncate w-28 shrink-0">{f.label}</span>
+              <div className="flex-1 h-1.5 rounded-full bg-bento-bg overflow-hidden">
+                <div className={cn('h-full rounded-full', f.dot)} style={{ width: `${Math.round((f.count / maxFase) * 100)}%` }} />
+              </div>
+              <span className="font-tech text-xs font-semibold text-bento-text tabular-nums w-6 text-right shrink-0">{f.count}</span>
             </div>
           ))}
         </div>
