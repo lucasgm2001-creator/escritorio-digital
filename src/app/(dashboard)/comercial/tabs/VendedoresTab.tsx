@@ -9,6 +9,8 @@ import { CommissionSection } from './CommissionSection'
 import { monthlySummary } from '@/lib/commission/calc'
 import type { SalaryPeriod, Meeting, WeeklyPayment, FxConfig } from '@/lib/commission/types'
 import { usd, brl } from '@/lib/format'
+import { useCommissionLock, CommissionPinPad, ChangePinPad } from '@/components/commission/CommissionLock'
+import { Lock, KeyRound } from 'lucide-react'
 
 interface SellerRow {
   id: string
@@ -33,7 +35,6 @@ const SELLER_COLS ='id, name, email, phone, photo_url, cargo, monthly_goal, defa
 
 const CARGOS = ['SDR', 'Closer', 'Gestor', 'Coordenador', 'Vendedor']
 
-const fmtK = (v: number) => v >= 1000 ? `US$ ${(v / 1000).toFixed(1)}k` : `US$ ${v.toFixed(0)}`
 const pad2 = (n: number) => String(n).padStart(2, '0')
 
 const inputCls = 'w-full bg-bento-bg border border-bento-border rounded-btn px-3 py-2 text-sm text-bento-text placeholder:text-bento-muted focus:outline-none focus:border-lime'
@@ -457,12 +458,15 @@ export function VendedoresTab() {
   const supabase = createClient()
 
   const [sellers, setSellers] = useState<SellerRow[]>([])
-  const [comByMonth, setComByMonth] = useState<Map<string, number>>(new Map())       // seller_id → comissão do mês (US$)
-  const [vendasByMonth, setVendasByMonth] = useState<Map<string, number>>(new Map())  // seller_id → nº de vendas do mês
   const [loading, setLoading] = useState(true)
   const [fetchError, setFetchError] = useState<string | null>(null)
   const [addOpen, setAddOpen] = useState(false)
   const [selected, setSelected] = useState<SellerRow | null>(null)
+  // Desbloqueio por vendedor (contexto em memória) + PIN/troca de PIN.
+  const { isUnlocked } = useCommissionLock()
+  const [pinSeller, setPinSeller] = useState<SellerRow | null>(null)
+  const [changePinOpen, setChangePinOpen] = useState(false)
+  const openSeller = (s: SellerRow) => { if (isUnlocked(s.id)) setSelected(s); else setPinSeller(s) }
 
   const emptyForm = { name: '', email: '', telefone: '', cargo: '', monthly_goal: '' }
   const [form, setForm] = useState(emptyForm)
@@ -472,58 +476,20 @@ export function VendedoresTab() {
   const [saving, setSaving] = useState(false)
 
   useEffect(() => {
+    // ENTRADA SEM VALORES: busca SÓ a lista de vendedores (nome/status). Nenhum dado de comissão é
+    // carregado aqui — os números só aparecem no detalhe, depois de desbloquear o box do vendedor.
     const load = async () => {
-      const now = new Date()
-      const y = now.getFullYear(), m = now.getMonth() + 1
-      const mp = `${y}-${pad2(m)}`
-      // MESMA fonte do perfil: dados do módulo de comissão p/ todos os vendedores.
-      const [sRes, salRes, mtgRes, dealRes, fxRes] = await Promise.all([
-        supabase.from('sellers').select(SELLER_COLS).order('name'),
-        supabase.from('seller_salaries').select('seller_id, valor_usd, effective_from'),
-        supabase.from('meetings').select('id, seller_id, met_on, valor_usd, cotacao_usd_brl'),
-        supabase.from('deals').select('id, seller_id, data_fechamento'),
-        supabase.from('fx_config').select('cotacao_manual, cotacao_travada').eq('id', 1).maybeSingle(),
-      ])
-      if (sRes.error) {
-        setFetchError(sRes.error.code === '42P01'
+      const { data, error } = await supabase.from('sellers').select(SELLER_COLS).order('name')
+      if (error) {
+        setFetchError(error.code === '42P01'
           ? 'Tabela sellers não encontrada. Rode a migration 005 no Supabase.'
-          : `Erro ao carregar vendedores: ${sRes.error.message}`)
+          : `Erro ao carregar vendedores: ${error.message}`)
         setSellers([])
         setLoading(false)
         return
       }
-      const rows = (sRes.data ?? []) as SellerRow[]
-      setSellers(rows)
+      setSellers((data ?? []) as SellerRow[])
       setFetchError(null)
-
-      const allDeals = (dealRes.data ?? []) as { id: string; seller_id: string; data_fechamento: string | null }[]
-      const dealIds = allDeals.map(d => d.id)
-      let allWeeks: { id: string; deal_id: string; numero_semana: number; valor_usd: number; paid_on: string; cotacao_usd_brl: number }[] = []
-      if (dealIds.length) {
-        const { data: wk } = await supabase.from('weekly_payments')
-          .select('id, deal_id, numero_semana, valor_usd, paid_on, cotacao_usd_brl').in('deal_id', dealIds)
-        allWeeks = wk ?? []
-      }
-      const manual = fxRes.data?.cotacao_manual != null ? Number(fxRes.data.cotacao_manual) : null
-      const fx: FxConfig = { cotacaoManual: manual, cotacaoTravada: !!fxRes.data?.cotacao_travada }
-
-      const com = new Map<string, number>()
-      const vendas = new Map<string, number>()
-      for (const s of rows) {
-        const salaries: SalaryPeriod[] = (salRes.data ?? []).filter(x => x.seller_id === s.id)
-          .map(x => ({ sellerId: x.seller_id, valorUsd: Number(x.valor_usd), effectiveFrom: x.effective_from }))
-        const meetings: Meeting[] = (mtgRes.data ?? []).filter(x => x.seller_id === s.id)
-          .map(mm => ({ id: mm.id, sellerId: mm.seller_id, metOn: mm.met_on, valorUsd: Number(mm.valor_usd), cotacaoUsdBrl: Number(mm.cotacao_usd_brl) }))
-        const sellerDeals = allDeals.filter(d => d.seller_id === s.id)
-        const sellerDealIds = new Set(sellerDeals.map(d => d.id))
-        const weeks: WeeklyPayment[] = allWeeks.filter(w => sellerDealIds.has(w.deal_id))
-          .map(w => ({ id: w.id, dealId: w.deal_id, numeroSemana: w.numero_semana, valorUsd: Number(w.valor_usd), paidOn: w.paid_on, cotacaoUsdBrl: Number(w.cotacao_usd_brl) }))
-        const cur = monthlySummary({ year: y, month: m, salaries, meetings, weeks, fx, automaticRate: manual ?? 0 })
-        com.set(s.id, cur.totalUsd)
-        vendas.set(s.id, sellerDeals.filter(d => (d.data_fechamento ?? '').slice(0, 7) === mp).length)
-      }
-      setComByMonth(com)
-      setVendasByMonth(vendas)
       setLoading(false)
     }
     load()
@@ -585,10 +551,16 @@ export function VendedoresTab() {
           <h3 className="font-display font-bold text-bento-text">Vendedores</h3>
           <p className="text-xs text-bento-muted mt-0.5">{active} ativos · {inactive} inativos</p>
         </div>
-        <button onClick={() => setAddOpen(true)} className="flex items-center gap-2 bento-btn px-4 py-2 rounded-btn text-sm font-semibold min-h-[44px]">
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
-          Novo Vendedor
-        </button>
+        <div className="flex items-center gap-2">
+          <button onClick={() => setChangePinOpen(true)}
+            className="flex items-center gap-1.5 px-3 py-2 rounded-btn text-sm font-medium border border-bento-border text-bento-dim hover:border-lime hover:text-bento-text transition-colors min-h-[44px]">
+            <KeyRound className="w-4 h-4" /><span className="hidden sm:inline">Alterar meu PIN</span>
+          </button>
+          <button onClick={() => setAddOpen(true)} className="flex items-center gap-2 bento-btn px-4 py-2 rounded-btn text-sm font-semibold min-h-[44px]">
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
+            <span className="hidden sm:inline">Novo Vendedor</span><span className="sm:hidden">Novo</span>
+          </button>
+        </div>
       </div>
 
       {fetchError && <div className="bg-amber-900/20 border border-amber-800/40 rounded-btn px-4 py-3 text-xs text-amber-400">{fetchError}</div>}
@@ -604,8 +576,7 @@ export function VendedoresTab() {
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
           {sellers.map(s => (
-            <button key={s.id} onClick={() => setSelected(s)}
-              className={cn('bento-fx p-4 text-left hover:border-lime/50 transition-colors', s.status === 'inativo' && 'opacity-50')}>
+            <div key={s.id} className={cn('bento-fx p-4', s.status === 'inativo' && 'opacity-50')}>
               <div className="flex items-center justify-between mb-3 gap-2">
                 <div className="flex items-center gap-2.5 min-w-0">
                   <Avatar name={s.name} photoUrl={s.photo_url} />
@@ -619,17 +590,13 @@ export function VendedoresTab() {
                   {s.status === 'ativo' ? 'Ativo' : 'Inativo'}
                 </span>
               </div>
-              <div className="grid grid-cols-2 gap-2 text-center">
-                <div className="bg-bento-bg rounded-btn p-2 border border-bento-border/60">
-                  <p className="text-[10px] text-bento-muted">Vendas (mês)</p>
-                  <p className="text-sm font-bold text-bento-text mt-0.5 tabular-nums">{vendasByMonth.get(s.id) ?? 0}</p>
-                </div>
-                <div className="bg-bento-bg rounded-btn p-2 border border-bento-border/60">
-                  <p className="text-[10px] text-bento-muted">Comissão do mês</p>
-                  <p className="text-sm font-bold text-lime-fg mt-0.5 tabular-nums">{fmtK(comByMonth.get(s.id) ?? 0)}</p>
-                </div>
-              </div>
-            </button>
+              {/* ENTRADA SEM VALORES: só "Ver comissão" (trancado). Abre o detalhe após o PIN. */}
+              <button type="button" onClick={() => openSeller(s)}
+                className="w-full flex items-center justify-center gap-2 rounded-btn border border-bento-border py-2 min-h-[40px] text-sm font-medium text-bento-dim hover:border-lime hover:text-lime-fg transition-colors">
+                <Lock className="w-3.5 h-3.5" />
+                Ver comissão
+              </button>
+            </div>
           ))}
         </div>
       )}
@@ -680,6 +647,28 @@ export function VendedoresTab() {
                 <button onClick={handleAdd} disabled={saving || !form.name.trim()} className="flex-1 bento-btn py-2.5 rounded-btn text-sm font-semibold disabled:opacity-50 min-h-[44px]">{saving ? 'Salvando...' : 'Adicionar'}</button>
               </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* PIN do box do vendedor (verify_seller_box). Ao desbloquear, abre o detalhe dele. */}
+      {pinSeller && (
+        <div className="fixed inset-0 z-[80] flex items-stretch sm:items-center justify-center p-0 sm:p-4">
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setPinSeller(null)} />
+          <div className="relative w-full h-full sm:h-auto sm:max-w-sm bg-bento-panel border border-bento-border rounded-none sm:rounded-bento shadow-card-hover overflow-y-auto flex items-center justify-center">
+            <CommissionPinPad sellerId={pinSeller.id} sellerName={pinSeller.name}
+              onUnlock={() => { const s = pinSeller; setPinSeller(null); setSelected(s) }}
+              onClose={() => setPinSeller(null)} />
+          </div>
+        </div>
+      )}
+
+      {/* Alterar meu PIN (set_my_commission_pin) */}
+      {changePinOpen && (
+        <div className="fixed inset-0 z-[80] flex items-stretch sm:items-center justify-center p-0 sm:p-4">
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setChangePinOpen(false)} />
+          <div className="relative w-full h-full sm:h-auto sm:max-w-sm bg-bento-panel border border-bento-border rounded-none sm:rounded-bento shadow-card-hover overflow-y-auto flex items-center justify-center">
+            <ChangePinPad onClose={() => setChangePinOpen(false)} />
           </div>
         </div>
       )}

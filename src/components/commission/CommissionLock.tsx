@@ -3,22 +3,24 @@
 import { createContext, useContext, useState, type ReactNode } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { cn } from '@/lib/utils'
-import { Lock, Delete, KeyRound, X } from 'lucide-react'
+import { Lock, Delete, X } from 'lucide-react'
 
-// ── Estado de desbloqueio da COMISSÃO — EM MEMÓRIA (React). Reload => volta trancado. ──
-// Nada de localStorage/sessionStorage. O PIN NUNCA é comparado/guardado aqui — só via RPC.
-type Ctx = { unlocked: boolean; setUnlocked: (v: boolean) => void }
+// ── Desbloqueio da COMISSÃO POR VENDEDOR — EM MEMÓRIA (React). Reload => tudo trancado. ──
+// Conjunto de seller_ids desbloqueados. Sem localStorage/sessionStorage. O PIN NUNCA é
+// comparado/guardado/exibido aqui — só via RPC (verify_seller_box / set_my_commission_pin).
+type Ctx = { unlocked: Set<string>; unlockSeller: (id: string) => void; isUnlocked: (id: string) => boolean }
 const CommissionLockContext = createContext<Ctx | null>(null)
 
 export function CommissionLockProvider({ children }: { children: ReactNode }) {
-  const [unlocked, setUnlocked] = useState(false)
-  return <CommissionLockContext.Provider value={{ unlocked, setUnlocked }}>{children}</CommissionLockContext.Provider>
+  const [unlocked, setUnlocked] = useState<Set<string>>(new Set())
+  const unlockSeller = (id: string) => setUnlocked(prev => { const n = new Set(prev); n.add(id); return n })
+  const isUnlocked = (id: string) => unlocked.has(id)
+  return <CommissionLockContext.Provider value={{ unlocked, unlockSeller, isUnlocked }}>{children}</CommissionLockContext.Provider>
 }
 
 export function useCommissionLock(): Ctx {
   const c = useContext(CommissionLockContext)
-  // Fallback seguro: sem provider → considera TRANCADO.
-  return c ?? { unlocked: false, setUnlocked: () => {} }
+  return c ?? { unlocked: new Set(), unlockSeller: () => {}, isUnlocked: () => false }
 }
 
 // ── Bolinhas (4 dígitos) ──
@@ -55,68 +57,13 @@ function Keypad({ onDigit, onDelete, disabled }: { onDigit: (d: string) => void;
   )
 }
 
-/**
- * Teclado de PIN da Comissão. Modo "unlock" (verifica e desbloqueia a sessão) e "change"
- * (PIN atual → novo → confirma). SEMPRE via RPC (verify_commission_pin / set_commission_pin) —
- * nunca compara/exibe PIN no cliente. `onUnlock`/`onClose` p/ uso em modal (ex.: Relatório).
- */
-export function CommissionPinPad({ onUnlock, onClose, fullArea }: { onUnlock?: () => void; onClose?: () => void; fullArea?: boolean }) {
-  const { setUnlocked } = useCommissionLock()
-  const supabase = createClient()
-  const [mode, setMode] = useState<'unlock' | 'change'>('unlock')
-  const [step, setStep] = useState<'current' | 'new' | 'confirm'>('current')
-  const [digits, setDigits] = useState('')
-  const [curPin, setCurPin] = useState('')
-  const [newPin, setNewPin] = useState('')
-  const [err, setErr] = useState('')
-  const [msg, setMsg] = useState('')
-  const [shake, setShake] = useState(false)
-  const [busy, setBusy] = useState(false)
-
-  const fail = (m: string) => { setErr(m); setDigits(''); setShake(true); setTimeout(() => setShake(false), 450) }
-
-  const handleComplete = async (pin: string) => {
-    if (mode === 'unlock') {
-      setBusy(true)
-      try {
-        const { data, error } = await supabase.rpc('verify_commission_pin', { pin })
-        if (error || data !== true) fail('Código incorreto')
-        else { setUnlocked(true); onUnlock?.() }
-      } catch { fail('Erro ao verificar. Tente de novo.') } finally { setBusy(false) }
-      return
-    }
-    // Troca de PIN
-    if (step === 'current') { setCurPin(pin); setDigits(''); setStep('new'); return }
-    if (step === 'new') { setNewPin(pin); setDigits(''); setStep('confirm'); return }
-    if (pin !== newPin) { setNewPin(''); setStep('new'); fail('Os códigos novos não batem') ; return }
-    setBusy(true)
-    try {
-      const { data, error } = await supabase.rpc('set_commission_pin', { current_pin: curPin, new_pin: newPin })
-      if (error || data !== true) { setStep('current'); setCurPin(''); setNewPin(''); fail('PIN atual incorreto ou novo inválido') }
-      else {
-        setMode('unlock'); setStep('current'); setCurPin(''); setNewPin(''); setDigits(''); setErr('')
-        setMsg('PIN alterado.')
-      }
-    } catch { setStep('current'); fail('Erro ao alterar. Tente de novo.') } finally { setBusy(false) }
-  }
-
-  const onDigit = (d: string) => {
-    if (busy || digits.length >= 4) return
-    setErr(''); setMsg('')
-    const next = digits + d
-    setDigits(next)
-    if (next.length === 4) handleComplete(next)
-  }
-  const onDelete = () => { if (!busy) { setErr(''); setDigits(prev => prev.slice(0, -1)) } }
-
-  const title = mode === 'unlock' ? 'Comissões bloqueadas'
-    : step === 'current' ? 'Digite o PIN atual'
-    : step === 'new' ? 'Novo PIN (4 dígitos)'
-    : 'Confirme o novo PIN'
-  const sub = mode === 'unlock' ? 'Digite o PIN de 4 dígitos para ver as comissões.' : 'Alteração de PIN'
-
+// Casca visual comum (cadeado + título + bolinhas + msg + teclado + rodapé).
+function PadShell({ title, sub, digits, shake, err, msg, onDigit, onDelete, busy, onClose, footer }: {
+  title: string; sub: string; digits: string; shake: boolean; err: string; msg: string
+  onDigit: (d: string) => void; onDelete: () => void; busy: boolean; onClose?: () => void; footer?: ReactNode
+}) {
   return (
-    <div className={cn('relative flex flex-col items-center gap-5 p-6 max-w-sm mx-auto', fullArea && 'min-h-[60vh] justify-center')}>
+    <div className="relative flex flex-col items-center gap-5 p-6 max-w-sm w-full mx-auto">
       {onClose && (
         <button onClick={onClose} aria-label="Fechar" className="absolute top-2 right-2 p-1.5 rounded-lg text-bento-muted hover:text-bento-text hover:bg-bento-bg transition-colors">
           <X className="w-4 h-4" />
@@ -129,40 +76,106 @@ export function CommissionPinPad({ onUnlock, onClose, fullArea }: { onUnlock?: (
         <h3 className="font-display font-bold text-bento-text text-base">{title}</h3>
         <p className="text-xs text-bento-muted mt-0.5">{sub}</p>
       </div>
-
       <Dots n={digits.length} shake={shake} />
       <div className="h-4 text-center">
         {err && <p className="text-red-400 text-xs">{err}</p>}
         {msg && <p className="text-lime-fg text-xs">{msg}</p>}
       </div>
-
       <Keypad onDigit={onDigit} onDelete={onDelete} disabled={busy} />
-
-      {mode === 'unlock' ? (
-        <button type="button" onClick={() => { setMode('change'); setStep('current'); setDigits(''); setErr(''); setMsg('') }}
-          className="inline-flex items-center gap-1.5 font-tech text-[11px] uppercase tracking-wide text-bento-muted hover:text-lime-fg transition-colors">
-          <KeyRound className="w-3.5 h-3.5" /> Alterar PIN
-        </button>
-      ) : (
-        <button type="button" onClick={() => { setMode('unlock'); setStep('current'); setDigits(''); setCurPin(''); setNewPin(''); setErr('') }}
-          className="font-tech text-[11px] uppercase tracking-wide text-bento-muted hover:text-bento-text transition-colors">
-          Cancelar
-        </button>
-      )}
+      {footer}
     </div>
   )
 }
 
-// Porta: quando TRANCADO mostra o teclado (children — ex.: VendedoresTab — só montam após desbloquear,
-// então nenhum valor de comissão é buscado/renderizado antes).
-export function CommissionGate({ children }: { children: ReactNode }) {
-  const { unlocked } = useCommissionLock()
-  if (!unlocked) {
-    return (
-      <div className="h-full overflow-auto bg-bento-bg">
-        <CommissionPinPad fullArea />
-      </div>
-    )
+/**
+ * Desbloqueia a comissão de UM vendedor (verify_seller_box). CHEFE abre qualquer box com o PIN dele;
+ * vendedor só a própria (regra no servidor). `sellerId` é o id real do card/relatório.
+ */
+export function CommissionPinPad({ sellerId, sellerName, onUnlock, onClose }: {
+  sellerId: string; sellerName?: string; onUnlock?: () => void; onClose?: () => void
+}) {
+  const { unlockSeller } = useCommissionLock()
+  const supabase = createClient()
+  const [digits, setDigits] = useState('')
+  const [err, setErr] = useState('')
+  const [shake, setShake] = useState(false)
+  const [busy, setBusy] = useState(false)
+
+  const fail = (m: string) => { setErr(m); setDigits(''); setShake(true); setTimeout(() => setShake(false), 450) }
+
+  const verify = async (pin: string) => {
+    if (!sellerId) { fail('Vendedor inválido'); return }
+    setBusy(true)
+    try {
+      const { data, error } = await supabase.rpc('verify_seller_box', { target_seller_id: sellerId, pin })
+      if (error || data !== true) fail('Código incorreto')
+      else { unlockSeller(sellerId); onUnlock?.() }
+    } catch { fail('Erro ao verificar. Tente de novo.') } finally { setBusy(false) }
   }
-  return <>{children}</>
+  const onDigit = (d: string) => {
+    if (busy || digits.length >= 4) return
+    setErr('')
+    const next = digits + d
+    setDigits(next)
+    if (next.length === 4) verify(next)
+  }
+  const onDelete = () => { if (!busy) { setErr(''); setDigits(p => p.slice(0, -1)) } }
+
+  return (
+    <PadShell
+      title={sellerName ? `Comissão de ${sellerName}` : 'Comissão bloqueada'}
+      sub="Digite o PIN de 4 dígitos."
+      digits={digits} shake={shake} err={err} msg="" busy={busy}
+      onDigit={onDigit} onDelete={onDelete} onClose={onClose}
+    />
+  )
+}
+
+/**
+ * Altera o PIN do PRÓPRIO usuário logado (set_my_commission_pin): atual → novo → confirma.
+ * Nunca compara PIN no cliente.
+ */
+export function ChangePinPad({ onClose }: { onClose?: () => void }) {
+  const supabase = createClient()
+  const [step, setStep] = useState<'current' | 'new' | 'confirm'>('current')
+  const [digits, setDigits] = useState('')
+  const [curPin, setCurPin] = useState('')
+  const [newPin, setNewPin] = useState('')
+  const [err, setErr] = useState('')
+  const [msg, setMsg] = useState('')
+  const [shake, setShake] = useState(false)
+  const [busy, setBusy] = useState(false)
+
+  const fail = (m: string) => { setErr(m); setDigits(''); setShake(true); setTimeout(() => setShake(false), 450) }
+
+  const complete = async (pin: string) => {
+    setErr('')
+    if (step === 'current') { setCurPin(pin); setDigits(''); setStep('new'); return }
+    if (step === 'new') { setNewPin(pin); setDigits(''); setStep('confirm'); return }
+    if (pin !== newPin) { setNewPin(''); setStep('new'); fail('Os códigos novos não batem'); return }
+    setBusy(true)
+    try {
+      const { data, error } = await supabase.rpc('set_my_commission_pin', { current_pin: curPin, new_pin: newPin })
+      if (error || data !== true) { setStep('current'); setCurPin(''); setNewPin(''); fail('PIN atual incorreto ou novo inválido') }
+      else { setStep('current'); setCurPin(''); setNewPin(''); setDigits(''); setMsg('PIN alterado.') }
+    } catch { setStep('current'); fail('Erro ao alterar. Tente de novo.') } finally { setBusy(false) }
+  }
+  const onDigit = (d: string) => {
+    if (busy || digits.length >= 4) return
+    setErr(''); setMsg('')
+    const next = digits + d
+    setDigits(next)
+    if (next.length === 4) complete(next)
+  }
+  const onDelete = () => { if (!busy) { setErr(''); setDigits(p => p.slice(0, -1)) } }
+
+  const title = step === 'current' ? 'Digite seu PIN atual' : step === 'new' ? 'Novo PIN (4 dígitos)' : 'Confirme o novo PIN'
+
+  return (
+    <PadShell
+      title={title} sub="Alterar meu PIN"
+      digits={digits} shake={shake} err={err} msg={msg} busy={busy}
+      onDigit={onDigit} onDelete={onDelete} onClose={onClose}
+    />
+  )
 }
