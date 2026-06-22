@@ -88,6 +88,7 @@ export function LeadDiary({ lead, onClose, onUpdated, onMoveStage, onDeleted, cu
   const [briefing, setBriefing] = useState<BriefingResult | null>(null)
   const [briefingLoading, setBriefingLoading] = useState(false)
   const [valueDraft, setValueDraft] = useState(String(lead.value || ''))
+  const [confirmingRestore, setConfirmingRestore] = useState(false)   // lixeira → restaurar p/ Novo Lead
 
   const supabase = createClient()
   const { toast } = useToast()
@@ -413,6 +414,27 @@ export function LeadDiary({ lead, onClose, onUpdated, onMoveStage, onDeleted, cu
             </div>
           )}
         </div>
+
+        {/* Restaurar lead da Lixeira → volta pra "Novo Lead" (slug 'novo') reusando o move (changePhase
+            → onMoveStage → moveLead), que já registra a atividade. Só aparece quando está na Lixeira. */}
+        {currentLead.status === 'lixeira' && (
+          <div className="px-5 py-3 border-b border-border">
+            {confirmingRestore ? (
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-bento-dim flex-1">Restaurar este lead para Novo Lead?</span>
+                <button onClick={() => { setConfirmingRestore(false); changePhase('novo') }} disabled={movingPhase}
+                  className="bento-btn px-3 py-1.5 rounded-btn text-xs font-semibold disabled:opacity-50">Restaurar</button>
+                <button onClick={() => setConfirmingRestore(false)} className="text-xs text-bento-muted px-2 hover:text-bento-text">não</button>
+              </div>
+            ) : (
+              <button onClick={() => setConfirmingRestore(true)}
+                className="w-full flex items-center justify-center gap-2 border border-bento-border rounded-btn py-2 min-h-[44px] text-sm font-medium text-bento-dim hover:border-lime hover:text-lime-fg transition-colors">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
+                Restaurar lead
+              </button>
+            )}
+          </div>
+        )}
 
         {/* Data de chegada — editável (separa de quando foi cadastrado; usada no relatório por período) */}
         <div className="px-5 py-3 border-b border-border">
