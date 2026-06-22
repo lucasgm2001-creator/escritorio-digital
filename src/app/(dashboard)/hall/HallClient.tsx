@@ -9,7 +9,7 @@ import { LiveDot } from '@/components/bento/LiveDot'
 import { AgentChat } from './AgentChat'
 import { NewsSection } from './NewsSection'
 import { CollapsibleSection } from '@/components/mobile/CollapsibleSection'
-import { X, Trash2, Check, Clock, LayoutGrid, CalendarDays, Activity as ActivityIcon, Megaphone, Newspaper, Plus } from 'lucide-react'
+import { X, Trash2, Check, Clock, LayoutGrid, CalendarDays, Activity as ActivityIcon, Megaphone, Newspaper, Plus, Sparkles } from 'lucide-react'
 import type { Activity, Notice } from '@/types'
 import type { Task, LinkOption } from '../tarefas/types'
 import { TarefasClient } from '../tarefas/TarefasClient'
@@ -190,6 +190,8 @@ export function HallClient({ initialActivities, initialNotices, initialTasks, li
   const [focusEvent, setFocusEvent]   = useState<CalendarEvent | null>(null)
   const [counts, setCounts]           = useState({ leads: 0, clientes: 0 })
   const [activitiesExpanded, setActivitiesExpanded] = useState(false)
+  const [dayBriefing, setDayBriefing] = useState('')          // Briefing do dia (IA, sob demanda)
+  const [dayBriefingLoading, setDayBriefingLoading] = useState(false)
   const [muralVerMais, setMuralVerMais] = useState(false)   // Mural: revela o resto das tarefas de hoje
   const router = useRouter()
 
@@ -264,6 +266,21 @@ export function HallClient({ initialActivities, initialNotices, initialTasks, li
     setDeletingNotice(null)
   }
 
+  // Briefing do dia (IA, só leitura, sob demanda). Guarda no estado — não re-chama a cada render.
+  const genBriefing = async () => {
+    if (dayBriefingLoading) return
+    setDayBriefingLoading(true)
+    try {
+      const res = await fetch('/api/hall/briefing', { method: 'POST', headers: { 'Content-Type': 'application/json' } })
+      const data = await res.json().catch(() => null)
+      setDayBriefing(data?.briefing || 'Não consegui gerar o briefing agora.')
+    } catch {
+      setDayBriefing('Não consegui gerar o briefing agora — tente novamente.')
+    } finally {
+      setDayBriefingLoading(false)
+    }
+  }
+
   // ── Mural ↔ Agenda: MESMA fonte (initialTasks, idêntica à do Calendar) ──────────
   // Toda tarefa com data que aparece na Agenda aparece aqui também. Ordem: atrasadas →
   // próximas (por data) → concluídas (apagadas). Mantém os eventos de HOJE e os avisos.
@@ -335,6 +352,29 @@ export function HallClient({ initialActivities, initialNotices, initialTasks, li
 
         {activeTab === 'activities' && (
           <>
+            {/* Briefing do dia (IA, só leitura). Aberto por padrão no mobile. */}
+            <CollapsibleSection title="Briefing do dia" icon={Sparkles} defaultOpen>
+              <Panel className="max-lg:p-3" headerClassName="max-lg:hidden" label="Briefing do dia"
+                action={<Sparkles className="w-3.5 h-3.5 text-lime-fg" />}>
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="font-tech text-xs text-bento-muted capitalize">{today}</span>
+                    <button onClick={genBriefing} disabled={dayBriefingLoading}
+                      className="bento-btn flex items-center gap-2 px-3 py-1.5 rounded-btn text-xs font-semibold disabled:opacity-50 min-h-0">
+                      <Sparkles className="w-3.5 h-3.5" />
+                      {dayBriefingLoading ? 'Gerando…' : dayBriefing ? 'Atualizar' : 'Gerar briefing'}
+                    </button>
+                  </div>
+                  {dayBriefingLoading && !dayBriefing
+                    ? <p className="text-sm text-bento-muted animate-pulse">Lendo seu dia…</p>
+                    : dayBriefing
+                      ? <div className="text-sm text-bento-dim whitespace-pre-wrap leading-relaxed">{dayBriefing}</div>
+                      : <p className="text-sm text-bento-muted">Toque em &quot;Gerar briefing&quot; para um resumo do que precisa de atenção hoje.</p>}
+                  <p className="font-tech text-[10px] text-bento-muted/70 border-t border-bento-border/60 pt-2">Resumo automático — não executa ações.</p>
+                </div>
+              </Panel>
+            </CollapsibleSection>
+
             {/* (1) Visão Geral — números do dia. Mobile: caixa aberta por padrão. */}
             <CollapsibleSection title="Visão Geral" icon={LayoutGrid} defaultOpen>
               <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
