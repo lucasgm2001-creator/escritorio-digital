@@ -3,10 +3,11 @@
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { cn } from '@/lib/utils'
-import { Inbox, MessageCircle, Calendar, Trophy, Download, User, DollarSign, ListChecks } from 'lucide-react'
+import { Inbox, MessageCircle, Calendar, Trophy, Download, User, DollarSign, ListChecks, Lock } from 'lucide-react'
 import { ddmm, ymd, usd } from '@/lib/format'
 import { rangeFor, MODES, type Range } from '@/lib/period'
 import { ALL_COLUMNS } from '../comercial/types'
+import { useCommissionLock, CommissionPinPad } from '@/components/commission/CommissionLock'
 
 interface Item { kind: 'recebido' | 'interagiu' | 'reuniao' | 'fechou'; date: string; label: string; sub?: string }
 
@@ -34,6 +35,8 @@ const leadNameOf = (rel: unknown): string => {
 
 export function RelatorioComercial() {
   const supabase = createClient()
+  const { unlocked } = useCommissionLock()   // comissão mascarada até desbloquear (mesmo estado da aba Comissões)
+  const [pinOpen, setPinOpen] = useState(false)
   const [range, setRange] = useState<Range>(() => rangeFor('semana'))
   const [customStart, setCustomStart] = useState('')
   const [customEnd, setCustomEnd] = useState('')
@@ -280,7 +283,14 @@ export function RelatorioComercial() {
         </div>
         {/* Receita/comissão JÁ existentes — leitura, sem recalcular nem escrever (dinheiro intocado) */}
         <div className="flex flex-wrap gap-x-6 gap-y-2 mt-4 pt-3 border-t border-bento-border/60">
-          <span className="flex items-center gap-2 text-xs text-bento-muted"><DollarSign className="w-4 h-4" /> Comissão no período: <span className="font-tech text-sm font-semibold text-bento-text tabular-nums">{usd(comissaoUsd)}</span></span>
+          <span className="flex items-center gap-2 text-xs text-bento-muted"><DollarSign className="w-4 h-4" /> Comissão no período: {unlocked ? (
+            <span className="font-tech text-sm font-semibold text-bento-text tabular-nums">{usd(comissaoUsd)}</span>
+          ) : (
+            <button type="button" onClick={() => setPinOpen(true)} title="Toque para ver (PIN)"
+              className="inline-flex items-center gap-1 font-tech text-sm font-semibold text-bento-muted hover:text-lime-fg transition-colors">
+              <Lock className="w-3.5 h-3.5" />••••
+            </button>
+          )}</span>
           <span className="flex items-center gap-2 text-xs text-bento-muted">Receita no período: <span className="font-tech text-sm font-semibold text-bento-text tabular-nums">{usd(receitaUsd)}</span></span>
           <span className="flex items-center gap-2 text-xs text-bento-muted"><ListChecks className="w-4 h-4" /> Tarefas concluídas: <span className="font-tech text-sm font-semibold text-bento-text tabular-nums">{tarefasFeitas}</span></span>
         </div>
@@ -315,6 +325,16 @@ export function RelatorioComercial() {
           })}
         </div>
       </div>
+
+      {/* Modal do PIN (desbloqueia a comissão; estado compartilhado com a aba Comissões). */}
+      {pinOpen && (
+        <div className="fixed inset-0 z-[90] flex items-stretch sm:items-center justify-center p-0 sm:p-4">
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setPinOpen(false)} />
+          <div className="relative w-full h-full sm:h-auto sm:max-w-sm bg-bento-panel border border-bento-border rounded-none sm:rounded-bento shadow-card-hover overflow-y-auto flex items-center justify-center">
+            <CommissionPinPad onUnlock={() => setPinOpen(false)} onClose={() => setPinOpen(false)} />
+          </div>
+        </div>
+      )}
     </div>
   )
 }

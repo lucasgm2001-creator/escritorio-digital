@@ -21,6 +21,7 @@ import { useRealtimeRows } from '@/lib/hooks/useRealtimeRows'
 import { usdCompact as fmtUSDc } from '@/lib/format'
 import { MetricasTab } from './tabs/MetricasTab'
 import { VendedoresTab } from './tabs/VendedoresTab'
+import { CommissionGate } from '@/components/commission/CommissionLock'
 import { ContatosTab } from './tabs/ContatosTab'
 import { ClientesClient, type Client as ClienteRow } from '../clientes/ClientesClient'
 import type { Lead, LeadStatus } from './types'
@@ -289,7 +290,7 @@ export function KanbanBoard({ initialLeads, initialStages, initialClients, curre
         {tab === 'contatos'     && <ContatosTab leads={leads} clients={initialClients} onOpenLead={setSelectedLead} onOpenClient={(id) => { setFocusClient(id); setTab('clientes') }} />}
         {tab === 'clientes'     && <div className="h-full overflow-auto bg-bento-bg"><ClientesClient initialClients={initialClients} currentUser={currentUser} focusClientId={focusClient} onFocusHandled={() => setFocusClient(null)} /></div>}
         {tab === 'metricas'     && <MetricasTab leads={filteredLeads} />}
-        {tab === 'vendedores'   && <VendedoresTab />}
+        {tab === 'vendedores'   && <CommissionGate><VendedoresTab /></CommissionGate>}
       </div>
 
       {/* Modals */}

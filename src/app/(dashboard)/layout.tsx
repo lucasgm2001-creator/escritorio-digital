@@ -5,6 +5,7 @@ import { ToastProvider } from '@/components/ui/toast'
 import { capitalizeName } from '@/lib/utils'
 import { getSystemLogoUrl } from '@/lib/logo'
 import { getSessionUser, getProfile } from '@/lib/supabase/session'
+import { CommissionLockProvider } from '@/components/commission/CommissionLock'
 
 const PAGE_TITLES: Record<string, string> = {
   '/hall':           'Hall',
@@ -38,7 +39,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
       logoUrl={logoUrl}
       pageTitles={PAGE_TITLES}
     >
-      <ToastProvider>{children}</ToastProvider>
+      <ToastProvider><CommissionLockProvider>{children}</CommissionLockProvider></ToastProvider>
     </DashboardShell>
   )
 }

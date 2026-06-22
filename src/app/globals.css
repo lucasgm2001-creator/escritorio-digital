@@ -484,3 +484,7 @@ html.a11y-reduce-motion *, html.a11y-reduce-motion *::before, html.a11y-reduce-m
 /* Reduz o respiro dos cards/painéis em todo o sistema. Puramente visual e reversível. */
 html.ui-compact .p-5 { padding: 0.85rem; }
 html.ui-compact .p-4 { padding: 0.65rem; }
+
+/* Shake curto do PIN da Comissão (erro) */
+@keyframes ed-shake { 0%, 100% { transform: translateX(0) } 20%, 60% { transform: translateX(-6px) } 40%, 80% { transform: translateX(6px) } }
+.animate-ed-shake { animation: ed-shake 0.4s ease-in-out; }
