@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
-import { signIn } from '@/lib/supabase/auth-actions'
+import { signIn, signUp } from '@/lib/supabase/auth-actions'
 
 function EyeIcon({ show }: { show: boolean }) {
   return show ? (
@@ -21,22 +21,32 @@ function EyeIcon({ show }: { show: boolean }) {
 }
 
 export default function LoginPage() {
+  const [mode, setMode] = useState<'signin' | 'signup'>('signin')
+  const [name, setName] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [inviteCode, setInviteCode] = useState('')
   const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState('')
+  const [info, setInfo] = useState('')
   const [loading, setLoading] = useState(false)
+
+  const isSignup = mode === 'signup'
+  const toggleMode = () => { setMode(m => (m === 'signin' ? 'signup' : 'signin')); setError(''); setInfo('') }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!email || !password) return
-    setLoading(true)
-    setError('')
+    if (!email || !password || (isSignup && !name)) return
+    setLoading(true); setError(''); setInfo('')
     try {
-      const result = await signIn(email, password)
-      if (result?.error) {
-        setError(result.error)
-        setLoading(false)
+      if (isSignup) {
+        const result = await signUp(name, email, password, inviteCode)
+        if (result?.error) { setError(result.error); setLoading(false) }
+        else if (result?.needsConfirm) { setInfo('Conta criada! Confira seu e-mail para confirmar antes de entrar.'); setLoading(false) }
+        // sucesso com sessão → o servidor redireciona pra /hall
+      } else {
+        const result = await signIn(email, password)
+        if (result?.error) { setError(result.error); setLoading(false) }
       }
     } catch {
       setError('Erro inesperado. Tente novamente.')
@@ -62,6 +72,17 @@ export default function LoginPage() {
         {/* Form */}
         <div className="bg-white/10 backdrop-blur border border-white/20 rounded-2xl p-8 shadow-2xl">
           <form onSubmit={handleSubmit} className="space-y-6">
+            {/* Nome (só no cadastro) */}
+            {isSignup && (
+              <div>
+                <label htmlFor="name" className="block text-sm font-medium text-white/90 mb-2">Nome</label>
+                <input id="name" type="text" value={name}
+                  onChange={e => { setName(e.target.value); setError('') }}
+                  placeholder="Seu nome"
+                  className="w-full bg-white/10 border border-white/20 rounded-xl px-4 py-3 text-white placeholder-white/40 focus:outline-none focus:border-lime/60 transition-colors"
+                  disabled={loading} required />
+              </div>
+            )}
             {/* Email */}
             <div>
               <label htmlFor="email" className="block text-sm font-medium text-white/90 mb-2">
@@ -105,34 +126,59 @@ export default function LoginPage() {
               </div>
             </div>
 
-            {/* Forgot Password */}
-            <div className="text-right">
-              <Link
-                href="/forgot-password"
-                className="text-sm text-lime-fg hover:text-lime transition-colors"
-              >
-                Esqueci minha senha
-              </Link>
-            </div>
+            {/* Código de convite (só no cadastro) */}
+            {isSignup && (
+              <div>
+                <label htmlFor="invite" className="block text-sm font-medium text-white/90 mb-2">Código de convite</label>
+                <input id="invite" type="text" value={inviteCode}
+                  onChange={e => { setInviteCode(e.target.value); setError('') }}
+                  placeholder="Se você tiver um"
+                  className="w-full bg-white/10 border border-white/20 rounded-xl px-4 py-3 text-white placeholder-white/40 focus:outline-none focus:border-lime/60 transition-colors"
+                  disabled={loading} />
+                <p className="text-white/40 text-xs mt-1.5">Necessário se seu e-mail não for de um domínio autorizado.</p>
+              </div>
+            )}
 
-            {/* Error */}
+            {/* Esqueci minha senha (só no login) */}
+            {!isSignup && (
+              <div className="text-right">
+                <Link href="/forgot-password" className="text-sm text-lime-fg hover:text-lime transition-colors">
+                  Esqueci minha senha
+                </Link>
+              </div>
+            )}
+
+            {/* Error / Info */}
             {error && (
               <p className="text-red-400 text-sm text-center bg-red-400/10 border border-red-400/30 rounded-lg p-3">
                 {error}
+              </p>
+            )}
+            {info && (
+              <p className="text-lime-fg text-sm text-center bg-lime/10 border border-lime/30 rounded-lg p-3">
+                {info}
               </p>
             )}
 
             {/* Submit */}
             <button
               type="submit"
-              disabled={loading || !email || !password}
+              disabled={loading || !email || !password || (isSignup && !name)}
               className="w-full bg-lime text-lime-ink font-semibold rounded-xl py-3 hover:bg-lime-hover transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
             >
               {loading ? (
                 <span className="w-5 h-5 border-2 border-lime-ink/30 border-t-lime-ink rounded-full animate-spin" />
-              ) : 'Entrar'}
+              ) : isSignup ? 'Criar conta' : 'Entrar'}
             </button>
           </form>
+
+          {/* Alternar login / cadastro (sem reload) */}
+          <p className="text-center text-white/60 text-sm mt-6">
+            {isSignup ? 'Já tem conta?' : 'Não tem conta?'}{' '}
+            <button type="button" onClick={toggleMode} className="text-lime-fg hover:text-lime font-semibold transition-colors">
+              {isSignup ? 'Entrar' : 'Criar conta'}
+            </button>
+          </p>
         </div>
 
         {/* Footer */}
