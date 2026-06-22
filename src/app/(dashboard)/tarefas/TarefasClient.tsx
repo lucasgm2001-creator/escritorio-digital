@@ -57,6 +57,8 @@ function fmtDate(iso?: string | null): string {
 }
 
 type SectionId = 'atrasadas' | 'hoje' | 'amanha' | 'semana' | 'depois'
+// Mobile (<1024): chips/caixas por tempo (consolidam as SectionId; desktop segue com SECTIONS).
+type MobileChip = 'todas' | 'hoje' | 'proximas' | 'atrasadas' | 'concluidas'
 
 const SECTIONS: { id: SectionId; label: string; danger?: boolean }[] = [
   { id: 'atrasadas', label: 'Atrasadas', danger: true },
@@ -159,6 +161,20 @@ export function TarefasClient({ initialTasks, linkOptions, currentUser }: Props)
   }, [visibleTasks, today, tomorrow, weekEnd])
 
   const pendingCount = visibleTasks.filter(t => !t.done).length
+
+  // ── Mobile (<1024): chips + caixas por tempo. Desktop usa as SECTIONS acima (inalterado). ──
+  const [mobileChip, setMobileChip] = useState<MobileChip>('todas')
+  const [boxOpen, setBoxOpen] = useState<Set<string>>(() => new Set(['hoje']))   // só "Hoje" aberta por padrão
+  const toggleBox = (k: string) => setBoxOpen(prev => { const n = new Set(prev); if (n.has(k)) n.delete(k); else n.add(k); return n })
+  const proximas = useMemo(() => [...groups.amanha, ...groups.semana, ...groups.depois]
+    .sort((a, b) => (a.due_date ?? '9999-99-99') < (b.due_date ?? '9999-99-99') ? -1 : 1), [groups])
+  const weekStartISO = useMemo(() => {
+    const d = new Date(); const day = d.getDay(); const diff = day === 0 ? -6 : 1 - day
+    d.setHours(0, 0, 0, 0); d.setDate(d.getDate() + diff); return d.toISOString()
+  }, [])
+  const doneWeek = useMemo(() => done.filter(t => (t.completed_at ?? t.updated_at ?? '') >= weekStartISO), [done, weekStartISO])
+  const respLabel = respFilter === 'todos' ? 'Todos' : (sellers.find(s => s.id === respFilter)?.name ?? 'Todos')
+  const cycleResp = () => { const opts = ['todos', ...sellers.map(s => s.id)]; setRespFilter(opts[(opts.indexOf(respFilter) + 1) % opts.length]) }
 
   // ── Ações ── (optimistic + await + rollback se o banco recusar)
   const toggleDone = async (t: Task) => {
@@ -368,6 +384,52 @@ export function TarefasClient({ initialTasks, linkOptions, currentUser }: Props)
     )
   }
 
+  // Cartão de tarefa no MOBILE: filete LIMA no TOPO p/ tarefas de HOJE (detalhe no topo, NÃO na lateral),
+  // data vermelha p/ atrasadas. Bolinha conclui; tocar no corpo abre p/ editar.
+  const renderMobileRow = (t: Task) => {
+    const isToday = !t.done && t.due_date === today
+    const isOverdue = !t.done && !!t.due_date && t.due_date < today
+    const phone = t.linked_id ? phoneById.get(t.linked_id) : undefined
+    return (
+      <div key={t.id} className={cn('relative bento-fx p-3 overflow-hidden', isToday && 'bg-lime/[0.06]')}>
+        {isToday && <span className="absolute top-0 inset-x-0 h-0.5 bg-lime" aria-hidden />}
+        <div className="flex items-start gap-3">
+          <button onClick={() => toggleDone(t)} aria-label={t.done ? 'Reabrir' : 'Concluir'}
+            className={cn('mt-0.5 w-[22px] h-[22px] rounded-md border flex items-center justify-center flex-none transition-colors',
+              t.done ? 'bg-lime border-lime' : 'border-bento-border')}>
+            {t.done && <svg className="w-3.5 h-3.5 text-lime-ink" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>}
+          </button>
+          <div role="button" tabIndex={0} onClick={() => openEdit(t)}
+            onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openEdit(t) } }}
+            className="min-w-0 flex-1 text-left cursor-pointer">
+            <span className={cn('text-sm leading-snug', t.done ? 'line-through text-bento-muted' : 'text-bento-text')}>{t.title}</span>
+            <div className="flex items-center gap-2 flex-wrap mt-1.5">
+              {t.linked_id && t.linked_name && (
+                <Link href={t.linked_type === 'lead' ? '/comercial' : '/clientes'} onClick={e => e.stopPropagation()}
+                  className="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded bg-bento-bg border border-bento-border text-bento-dim max-w-[180px]">
+                  <span className={cn('w-1 h-1 rounded-full flex-none', t.linked_type === 'lead' ? 'bg-blue-400' : 'bg-lime')} />
+                  <span className="truncate">{t.linked_name}</span>
+                </Link>
+              )}
+              {phone && (
+                <a href={`tel:${phone}`} onClick={e => e.stopPropagation()} aria-label={`Ligar para ${t.linked_name ?? ''}`}
+                  className="inline-flex items-center justify-center w-6 h-6 rounded text-bento-muted hover:text-lime-fg transition-colors">
+                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" /></svg>
+                </a>
+              )}
+              {t.due_date && (
+                <span className={cn('font-tech text-[10px] tabular-nums ml-auto',
+                  isToday ? 'text-lime-fg font-semibold' : isOverdue ? 'text-red-400 font-semibold' : 'text-bento-muted')}>
+                  {isToday ? 'Hoje' : fmtDate(t.due_date)}{t.due_time ? ` · ${t.due_time.slice(0, 5)}` : ''}
+                </span>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
   const totalTasks = visibleTasks.length
 
   return (
@@ -386,7 +448,7 @@ export function TarefasClient({ initialTasks, linkOptions, currentUser }: Props)
           </div>
           {view === 'tarefas' && <span className="font-tech text-xs text-bento-muted tabular-nums">{pendingCount} pendentes</span>}
           {view === 'tarefas' && sellers.length > 0 && (
-            <label className="flex items-center gap-1.5 font-tech text-[10px] uppercase tracking-wide text-bento-muted">
+            <label className="hidden lg:flex items-center gap-1.5 font-tech text-[10px] uppercase tracking-wide text-bento-muted">
               Responsável
               <select value={respFilter} onChange={e => setRespFilter(e.target.value)}
                 className="bg-bento-bg border border-bento-border rounded-btn px-2 py-1.5 text-xs text-bento-text normal-case focus:outline-none focus:border-lime">
@@ -397,7 +459,7 @@ export function TarefasClient({ initialTasks, linkOptions, currentUser }: Props)
           )}
         </div>
         {view === 'tarefas' && (
-          <div className="flex items-center gap-2 w-full sm:w-auto">
+          <div className="hidden lg:flex items-center gap-2 w-full sm:w-auto">
             <button onClick={handleSummary} disabled={summaryLoading}
               className="flex items-center justify-center gap-2 px-3 py-2 min-h-[44px] rounded-btn text-sm font-medium border border-bento-border text-bento-dim hover:border-lime hover:text-bento-text transition-colors disabled:opacity-50 flex-1 sm:flex-none">
               <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -422,7 +484,121 @@ export function TarefasClient({ initialTasks, linkOptions, currentUser }: Props)
         </div>
       )}
 
-      <div className={cn('max-w-3xl mx-auto px-4 sm:px-6 py-5 space-y-6', view !== 'tarefas' && 'hidden')}>
+      {/* ── MOBILE (<1024): Tarefas em caixas por tempo. Desktop usa o bloco abaixo (inalterado). ── */}
+      {view === 'tarefas' && (
+        <div className="lg:hidden px-4 py-4 space-y-3 pb-4">
+          {actionError && (
+            <div className="flex items-start gap-2 rounded-bento border border-red-800/40 bg-red-900/20 px-3 py-2.5 text-sm text-red-400">
+              <span className="flex-1">{actionError}</span>
+              <button onClick={() => setActionError('')} aria-label="Fechar" className="text-red-400/70 hover:text-red-400 shrink-0">✕</button>
+            </div>
+          )}
+
+          {/* Responsável (minibox) + Resumo do dia */}
+          <div className="flex items-center gap-2">
+            {sellers.length > 0 && (
+              <button type="button" onClick={cycleResp}
+                className="flex items-center gap-2 rounded-btn border border-bento-border bg-bento-panel px-3 min-h-[44px] text-sm text-bento-text">
+                <svg className="w-4 h-4 text-bento-muted shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
+                <span className="font-medium">{respLabel}</span>
+                <svg className="w-3.5 h-3.5 text-bento-muted shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+              </button>
+            )}
+            <button type="button" onClick={handleSummary} disabled={summaryLoading}
+              className="flex-1 flex items-center justify-center gap-2 rounded-btn border border-bento-border bg-bento-panel px-3 min-h-[44px] text-sm text-bento-dim disabled:opacity-50">
+              <svg className="w-4 h-4 text-lime-fg shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
+              {summaryLoading ? 'Resumindo...' : 'Resumo do dia'}
+            </button>
+          </div>
+
+          {summaryOpen && (
+            <div className="bento-fx p-4 relative">
+              <button onClick={() => setSummaryOpen(false)} aria-label="Fechar resumo" className="absolute top-3 right-3 text-bento-muted hover:text-bento-text">✕</button>
+              <div className="flex items-center gap-2 mb-2">
+                <svg className="w-3.5 h-3.5 text-lime-fg" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
+                <span className="text-xs font-semibold uppercase tracking-wide text-lime-fg">Resumo do dia</span>
+              </div>
+              {summaryLoading
+                ? <p className="text-sm text-bento-muted animate-pulse">Gerando resumo…</p>
+                : <p className="text-sm text-bento-dim whitespace-pre-wrap leading-relaxed">{summary}</p>}
+            </div>
+          )}
+
+          {/* Chips com contagem (Hoje = bolinha lima · Atrasadas = bolinha vermelha) */}
+          <div className="flex gap-1.5 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden -mx-4 px-4">
+            {([
+              { id: 'todas', label: 'Todas', count: groups.hoje.length + proximas.length + groups.atrasadas.length },
+              { id: 'hoje', label: 'Hoje', count: groups.hoje.length, dot: 'bg-lime' },
+              { id: 'proximas', label: 'Próximas', count: proximas.length },
+              { id: 'atrasadas', label: 'Atrasadas', count: groups.atrasadas.length, dot: 'bg-red-500' },
+              { id: 'concluidas', label: 'Concluídas', count: doneWeek.length },
+            ] as { id: MobileChip; label: string; count: number; dot?: string }[]).map(c => (
+              <button key={c.id} type="button" onClick={() => setMobileChip(c.id)}
+                className={cn('flex items-center gap-1.5 shrink-0 rounded-full border px-3 min-h-[38px] text-xs font-medium transition-colors',
+                  mobileChip === c.id ? 'bg-lime/15 border-lime/50 text-lime-fg' : 'border-bento-border bg-bento-panel text-bento-dim')}>
+                {c.dot && <span className={cn('w-1.5 h-1.5 rounded-full flex-none', c.dot)} />}
+                {c.label}
+                <span className="font-tech text-[10px] text-bento-muted tabular-nums">{c.count}</span>
+              </button>
+            ))}
+          </div>
+
+          {/* Conteúdo: "Todas" = accordion (Hoje aberta); chip específico = lista direta */}
+          {totalTasks === 0 ? (
+            <EmptyAll onNew={openNew} />
+          ) : mobileChip === 'todas' ? (
+            <div className="space-y-2">
+              {([
+                { id: 'hoje', label: 'Hoje', items: groups.hoje, tone: 'text-lime-fg' },
+                { id: 'proximas', label: 'Próximas', items: proximas, tone: 'text-bento-dim' },
+                { id: 'atrasadas', label: 'Atrasadas', items: groups.atrasadas, tone: 'text-red-400' },
+                { id: 'concluidas', label: 'Concluídas da semana', items: doneWeek, tone: 'text-green-400', scroll: true, green: true },
+              ] as { id: string; label: string; items: Task[]; tone: string; scroll?: boolean; green?: boolean }[]).map(box => {
+                const isOpen = boxOpen.has(box.id)
+                return (
+                  <div key={box.id} className={cn('bento-fx overflow-hidden', box.green && 'border-green-800/40')}>
+                    <button type="button" onClick={() => toggleBox(box.id)} aria-expanded={isOpen}
+                      className="w-full flex items-center gap-2 px-3 min-h-[48px] text-left">
+                      <span className={cn('text-xs font-semibold uppercase tracking-wide flex-1', box.tone)}>{box.label}</span>
+                      <span className="font-tech text-[10px] text-bento-muted tabular-nums">{box.items.length}</span>
+                      <svg className={cn('w-4 h-4 text-bento-muted transition-transform', isOpen && 'rotate-180')} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+                    </button>
+                    {isOpen && (
+                      box.items.length === 0
+                        ? (box.id === 'hoje'
+                            ? <div className="px-3 pb-3 border-t border-bento-border/60 pt-3"><EmptyToday /></div>
+                            : <p className="px-3 pb-3 border-t border-bento-border/60 pt-3 text-xs text-bento-muted/60 font-tech text-center">Nada aqui.</p>)
+                        : <div className={cn('px-2 pb-2 pt-2 space-y-2 border-t border-bento-border/60', box.scroll && 'max-h-72 overflow-y-auto')}>{box.items.map(renderMobileRow)}</div>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+          ) : (() => {
+            const items = mobileChip === 'hoje' ? groups.hoje : mobileChip === 'proximas' ? proximas : mobileChip === 'atrasadas' ? groups.atrasadas : doneWeek
+            if (items.length === 0) return mobileChip === 'hoje' ? <EmptyToday /> : <p className="text-center text-xs text-bento-muted/60 py-8 font-tech">Nada aqui.</p>
+            return <div className="space-y-2">{items.map(renderMobileRow)}</div>
+          })()}
+        </div>
+      )}
+
+      {/* Barra fixa do rodapé (mobile): criar por texto (IA) + Nova tarefa. Fica acima da BottomNav. */}
+      {view === 'tarefas' && (
+        <div className="lg:hidden sticky bottom-0 z-20 border-t border-bento-border bg-bento-panel/95 backdrop-blur px-3 py-2 flex items-center gap-2">
+          <input value={aiText} onChange={e => { setAiText(e.target.value); if (aiError) setAiError('') }}
+            onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleAiCreate() } }} disabled={aiLoading}
+            placeholder="Escreva uma tarefa…"
+            className="flex-1 min-w-0 bg-bento-bg border border-bento-border rounded-btn px-3 min-h-[44px] text-sm text-bento-text placeholder:text-bento-muted focus:outline-none focus:border-lime disabled:opacity-50" />
+          <button onClick={handleAiCreate} disabled={aiLoading || !aiText.trim()}
+            className="bento-btn px-3 min-h-[44px] rounded-btn text-sm font-semibold shrink-0 disabled:opacity-50">{aiLoading ? '…' : 'Criar'}</button>
+          <button onClick={openNew} aria-label="Nova tarefa"
+            className="bento-btn min-w-[44px] min-h-[44px] rounded-btn flex items-center justify-center shrink-0">
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
+          </button>
+        </div>
+      )}
+
+      <div className={cn('max-w-3xl mx-auto px-4 sm:px-6 py-5 space-y-6 hidden', view === 'tarefas' && 'lg:block')}>
         {/* Erro de ação (concluir/excluir) */}
         {actionError && (
           <div className="flex items-start gap-2 rounded-bento border border-red-800/40 bg-red-900/20 px-3 py-2.5 text-sm text-red-400">
