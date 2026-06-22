@@ -6,6 +6,8 @@ import { cn } from '@/lib/utils'
 import { createClient } from '@/lib/supabase/client'
 import { useToast } from '@/components/ui/toast'
 import { CollapsibleSection } from '@/components/mobile/CollapsibleSection'
+import { PeriodChips } from '../PeriodChips'
+import { rangeFor, inPeriodByActivity, type Range } from '@/lib/period'
 import { ALL_COLUMNS, FUSO_LABELS, type Lead } from '../types'
 import type { Client } from '../../clientes/ClientesClient'
 
@@ -82,6 +84,7 @@ function FilterDropdown({ label, options, selected, onToggle }: {
 
 export function ContatosTab({ leads, clients, onOpenLead, onOpenClient }: Props) {
   const [search, setSearch] = useState('')
+  const [range, setRange] = useState<Range>(() => rangeFor('tudo'))   // período (em memória; reload = "Tudo")
   const [faseSel, setFaseSel] = useState<Set<string>>(new Set())
   const [nichoSel, setNichoSel] = useState<Set<string>>(new Set())
   const [fusoSel, setFusoSel] = useState<Set<string>>(new Set())
@@ -100,20 +103,24 @@ export function ContatosTab({ leads, clients, onOpenLead, onOpenClient }: Props)
 
   // Lista unificada + dedup (cliente prevalece sobre lead com mesmo phone/email).
   const rows = useMemo<Row[]>(() => {
+    // Filtro de período: leads por updated_at||created_at; clientes por start_date||created_at.
+    // "Tudo" não filtra. A dedup (clientKeys) usa TODOS os clientes p/ não duplicar lead que é cliente.
+    const periodLeads = leads.filter(l => inPeriodByActivity(range, l.updated_at, l.created_at))
+    const periodClients = clients.filter(c => inPeriodByActivity(range, undefined, c.start_date ?? c.created_at))
     const clientKeys = new Set<string>()
     for (const c of clients) {
       const p = onlyDigits(c.phone); if (p) clientKeys.add('p:' + p)
       const e = lower(c.email); if (e) clientKeys.add('e:' + e)
     }
     const out: Row[] = []
-    for (const c of clients) {
+    for (const c of periodClients) {
       out.push({
         id: c.id, origem: 'client', name: c.name, company: c.company ?? '', phone: c.phone ?? '', email: c.email ?? '',
         faseKey: 'cliente', faseLabel: 'Cliente', faseDot: 'bg-lime',
         nicho: (c.nicho ?? '').trim(), fuso: (c.fuso ?? '') || '', chegada: c.start_date ?? '',
       })
     }
-    for (const l of leads) {
+    for (const l of periodLeads) {
       const p = onlyDigits(l.phone), e = lower(l.email)
       const st = STATUS_STYLE[l.status]
       if (l.status === 'lixeira') {
@@ -136,7 +143,7 @@ export function ContatosTab({ leads, clients, onOpenLead, onOpenClient }: Props)
     return out
       .filter(r => !removedIds.has(r.id))
       .sort((a, b) => (b.chegada || '').localeCompare(a.chegada || ''))
-  }, [leads, clients, removedIds])
+  }, [leads, clients, removedIds, range])
 
   // Opções dos filtros.
   const faseOptions = useMemo(() => [
@@ -260,6 +267,9 @@ export function ContatosTab({ leads, clients, onOpenLead, onOpenClient }: Props)
           <h3 className="font-display font-bold text-bento-text text-lg">Contatos</h3>
           <span className="font-tech text-xs text-bento-muted tabular-nums">{totalVisible} contato{totalVisible === 1 ? '' : 's'}</span>
         </div>
+
+        {/* Período (padrão "Tudo") — filtra leads por updated_at||created_at e clientes por start_date. */}
+        <PeriodChips range={range} onChange={setRange} />
 
         {/* Busca + filtros */}
         <div className="flex flex-wrap items-center gap-2">

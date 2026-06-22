@@ -112,10 +112,14 @@ export function LeadDiary({ lead, onClose, onUpdated, onMoveStage, onDeleted, cu
     setPhaseOpen(false)
     if (!onMoveStage || newStatus === currentLead.status) return
     const prev = currentLead.status
+    const destLabel = ALL_COLUMNS.find(c => c.key === newStatus)?.label ?? newStatus
     setMovingPhase(true)
     setCurrentLead(c => ({ ...c, status: newStatus }))
+    // onMoveStage = MESMO fluxo do arrastar. Ao escolher "Venda Fechada" ele retorna false aqui e
+    // abre o WonPlanModal (idêntico a soltar na coluna) — por isso o "Movido para" só dispara quando ok.
     const ok = await onMoveStage(newStatus)
     if (!ok) setCurrentLead(c => ({ ...c, status: prev }))
+    else toast({ type: 'success', message: `Movido para ${destLabel}` })
     setMovingPhase(false)
   }
 

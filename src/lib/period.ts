@@ -43,3 +43,14 @@ export function rangeFor(mode: Mode, now = new Date()): Range {
 }
 
 export const MODES: [Mode, string][] = [['dia', 'Dia'], ['semana', 'Semana'], ['mes', 'Mês'], ['semestre', 'Semestre'], ['ano', 'Ano']]
+
+// Filtro por ATIVIDADE: usa a data de última atividade (updated_at); na falta, created_at.
+// 'tudo' nunca filtra (mostra tudo). Compartilhado pelo Funil e por Contatos — sem duplicar lógica.
+export function inPeriodByActivity(range: Range, updated?: string | null, created?: string | null): boolean {
+  if (range.mode === 'tudo') return true
+  const iso = updated ?? created
+  if (!iso) return false
+  const t = new Date(iso).getTime()
+  if (Number.isNaN(t)) return false
+  return t >= range.start.getTime() && t <= range.end.getTime()
+}

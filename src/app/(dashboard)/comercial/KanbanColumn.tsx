@@ -5,6 +5,7 @@ import { useDroppable } from '@dnd-kit/core'
 import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { ChevronRight, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { usdCompact } from '@/lib/format'
 import { FunnelLeadCard } from './FunnelLeadCard'
 import { heatLevel } from './leadSignals'
 import type { Lead, ColumnConfig, ColumnTone, LeadStatus } from './types'
@@ -51,6 +52,9 @@ export function KanbanColumn({ column, leads, onMove, onOpenDiary, onLog, userId
   const heat = { hot: 0, warm: 0, cold: 0 }
   if (!terminal) for (const l of leads) heat[heatLevel(l)]++
 
+  // Total R$/US$ da coluna — recalcula com os leads (já filtrados pelo período) que chegam aqui.
+  const total = leads.reduce((s, l) => s + (l.value || 0), 0)
+
   return (
     <div
       ref={setNodeRef}
@@ -70,6 +74,7 @@ export function KanbanColumn({ column, leads, onMove, onOpenDiary, onLog, userId
           <div className="mt-2 flex items-baseline gap-1.5">
             <span className="font-display text-4xl font-bold text-bento-text tabular-nums leading-none">{leads.length}</span>
             <span className="font-tech text-[10px] text-bento-muted">leads</span>
+            {total > 0 && <span className="font-tech text-[10px] text-bento-dim tabular-nums ml-auto">{usdCompact(total)}</span>}
           </div>
           {!terminal && leads.length > 0 && (
             <div className="mt-2.5 flex items-center gap-2.5">
@@ -86,6 +91,7 @@ export function KanbanColumn({ column, leads, onMove, onOpenDiary, onLog, userId
             className="w-full flex items-center gap-2 px-3 py-2.5 border-b border-bento-border/60 text-left hover:bg-bento-bg/40 transition-colors">
             <span className="w-[7px] h-[7px] rounded-full flex-none bg-bento-muted" />
             <span className={cn('text-xs font-semibold flex-1 truncate', NAME_COLOR[column.tone])}>{column.label}</span>
+            {total > 0 && <span className="font-tech text-[10px] text-bento-dim tabular-nums">{usdCompact(total)}</span>}
             <span className="font-tech text-[11px] text-bento-muted tabular-nums">{leads.length}</span>
             <X className="w-3.5 h-3.5 flex-none text-bento-muted" />
           </button>

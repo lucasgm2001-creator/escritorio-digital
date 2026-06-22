@@ -26,6 +26,8 @@ import { ClientesClient, type Client as ClienteRow } from '../clientes/ClientesC
 import type { Lead, LeadStatus } from './types'
 import { columnsFromStages, tiersFromColumns, wonSlug, type FunnelStage } from '@/lib/funnelStages'
 import { WonPlanModal } from './WonPlanModal'
+import { PeriodChips } from './PeriodChips'
+import { rangeFor, inPeriodByActivity, type Range } from '@/lib/period'
 export type { LeadStatus, Lead, ColumnConfig } from './types'
 
 type Tab = 'funil' | 'contatos' | 'clientes' | 'metricas' | 'vendedores'
@@ -82,6 +84,8 @@ export function KanbanBoard({ initialLeads, initialStages, initialClients, curre
   const [focusClient, setFocusClient] = useState<string | null>(null)   // Contatos → abre cliente na aba Clientes
   const [pendingWon, setPendingWon] = useState<Lead | null>(null)   // lead aguardando escolha de plano (fechamento)
   const [tab, setTab] = useState<Tab>('funil')
+  // Filtro de período do FUNIL (em memória; reload volta pra "Tudo"). Métricas tem o seu próprio.
+  const [funnelRange, setFunnelRange] = useState<Range>(() => rangeFor('tudo'))
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null)
   // Desktop = colunas com drag; mobile = acordeão de fases. Renderiza só UM
   // (evita ids duplicados no dnd-kit). Default desktop p/ o SSR; ajusta no mount.
@@ -131,7 +135,12 @@ export function KanbanBoard({ initialLeads, initialStages, initialClients, curre
   )
   // Mobile NÃO usa drag (rolar não pode agarrar card): mover é pelo seletor de fase no LeadDiary.
 
-  const filteredLeads = leads   // sem segmentação Brasil/EUA
+  // Funil filtrado pelo período (última atividade = updated_at; senão created_at). "Tudo" mostra tudo.
+  // Contadores das colunas, totais R$/US$ e o resumo do funil derivam daqui → recalculam sozinhos.
+  const filteredLeads = useMemo(
+    () => leads.filter(l => inPeriodByActivity(funnelRange, l.updated_at, l.created_at)),
+    [leads, funnelRange],
+  )
 
   const handleDragStart = (e: DragStartEvent) => setActiveId(e.active.id as string)
 
@@ -218,7 +227,7 @@ export function KanbanBoard({ initialLeads, initialStages, initialClients, curre
         <div className="flex items-center justify-between gap-2 flex-wrap px-4 sm:px-6 pt-4 pb-3">
           <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
             <h1 className="font-display font-bold text-bento-text text-lg tracking-tight">Comercial</h1>
-            <span className="font-tech text-xs text-bento-muted font-medium tabular-nums">{filteredLeads.length} leads</span>
+            <span className="font-tech text-xs text-bento-muted font-medium tabular-nums">{(tab === 'funil' ? filteredLeads : leads).length} leads</span>
           </div>
 
           <button
@@ -236,6 +245,16 @@ export function KanbanBoard({ initialLeads, initialStages, initialClients, curre
         <div className="px-6">
           <DraggableTabs tabs={TABS} activeTab={tab} onTabChange={(key) => setTab(key as Tab)} sectionKey="comercial" />
         </div>
+
+        {/* Filtro de período do Funil (só nesta aba). Padrão "Tudo". Mobile: chips rolam, sem overflow. */}
+        {tab === 'funil' && (
+          <div className="px-4 sm:px-6 pt-2 pb-3 flex items-center gap-3 flex-wrap">
+            <PeriodChips range={funnelRange} onChange={setFunnelRange} />
+            <span className="font-tech text-[11px] text-bento-muted whitespace-nowrap hidden sm:inline">
+              Período: <span className="text-bento-text font-semibold">{funnelRange.label}</span>
+            </span>
+          </div>
+        )}
       </div>
 
       {/* Content */}
@@ -288,7 +307,7 @@ export function KanbanBoard({ initialLeads, initialStages, initialClients, curre
 
         {tab === 'contatos'     && <ContatosTab leads={leads} clients={initialClients} onOpenLead={setSelectedLead} onOpenClient={(id) => { setFocusClient(id); setTab('clientes') }} />}
         {tab === 'clientes'     && <div className="h-full overflow-auto bg-bento-bg"><ClientesClient initialClients={initialClients} currentUser={currentUser} focusClientId={focusClient} onFocusHandled={() => setFocusClient(null)} /></div>}
-        {tab === 'metricas'     && <MetricasTab leads={filteredLeads} />}
+        {tab === 'metricas'     && <MetricasTab leads={leads} />}
         {tab === 'vendedores'   && <VendedoresTab />}
       </div>
 
