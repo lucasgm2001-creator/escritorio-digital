@@ -12,18 +12,18 @@ import { rangeFor, type Mode, type Range } from '@/lib/period'
 
 type SectionKey = 'entrou' | 'interagiu' | 'naoint' | 'reuniao' | 'noshow' | 'reag' | 'proposta' | 'futuro' | 'fechou' | 'perdido'
 
-// Ordem dos cards de detalhe + mapeamento slug do funil → seção do relatório.
-const SECTIONS: { key: SectionKey; slug: string; t: string; ac: string }[] = [
-  { key: 'entrou',   slug: 'novo',           t: 'Entraram (Novos)',          ac: '#64748b' },
-  { key: 'interagiu',slug: 'interagiu',      t: 'Interagiram',               ac: '#9bc91f' },
-  { key: 'naoint',   slug: 'nao_interagiu',  t: 'Não interagiram',           ac: '#94a3b8' },
-  { key: 'reuniao',  slug: 'reuniao',        t: 'Reunião marcada',           ac: '#3b82f6' },
-  { key: 'noshow',   slug: 'no_show',        t: 'No-show',                   ac: '#ef4444' },
-  { key: 'reag',     slug: 'reagendamento',  t: 'Reagendamento',             ac: '#f59e0b' },
-  { key: 'proposta', slug: 'proposta',       t: 'Proposta em análise',       ac: '#8b5cf6' },
-  { key: 'futuro',   slug: 'negocio_futuro', t: 'Negócio futuro',            ac: '#14b8a6' },
-  { key: 'fechou',   slug: 'fechado',        t: 'Fechou (Venda Concluída)',  ac: '#22c55e' },
-  { key: 'perdido',  slug: 'perdido',        t: 'Não fechou (Venda Perdida)',ac: '#ef4444' },
+// Ordem dos cards de detalhe + mapeamento slug do funil → seção do relatório. NEUTRO: sem cor por evento.
+const SECTIONS: { key: SectionKey; slug: string; t: string }[] = [
+  { key: 'entrou',   slug: 'novo',           t: 'Entraram (Novos)' },
+  { key: 'interagiu',slug: 'interagiu',      t: 'Interagiram' },
+  { key: 'naoint',   slug: 'nao_interagiu',  t: 'Não interagiram' },
+  { key: 'reuniao',  slug: 'reuniao',        t: 'Reunião marcada' },
+  { key: 'noshow',   slug: 'no_show',        t: 'No-show' },
+  { key: 'reag',     slug: 'reagendamento',  t: 'Reagendamento' },
+  { key: 'proposta', slug: 'proposta',       t: 'Proposta em análise' },
+  { key: 'futuro',   slug: 'negocio_futuro', t: 'Negócio futuro' },
+  { key: 'fechou',   slug: 'fechado',        t: 'Fechou (Venda Concluída)' },
+  { key: 'perdido',  slug: 'perdido',        t: 'Não fechou (Venda Perdida)' },
 ]
 const SLUG_TO_KEY: Record<string, SectionKey> = Object.fromEntries(SECTIONS.map(s => [s.slug, s.key]))
 const REPORT_MODES: [Mode, string][] = [['semana', 'Semana'], ['mes', 'Mês'], ['semestre', 'Semestre'], ['ano', 'Ano']]
@@ -100,22 +100,21 @@ export function RelatorioComercial() {
   const count = (k: SectionKey) => bySection.get(k)?.length ?? 0
   const entraram = count('entrou')
   const reunioes = count('reuniao')
-  const pct = (n: number, base: number) => (base > 0 ? Math.round((n / base) * 100) : 0)
+  const pc = (n: number, base: number) => (base > 0 ? `${Math.round((n / base) * 100)}%` : '—')
 
-  // Boxes de conversão (% sempre sobre Entraram).
-  const steps: { t: string; n: number; sub: number | null }[] = [
-    { t: 'Entraram',        n: entraram,          sub: null },
-    { t: 'Interagiram',     n: count('interagiu'),sub: pct(count('interagiu'), entraram) },
-    { t: 'Reunião marcada', n: reunioes,          sub: pct(reunioes, entraram) },
-    { t: 'Proposta',        n: count('proposta'), sub: pct(count('proposta'), entraram) },
-    { t: 'Fechou',          n: count('fechou'),   sub: pct(count('fechou'), entraram) },
+  // Boxes de conversão — NEUTROS (% sobre Entraram; No-show sobre Reuniões).
+  const primary: { t: string; v: number; s: string }[] = [
+    { t: 'Entraram',        v: entraram,           s: 'novos no período' },
+    { t: 'Interagiram',     v: count('interagiu'), s: `${pc(count('interagiu'), entraram)} dos leads` },
+    { t: 'Reunião marcada', v: reunioes,           s: `${pc(reunioes, entraram)} dos leads` },
+    { t: 'Proposta',        v: count('proposta'),  s: `${pc(count('proposta'), entraram)} dos leads` },
+    { t: 'Fechou',          v: count('fechou'),    s: `${pc(count('fechou'), entraram)} dos leads` },
   ]
-  // Secundárias.
-  const rates: { t: string; v: string; bad?: boolean }[] = [
-    { t: 'No-show (sobre reuniões)', v: `${pct(count('noshow'), reunioes)}%`, bad: true },
-    { t: 'Reagendamento',           v: String(count('reag')) },
-    { t: 'Negócio futuro',          v: String(count('futuro')) },
-    { t: 'Não fechou',              v: String(count('perdido')), bad: true },
+  const secondary: { t: string; v: number; s: string }[] = [
+    { t: 'No-show',        v: count('noshow'),  s: `${pc(count('noshow'), reunioes)} das reuniões` },
+    { t: 'Reagendamento',  v: count('reag'),    s: 'remarcadas' },
+    { t: 'Negócio futuro', v: count('futuro'),  s: 'retomar depois' },
+    { t: 'Não fechou',     v: count('perdido'), s: 'venda perdida' },
   ]
 
   const toggle = (k: SectionKey) => setOpen(prev => { const n = new Set(prev); if (n.has(k)) n.delete(k); else n.add(k); return n })
@@ -139,10 +138,10 @@ export function RelatorioComercial() {
 
       let x = 14
       const y = 56
-      for (const s of steps) {
+      for (const k of primary) {
         doc.setFont('helvetica', 'bold'); doc.setFontSize(20); doc.setTextColor(...dark)
-        doc.text(s.sub != null ? `${s.n} (${s.sub}%)` : String(s.n), x, y)
-        doc.setFont('helvetica', 'normal'); doc.setFontSize(8); doc.setTextColor(110, 110, 110); doc.text(s.t, x, y + 6)
+        doc.text(String(k.v), x, y)
+        doc.setFont('helvetica', 'normal'); doc.setFontSize(8); doc.setTextColor(110, 110, 110); doc.text(k.t, x, y + 6)
         x += 38
       }
 
@@ -199,44 +198,31 @@ export function RelatorioComercial() {
 
       {error && <div className="bg-amber-900/20 border border-amber-800/40 rounded-btn px-4 py-3 text-xs text-amber-400">{error}</div>}
 
-      {/* Conversão no período */}
-      <div className="bento-fx p-5">
-        <p className="font-tech text-[10px] uppercase tracking-[0.18em] text-bento-muted mb-4">Conversão no período</p>
-        <div className="flex items-stretch gap-2 flex-wrap">
-          {steps.map(s => (
-            <div key={s.t} className="flex-1 min-w-[100px] flex flex-col gap-1 px-1">
-              <span className="font-display text-3xl font-bold text-bento-text tabular-nums leading-none">{loading ? '—' : s.n}</span>
-              <span className="font-tech text-[10px] uppercase tracking-wide text-bento-muted">
-                {s.t}{s.sub != null && <span className="text-bento-dim"> · {s.sub}%</span>}
-              </span>
-              <div className="h-1.5 rounded-full bg-bento-bg overflow-hidden mt-1.5">
-                <div className="h-full rounded-full bg-lime" style={{ width: `${entraram > 0 ? Math.round((s.n / entraram) * 100) : 0}%` }} />
-              </div>
-            </div>
-          ))}
+      {/* Conversão no período — boxes NEUTROS em flex (preenchem a linha; sem célula vazia) */}
+      <div>
+        <p className="font-tech text-[10px] uppercase tracking-[0.18em] text-bento-muted mb-2.5 px-0.5">Conversão no período</p>
+        <div className="flex flex-wrap gap-2.5">
+          {primary.map(k => <KpiBox key={k.t} v={loading ? '—' : k.v} l={k.t} s={k.s} />)}
         </div>
-        <div className="flex flex-wrap gap-2 mt-5 pt-4 border-t border-dashed border-bento-border/60">
-          {rates.map(r => (
-            <span key={r.t} className="font-tech text-[11px] text-bento-muted border border-bento-border rounded-lg px-3 py-1.5 inline-flex gap-2 items-baseline">
-              <b className={cn('text-sm font-bold', r.bad ? 'text-red-400' : 'text-bento-text')}>{loading ? '—' : r.v}</b>{r.t}
-            </span>
-          ))}
+        <div className="flex flex-wrap gap-2.5 mt-2.5">
+          {secondary.map(k => <KpiBox key={k.t} v={loading ? '—' : k.v} l={k.t} s={k.s} small />)}
         </div>
       </div>
 
-      {/* Detalhe por evento (cards colapsáveis) */}
+      {/* Detalhe por evento (cards colapsáveis, neutros) */}
+      <div>
+      <p className="font-tech text-[10px] uppercase tracking-[0.18em] text-bento-muted mb-2.5 px-0.5">Detalhe por evento</p>
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
         {SECTIONS.map(s => {
           const list = bySection.get(s.key) ?? []
           const isOpen = open.has(s.key)
           return (
-            <div key={s.key} className="bento-fx overflow-hidden" style={{ borderLeft: `3px solid ${s.ac}` }}>
+            <div key={s.key} className="bento-fx overflow-hidden">
               <button type="button" onClick={() => toggle(s.key)}
                 className="w-full flex items-center justify-between gap-2 px-4 py-3 text-left">
                 <span className="font-display font-semibold text-bento-text text-sm">{s.t}</span>
                 <span className="flex items-center gap-2 flex-none">
-                  <span className="font-tech text-xs font-bold tabular-nums px-2 py-0.5 rounded-full"
-                    style={{ color: s.ac, background: `${s.ac}1f` }}>{loading ? '—' : list.length}</span>
+                  <span className="font-tech text-xs font-semibold tabular-nums px-2 py-0.5 rounded-full bg-bento-bg text-bento-muted text-center min-w-[26px]">{loading ? '—' : list.length}</span>
                   <ChevronDown className={cn('w-4 h-4 text-bento-muted transition-transform', isOpen && 'rotate-180')} />
                 </span>
               </button>
@@ -259,11 +245,23 @@ export function RelatorioComercial() {
           )
         })}
       </div>
+      </div>
 
       <p className="font-tech text-[10.5px] text-bento-muted/70 text-center">Leads de teste e da Lixeira não entram no relatório.</p>
       <p className="font-tech text-[10px] text-bento-muted/50 text-center max-w-2xl mx-auto">
         O histórico completo de movimentação passa a ser gravado a partir de agora; as próximas semanas vêm 100% precisas.
       </p>
+    </div>
+  )
+}
+
+// Caixa de conversão NEUTRA (mesma cor de card/texto/número do resto do app). flex-1 preenche a linha.
+function KpiBox({ v, l, s, small }: { v: number | string; l: string; s?: string; small?: boolean }) {
+  return (
+    <div className="bento-fx p-4 flex-1 min-w-[120px]">
+      <div className={cn('font-display font-bold text-bento-text tabular-nums leading-none', small ? 'text-2xl' : 'text-3xl')}>{v}</div>
+      <div className="font-tech text-[10px] uppercase tracking-wide text-bento-muted mt-2">{l}</div>
+      {s && <div className="font-tech text-[10px] text-bento-muted/70 mt-1">{s}</div>}
     </div>
   )
 }
