@@ -6,6 +6,7 @@ import {
   Sun, Moon, Monitor, Home, Briefcase, ListChecks, Projector, Users,
   Palette, Accessibility, Image as ImageIcon, User, LayoutGrid, Database, Plug, Info,
   Download, RefreshCw, ExternalLink, BadgePercent, Workflow, ChevronDown, ChevronRight, ChevronLeft,
+  Map as MapIcon,
   type LucideIcon,
 } from 'lucide-react'
 import { Panel } from '@/components/bento/Panel'
@@ -18,6 +19,7 @@ import { loadA11y, saveA11y, applyA11y, DEFAULT_A11Y, type A11ySettings, type Fo
 import { loadDensity, saveDensity, applyDensity, type Density } from '@/lib/uiPrefs'
 import { weeklyCommissionUsd, hasCommissionPct, DEFAULT_TETO_SEMANAS, LEGACY_VPS_USD } from '@/lib/commission/planCommission'
 import { FasesTab } from '../comercial/tabs/FasesTab'
+import { getMapSkin, getMapSep, setMapSkin, setMapSep, type MapSkin } from '@/lib/mapSettings'
 
 // classes compartilhadas
 const inputCls = 'w-full bg-bento-bg border border-bento-border rounded-btn px-3 py-2 text-sm text-bento-text placeholder:text-bento-muted focus:outline-none focus:border-lime min-h-[44px]'
@@ -356,12 +358,45 @@ function AndarSection({ keyId, label }: { keyId: string; label: string }) {
               <ChevronDown className={cn('w-4 h-4 transition-transform', showFases && 'rotate-180')} />
             </button>
             {showFases && <div className="pt-1"><FasesTab /></div>}
+            <MapSettingsSection />
           </div>
         ) : (
           <p className="font-tech text-[11px] text-bento-muted/70 border-t border-bento-border/60 pt-3">Preferências específicas deste andar: em breve (TODO).</p>
         )}
       </div>
     </Panel>
+  )
+}
+
+// ─── Comercial · Mapa (estilo + separação das placas; persiste em localStorage) ──────────
+function MapSettingsSection() {
+  const [skin, setSkinState] = useState<MapSkin>('blue')
+  const [sep, setSepState] = useState<number>(4)
+  useEffect(() => { setSkinState(getMapSkin()); setSepState(getMapSep()) }, [])
+  const pickSkin = (s: MapSkin) => { setSkinState(s); setMapSkin(s) }
+  const pickSep = (n: number) => { setSepState(n); setMapSep(n) }
+  const seg = 'flex bg-bento-bg border border-bento-border rounded-btn p-1 gap-1'
+  const btn = (on: boolean) => cn('px-3 py-1.5 rounded-[8px] text-xs font-medium transition-colors', on ? 'bg-lime text-lime-ink' : 'text-bento-muted hover:text-bento-text')
+  return (
+    <div className="border-t border-bento-border/60 pt-4 space-y-3">
+      <div className="flex items-center gap-2 text-bento-text text-sm font-medium"><MapIcon className="w-4 h-4" />Mapa</div>
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        <div><p className="text-sm text-bento-text">Estilo do mapa</p><p className="font-tech text-[11px] text-bento-muted">Aparência do terreno</p></div>
+        <div className={seg}>
+          {([['blue', 'Blueprint'], ['holo', 'Holograma'], ['relevo', 'Relevo']] as [MapSkin, string][]).map(([v, l]) => (
+            <button key={v} onClick={() => pickSkin(v)} className={btn(skin === v)}>{l}</button>
+          ))}
+        </div>
+      </div>
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        <div><p className="text-sm text-bento-text">Separação das placas</p><p className="font-tech text-[11px] text-bento-muted">Espaço entre as 3 regiões</p></div>
+        <div className={seg}>
+          {([[4, 'Justo'], [16, 'Espaçoso']] as [number, string][]).map(([v, l]) => (
+            <button key={v} onClick={() => pickSep(v)} className={btn(sep === v)}>{l}</button>
+          ))}
+        </div>
+      </div>
+    </div>
   )
 }
 

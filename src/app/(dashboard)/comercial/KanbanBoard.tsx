@@ -22,6 +22,9 @@ import { usdCompact as fmtUSDc } from '@/lib/format'
 import { MetricasTab } from './tabs/MetricasTab'
 import { VendedoresTab } from './tabs/VendedoresTab'
 import { ContatosTab } from './tabs/ContatosTab'
+import { ErrorBoundary } from '@/components/system/ErrorBoundary'
+// Mapa pesado (geografia us-map.json) — carrega sob demanda só ao abrir a aba.
+const MapaTab = dynamic(() => import('./tabs/MapaTab').then(m => ({ default: m.MapaTab })), { ssr: false })
 import { ClientesClient, type Client as ClienteRow } from '../clientes/ClientesClient'
 import type { Lead, LeadStatus } from './types'
 import { columnsFromStages, tiersFromColumns, wonSlug, type FunnelStage } from '@/lib/funnelStages'
@@ -30,7 +33,7 @@ import { PeriodChips } from './PeriodChips'
 import { rangeFor, inPeriodByActivity, type Range } from '@/lib/period'
 export type { LeadStatus, Lead, ColumnConfig } from './types'
 
-type Tab = 'funil' | 'contatos' | 'clientes' | 'metricas' | 'vendedores'
+type Tab = 'funil' | 'contatos' | 'clientes' | 'metricas' | 'vendedores' | 'mapa'
 
 interface CurrentUser { id: string; name: string }
 
@@ -113,7 +116,7 @@ export function KanbanBoard({ initialLeads, initialStages, initialClients, curre
   useEffect(() => {
     const params = new URLSearchParams(window.location.search)
     const tabParam = params.get('tab')
-    if (tabParam && ['funil', 'contatos', 'clientes', 'metricas', 'vendedores'].includes(tabParam)) setTab(tabParam as Tab)
+    if (tabParam && ['funil', 'contatos', 'clientes', 'metricas', 'vendedores', 'mapa'].includes(tabParam)) setTab(tabParam as Tab)
     const leadId = params.get('lead')
     if (leadId) {
       const lead = leads.find(l => l.id === leadId)
@@ -128,6 +131,7 @@ export function KanbanBoard({ initialLeads, initialStages, initialClients, curre
     { key: 'clientes',     label: 'Clientes' },
     { key: 'metricas',     label: 'Métricas' },
     { key: 'vendedores',   label: 'Equipe e Comissões' },
+    { key: 'mapa',         label: 'Mapa' },
   ]
 
   const sensors = useSensors(
@@ -309,6 +313,7 @@ export function KanbanBoard({ initialLeads, initialStages, initialClients, curre
         {tab === 'clientes'     && <div className="h-full overflow-auto bg-bento-bg"><ClientesClient initialClients={initialClients} currentUser={currentUser} focusClientId={focusClient} onFocusHandled={() => setFocusClient(null)} /></div>}
         {tab === 'metricas'     && <MetricasTab leads={leads} />}
         {tab === 'vendedores'   && <VendedoresTab />}
+        {tab === 'mapa'         && <ErrorBoundary><MapaTab leads={leads} clients={initialClients} /></ErrorBoundary>}
       </div>
 
       {/* Modals */}
