@@ -72,7 +72,7 @@ export function Topbar({ onMenuToggle, userName = 'Usuário', userInitial = 'U',
   }
 
   return (
-    <header className="h-14 border-b border-[#2d3748] bg-[#0d1117] flex items-center px-4 gap-4 shrink-0">
+    <header className="min-h-[56px] pt-safe border-b border-[#2d3748] bg-[#0d1117] flex items-center px-4 gap-4 shrink-0">
       <button
         onClick={onMenuToggle}
         className="p-1.5 rounded-lg hover:bg-[#1e2533] transition-colors text-slate-500 hover:text-slate-300 min-w-[36px] min-h-[36px] hidden lg:flex items-center justify-center"
