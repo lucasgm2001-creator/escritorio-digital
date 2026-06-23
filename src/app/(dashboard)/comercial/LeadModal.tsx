@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { FUSO_OPTIONS, type Lead } from './types'
+import { US_STATES, sanitizeAreaCode } from '@/lib/usStates'
 import { useToast } from '@/components/ui/toast'
 import { ymd } from '@/lib/format'
 
@@ -19,6 +20,7 @@ const EMPTY_FORM = {
   value: '', operation: 'eua', notes: '',
   nicho: '', origem: '', prioridade: 'media',
   next_contact: '', assigned_to: '', assigned_name: '', received_at: '', fuso: '',
+  city: '', state: '', area_code: '',
 }
 
 const ORIGENS = [
@@ -129,6 +131,9 @@ export function LeadModal({ onClose, onCreated, currentUser }: Props) {
       next_contact: form.next_contact || null,
       received_at: form.received_at || ymd(new Date()),   // data de CHEGADA (default hoje)
       fuso: form.fuso || null,
+      city: form.city.trim() || null,
+      state: form.state || null,
+      area_code: form.area_code || null,
       // Só o usuário logado tem linha em profiles (alvo da FK). Vendedores sem conta
       // (ex.: Lucas) não — então grava só o nome e deixa a FK null, evitando o
       // "violates foreign key constraint". Correção plena (contas/FK) fica pra Fase 2.
@@ -223,6 +228,25 @@ export function LeadModal({ onClose, onCreated, currentUser }: Props) {
               {FUSO_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
             </select>
           </Field>
+
+          {/* Localização (EUA) — opcional; alimenta o Mapa de Clientes (city/state/area_code) */}
+          <Field label="Cidade">
+            <input value={form.city} onChange={e => set('city', e.target.value)}
+              className={inputCls} placeholder="Ex.: New York City" />
+          </Field>
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="Estado (EUA)">
+              <select value={form.state} onChange={e => set('state', e.target.value)} className={inputCls}>
+                <option value="">Selecione...</option>
+                {US_STATES.map(s => <option key={s.code} value={s.code}>{s.code} — {s.name}</option>)}
+              </select>
+            </Field>
+            <Field label="DDD (area code)">
+              <input inputMode="numeric" value={form.area_code} maxLength={3}
+                onChange={e => set('area_code', sanitizeAreaCode(e.target.value))}
+                className={inputCls} placeholder="Ex.: 212" />
+            </Field>
+          </div>
 
           {/* Linha 1: Nome + Empresa */}
           <div className="grid grid-cols-2 gap-3">

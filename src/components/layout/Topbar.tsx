@@ -16,7 +16,7 @@ interface TopbarProps {
 }
 
 // O fuso IANA (America/...) já resolve o horário de verão dos EUA automaticamente.
-function LiveClock({ timezone, label, primary }: { timezone: string; label: string; primary?: boolean }) {
+function LiveClock({ timezone, label, short, primary }: { timezone: string; label: string; short: string; primary?: boolean }) {
   const [time, setTime] = useState('')
   useEffect(() => {
     const update = () => setTime(new Date().toLocaleTimeString('pt-BR', {
@@ -29,10 +29,13 @@ function LiveClock({ timezone, label, primary }: { timezone: string; label: stri
 
   // Brasília (principal) destacada em lime; demais fusos em cinza. Hora em JetBrains
   // Mono (font-mono). Atualização a cada 15s = funcional, não enfeite.
+  // Celular: rótulo curto (BSB/NY/DEN/LA) p/ caber numa linha só; desktop: rótulo completo (intacto).
+  const labelCls = `text-[9px] uppercase tracking-wide whitespace-nowrap ${primary ? 'text-lime-fg font-semibold' : 'text-bento-muted'}`
   return (
     <div className="flex flex-col items-center leading-none gap-0.5">
-      <span className={`text-[9px] uppercase tracking-wide whitespace-nowrap ${primary ? 'text-lime-fg font-semibold' : 'text-bento-muted'}`}>{label}</span>
-      <span suppressHydrationWarning className={`font-mono text-xs font-semibold tabular-nums ${primary ? 'text-bento-text' : 'text-bento-dim'}`}>{time || '--:--'}</span>
+      <span className={`${labelCls} lg:hidden`}>{short}</span>
+      <span className={`${labelCls} hidden lg:inline`}>{label}</span>
+      <span suppressHydrationWarning className={`font-mono text-[11px] lg:text-xs font-semibold tabular-nums whitespace-nowrap ${primary ? 'text-bento-text' : 'text-bento-dim'}`}>{time || '--:--'}</span>
     </div>
   )
 }
@@ -93,14 +96,14 @@ export function Topbar({ onMenuToggle, userName = 'Usuário', userInitial = 'U',
 
       {/* Título da seção REMOVIDO daqui — cada página já tem seu próprio título de conteúdo (evita
           nome duplicado). O Topbar mantém só relógios + avatar; a seção ativa fica na Sidebar. */}
-      <div className="ml-auto flex items-center gap-3 sm:gap-4 min-w-0">
-        {/* Fusos sempre visíveis (Brasília lime + EUA Leste/Montanha/Oeste). Mobile (<1024): grade 2x2
-            compacta, cabe sem overflow; desktop (lg+): uma linha, igual a hoje. */}
-        <div className="grid grid-cols-2 gap-x-3 gap-y-0 lg:flex lg:items-center lg:gap-3.5 border-r border-[#2d3748] pr-3 sm:pr-4 shrink-0">
-          <LiveClock timezone="America/Sao_Paulo" label="Brasília" primary />
-          <LiveClock timezone="America/New_York"    label="EUA Leste" />
-          <LiveClock timezone="America/Denver"      label="EUA Mont." />
-          <LiveClock timezone="America/Los_Angeles" label="EUA Oeste" />
+      <div className="ml-auto flex items-center gap-2 sm:gap-4 min-w-0">
+        {/* Fusos sempre visíveis (Brasília lime + EUA Leste/Montanha/Oeste). Mobile (<1024): UMA linha
+            com rótulos curtos; desktop (lg+): uma linha com rótulos completos, igual a hoje. */}
+        <div className="flex items-center gap-2 lg:gap-3.5 border-r border-[#2d3748] pr-3 sm:pr-4 shrink-0">
+          <LiveClock timezone="America/Sao_Paulo" label="Brasília" short="BSB" primary />
+          <LiveClock timezone="America/New_York"    label="EUA Leste" short="NY" />
+          <LiveClock timezone="America/Denver"      label="EUA Mont." short="DEN" />
+          <LiveClock timezone="America/Los_Angeles" label="EUA Oeste" short="LA" />
         </div>
 
         {/* Avatar + dropdown */}

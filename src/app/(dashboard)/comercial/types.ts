@@ -25,6 +25,9 @@ export interface Lead {
   created_at: string
   received_at?: string        // data de CHEGADA do lead ('YYYY-MM-DD'); default hoje. Separa de created_at (cadastro).
   fuso?: 'leste' | 'central' | 'montanha' | 'pacifico' | null   // fuso horário (EUA)
+  city?: string | null        // cidade (EUA) — Mapa de Clientes
+  state?: string | null       // estado (EUA), sigla de 2 letras — Mapa de Clientes
+  area_code?: string | null   // DDD (area code) — Mapa de Clientes
 }
 
 // Fuso horário (EUA) — valor interno → label exibido. Compartilhado (Contatos + formulários de lead/cliente).

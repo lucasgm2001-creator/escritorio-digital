@@ -8,6 +8,7 @@ import { useSave } from '@/lib/useSave'
 import { formatCurrency, formatDate, timeAgo } from '@/lib/utils'
 import { useToast } from '@/components/ui/toast'
 import { FUSO_OPTIONS } from '../comercial/types'
+import { US_STATES, sanitizeAreaCode } from '@/lib/usStates'
 
 export interface Client {
   id: string
@@ -23,6 +24,9 @@ export interface Client {
   assigned_name?: string
   nicho?: string
   fuso?: 'leste' | 'central' | 'montanha' | 'pacifico' | null
+  city?: string | null        // cidade (EUA) — Mapa de Clientes
+  state?: string | null       // estado (EUA), sigla de 2 letras — Mapa de Clientes
+  area_code?: string | null   // DDD (area code) — Mapa de Clientes
   jobs?: string[]
   created_at: string
 }
@@ -280,8 +284,8 @@ export function ClientesClient({ initialClients, currentUser, focusClientId, onF
   const [search, setSearch] = useState('')
   const [newOpen, setNewOpen] = useState(false)
   const [editClient, setEditClient] = useState<Client | null>(null)
-  const [form, setForm] = useState({ name: '', company: '', email: '', phone: '', plano_id: '', fuso: '', nicho: '' })
-  const [editForm, setEditForm] = useState({ name: '', company: '', email: '', phone: '', plano_id: '', fuso: '', nicho: '' })
+  const [form, setForm] = useState({ name: '', company: '', email: '', phone: '', plano_id: '', fuso: '', nicho: '', city: '', state: '', area_code: '' })
+  const [editForm, setEditForm] = useState({ name: '', company: '', email: '', phone: '', plano_id: '', fuso: '', nicho: '', city: '', state: '', area_code: '' })
   const [plans, setPlans] = useState<Plan[]>([])
   const [payments, setPayments] = useState<Record<string, ClientPayment[]>>({})
   const [payOpenId, setPayOpenId] = useState<string | null>(null)
@@ -425,6 +429,9 @@ export function ClientesClient({ initialClients, currentUser, focusClientId, onF
         assigned_name: currentUser.name,
         nicho: form.nicho.trim() || null,
         fuso: form.fuso || null,
+        city: form.city.trim() || null,
+        state: form.state || null,
+        area_code: form.area_code || null,
       }).select().single(),
       success: 'Cliente criado.',
       error: 'Não foi possível criar o cliente',
@@ -440,7 +447,7 @@ export function ClientesClient({ initialClients, currentUser, focusClientId, onF
         entity_id: data.id,
       })
       setNewOpen(false)
-      setForm({ name: '', company: '', email: '', phone: '', plano_id: plans[0]?.id ?? '', fuso: '', nicho: '' })
+      setForm({ name: '', company: '', email: '', phone: '', plano_id: plans[0]?.id ?? '', fuso: '', nicho: '', city: '', state: '', area_code: '' })
     }
     setLoading(false)
   }
@@ -459,6 +466,9 @@ export function ClientesClient({ initialClients, currentUser, focusClientId, onF
       plan_weekly: editPlan?.valor_semanal ?? target.plan_weekly,
       nicho: editForm.nicho.trim() || null,
       fuso: editForm.fuso || null,
+      city: editForm.city.trim() || null,
+      state: editForm.state || null,
+      area_code: editForm.area_code || null,
     }
     const { ok } = await save({
       optimistic: () => setClients(prev => prev.map(c => c.id === target.id ? ({ ...c, ...patch } as Client) : c)),
@@ -471,6 +481,9 @@ export function ClientesClient({ initialClients, currentUser, focusClientId, onF
         plan_weekly: patch.plan_weekly,
         nicho: patch.nicho,
         fuso: patch.fuso,
+        city: patch.city,
+        state: patch.state,
+        area_code: patch.area_code,
       }),
       rollback: () => setClients(prev => prev.map(c => c.id === target.id ? target : c)),
       success: 'Cliente atualizado.',
@@ -563,7 +576,7 @@ export function ClientesClient({ initialClients, currentUser, focusClientId, onF
   // Handlers passados ao ClientRow (escopo de módulo).
   const openEdit = (client: Client) => {
     setEditClient(client)
-    setEditForm({ name: client.name, company: client.company ?? '', email: client.email ?? '', phone: client.phone ?? '', plano_id: client.plano_id ?? '', fuso: client.fuso ?? '', nicho: client.nicho ?? '' })
+    setEditForm({ name: client.name, company: client.company ?? '', email: client.email ?? '', phone: client.phone ?? '', plano_id: client.plano_id ?? '', fuso: client.fuso ?? '', nicho: client.nicho ?? '', city: client.city ?? '', state: client.state ?? '', area_code: client.area_code ?? '' })
   }
   const toggleJobs = (id: string) => { setEditingJobsId(editingJobsId === id ? null : id); setJobInput('') }
 
@@ -690,6 +703,24 @@ export function ClientesClient({ initialClients, currentUser, focusClientId, onF
                   {FUSO_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
                 </select>
               </div>
+              {/* Localização (EUA) — opcional; alimenta o Mapa de Clientes (city/state/area_code) */}
+              <div>
+                <label className="block text-xs font-medium text-bento-dim mb-1">Cidade (EUA)</label>
+                <input value={form.city} onChange={e => set('city', e.target.value)} placeholder="Ex.: New York City" className={inputCls} />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-bento-dim mb-1">Estado</label>
+                  <select value={form.state} onChange={e => set('state', e.target.value)} className={inputCls}>
+                    <option value="">Selecione...</option>
+                    {US_STATES.map(s => <option key={s.code} value={s.code}>{s.code} — {s.name}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-bento-dim mb-1">DDD (area code)</label>
+                  <input inputMode="numeric" maxLength={3} value={form.area_code} onChange={e => set('area_code', sanitizeAreaCode(e.target.value))} placeholder="Ex.: 212" className={inputCls} />
+                </div>
+              </div>
               <div className="flex gap-3 pt-1">
                 <button type="button" onClick={() => setNewOpen(false)}
                   className="flex-1 border border-bento-border text-bento-dim py-2.5 rounded-btn text-sm hover:border-lime hover:text-bento-text transition-colors">
@@ -750,6 +781,24 @@ export function ClientesClient({ initialClients, currentUser, focusClientId, onF
                   <option value="">Sem fuso</option>
                   {FUSO_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
                 </select>
+              </div>
+              {/* Localização (EUA) — opcional; alimenta o Mapa de Clientes (city/state/area_code) */}
+              <div>
+                <label className="block text-xs font-medium text-bento-dim mb-1">Cidade (EUA)</label>
+                <input value={editForm.city} onChange={e => setEditForm(p => ({ ...p, city: e.target.value }))} placeholder={editClient.city ?? 'Ex.: New York City'} className={inputCls} />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-bento-dim mb-1">Estado</label>
+                  <select value={editForm.state} onChange={e => setEditForm(p => ({ ...p, state: e.target.value }))} className={inputCls}>
+                    <option value="">Selecione...</option>
+                    {US_STATES.map(s => <option key={s.code} value={s.code}>{s.code} — {s.name}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-bento-dim mb-1">DDD (area code)</label>
+                  <input inputMode="numeric" maxLength={3} value={editForm.area_code} onChange={e => setEditForm(p => ({ ...p, area_code: sanitizeAreaCode(e.target.value) }))} placeholder="Ex.: 212" className={inputCls} />
+                </div>
               </div>
               <div className="flex gap-3 pt-1">
                 <button onClick={() => setEditClient(null)}
