@@ -34,6 +34,7 @@ export function MapaTab({ leads, clients }: { leads: Lead[]; clients: Client[] }
   const [skin, setSkin] = useState<MapSkin>('blue')
   const [sep, setSep] = useState<number>(4)
   const [filter, setFilter] = useState<Filter>('todos')
+  const [hot, setHot] = useState<Region | null>(null)   // região sob o mouse (acende o contorno)
   const [sel, setSel] = useState<{ loc: Loc; left: number; top: number; mobile: boolean } | null>(null)
 
   // Lê as configs (localStorage) e reage a mudanças feitas em Configurações.
@@ -143,12 +144,18 @@ export function MapaTab({ leads, clients }: { leads: Lead[]; clients: Client[] }
               <radialGradient id="ed-g-novo-d" cx="38%" cy="34%" r="72%"><stop offset="0" stopColor="#ffffff" /><stop offset=".45" stopColor="#db7ae8" /><stop offset="1" stopColor="#a821bd" /></radialGradient>
               <filter id="ed-pgL" x="-200%" y="-200%" width="500%" height="500%"><feGaussianBlur stdDeviation="1.1" result="b" /><feMerge><feMergeNode in="b" /><feMergeNode in="SourceGraphic" /></feMerge></filter>
               <filter id="ed-pgB" x="-400%" y="-400%" width="900%" height="900%"><feGaussianBlur stdDeviation="2.6" result="b" /><feMerge><feMergeNode in="b" /><feMergeNode in="b" /><feMergeNode in="SourceGraphic" /></feMerge></filter>
+              {/* Brilho do contorno das regiões (edge + edgeGlow no hover) */}
+              <filter id="ed-glow" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="1.4" result="b" /><feMerge><feMergeNode in="b" /><feMergeNode in="SourceGraphic" /></feMerge></filter>
             </defs>
 
             {MAP.regions.map(r => (
-              <g key={r.key} className="region" transform={`translate(${DIR[r.key] * sep},0)`}>
+              <g key={r.key} className={cn('region', hot === r.key && 'hot')} transform={`translate(${DIR[r.key] * sep},0)`}
+                onMouseEnter={() => setHot(r.key)} onMouseLeave={() => setHot(h => (h === r.key ? null : h))}>
+                <path className="fillHit" d={r.fill} />
                 <path className="fill" d={r.fill} />
                 <path className="lines" d={r.lines} />
+                <path className="edge" d={r.fill} />
+                <path className="edgeGlow" d={r.fill} />
                 <text className="rlabel" x={r.lx} y={r.ly}>{r.name}</text>
               </g>
             ))}

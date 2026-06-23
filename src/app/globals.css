@@ -496,14 +496,14 @@ html.ui-compact .p-4 { padding: 0.65rem; }
    Skins definem --acc (cor do terreno/linhas/rótulo): Blueprint(azul)/Holograma(teal)/Relevo(verde). ── */
 .ed-map {
   --mono: ui-monospace, 'JetBrains Mono', Menlo, monospace;
-  --mapBg:#080e1a; --fillT:.10; --lineA:.40; --stageGlowA:.10; --rlabelA:.36;
+  --mapBg:#080e1a; --fillT:.10; --lineA:.40; --stageGlowA:.10; --rlabelA:.36; --edgeA:.5;
   --cardBorder:rgba(120,165,205,.16);
   --panelBg:rgba(9,14,21,.93); --panelBorder:rgba(120,180,235,.3); --panelHead:rgba(70,130,200,.07);
   --tipName:#cfe6ff; --bdgBorder:rgba(120,180,235,.34); --bdgText:#bfe0ff; --bdgBg:rgba(70,130,200,.07);
   --vig:rgba(0,0,0,.5); --mapText:#e6edf5; --mapMuted:#8395ab;
 }
 html.light .ed-map {
-  --mapBg:#e8f0fb; --fillT:.22; --lineA:.42; --stageGlowA:.06; --rlabelA:.42;
+  --mapBg:#e8f0fb; --fillT:.11; --lineA:.42; --stageGlowA:.06; --rlabelA:.42; --edgeA:.30;
   --cardBorder:rgba(40,70,110,.15);
   --panelBg:rgba(255,255,255,.97); --panelBorder:rgba(40,90,160,.2); --panelHead:rgba(47,111,214,.06);
   --tipName:#1f5fc0; --bdgBorder:rgba(40,90,160,.28); --bdgText:#1f5fc0; --bdgBg:rgba(47,111,214,.07);
@@ -522,6 +522,12 @@ html.light .ed-map-stage { box-shadow:inset 0 1px 0 rgba(255,255,255,.04), inset
 .ed-map-svg { display:block; width:100%; height:auto }
 .ed-map .fill { fill:rgba(var(--acc),var(--fillT)) }
 .ed-map .lines { fill:none; stroke:rgba(var(--acc),var(--lineA)); stroke-width:.65; stroke-linejoin:round; vector-effect:non-scaling-stroke }
+/* Área invisível p/ hover da região inteira + contorno que brilha + brilho do hover */
+.ed-map .ed-map-svg .fillHit { fill:#000; opacity:0; cursor:default }
+.ed-map .ed-map-svg .edge { fill:none; stroke:rgba(var(--acc),.9); stroke-width:1.05; stroke-linejoin:round; vector-effect:non-scaling-stroke; filter:url(#ed-glow) }
+html.dark .ed-map .ed-map-svg .edge { stroke:rgba(225,242,255,.85) }
+.ed-map .ed-map-svg .edgeGlow { fill:none; stroke:rgba(var(--acc),var(--edgeA)); stroke-width:4.5; stroke-linejoin:round; filter:url(#ed-glow); opacity:0; transition:opacity .2s }
+.ed-map .ed-map-svg g.region.hot .edgeGlow { opacity:.7 }
 .ed-map.skin-relevo .region { filter:drop-shadow(0 7px 11px rgba(0,0,0,.5)) }
 html.light .ed-map.skin-relevo .region { filter:drop-shadow(0 6px 9px rgba(0,0,0,.18)) }
 .ed-map .rlabel { fill:rgba(var(--acc),var(--rlabelA)); font-family:var(--mono); font-size:15px; letter-spacing:5px; text-anchor:middle; pointer-events:none; text-transform:uppercase }
