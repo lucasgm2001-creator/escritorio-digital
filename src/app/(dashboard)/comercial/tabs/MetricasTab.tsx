@@ -31,6 +31,27 @@ export function MetricasTab({ leads }: Props) {
     return () => { active = false }
   }, [])
 
+  // RECEITA real (client_payments) + vendedor do cliente — base do card "Receita por Vendedor".
+  const [revenue, setRevenue] = useState<{
+    payments: { client_id: string; valor_usd: number; paid_on: string; anulado?: boolean }[]
+    sellerOf: Map<string, string>
+  } | null>(null)
+  useEffect(() => {
+    let active = true
+    const supabase = createClient()
+    Promise.all([
+      supabase.from('client_payments').select('client_id, valor_usd, paid_on, anulado'),
+      supabase.from('clients').select('id, assigned_name'),
+    ]).then(([pRes, cRes]) => {
+      if (!active) return
+      const sellerOf = new Map<string, string>(((cRes.data ?? []) as { id: string; assigned_name: string | null }[])
+        .map(c => [c.id, c.assigned_name || 'Sem responsável']))
+      setRevenue({ payments: (pRes.data ?? []) as { client_id: string; valor_usd: number; paid_on: string; anulado?: boolean }[], sellerOf })
+    })
+    return () => { active = false }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   // ── Métricas que RESPEITAM o período. Fontes reusadas: leads.created_at + lead_milestones. ──
   const m = useMemo(() => {
     const s = range.start.getTime(), e = range.end.getTime()
@@ -71,15 +92,23 @@ export function MetricasTab({ leads }: Props) {
   const stageWithValue = byStage.filter(x => x.count > 0)
   const maxStageValue = Math.max(...stageWithValue.map(x => x.value), 1)
 
-  const sellers: Record<string, { name: string; value: number; count: number }> = {}
-  leads.forEach(l => {
-    const key = l.assigned_name ?? 'Sem responsável'
-    if (!sellers[key]) sellers[key] = { name: key, value: 0, count: 0 }
-    sellers[key].value += l.value || 0
-    sellers[key].count++
-  })
-  const bySeller = Object.values(sellers).sort((a, b) => b.value - a.value)
-  const maxSellerValue = Math.max(...bySeller.map(x => x.value), 1)
+  // Receita por vendedor = SOMA de client_payments.valor_usd (não-anulado) no PERÍODO (por paid_on),
+  // agrupada pelo vendedor do cliente (clients.assigned_name). Acumula por semana (plano×4 no mês cheio).
+  const { bySeller, maxSellerValue } = useMemo(() => {
+    const startYMD = ymd(range.start), endYMD = ymd(range.end)
+    const agg: Record<string, { name: string; value: number; clients: Set<string> }> = {}
+    for (const p of (revenue?.payments ?? [])) {
+      if (p.anulado) continue
+      const d = (p.paid_on ?? '').slice(0, 10)
+      if (d < startYMD || d > endYMD) continue
+      const name = revenue?.sellerOf.get(p.client_id) ?? 'Sem responsável'
+      if (!agg[name]) agg[name] = { name, value: 0, clients: new Set() }
+      agg[name].value += Number(p.valor_usd) || 0
+      agg[name].clients.add(p.client_id)
+    }
+    const list = Object.values(agg).map(x => ({ name: x.name, value: x.value, count: x.clients.size })).sort((a, b) => b.value - a.value)
+    return { bySeller: list, maxSellerValue: Math.max(...list.map(x => x.value), 1) }
+  }, [revenue, range])
 
   const KPIS = [
     { label: 'Recebidos',         value: String(m.recebidos),         sub: 'novos no período',                       cls: 'text-foreground' },
@@ -176,7 +205,7 @@ export function MetricasTab({ leads }: Props) {
         </div>
 
         <div className={card}>
-          <h3 className="font-semibold text-foreground mb-4 text-sm">Valor por Vendedor</h3>
+          <h3 className="font-semibold text-foreground mb-4 text-sm">Receita por Vendedor <span className="font-tech text-[10px] text-muted-foreground">· no período</span></h3>
           <div className="space-y-3">
             {bySeller.map(seller => (
               <div key={seller.name}>
