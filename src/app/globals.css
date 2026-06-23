@@ -521,9 +521,10 @@ html.light .ed-map {
   box-shadow:inset 0 1px 0 rgba(150,190,230,.06), inset 0 0 90px rgba(0,0,0,.5); padding:14px;
 }
 html.light .ed-map-stage { box-shadow:inset 0 1px 0 rgba(255,255,255,.04), inset 0 0 70px rgba(0,0,0,.06); }
-.ed-map-svg { display:block; width:100%; height:auto }
+.ed-map-svg { display:block; margin:0 auto }   /* tamanho vem do componente (fit na tela) */
 .ed-map .fill { fill:rgba(var(--acc),var(--fillT)) }
-.ed-map .lines { fill:none; stroke:rgba(var(--acc),var(--lineA)); stroke-width:.65; stroke-linejoin:round; vector-effect:non-scaling-stroke }
+.ed-map .lines { fill:none; stroke:rgba(var(--acc),var(--lineA)); stroke-width:.45; stroke-linejoin:round; vector-effect:non-scaling-stroke }
+html.dark .ed-map .lines { stroke:rgba(225,242,255,.5) }   /* dark: divisas esbranquiçadas (lê bem branco) */
 /* Área invisível p/ hover da região inteira + contorno que brilha + brilho do hover */
 .ed-map .ed-map-svg .fillHit { fill:#000; opacity:0; cursor:default }
 .ed-map .ed-map-svg .edge { fill:none; stroke:rgba(var(--acc),.9); stroke-width:1.05; stroke-linejoin:round; vector-effect:non-scaling-stroke; filter:url(#ed-glow) }

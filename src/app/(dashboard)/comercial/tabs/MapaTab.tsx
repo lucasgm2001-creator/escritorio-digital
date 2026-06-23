@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useMemo, type MouseEvent } from 'react'
+import { useState, useEffect, useMemo, useRef, type MouseEvent } from 'react'
 import usMap from '@/data/us-map.json'
 import { cn } from '@/lib/utils'
 import { getMapSkin, getMapSep, MAP_SETTINGS_EVENT, type MapSkin } from '@/lib/mapSettings'
@@ -36,6 +36,12 @@ export function MapaTab({ leads, clients }: { leads: Lead[]; clients: Client[] }
   const [filter, setFilter] = useState<Filter>('todos')
   const [hot, setHot] = useState<Region | null>(null)   // região sob o mouse (acende o contorno)
   const [sel, setSel] = useState<{ loc: Loc; left: number; top: number; mobile: boolean } | null>(null)
+  // Fit do SVG na tela: dimensiona pela MENOR dimensão (largura OU altura visível), mantendo 1000:624.
+  const outerRef = useRef<HTMLDivElement>(null)
+  const stageRef = useRef<HTMLDivElement>(null)
+  const [box, setBox] = useState({ w: MAP.W, h: MAP.H, scale: 1 })
+  // SEP fino: "Justo" (4) renderiza 2; "Espaçoso" (16) mantém. Não toca no toggle/localStorage.
+  const effSep = sep === 4 ? 2 : sep
 
   // Lê as configs (localStorage) e reage a mudanças feitas em Configurações.
   useEffect(() => {
@@ -44,6 +50,28 @@ export function MapaTab({ leads, clients }: { leads: Lead[]; clients: Client[] }
     window.addEventListener(MAP_SETTINGS_EVENT, sync)
     window.addEventListener('storage', sync)
     return () => { window.removeEventListener(MAP_SETTINGS_EVENT, sync); window.removeEventListener('storage', sync) }
+  }, [])
+
+  // Mapa INTEIRO na tela: mede a largura do palco e a altura visível abaixo dele; escala pela menor.
+  useEffect(() => {
+    const PAD = 14, GAP = 40   // padding do palco (cada lado) + espaço da legenda + folga embaixo
+    const recompute = () => {
+      const el = stageRef.current
+      if (!el) return
+      const top = el.getBoundingClientRect().top
+      const availW = el.clientWidth - PAD * 2
+      const availH = window.innerHeight - top - PAD * 2 - GAP
+      if (availW <= 0 || availH <= 0) return
+      const scale = Math.min(availW / MAP.W, availH / MAP.H)
+      const w = Math.round(MAP.W * scale), h = Math.round(MAP.H * scale)
+      setBox(prev => (prev.w === w && prev.h === h ? prev : { w, h, scale }))
+    }
+    recompute()
+    const ro = new ResizeObserver(recompute)   // observa o container externo (altura estável) → sem loop
+    if (outerRef.current) ro.observe(outerRef.current)
+    window.addEventListener('resize', recompute)
+    const t = setTimeout(recompute, 120)        // re-mede após fontes/layout assentarem
+    return () => { ro.disconnect(); window.removeEventListener('resize', recompute); clearTimeout(t) }
   }, [])
 
   // Fecha o popover com Esc / clique fora (mas não em pin nem no próprio painel).
@@ -108,7 +136,7 @@ export function MapaTab({ leads, clients }: { leads: Lead[]; clients: Client[] }
   }
 
   return (
-    <div className="h-full overflow-auto bg-bento-bg p-4 sm:p-6">
+    <div ref={outerRef} className="h-full overflow-hidden bg-bento-bg p-4 sm:p-6">
       <div className={cn('ed-map max-w-[1180px] mx-auto', 'skin-' + skin)}>
         {/* Barra (filtro + contadores) — nada flutua sobre o mapa */}
         <div className="flex items-center justify-between gap-3 flex-wrap mb-3">
@@ -132,8 +160,10 @@ export function MapaTab({ leads, clients }: { leads: Lead[]; clients: Client[] }
         </div>
 
         {/* Palco do mapa */}
-        <div className="ed-map-stage">
-          <svg className="ed-map-svg" viewBox={`0 0 ${MAP.W} ${MAP.H}`} xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Mapa dos EUA com clientes e leads">
+        <div className="ed-map-stage" ref={stageRef}>
+          <svg className="ed-map-svg" viewBox={`0 0 ${MAP.W} ${MAP.H}`} preserveAspectRatio="xMidYMid meet"
+            width={box.w} height={box.h} style={{ width: box.w, height: box.h, margin: '0 auto', display: 'block' }}
+            xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Mapa dos EUA com clientes e leads">
             <defs>
               <radialGradient id="ed-g-cli-l" cx="38%" cy="34%" r="72%"><stop offset="0" stopColor="#62d18d" /><stop offset=".5" stopColor="#15a34a" /><stop offset="1" stopColor="#0b6e33" /></radialGradient>
               <radialGradient id="ed-g-led-l" cx="38%" cy="34%" r="72%"><stop offset="0" stopColor="#6cc6f2" /><stop offset=".5" stopColor="#0ea5e9" /><stop offset="1" stopColor="#0a78b8" /></radialGradient>
@@ -149,7 +179,7 @@ export function MapaTab({ leads, clients }: { leads: Lead[]; clients: Client[] }
             </defs>
 
             {MAP.regions.map(r => (
-              <g key={r.key} className={cn('region', hot === r.key && 'hot')} transform={`translate(${DIR[r.key] * sep},0)`}
+              <g key={r.key} className={cn('region', hot === r.key && 'hot')} transform={`translate(${DIR[r.key] * effSep},0)`}
                 onMouseEnter={() => setHot(r.key)} onMouseLeave={() => setHot(h => (h === r.key ? null : h))}>
                 <path className="fillHit" d={r.fill} />
                 <path className="fill" d={r.fill} />
@@ -162,15 +192,16 @@ export function MapaTab({ leads, clients }: { leads: Lead[]; clients: Client[] }
 
             <g>
               {locations.flatMap(loc => {
-                const bx = loc.x + DIR[loc.region] * sep, by = loc.y
+                const bx = loc.x + DIR[loc.region] * effSep, by = loc.y
                 // Tipos de ponto presentes (respeitando o filtro): cliente(verde), novo(roxo), lead(azul-céu).
                 const kinds: { type: 'client' | 'novo' | 'lead'; n: number }[] = []
                 if (filter !== 'leads' && loc.clients.length) kinds.push({ type: 'client', n: loc.clients.length })
                 if (filter !== 'clientes' && loc.novos.length) kinds.push({ type: 'novo', n: loc.novos.length })
                 if (filter !== 'clientes' && loc.leads.length) kinds.push({ type: 'lead', n: loc.leads.length })
-                const mid = (kinds.length - 1) / 2   // espalhamento leve em torno do ponto (±4 p/ 2, ±8 p/ 3)
+                const mid = (kinds.length - 1) / 2
+                const off = 10 / box.scale   // ~10px de espalhamento na tela entre pontos do mesmo local
                 return kinds.map((k, i) => (
-                  <Pin key={loc.key + k.type} type={k.type} x={bx + (i - mid) * 8} y={by} n={k.n}
+                  <Pin key={loc.key + k.type} type={k.type} x={bx + (i - mid) * off} y={by} n={k.n} scale={box.scale}
                     selected={sel?.loc.key === loc.key} onClick={e => openPanel(loc, e)} />
                 ))
               })}
@@ -213,16 +244,18 @@ function Counter({ label, value, cls }: { label: string; value: number; cls?: st
   )
 }
 
-function Pin({ type, x, y, n, selected, onClick }: {
-  type: 'client' | 'novo' | 'lead'; x: number; y: number; n: number; selected: boolean; onClick: (e: MouseEvent) => void
+function Pin({ type, x, y, n, scale, selected, onClick }: {
+  type: 'client' | 'novo' | 'lead'; x: number; y: number; n: number; scale: number; selected: boolean; onClick: (e: MouseEvent) => void
 }) {
+  // Raios ~CONSTANTES na tela: px-alvo / escala (escala = larguraRenderizada/1000). Core cresce com n.
+  const u = (px: number) => px / (scale || 1)
   return (
     <g className={cn('pin', type, selected && 'sel')} transform={`translate(${x},${y})`}
       role="button" tabIndex={0} onClick={e => { e.stopPropagation(); onClick(e) }}>
-      <circle className="halo" r={11} />
-      <circle className="selRing" r={8} />
-      <circle className="core" r={3.4 + Math.min(n - 1, 2) * 0.6} />
-      <circle className="hit" r={14} />
+      <circle className="halo" r={u(13)} />
+      <circle className="selRing" r={u(9)} />
+      <circle className="core" r={u(5 + Math.min(n - 1, 2))} />
+      <circle className="hit" r={u(16)} />
     </g>
   )
 }
