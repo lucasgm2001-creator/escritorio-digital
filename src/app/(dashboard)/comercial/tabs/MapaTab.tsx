@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useMemo, type ReactNode, type MouseEvent } from 'react'
+import { useState, useEffect, useMemo, type MouseEvent } from 'react'
 import usMap from '@/data/us-map.json'
 import { cn } from '@/lib/utils'
 import { getMapSkin, getMapSep, MAP_SETTINGS_EVENT, type MapSkin } from '@/lib/mapSettings'
@@ -27,7 +27,7 @@ const MAP = usMap as unknown as {
 interface Loc {
   key: string; x: number; y: number; region: Region
   st: string; code: string | null; city: string
-  clients: string[]; leads: string[]
+  clients: string[]; novos: string[]; leads: string[]   // novos = leads na fase 'novo' (ponto roxo); leads = demais abertos
 }
 
 export function MapaTab({ leads, clients }: { leads: Lead[]; clients: Client[] }) {
@@ -67,25 +67,31 @@ export function MapaTab({ leads, clients }: { leads: Lead[]; clients: Client[] }
       if (code && MAP.areaCodes[code]) {
         const a = MAP.areaCodes[code]; const key = 'c:' + code
         let loc = map.get(key)
-        if (!loc) { loc = { key, x: a.x, y: a.y, region: a.region, st: a.st, code, city: a.city, clients: [], leads: [] }; map.set(key, loc) }
+        if (!loc) { loc = { key, x: a.x, y: a.y, region: a.region, st: a.st, code, city: a.city, clients: [], novos: [], leads: [] }; map.set(key, loc) }
         return loc
       }
       const st = (rec.state ?? '').trim().toUpperCase()
       if (st && MAP.states[st]) {
         const s = MAP.states[st]; const key = 's:' + st
         let loc = map.get(key)
-        if (!loc) { loc = { key, x: s.x, y: s.y, region: s.region, st, code: null, city: '', clients: [], leads: [] }; map.set(key, loc) }
+        if (!loc) { loc = { key, x: s.x, y: s.y, region: s.region, st, code: null, city: '', clients: [], novos: [], leads: [] }; map.set(key, loc) }
         return loc
       }
       return null
     }
     for (const c of clients) { if (c.status === 'ativo') { const loc = place(c); if (loc) loc.clients.push(c.name || 'Cliente') } }
-    for (const l of leads) { if (!OPEN_EXCLUDE.has(l.status)) { const loc = place(l); if (loc) loc.leads.push(l.name || 'Lead') } }
+    for (const l of leads) {
+      if (OPEN_EXCLUDE.has(l.status)) continue
+      const loc = place(l); if (!loc) continue
+      if (l.status === 'novo') loc.novos.push(l.name || 'Lead')   // fase Novo → ponto roxo
+      else loc.leads.push(l.name || 'Lead')                       // demais abertos → azul-céu
+    }
     return Array.from(map.values())
   }, [leads, clients])
 
   const totalClients = useMemo(() => locations.reduce((s, l) => s + l.clients.length, 0), [locations])
-  const totalLeads = useMemo(() => locations.reduce((s, l) => s + l.leads.length, 0), [locations])
+  // "novo" continua contando como Lead (contador inalterado).
+  const totalLeads = useMemo(() => locations.reduce((s, l) => s + l.novos.length + l.leads.length, 0), [locations])
 
   const openPanel = (loc: Loc, e: MouseEvent) => {
     const r = (e.currentTarget as Element).getBoundingClientRect()
@@ -132,6 +138,9 @@ export function MapaTab({ leads, clients }: { leads: Lead[]; clients: Client[] }
               <radialGradient id="ed-g-led-l" cx="38%" cy="34%" r="72%"><stop offset="0" stopColor="#6cc6f2" /><stop offset=".5" stopColor="#0ea5e9" /><stop offset="1" stopColor="#0a78b8" /></radialGradient>
               <radialGradient id="ed-g-cli-d" cx="38%" cy="34%" r="72%"><stop offset="0" stopColor="#ffffff" /><stop offset=".45" stopColor="#34e27d" /><stop offset="1" stopColor="#13a651" /></radialGradient>
               <radialGradient id="ed-g-led-d" cx="38%" cy="34%" r="72%"><stop offset="0" stopColor="#ffffff" /><stop offset=".45" stopColor="#73d2ff" /><stop offset="1" stopColor="#1f9ee6" /></radialGradient>
+              {/* Leads na fase "Novo" — roxo #c026d3 (mesma estrutura do gradiente de lead) */}
+              <radialGradient id="ed-g-novo-l" cx="38%" cy="34%" r="72%"><stop offset="0" stopColor="#db7ae8" /><stop offset=".5" stopColor="#c026d3" /><stop offset="1" stopColor="#8a1b9c" /></radialGradient>
+              <radialGradient id="ed-g-novo-d" cx="38%" cy="34%" r="72%"><stop offset="0" stopColor="#ffffff" /><stop offset=".45" stopColor="#db7ae8" /><stop offset="1" stopColor="#a821bd" /></radialGradient>
               <filter id="ed-pgL" x="-200%" y="-200%" width="500%" height="500%"><feGaussianBlur stdDeviation="1.1" result="b" /><feMerge><feMergeNode in="b" /><feMergeNode in="SourceGraphic" /></feMerge></filter>
               <filter id="ed-pgB" x="-400%" y="-400%" width="900%" height="900%"><feGaussianBlur stdDeviation="2.6" result="b" /><feMerge><feMergeNode in="b" /><feMergeNode in="b" /><feMergeNode in="SourceGraphic" /></feMerge></filter>
             </defs>
@@ -147,13 +156,16 @@ export function MapaTab({ leads, clients }: { leads: Lead[]; clients: Client[] }
             <g>
               {locations.flatMap(loc => {
                 const bx = loc.x + DIR[loc.region] * sep, by = loc.y
-                const hasC = loc.clients.length > 0, hasL = loc.leads.length > 0
-                const els: ReactNode[] = []
-                if (filter !== 'leads' && hasC)
-                  els.push(<Pin key={loc.key + 'c'} type="client" x={filter === 'todos' && hasL ? bx - 4 : bx} y={by} n={loc.clients.length} selected={sel?.loc.key === loc.key} onClick={e => openPanel(loc, e)} />)
-                if (filter !== 'clientes' && hasL)
-                  els.push(<Pin key={loc.key + 'l'} type="lead" x={filter === 'todos' && hasC ? bx + 4 : bx} y={by} n={loc.leads.length} selected={sel?.loc.key === loc.key} onClick={e => openPanel(loc, e)} />)
-                return els
+                // Tipos de ponto presentes (respeitando o filtro): cliente(verde), novo(roxo), lead(azul-céu).
+                const kinds: { type: 'client' | 'novo' | 'lead'; n: number }[] = []
+                if (filter !== 'leads' && loc.clients.length) kinds.push({ type: 'client', n: loc.clients.length })
+                if (filter !== 'clientes' && loc.novos.length) kinds.push({ type: 'novo', n: loc.novos.length })
+                if (filter !== 'clientes' && loc.leads.length) kinds.push({ type: 'lead', n: loc.leads.length })
+                const mid = (kinds.length - 1) / 2   // espalhamento leve em torno do ponto (±4 p/ 2, ±8 p/ 3)
+                return kinds.map((k, i) => (
+                  <Pin key={loc.key + k.type} type={k.type} x={bx + (i - mid) * 8} y={by} n={k.n}
+                    selected={sel?.loc.key === loc.key} onClick={e => openPanel(loc, e)} />
+                ))
               })}
             </g>
           </svg>
@@ -175,8 +187,8 @@ export function MapaTab({ leads, clients }: { leads: Lead[]; clients: Client[] }
             </div>
             <div className="ed-map-pb">
               {sel.loc.clients.length > 0 && <PanelSection title="Clientes" cls="client" items={sel.loc.clients} />}
-              {sel.loc.leads.length > 0 && <PanelSection title="Leads" cls="lead" items={sel.loc.leads} />}
-              {sel.loc.clients.length === 0 && sel.loc.leads.length === 0 && <p className="ed-map-empty">Sem registros.</p>}
+              {(sel.loc.novos.length + sel.loc.leads.length) > 0 && <PanelSection title="Leads" cls="lead" items={[...sel.loc.novos, ...sel.loc.leads]} />}
+              {sel.loc.clients.length === 0 && sel.loc.novos.length === 0 && sel.loc.leads.length === 0 && <p className="ed-map-empty">Sem registros.</p>}
             </div>
           </div>
         )}
@@ -195,7 +207,7 @@ function Counter({ label, value, cls }: { label: string; value: number; cls?: st
 }
 
 function Pin({ type, x, y, n, selected, onClick }: {
-  type: 'client' | 'lead'; x: number; y: number; n: number; selected: boolean; onClick: (e: MouseEvent) => void
+  type: 'client' | 'novo' | 'lead'; x: number; y: number; n: number; selected: boolean; onClick: (e: MouseEvent) => void
 }) {
   return (
     <g className={cn('pin', type, selected && 'sel')} transform={`translate(${x},${y})`}

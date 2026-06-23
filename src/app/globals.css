@@ -500,7 +500,7 @@ html.ui-compact .p-4 { padding: 0.65rem; }
   --vig:rgba(0,0,0,.5); --mapText:#e6edf5; --mapMuted:#8395ab;
 }
 html.light .ed-map {
-  --mapBg:#e8f0fb; --fillT:.11; --lineA:.42; --stageGlowA:.06; --rlabelA:.42;
+  --mapBg:#e8f0fb; --fillT:.22; --lineA:.42; --stageGlowA:.06; --rlabelA:.42;
   --cardBorder:rgba(40,70,110,.15);
   --panelBg:rgba(255,255,255,.97); --panelBorder:rgba(40,90,160,.2); --panelHead:rgba(47,111,214,.06);
   --tipName:#1f5fc0; --bdgBorder:rgba(40,90,160,.28); --bdgText:#1f5fc0; --bdgBg:rgba(47,111,214,.07);
@@ -527,10 +527,13 @@ html.light .ed-map.skin-relevo .region { filter:drop-shadow(0 6px 9px rgba(0,0,0
 .ed-map .pin { cursor:pointer }
 .ed-map .pin.client .halo { fill:rgba(34,197,94,.16) }
 .ed-map .pin.lead .halo { fill:rgba(56,189,248,.16) }
+.ed-map .pin.novo .halo { fill:rgba(192,38,211,.16) }
 .ed-map .pin.client .core { fill:url(#ed-g-cli-d) }
 .ed-map .pin.lead .core { fill:url(#ed-g-led-d) }
+.ed-map .pin.novo .core { fill:url(#ed-g-novo-d) }
 html.light .ed-map .pin.client .core { fill:url(#ed-g-cli-l) }
 html.light .ed-map .pin.lead .core { fill:url(#ed-g-led-l) }
+html.light .ed-map .pin.novo .core { fill:url(#ed-g-novo-l) }
 .ed-map .pin .core { filter:url(#ed-pgB) }
 html.light .ed-map .pin .core { filter:url(#ed-pgL) }
 .ed-map .pin .hit { fill:transparent }
