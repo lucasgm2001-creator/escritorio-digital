@@ -18,7 +18,7 @@ interface Props {
 
 const EMPTY_FORM = {
   name: '', company: '', email: '', phone: '',
-  value: '', operation: 'eua', notes: '',
+  value: '', notes: '',
   nicho: '', origem: '', prioridade: 'media',
   next_contact: '', assigned_to: '', assigned_name: '', received_at: '', fuso: '',
   city: '', state: '', area_code: '',
@@ -124,7 +124,7 @@ export function LeadModal({ onClose, onCreated, currentUser }: Props) {
       email: form.email.trim() || null,
       phone: form.phone.trim() || null,
       value: parseFloat(form.value) || 0,
-      operation: form.operation || 'eua',
+      operation: 'eua',   // segmentação Brasil/EUA removida — todo lead é EUA (sem escolha na UI)
       notes: form.notes.trim() || null,
       nicho: form.nicho.trim() || null,
       origem: form.origem || null,
