@@ -17,6 +17,13 @@ const DIR: Record<Region, number> = { W: -1, C: 0, E: 1 }   // deslocamento das 
 const REGION_TZ: Record<Region, string> = { W: 'Oeste', C: 'Centro', E: 'Leste' }
 const OPEN_EXCLUDE = new Set(['fechado', 'perdido', 'lixeira'])   // leads "fechados" não entram
 
+// ── Tamanhos dos pontos (px ALVO na tela; convertidos p/ viewBox por /scale). Fáceis de ajustar. ──
+const CORE_PX = 5     // núcleo sólido (cresce um pouco com n)
+const HALO_PX = 9     // halo discreto (menos projeção que antes — era ~13)
+const SEL_PX = 9      // anel de seleção
+const HIT_PX = 16     // área de toque
+const SPREAD_PX = 5   // espalhamento entre pontos do mesmo local (clusters mais juntos — era ~10)
+
 const MAP = usMap as unknown as {
   W: number; H: number
   regions: { key: Region; name: string; fill: string; lines: string; lx: number; ly: number }[]
@@ -167,13 +174,14 @@ export function MapaTab({ leads, clients }: { leads: Lead[]; clients: Client[] }
             <defs>
               <radialGradient id="ed-g-cli-l" cx="38%" cy="34%" r="72%"><stop offset="0" stopColor="#62d18d" /><stop offset=".5" stopColor="#15a34a" /><stop offset="1" stopColor="#0b6e33" /></radialGradient>
               <radialGradient id="ed-g-led-l" cx="38%" cy="34%" r="72%"><stop offset="0" stopColor="#6cc6f2" /><stop offset=".5" stopColor="#0ea5e9" /><stop offset="1" stopColor="#0a78b8" /></radialGradient>
-              <radialGradient id="ed-g-cli-d" cx="38%" cy="34%" r="72%"><stop offset="0" stopColor="#ffffff" /><stop offset=".45" stopColor="#34e27d" /><stop offset="1" stopColor="#13a651" /></radialGradient>
-              <radialGradient id="ed-g-led-d" cx="38%" cy="34%" r="72%"><stop offset="0" stopColor="#ffffff" /><stop offset=".45" stopColor="#73d2ff" /><stop offset="1" stopColor="#1f9ee6" /></radialGradient>
+              {/* Dark SEM branco no centro: cor forte → borda mais escura (cliente/lead/novo) */}
+              <radialGradient id="ed-g-cli-d" cx="40%" cy="36%" r="70%"><stop offset="0" stopColor="#34d36f" /><stop offset=".5" stopColor="#16a34a" /><stop offset="1" stopColor="#0b6e33" /></radialGradient>
+              <radialGradient id="ed-g-led-d" cx="40%" cy="36%" r="70%"><stop offset="0" stopColor="#38bdf8" /><stop offset=".5" stopColor="#1d8fe0" /><stop offset="1" stopColor="#0a5ea8" /></radialGradient>
               {/* Leads na fase "Novo" — roxo #c026d3 (mesma estrutura do gradiente de lead) */}
               <radialGradient id="ed-g-novo-l" cx="38%" cy="34%" r="72%"><stop offset="0" stopColor="#db7ae8" /><stop offset=".5" stopColor="#c026d3" /><stop offset="1" stopColor="#8a1b9c" /></radialGradient>
-              <radialGradient id="ed-g-novo-d" cx="38%" cy="34%" r="72%"><stop offset="0" stopColor="#ffffff" /><stop offset=".45" stopColor="#db7ae8" /><stop offset="1" stopColor="#a821bd" /></radialGradient>
-              <filter id="ed-pgL" x="-200%" y="-200%" width="500%" height="500%"><feGaussianBlur stdDeviation="1.1" result="b" /><feMerge><feMergeNode in="b" /><feMergeNode in="SourceGraphic" /></feMerge></filter>
-              <filter id="ed-pgB" x="-400%" y="-400%" width="900%" height="900%"><feGaussianBlur stdDeviation="2.6" result="b" /><feMerge><feMergeNode in="b" /><feMergeNode in="b" /><feMergeNode in="SourceGraphic" /></feMerge></filter>
+              <radialGradient id="ed-g-novo-d" cx="40%" cy="36%" r="70%"><stop offset="0" stopColor="#d24ce0" /><stop offset=".5" stopColor="#c026d3" /><stop offset="1" stopColor="#8a1b9c" /></radialGradient>
+              <filter id="ed-pgL" x="-200%" y="-200%" width="500%" height="500%"><feGaussianBlur stdDeviation="0.6" result="b" /><feMerge><feMergeNode in="b" /><feMergeNode in="SourceGraphic" /></feMerge></filter>
+              <filter id="ed-pgB" x="-300%" y="-300%" width="700%" height="700%"><feGaussianBlur stdDeviation="1.4" result="b" /><feMerge><feMergeNode in="b" /><feMergeNode in="SourceGraphic" /></feMerge></filter>
               {/* Brilho do contorno das regiões (edge + edgeGlow no hover) */}
               <filter id="ed-glow" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="1.4" result="b" /><feMerge><feMergeNode in="b" /><feMergeNode in="SourceGraphic" /></feMerge></filter>
             </defs>
@@ -199,7 +207,7 @@ export function MapaTab({ leads, clients }: { leads: Lead[]; clients: Client[] }
                 if (filter !== 'clientes' && loc.novos.length) kinds.push({ type: 'novo', n: loc.novos.length })
                 if (filter !== 'clientes' && loc.leads.length) kinds.push({ type: 'lead', n: loc.leads.length })
                 const mid = (kinds.length - 1) / 2
-                const off = 10 / box.scale   // ~10px de espalhamento na tela entre pontos do mesmo local
+                const off = SPREAD_PX / box.scale   // espalhamento na tela entre pontos do mesmo local
                 return kinds.map((k, i) => (
                   <Pin key={loc.key + k.type} type={k.type} x={bx + (i - mid) * off} y={by} n={k.n} scale={box.scale}
                     selected={sel?.loc.key === loc.key} onClick={e => openPanel(loc, e)} />
@@ -252,10 +260,10 @@ function Pin({ type, x, y, n, scale, selected, onClick }: {
   return (
     <g className={cn('pin', type, selected && 'sel')} transform={`translate(${x},${y})`}
       role="button" tabIndex={0} onClick={e => { e.stopPropagation(); onClick(e) }}>
-      <circle className="halo" r={u(13)} />
-      <circle className="selRing" r={u(9)} />
-      <circle className="core" r={u(5 + Math.min(n - 1, 2))} />
-      <circle className="hit" r={u(16)} />
+      <circle className="halo" r={u(HALO_PX)} />
+      <circle className="selRing" r={u(SEL_PX)} />
+      <circle className="core" r={u(CORE_PX + Math.min(n - 1, 2))} />
+      <circle className="hit" r={u(HIT_PX)} />
     </g>
   )
 }

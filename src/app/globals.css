@@ -537,9 +537,9 @@ html.light .ed-map.skin-relevo .region { filter:drop-shadow(0 6px 9px rgba(0,0,0
 
 /* Pins acesos */
 .ed-map .pin { cursor:pointer }
-.ed-map .pin.client .halo { fill:rgba(34,197,94,.16) }
-.ed-map .pin.lead .halo { fill:rgba(56,189,248,.16) }
-.ed-map .pin.novo .halo { fill:rgba(192,38,211,.16) }
+.ed-map .pin.client .halo { fill:rgba(34,197,94,.12) }
+.ed-map .pin.lead .halo { fill:rgba(56,189,248,.12) }
+.ed-map .pin.novo .halo { fill:rgba(192,38,211,.12) }
 .ed-map .pin.client .core { fill:url(#ed-g-cli-d) }
 .ed-map .pin.lead .core { fill:url(#ed-g-led-d) }
 .ed-map .pin.novo .core { fill:url(#ed-g-novo-d) }

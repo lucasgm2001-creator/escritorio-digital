@@ -5,7 +5,7 @@ import { ALL_COLUMNS, type LeadStatus } from './types'
 import { ymd } from '@/lib/format'
 import { markMilestones } from '@/lib/leadMilestones'
 import { wonSlug, marcosForSlug, type FunnelStage } from '@/lib/funnelStages'
-import { resolveClientPlan } from '@/lib/commission/actions'
+import { resolveClientPlan, registerMeeting } from '@/lib/commission/actions'
 import { weeklyCommissionUsd, hasCommissionPct, LEGACY_VPS_USD, DEFAULT_TETO_SEMANAS } from '@/lib/commission/planCommission'
 import { logStageEvent } from '@/lib/stageEvents'
 
@@ -138,6 +138,20 @@ export async function runWonFlow(supabase: SupaClient, lead: MovableLead, userNa
 // Move um lead de estágio: persiste status + stage_changed_at e, ao ir pra "fechado",
 // dispara o won-flow (comissão). NÃO faz UI — devolve resultado + notas pro chamador
 // decidir como mostrar (toast no funil / texto no chat do agente).
+// Comissão de reunião (mesmo valor padrão do registro manual em Comissões).
+const MEETING_USD = 15
+
+// Vendedor responsável (tabela sellers) p/ a comissão de reunião: casa por NOME (assigned_name) entre
+// os ativos; fallback = 1º vendedor ativo (mesma atribuição que o runWonFlow usa neste app 1-vendedor).
+async function resolveMeetingSellerId(supabase: SupaClient, assignedName?: string | null): Promise<string | null> {
+  if (assignedName && assignedName.trim()) {
+    const { data } = await supabase.from('sellers').select('id').eq('status', 'ativo').ilike('name', `%${assignedName.trim()}%`).limit(1)
+    if (data?.[0]) return data[0].id as string
+  }
+  const { data } = await supabase.from('sellers').select('id').eq('status', 'ativo').order('created_at').limit(1)
+  return (data?.[0]?.id as string) ?? null
+}
+
 export async function moveLead(
   supabase: SupaClient, lead: MovableLead, newStatus: LeadStatus, userName: string, stages: FunnelStage[], planoId: string | null = null, userId: string | null = null,
 ): Promise<{ ok: boolean; error?: string; notes: ActionNote[] }> {
@@ -159,6 +173,35 @@ export async function moveLead(
   // Won-flow (DINHEIRO) dispara pela FLAG is_won da fase (não por slug fixo). Comportamento idêntico.
   const won = wonSlug(stages)
   const isWon = newStatus === won && lead.status !== won
+
+  const notes: ActionNote[] = []
+
+  // ── COMISSÃO DE REUNIÃO (ADITIVO, dinheiro) ──────────────────────────────────────────────
+  // Gatilho: AVANÇAR de 'reuniao' para 'proposta' OU para a fase is_won ('fechado'). Lança US$15
+  // pro vendedor responsável REUSANDO registerMeeting (mesmo valor/cotação/formato). NÃO toca em
+  // runWonFlow/calc/payWeek. Idempotente: só cria se NÃO existe nenhuma meeting com este lead_id.
+  // Best-effort: falha aqui NÃO bloqueia o move. Sem backfill (só vale para esta mudança).
+  if (lead.status === 'reuniao' && (newStatus === 'proposta' || newStatus === won)) {
+    try {
+      const { data: jaTem } = await supabase.from('meetings').select('id').eq('lead_id', lead.id).limit(1)
+      if (!jaTem || jaTem.length === 0) {
+        const sellerId = await resolveMeetingSellerId(supabase, lead.assigned_name)
+        if (sellerId) {
+          const { data: fx } = await supabase.from('fx_config').select('cotacao_manual, cotacao_travada').eq('id', 1).maybeSingle()
+          const manual = fx?.cotacao_manual != null ? Number(fx.cotacao_manual) : null
+          const fxc: FxConfig = { cotacaoManual: manual, cotacaoTravada: !!fx?.cotacao_travada }
+          const { error: mErr } = await registerMeeting(
+            supabase, sellerId,
+            { metOn: ymd(new Date()), valorUsd: MEETING_USD, clientName: lead.name, leadId: lead.id },
+            resolveRate(fxc, manual ?? 0),
+          )
+          if (!mErr) notes.push({ message: `Comissão de reunião lançada (US$ ${MEETING_USD}).`, type: 'success' })
+          else console.error('[moveLead] comissão de reunião falhou ao inserir:', mErr.message)
+        }
+      }
+    } catch (e) { console.error('[moveLead] comissão de reunião (erro inesperado):', e instanceof Error ? e.message : String(e)) }
+  }
+
   // Atividade de mudança de fase (QUALQUER fase), mobile E desktop. O caso "won" já é registrado
   // DENTRO do runWonFlow ("...Venda Fechada") → aqui pulamos o won pra NÃO duplicar. Secundário:
   // best-effort, NÃO bloqueia o move nem a comissão se falhar.
@@ -175,6 +218,6 @@ export async function moveLead(
       })
     } catch { /* registrar atividade é secundário — não quebra o move */ }
   }
-  const notes = isWon ? await runWonFlow(supabase, lead, userName, planoId) : []
+  if (isWon) notes.push(...await runWonFlow(supabase, lead, userName, planoId))
   return { ok: true, notes }
 }
