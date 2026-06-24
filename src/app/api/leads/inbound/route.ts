@@ -204,7 +204,7 @@ export async function POST(req: Request) {
         notes,
         status: 'novo',
         operation: 'eua',
-        origem: 'outro',          // CHECK não aceita 'Magnetic' → fonte real preservada em raw_payload
+        origem: 'magnetic',       // constraint leads_origem_check liberada p/ 'magnetic' (fonte real tb em raw_payload)
         prioridade: 'media',
         score: 500,
         assigned_to: ASSIGNED_TO,

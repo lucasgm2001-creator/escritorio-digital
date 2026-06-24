@@ -600,6 +600,10 @@ export function ApresentacaoTab() {
       ) : view === 'montar' ? (
         /* ═══ MONTAR ═══ */
         <div className="flex-1 min-h-0 flex flex-col lg:flex-row gap-4 p-4 sm:p-6">
+          {/* Aviso leve SÓ no mobile (não bloqueia): montar é melhor no desktop; reordenar pelas setas. */}
+          <p className="lg:hidden -mb-1 text-[11px] text-bento-muted bg-bento-bg border border-bento-border rounded-btn px-3 py-2">
+            Montar funciona melhor no computador. No celular dá pra adicionar materiais e reordenar pelas setas ↑↓.
+          </p>
           {/* Esquerda: materiais disponíveis */}
           <div className="lg:w-[340px] shrink-0 flex flex-col bento-fx overflow-hidden">
             <div className="flex items-center justify-between px-3 py-2.5 border-b border-bento-border shrink-0">

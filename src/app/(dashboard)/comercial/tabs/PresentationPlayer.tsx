@@ -232,6 +232,18 @@ export function PresentationPlayer({ name, client, materials, onClose }: {
   const blur = (e: React.MouseEvent<HTMLButtonElement>) => e.currentTarget.blur()
   const progress = total > 0 ? ((index + 1) / total) * 100 : 0
 
+  // Swipe horizontal no celular: arrastar p/ esquerda = próximo, p/ direita = anterior. O limiar +
+  // a checagem "predominantemente horizontal" evitam conflito com o scroll vertical do PDF.
+  const touchStart = useRef<{ x: number; y: number } | null>(null)
+  const onTouchStart = (e: React.TouchEvent) => { const t = e.touches[0]; touchStart.current = { x: t.clientX, y: t.clientY } }
+  const onTouchEnd = (e: React.TouchEvent) => {
+    const s = touchStart.current; touchStart.current = null
+    if (!s) return
+    const t = e.changedTouches[0]
+    const dx = t.clientX - s.x, dy = t.clientY - s.y
+    if (Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy) * 1.5) { if (dx < 0) next(); else prev() }
+  }
+
   return (
     <div ref={rootRef} className="fixed inset-0 z-[100] bg-black flex flex-col select-none">
       {/* Topbar fina: menu + nome/cliente + contador + fechar */}
@@ -266,7 +278,7 @@ export function PresentationPlayer({ name, client, materials, onClose }: {
           </aside>
         )}
 
-        <div className="relative flex-1 min-w-0 bg-black overflow-hidden">
+        <div className="relative flex-1 min-w-0 bg-black overflow-hidden" onTouchStart={onTouchStart} onTouchEnd={onTouchEnd}>
           {/* Deck: cada slide montado é uma camada fixa; só o atual fica opaco. Trocar = alternar
               opacity (sem remontar nem rebuscar). Fundo preto sempre atrás → nunca branco no gap.
               Vizinhos já montados = troca instantânea; reduce-motion = sem fade. */}

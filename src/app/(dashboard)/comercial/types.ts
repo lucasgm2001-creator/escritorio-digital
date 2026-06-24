@@ -16,7 +16,7 @@ export interface Lead {
   assigned_name?: string
   notes?: string
   nicho?: string
-  origem?: 'instagram' | 'google' | 'indicacao' | 'tiktok' | 'site' | 'outro'
+  origem?: 'instagram' | 'google' | 'indicacao' | 'tiktok' | 'site' | 'outro' | 'magnetic'
   prioridade?: 'baixa' | 'media' | 'alta' | 'urgente'
   next_contact?: string
   last_contact_at?: string
