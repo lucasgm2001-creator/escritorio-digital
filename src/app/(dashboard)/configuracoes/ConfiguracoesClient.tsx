@@ -19,7 +19,7 @@ import { loadA11y, saveA11y, applyA11y, DEFAULT_A11Y, type A11ySettings, type Fo
 import { loadDensity, saveDensity, applyDensity, type Density } from '@/lib/uiPrefs'
 import { weeklyCommissionUsd, hasCommissionPct, DEFAULT_TETO_SEMANAS, LEGACY_VPS_USD } from '@/lib/commission/planCommission'
 import { FasesTab } from '../comercial/tabs/FasesTab'
-import { getMapSkin, getMapSep, setMapSkin, setMapSep, type MapSkin } from '@/lib/mapSettings'
+import { getMapSkin, getMapSep, getMapGrouping, setMapSkin, setMapSep, setMapGrouping, type MapSkin, type MapGrouping } from '@/lib/mapSettings'
 
 // classes compartilhadas
 const inputCls = 'w-full bg-bento-bg border border-bento-border rounded-btn px-3 py-2 text-sm text-bento-text placeholder:text-bento-muted focus:outline-none focus:border-lime min-h-[44px]'
@@ -372,9 +372,11 @@ function AndarSection({ keyId, label }: { keyId: string; label: string }) {
 function MapSettingsSection() {
   const [skin, setSkinState] = useState<MapSkin>('blue')
   const [sep, setSepState] = useState<number>(4)
-  useEffect(() => { setSkinState(getMapSkin()); setSepState(getMapSep()) }, [])
+  const [grouping, setGroupingState] = useState<MapGrouping>('cidade')
+  useEffect(() => { setSkinState(getMapSkin()); setSepState(getMapSep()); setGroupingState(getMapGrouping()) }, [])
   const pickSkin = (s: MapSkin) => { setSkinState(s); setMapSkin(s) }
   const pickSep = (n: number) => { setSepState(n); setMapSep(n) }
+  const pickGrouping = (g: MapGrouping) => { setGroupingState(g); setMapGrouping(g) }
   const seg = 'flex bg-bento-bg border border-bento-border rounded-btn p-1 gap-1'
   const btn = (on: boolean) => cn('px-3 py-1.5 rounded-[8px] text-xs font-medium transition-colors', on ? 'bg-lime text-lime-ink' : 'text-bento-muted hover:text-bento-text')
   return (
@@ -393,6 +395,14 @@ function MapSettingsSection() {
         <div className={seg}>
           {([[4, 'Justo'], [16, 'Espaçoso']] as [number, string][]).map(([v, l]) => (
             <button key={v} onClick={() => pickSep(v)} className={btn(sep === v)}>{l}</button>
+          ))}
+        </div>
+      </div>
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        <div><p className="text-sm text-bento-text">Leads no mapa</p><p className="font-tech text-[11px] text-bento-muted">Por cidade (1 ponto/lead) ou agrupados por estado</p></div>
+        <div className={seg}>
+          {([['cidade', 'Por cidade'], ['estado', 'Por estado']] as [MapGrouping, string][]).map(([v, l]) => (
+            <button key={v} onClick={() => pickGrouping(v)} className={btn(grouping === v)}>{l}</button>
           ))}
         </div>
       </div>

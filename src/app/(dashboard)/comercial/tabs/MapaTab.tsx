@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo, useRef, type MouseEvent } from 'react'
 import usMap from '@/data/us-map.json'
 import { cn } from '@/lib/utils'
-import { getMapSkin, getMapSep, MAP_SETTINGS_EVENT, type MapSkin } from '@/lib/mapSettings'
+import { getMapSkin, getMapSep, getMapGrouping, MAP_SETTINGS_EVENT, type MapSkin, type MapGrouping } from '@/lib/mapSettings'
 import type { Lead } from '../types'
 import type { Client } from '../../clientes/ClientesClient'
 
@@ -18,11 +18,10 @@ const REGION_TZ: Record<Region, string> = { W: 'Oeste', C: 'Centro', E: 'Leste' 
 const OPEN_EXCLUDE = new Set(['fechado', 'perdido', 'lixeira'])   // leads "fechados" não entram
 
 // ── Tamanhos dos pontos (px ALVO na tela; convertidos p/ viewBox por /scale). Fáceis de ajustar. ──
-const CORE_PX = 5     // núcleo sólido (cresce um pouco com n)
-const HALO_PX = 9     // halo discreto (menos projeção que antes — era ~13)
+const CORE_PX = 5     // núcleo de vidro (cresce um pouco com n / com o número no modo estado)
 const SEL_PX = 9      // anel de seleção
-const HIT_PX = 16     // área de toque
-const SPREAD_PX = 5   // espalhamento entre pontos do mesmo local (clusters mais juntos — era ~10)
+const HIT_PX = 26     // área de toque generosa (mobile)
+const SPREAD_PX = 5   // espalhamento entre pontos do mesmo local (modo cidade)
 
 const MAP = usMap as unknown as {
   W: number; H: number
@@ -40,6 +39,7 @@ interface Loc {
 export function MapaTab({ leads, clients }: { leads: Lead[]; clients: Client[] }) {
   const [skin, setSkin] = useState<MapSkin>('blue')
   const [sep, setSep] = useState<number>(4)
+  const [grouping, setGrouping] = useState<MapGrouping>('cidade')   // leads por cidade (1 pin/lead) ou por estado (agregado)
   const [filter, setFilter] = useState<Filter>('todos')
   const [hot, setHot] = useState<Region | null>(null)   // região sob o mouse (acende o contorno)
   const [sel, setSel] = useState<{ loc: Loc; left: number; top: number; mobile: boolean } | null>(null)
@@ -52,7 +52,7 @@ export function MapaTab({ leads, clients }: { leads: Lead[]; clients: Client[] }
 
   // Lê as configs (localStorage) e reage a mudanças feitas em Configurações.
   useEffect(() => {
-    const sync = () => { setSkin(getMapSkin()); setSep(getMapSep()) }
+    const sync = () => { setSkin(getMapSkin()); setSep(getMapSep()); setGrouping(getMapGrouping()) }
     sync()
     window.addEventListener(MAP_SETTINGS_EVENT, sync)
     window.addEventListener('storage', sync)
@@ -129,6 +129,49 @@ export function MapaTab({ leads, clients }: { leads: Lead[]; clients: Client[] }
   // "novo" continua contando como Lead (contador inalterado).
   const totalLeads = useMemo(() => locations.reduce((s, l) => s + l.novos.length + l.leads.length, 0), [locations])
 
+  // Pins a renderizar. CIDADE = como hoje (1 pin por cliente/lead na localização). ESTADO = LEADS
+  // agregados por estado num pin só (na média das posições, com o número dentro); CLIENTES sempre
+  // individuais. Cada pin guarda a Loc (real ou sintética) que abre o popover. Só layout/estilo.
+  interface PinDef { key: string; type: 'client' | 'novo' | 'lead'; x: number; y: number; n: number; label?: number; loc: Loc }
+  const pins = useMemo<PinDef[]>(() => {
+    const out: PinDef[] = []
+    const off = SPREAD_PX / box.scale
+    if (grouping === 'estado') {
+      if (filter !== 'leads') {
+        for (const loc of locations) {
+          if (loc.clients.length) out.push({ key: loc.key + ':client', type: 'client', x: loc.x + DIR[loc.region] * effSep, y: loc.y, n: loc.clients.length, loc })
+        }
+      }
+      if (filter !== 'clientes') {
+        const byState = new Map<string, { sx: number; sy: number; n: number; region: Region; novos: string[]; leads: string[] }>()
+        for (const loc of locations) {
+          const cnt = loc.novos.length + loc.leads.length
+          if (!cnt) continue
+          let b = byState.get(loc.st)
+          if (!b) { b = { sx: 0, sy: 0, n: 0, region: loc.region, novos: [], leads: [] }; byState.set(loc.st, b) }
+          b.sx += loc.x * cnt; b.sy += loc.y * cnt; b.n += cnt
+          b.novos.push(...loc.novos); b.leads.push(...loc.leads)
+        }
+        for (const [st, b] of Array.from(byState.entries())) {
+          const ax = b.sx / b.n, ay = b.sy / b.n
+          const loc: Loc = { key: 'st:' + st, x: ax, y: ay, region: b.region, st, code: null, city: '', clients: [], novos: b.novos, leads: b.leads }
+          out.push({ key: 'st:' + st + ':lead', type: 'lead', x: ax + DIR[b.region] * effSep, y: ay, n: b.n, label: b.n, loc })
+        }
+      }
+    } else {
+      for (const loc of locations) {
+        const bx = loc.x + DIR[loc.region] * effSep, by = loc.y
+        const kinds: { type: 'client' | 'novo' | 'lead'; n: number }[] = []
+        if (filter !== 'leads' && loc.clients.length) kinds.push({ type: 'client', n: loc.clients.length })
+        if (filter !== 'clientes' && loc.novos.length) kinds.push({ type: 'novo', n: loc.novos.length })
+        if (filter !== 'clientes' && loc.leads.length) kinds.push({ type: 'lead', n: loc.leads.length })
+        const mid = (kinds.length - 1) / 2
+        kinds.forEach((k, i) => out.push({ key: loc.key + k.type, type: k.type, x: bx + (i - mid) * off, y: by, n: k.n, loc }))
+      }
+    }
+    return out
+  }, [locations, grouping, filter, effSep, box.scale])
+
   const openPanel = (loc: Loc, e: MouseEvent) => {
     const r = (e.currentTarget as Element).getBoundingClientRect()
     const mobile = window.innerWidth <= 700
@@ -172,14 +215,14 @@ export function MapaTab({ leads, clients }: { leads: Lead[]; clients: Client[] }
             width={box.w} height={box.h} style={{ width: box.w, height: box.h, margin: '0 auto', display: 'block' }}
             xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Mapa dos EUA com clientes e leads">
             <defs>
-              <radialGradient id="ed-g-cli-l" cx="38%" cy="34%" r="72%"><stop offset="0" stopColor="#62d18d" /><stop offset=".5" stopColor="#15a34a" /><stop offset="1" stopColor="#0b6e33" /></radialGradient>
-              <radialGradient id="ed-g-led-l" cx="38%" cy="34%" r="72%"><stop offset="0" stopColor="#6cc6f2" /><stop offset=".5" stopColor="#0ea5e9" /><stop offset="1" stopColor="#0a78b8" /></radialGradient>
-              {/* Dark SEM branco no centro: cor forte → borda mais escura (cliente/lead/novo) */}
-              <radialGradient id="ed-g-cli-d" cx="40%" cy="36%" r="70%"><stop offset="0" stopColor="#34d36f" /><stop offset=".5" stopColor="#16a34a" /><stop offset="1" stopColor="#0b6e33" /></radialGradient>
-              <radialGradient id="ed-g-led-d" cx="40%" cy="36%" r="70%"><stop offset="0" stopColor="#38bdf8" /><stop offset=".5" stopColor="#1d8fe0" /><stop offset="1" stopColor="#0a5ea8" /></radialGradient>
-              {/* Leads na fase "Novo" — roxo #c026d3 (mesma estrutura do gradiente de lead) */}
-              <radialGradient id="ed-g-novo-l" cx="38%" cy="34%" r="72%"><stop offset="0" stopColor="#db7ae8" /><stop offset=".5" stopColor="#c026d3" /><stop offset="1" stopColor="#8a1b9c" /></radialGradient>
-              <radialGradient id="ed-g-novo-d" cx="40%" cy="36%" r="70%"><stop offset="0" stopColor="#d24ce0" /><stop offset=".5" stopColor="#c026d3" /><stop offset="1" stopColor="#8a1b9c" /></radialGradient>
+              {/* Pontos = VIDRO/LUZ (radial, luz vinda de cima-esquerda). Cliente=lima, Lead/Novo=azul. */}
+              <radialGradient id="ed-g-cli-l" cx="40%" cy="34%" r="68%"><stop offset="0" stopColor="#FBFFE8" /><stop offset=".34" stopColor="#DFFF82" /><stop offset=".72" stopColor="#A6D92A" /><stop offset="1" stopColor="#4E7A12" /></radialGradient>
+              <radialGradient id="ed-g-led-l" cx="40%" cy="34%" r="68%"><stop offset="0" stopColor="#EAF7FF" /><stop offset=".34" stopColor="#A8DEFF" /><stop offset=".72" stopColor="#2D9BE8" /><stop offset="1" stopColor="#0E4E86" /></radialGradient>
+              <radialGradient id="ed-g-cli-d" cx="40%" cy="34%" r="68%"><stop offset="0" stopColor="#FBFFE8" /><stop offset=".34" stopColor="#E2FF87" /><stop offset=".72" stopColor="#BBF22F" /><stop offset="1" stopColor="#5E8A14" /></radialGradient>
+              <radialGradient id="ed-g-led-d" cx="40%" cy="34%" r="68%"><stop offset="0" stopColor="#EAF7FF" /><stop offset=".34" stopColor="#AEE3FF" /><stop offset=".72" stopColor="#3FB6F2" /><stop offset="1" stopColor="#135E9E" /></radialGradient>
+              {/* Leads na fase "Novo" — azul levemente mais claro que o lead */}
+              <radialGradient id="ed-g-novo-l" cx="40%" cy="34%" r="68%"><stop offset="0" stopColor="#EAF7FF" /><stop offset=".34" stopColor="#B3E0FF" /><stop offset=".72" stopColor="#43A8EE" /><stop offset="1" stopColor="#15578F" /></radialGradient>
+              <radialGradient id="ed-g-novo-d" cx="40%" cy="34%" r="68%"><stop offset="0" stopColor="#EAF7FF" /><stop offset=".34" stopColor="#BFE6FF" /><stop offset=".72" stopColor="#5BC0F5" /><stop offset="1" stopColor="#1C6BB0" /></radialGradient>
               <filter id="ed-pgL" x="-200%" y="-200%" width="500%" height="500%"><feGaussianBlur stdDeviation="0.6" result="b" /><feMerge><feMergeNode in="b" /><feMergeNode in="SourceGraphic" /></feMerge></filter>
               <filter id="ed-pgB" x="-300%" y="-300%" width="700%" height="700%"><feGaussianBlur stdDeviation="1.4" result="b" /><feMerge><feMergeNode in="b" /><feMergeNode in="SourceGraphic" /></feMerge></filter>
               {/* Brilho do contorno das regiões (edge + edgeGlow no hover) */}
@@ -187,7 +230,7 @@ export function MapaTab({ leads, clients }: { leads: Lead[]; clients: Client[] }
             </defs>
 
             {MAP.regions.map(r => (
-              <g key={r.key} className={cn('region', hot === r.key && 'hot')} transform={`translate(${DIR[r.key] * effSep},0)`}
+              <g key={r.key} className={cn('region', 'region-' + r.key, hot === r.key && 'hot')} transform={`translate(${DIR[r.key] * effSep},0)`}
                 onMouseEnter={() => setHot(r.key)} onMouseLeave={() => setHot(h => (h === r.key ? null : h))}>
                 <path className="fillHit" d={r.fill} />
                 <path className="fill" d={r.fill} />
@@ -199,20 +242,10 @@ export function MapaTab({ leads, clients }: { leads: Lead[]; clients: Client[] }
             ))}
 
             <g>
-              {locations.flatMap(loc => {
-                const bx = loc.x + DIR[loc.region] * effSep, by = loc.y
-                // Tipos de ponto presentes (respeitando o filtro): cliente(verde), novo(roxo), lead(azul-céu).
-                const kinds: { type: 'client' | 'novo' | 'lead'; n: number }[] = []
-                if (filter !== 'leads' && loc.clients.length) kinds.push({ type: 'client', n: loc.clients.length })
-                if (filter !== 'clientes' && loc.novos.length) kinds.push({ type: 'novo', n: loc.novos.length })
-                if (filter !== 'clientes' && loc.leads.length) kinds.push({ type: 'lead', n: loc.leads.length })
-                const mid = (kinds.length - 1) / 2
-                const off = SPREAD_PX / box.scale   // espalhamento na tela entre pontos do mesmo local
-                return kinds.map((k, i) => (
-                  <Pin key={loc.key + k.type} type={k.type} x={bx + (i - mid) * off} y={by} n={k.n} scale={box.scale}
-                    selected={sel?.loc.key === loc.key} onClick={e => openPanel(loc, e)} />
-                ))
-              })}
+              {pins.map(p => (
+                <Pin key={p.key} type={p.type} x={p.x} y={p.y} n={p.n} label={p.label} scale={box.scale}
+                  selected={sel?.loc.key === p.loc.key} onClick={e => openPanel(p.loc, e)} />
+              ))}
             </g>
           </svg>
           <div className="ed-map-vig" />
@@ -252,17 +285,21 @@ function Counter({ label, value, cls }: { label: string; value: number; cls?: st
   )
 }
 
-function Pin({ type, x, y, n, scale, selected, onClick }: {
-  type: 'client' | 'novo' | 'lead'; x: number; y: number; n: number; scale: number; selected: boolean; onClick: (e: MouseEvent) => void
+function Pin({ type, x, y, n, label, scale, selected, onClick }: {
+  type: 'client' | 'novo' | 'lead'; x: number; y: number; n: number; label?: number; scale: number; selected: boolean; onClick: (e: MouseEvent) => void
 }) {
-  // Raios ~CONSTANTES na tela: px-alvo / escala (escala = larguraRenderizada/1000). Core cresce com n.
+  // Raios ~CONSTANTES na tela: px-alvo / escala (escala = larguraRenderizada/1000). Pin de VIDRO:
+  // core + reflexo (cima-esquerda) + aro fino. Pin agregado por estado (label) cresce p/ caber o número.
   const u = (px: number) => px / (scale || 1)
+  const coreR = CORE_PX + (label != null ? 3 : Math.min(n - 1, 2))
   return (
     <g className={cn('pin', type, selected && 'sel')} transform={`translate(${x},${y})`}
       role="button" tabIndex={0} onClick={e => { e.stopPropagation(); onClick(e) }}>
-      <circle className="halo" r={u(HALO_PX)} />
       <circle className="selRing" r={u(SEL_PX)} />
-      <circle className="core" r={u(CORE_PX + Math.min(n - 1, 2))} />
+      <circle className="core" r={u(coreR)} />
+      <circle className="ring" r={u(coreR)} />
+      <circle className="gloss" cx={u(-0.3 * coreR)} cy={u(-0.34 * coreR)} r={u(coreR * 0.22)} />
+      {label != null && <text className="pinCount" y={u(0.5)} fontSize={u(7)}>{label}</text>}
       <circle className="hit" r={u(HIT_PX)} />
     </g>
   )

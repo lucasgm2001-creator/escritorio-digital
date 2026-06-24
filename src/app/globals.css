@@ -517,19 +517,36 @@ html.light .ed-map {
 
 .ed-map-stage {
   position:relative; border-radius:16px; overflow:hidden; border:1px solid var(--cardBorder);
-  background:radial-gradient(640px 360px at 50% 64%, rgba(var(--acc),var(--stageGlowA)), transparent 62%), var(--mapBg);
+  background:
+    radial-gradient(640px 360px at 50% 64%, rgba(var(--acc),var(--stageGlowA)), transparent 62%),
+    repeating-linear-gradient(0deg, rgba(194,247,58,.05) 0 1px, transparent 1px 28px),
+    repeating-linear-gradient(90deg, rgba(194,247,58,.05) 0 1px, transparent 1px 28px),
+    var(--mapBg);
   box-shadow:inset 0 1px 0 rgba(150,190,230,.06), inset 0 0 90px rgba(0,0,0,.5); padding:14px;
+}
+/* 4 cantos em "L" verde-lima (toque técnico, sutil). */
+.ed-map-stage::after { content:""; position:absolute; inset:8px; pointer-events:none; z-index:3; opacity:.8;
+  background:
+    linear-gradient(#C2F73A,#C2F73A) left top/16px 2px no-repeat, linear-gradient(#C2F73A,#C2F73A) left top/2px 16px no-repeat,
+    linear-gradient(#C2F73A,#C2F73A) right top/16px 2px no-repeat, linear-gradient(#C2F73A,#C2F73A) right top/2px 16px no-repeat,
+    linear-gradient(#C2F73A,#C2F73A) left bottom/16px 2px no-repeat, linear-gradient(#C2F73A,#C2F73A) left bottom/2px 16px no-repeat,
+    linear-gradient(#C2F73A,#C2F73A) right bottom/16px 2px no-repeat, linear-gradient(#C2F73A,#C2F73A) right bottom/2px 16px no-repeat;
 }
 html.light .ed-map-stage { box-shadow:inset 0 1px 0 rgba(255,255,255,.04), inset 0 0 70px rgba(0,0,0,.06); }
 .ed-map-svg { display:block; margin:0 auto }   /* tamanho vem do componente (fit na tela) */
 .ed-map .fill { fill:rgba(var(--acc),var(--fillT)) }
+/* Regiões = 3 FUSOS, em tons de verde (Oeste mais escuro → Leste mais claro). */
+.ed-map .region-W .fill { fill:#0E3322 } .ed-map .region-C .fill { fill:#134029 } .ed-map .region-E .fill { fill:#1F5E3C }
+html.light .ed-map .region-W .fill { fill:#CDE3AE } html.light .ed-map .region-C .fill { fill:#DAEDBF } html.light .ed-map .region-E .fill { fill:#E6F3D2 }
 .ed-map .lines { fill:none; stroke:rgba(var(--acc),var(--lineA)); stroke-width:.45; stroke-linejoin:round; vector-effect:non-scaling-stroke }
-html.dark .ed-map .lines { stroke:rgba(225,242,255,.5) }   /* dark: divisas esbranquiçadas (lê bem branco) */
+html.dark .ed-map .lines { stroke:rgba(194,247,58,.22) }   /* linhas internas: lima fininho */
+html.light .ed-map .lines { stroke:rgba(141,190,48,.4) }
 /* Área invisível p/ hover da região inteira + contorno que brilha + brilho do hover */
 .ed-map .ed-map-svg .fillHit { fill:#000; opacity:0; cursor:default }
-.ed-map .ed-map-svg .edge { fill:none; stroke:rgba(var(--acc),.9); stroke-width:1.05; stroke-linejoin:round; vector-effect:non-scaling-stroke; filter:url(#ed-glow) }
-html.dark .ed-map .ed-map-svg .edge { stroke:rgba(225,242,255,.85) }
-.ed-map .ed-map-svg .edgeGlow { fill:none; stroke:rgba(var(--acc),var(--edgeA)); stroke-width:4.5; stroke-linejoin:round; filter:url(#ed-glow); opacity:0; transition:opacity .2s }
+.ed-map .ed-map-svg .edge { fill:none; stroke:#6FA01C; stroke-width:1.05; stroke-linejoin:round; vector-effect:non-scaling-stroke; filter:url(#ed-glow) }
+html.dark .ed-map .ed-map-svg .edge { stroke:rgba(194,247,58,.9) }   /* borda verde-lima #C2F73A */
+.ed-map .ed-map-svg .edgeGlow { fill:none; stroke:#C2F73A; stroke-width:4.5; stroke-linejoin:round; filter:url(#ed-glow); opacity:.12; transition:opacity .2s }
+html.light .ed-map .ed-map-svg .edgeGlow { stroke:#8DBE30; opacity:.25 }
 .ed-map .ed-map-svg g.region.hot .edgeGlow { opacity:.7 }
 .ed-map.skin-relevo .region { filter:drop-shadow(0 7px 11px rgba(0,0,0,.5)) }
 html.light .ed-map.skin-relevo .region { filter:drop-shadow(0 6px 9px rgba(0,0,0,.18)) }
@@ -537,19 +554,17 @@ html.light .ed-map.skin-relevo .region { filter:drop-shadow(0 6px 9px rgba(0,0,0
 
 /* Pins acesos */
 .ed-map .pin { cursor:pointer }
-.ed-map .pin.client .halo { fill:rgba(34,197,94,.12) }
-.ed-map .pin.lead .halo { fill:rgba(56,189,248,.12) }
-.ed-map .pin.novo .halo { fill:rgba(192,38,211,.12) }
+/* Pin de VIDRO: núcleo com gradiente (sem blur/halo) + reflexo + aro fino. Cliente=lima, Lead/Novo=azul. */
 .ed-map .pin.client .core { fill:url(#ed-g-cli-d) }
 .ed-map .pin.lead .core { fill:url(#ed-g-led-d) }
 .ed-map .pin.novo .core { fill:url(#ed-g-novo-d) }
 html.light .ed-map .pin.client .core { fill:url(#ed-g-cli-l) }
 html.light .ed-map .pin.lead .core { fill:url(#ed-g-led-l) }
 html.light .ed-map .pin.novo .core { fill:url(#ed-g-novo-l) }
-.ed-map .pin .core { filter:url(#ed-pgB) }
-html.light .ed-map .pin .core { filter:url(#ed-pgL) }
+.ed-map .pin .gloss { fill:#fff; opacity:.85; pointer-events:none }
+.ed-map .pin .ring { fill:none; stroke:rgba(255,255,255,.25); stroke-width:.5; vector-effect:non-scaling-stroke; pointer-events:none }
+.ed-map .pin .pinCount { fill:#fff; font-family:var(--mono); font-weight:700; text-anchor:middle; dominant-baseline:central; pointer-events:none }
 .ed-map .pin .hit { fill:transparent }
-.ed-map .pin:hover .halo { opacity:1 }
 .ed-map .selRing { fill:none; stroke:#fff; stroke-width:1.2; opacity:0 }
 html.light .ed-map .selRing { stroke:rgba(var(--acc),.95) }
 .ed-map .pin.sel .selRing { opacity:.95 }
