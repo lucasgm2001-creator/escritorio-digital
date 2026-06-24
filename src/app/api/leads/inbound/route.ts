@@ -17,9 +17,8 @@ import usMap from '@/data/us-map.json'
 //   sobrescreve se for um estado US VÁLIDO (no form ele às vezes é o estado BRASILEIRO da pessoa).
 //   O PAYLOAD INTEIRO é gravado em raw_payload (jsonb) → nada do formulário se perde.
 //
-// ⚠️ origem: a tabela `leads` tem CHECK (origem in instagram/google/indicacao/tiktok/site/outro),
-// então NÃO dá pra gravar 'Magnetic' direto (o insert falharia). Gravamos origem='outro' e a fonte
-// real fica em raw_payload. Pra ter um valor 'magnetic' de verdade é preciso migration (chat decide).
+// origem: a constraint leads_origem_check já foi liberada p/ aceitar 'magnetic', então gravamos
+// origem='magnetic' direto. A fonte/payload completo segue também em raw_payload.
 //
 // Envs esperadas:
 //   - INBOUND_WEBHOOK_SECRET   (segredo compartilhado; header "x-webhook-secret" ou ?secret=)

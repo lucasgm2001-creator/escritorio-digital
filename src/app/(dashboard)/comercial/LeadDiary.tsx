@@ -10,8 +10,12 @@ import { TimeAgo } from '@/components/system/TimeAgo'
 import { ALL_COLUMNS, FUSO_OPTIONS, type Lead, type LeadStatus, type ColumnTone } from './types'
 import { type FunnelStage } from '@/lib/funnelStages'
 import { usdCompact } from '@/lib/format'
+import { waNumber } from '@/lib/phone'
 import { LeadTasks } from './LeadTasks'
-import { Sparkles } from 'lucide-react'
+import { Sparkles, MessageCircle, MessageSquare, Copy } from 'lucide-react'
+
+// Saudação pré-preenchida do WhatsApp (leads são US → inglês). Editável aqui.
+const WA_GREETING = (first: string) => `Hi ${first}! This is Lucas from DR Growth.`
 
 interface Interaction {
   id: string
@@ -180,6 +184,14 @@ export function LeadDiary({ lead, onClose, onUpdated, onMoveStage, onDeleted, cu
       toast({ type: 'success', message: `Responsável: ${name}.` })
     }
     setSavingResp(false)
+  }
+
+  // Copia o telefone ORIGINAL formatado (não o normalizado) p/ a área de transferência.
+  const copyPhone = async () => {
+    const p = currentLead.phone
+    if (!p) return
+    try { await navigator.clipboard.writeText(p); toast({ type: 'success', message: 'Telefone copiado.' }) }
+    catch { toast({ type: 'error', message: 'Não foi possível copiar.' }) }
   }
 
   // Edita a "data de chegada" (received_at) — dado de lead/relatório, não dinheiro. Otimista + rollback.
@@ -387,6 +399,35 @@ export function LeadDiary({ lead, onClose, onUpdated, onMoveStage, onDeleted, cu
           <InfoRow label="Origem" value={currentLead.origem} />
           <InfoRow label="Mensagem" value={currentLead.notes} />
         </div>
+
+        {/* Contato rápido — WhatsApp / SMS / Copiar (só com telefone utilizável). */}
+        {(() => {
+          const num = waNumber(currentLead.phone)
+          if (!num) return null
+          const first = (currentLead.name || '').trim().split(/\s+/)[0] || ''
+          const greeting = first ? WA_GREETING(first) : ''
+          const waUrl = `https://wa.me/${num}${greeting ? `?text=${encodeURIComponent(greeting)}` : ''}`
+          return (
+            <div className="px-5 py-3 border-b border-border">
+              <span className="text-xs text-muted-foreground">Contato rápido</span>
+              <div className="mt-1.5 flex items-center gap-2 flex-wrap">
+                <a href={waUrl} target="_blank" rel="noopener noreferrer"
+                  className="bento-btn flex items-center gap-1.5 px-3 py-2 rounded-btn text-sm font-semibold min-h-[44px]">
+                  <MessageCircle className="w-4 h-4" />WhatsApp
+                </a>
+                <a href={`sms:+${num}`}
+                  className="flex items-center gap-1.5 px-3 py-2 rounded-btn text-sm font-medium border border-bento-border text-bento-dim hover:border-lime hover:text-bento-text transition-colors min-h-[44px]">
+                  <MessageSquare className="w-4 h-4" />SMS
+                </a>
+                <button type="button" onClick={copyPhone} aria-label="Copiar telefone" title="Copiar telefone"
+                  className="flex items-center gap-1.5 px-2.5 py-2 rounded-btn text-sm font-medium text-bento-muted hover:text-bento-text transition-colors min-h-[44px]">
+                  <Copy className="w-4 h-4" />Copiar
+                </button>
+              </div>
+              <p className="font-mono text-[11px] text-bento-muted mt-1.5 break-all">{currentLead.phone}</p>
+            </div>
+          )
+        })()}
 
         {/* Mais informações — campos EXTRAS do formulário (raw_payload) sem coluna própria. */}
         {currentLead.raw_payload && (() => {
