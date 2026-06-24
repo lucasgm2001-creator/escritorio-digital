@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef, useMemo, memo } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useToast } from '@/components/ui/toast'
 import { getScoreInfo } from '@/lib/utils/score'
@@ -76,7 +76,7 @@ const INTERACTION_LABEL: Record<string, string> = {
 }
 
 // Linha "rótulo: valor" do perfil. Vazio → "—" discreto (deixa claro o que falta, não some).
-function InfoRow({ label, value }: { label: string; value?: string | number | null }) {
+const InfoRow = memo(function InfoRow({ label, value }: { label: string; value?: string | number | null }) {
   const v = value == null || String(value).trim() === '' ? '' : String(value)
   return (
     <div className="flex items-baseline justify-between gap-3">
@@ -84,7 +84,7 @@ function InfoRow({ label, value }: { label: string; value?: string | number | nu
       <span className={cn('text-sm text-right break-words', v ? 'text-bento-text' : 'text-bento-muted/50')}>{v || '—'}</span>
     </div>
   )
-}
+})
 
 // Achata o raw_payload (incl. 1 nível aninhado, ex.: customData) em pares [chave, texto] não-vazios.
 function flattenPayload(obj: Record<string, unknown>): [string, string][] {
@@ -135,6 +135,28 @@ export function LeadDiary({ lead, onClose, onUpdated, onMoveStage, onDeleted, cu
   const { toast } = useToast()
   const scoreInfo = getScoreInfo(currentLead.score)
   const currentPhase = ALL_COLUMNS.find(c => c.key === currentLead.status)
+
+  // Trava o scroll do fundo (body) enquanto o perfil está aberto; restaura ao fechar (preserva posição).
+  useEffect(() => {
+    const prev = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => { document.body.style.overflow = prev }
+  }, [])
+
+  // Layout do perfil: UM scroll só + swipe-pra-baixo no cabeçalho fecha. Timeline incremental.
+  const dragStartY = useRef<number | null>(null)
+  const onHeaderTouchStart = (e: React.TouchEvent) => { dragStartY.current = e.touches[0].clientY }
+  const onHeaderTouchEnd = (e: React.TouchEvent) => {
+    const s = dragStartY.current; dragStartY.current = null
+    if (s != null && e.changedTouches[0].clientY - s > 60) onClose()
+  }
+  const [visibleInteractions, setVisibleInteractions] = useState(15)
+  const shownInteractions = useMemo(() => interactions.slice(0, visibleInteractions), [interactions, visibleInteractions])
+  // Extras do raw_payload (sem coluna própria) — calculado fora do corpo do render (só muda com o payload).
+  const payloadExtras = useMemo(
+    () => (currentLead.raw_payload ? flattenPayload(currentLead.raw_payload).filter(([k]) => !PAYLOAD_SKIP.has(k.toLowerCase())) : []),
+    [currentLead.raw_payload],
+  )
 
   // Valor (leads.value) editável só DEPOIS de "Reunião Agendada" — comparando POSICAO da fase atual
   // com a da fase slug 'reuniao' (NÃO hardcode o 4; sobrevive a reordenações). Fallback: ordem de ALL_COLUMNS.
@@ -368,24 +390,28 @@ export function LeadDiary({ lead, onClose, onUpdated, onMoveStage, onDeleted, cu
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex">
+    <div className="fixed inset-0 z-50 flex h-[100dvh]">
       {/* Overlay */}
       <div className="flex-1 bg-black/30" onClick={onClose} />
 
       {/* Painel lateral */}
-      <div className="w-full max-w-md bg-bento-panel border-l border-bento-border flex flex-col shadow-card-hover overflow-hidden">
-        {/* Header */}
-        <div className="flex items-start justify-between p-5 border-b border-border">
+      <div className="w-full max-w-md h-[100dvh] bg-bento-panel border-l border-bento-border flex flex-col shadow-card-hover overflow-hidden">
+        {/* Header — FIXO no topo (fora do scroll); swipe-pra-baixo fecha no celular. */}
+        <div onTouchStart={onHeaderTouchStart} onTouchEnd={onHeaderTouchEnd}
+          className="shrink-0 flex items-start justify-between p-5 border-b border-border">
           <div>
             <h2 className="font-bold text-foreground text-base">{currentLead.name}</h2>
             {currentLead.company && <p className="text-sm text-muted-foreground">{currentLead.company}</p>}
           </div>
-          <button onClick={onClose} className="text-muted-foreground hover:text-foreground mt-0.5">
+          <button onClick={onClose} aria-label="Fechar" className="text-muted-foreground hover:text-foreground mt-0.5 p-1 -m-1">
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
             </svg>
           </button>
         </div>
+
+        {/* UM scroll só: todo o perfil rola como UMA coluna (sem caixas internas prendendo no toque). */}
+        <div className="flex-1 min-h-0 overflow-y-auto pb-safe">
 
         {/* Informações do lead (cadastro/formulário) — somente leitura; campo vazio = "—". */}
         <div className="px-5 py-3 border-b border-border space-y-1.5">
@@ -430,18 +456,14 @@ export function LeadDiary({ lead, onClose, onUpdated, onMoveStage, onDeleted, cu
         })()}
 
         {/* Mais informações — campos EXTRAS do formulário (raw_payload) sem coluna própria. */}
-        {currentLead.raw_payload && (() => {
-          const extras = flattenPayload(currentLead.raw_payload).filter(([k]) => !PAYLOAD_SKIP.has(k.toLowerCase()))
-          if (!extras.length) return null
-          return (
-            <div className="px-5 py-3 border-b border-border">
-              <span className="text-xs text-muted-foreground">Mais informações</span>
-              <div className="mt-1.5 space-y-1.5">
-                {extras.map(([k, v]) => <InfoRow key={k} label={k} value={v} />)}
-              </div>
+        {payloadExtras.length > 0 && (
+          <div className="px-5 py-3 border-b border-border">
+            <span className="text-xs text-muted-foreground">Mais informações</span>
+            <div className="mt-1.5 space-y-1.5">
+              {payloadExtras.map(([k, v]) => <InfoRow key={k} label={k} value={v} />)}
             </div>
-          )
-        })()}
+          </div>
+        )}
 
         {/* Fase — seletor (alternativa ao arrastar; vale mobile e desktop) */}
         <div className="px-5 py-3 border-b border-border relative">
@@ -690,14 +712,15 @@ export function LeadDiary({ lead, onClose, onUpdated, onMoveStage, onDeleted, cu
           )}
         </div>
 
-        {/* Timeline */}
-        <div className="flex-1 overflow-y-auto px-5 py-4">
+        {/* Timeline — SEM scroll próprio (flui no scroll único). Renderiza incremental: 15 + "ver mais". */}
+        <div className="px-5 py-4">
           <p className="text-xs font-medium text-muted-foreground mb-3">Timeline de interações</p>
           {interactions.length === 0 ? (
             <p className="text-xs text-muted-foreground text-center py-4">Nenhuma interação ainda.</p>
           ) : (
+            <>
             <div className="space-y-3">
-              {interactions.map(i => (
+              {shownInteractions.map(i => (
                 <div key={i.id} className="flex gap-3">
                   <div className="w-1 shrink-0 bg-border rounded-full" />
                   <div className="flex-1 pb-3">
@@ -716,11 +739,18 @@ export function LeadDiary({ lead, onClose, onUpdated, onMoveStage, onDeleted, cu
                 </div>
               ))}
             </div>
+            {interactions.length > visibleInteractions && (
+              <button onClick={() => setVisibleInteractions(n => n + 15)}
+                className="mt-3 w-full text-center font-tech text-xs text-lime-fg hover:text-lime py-2 min-h-[44px]">
+                Ver mais ({interactions.length - visibleInteractions})
+              </button>
+            )}
+            </>
           )}
         </div>
 
         {/* Excluir lead — ação destrutiva, confirmação em 2 passos */}
-        <div className="px-5 py-3 border-t border-border shrink-0">
+        <div className="px-5 py-3 border-t border-border">
           {confirmingDelete ? (
             <div className="space-y-2">
               <p className="text-xs text-red-400">Tem certeza? Esta ação não pode ser desfeita.</p>
@@ -738,6 +768,7 @@ export function LeadDiary({ lead, onClose, onUpdated, onMoveStage, onDeleted, cu
             </button>
           )}
         </div>
+        </div>{/* fim do scroll único */}
       </div>
     </div>
   )
