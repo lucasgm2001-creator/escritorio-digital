@@ -26,6 +26,12 @@ interface Props {
 // Tokens bento, theme-aware. Foco em verde lima (acento estrutural do input).
 const inputCls = 'w-full bg-bento-bg border border-bento-border rounded-btn px-3 py-2 text-sm text-bento-text placeholder:text-bento-muted focus:outline-none focus:border-lime'
 
+// Data de HOJE no fuso local, no formato do input date (YYYY-MM-DD).
+const todayLocal = () => {
+  const d = new Date(); const p = (n: number) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`
+}
+
 // Prioridade: normal = neutro (com seleção lime); alta/urgente = semântico sutil.
 const PRIORITIES: { value: TaskPriority; label: string; on: string }[] = [
   { value: 'normal',  label: 'Normal',  on: 'text-bento-text bg-lime/10 border-lime/40' },
@@ -49,7 +55,8 @@ export function TaskModal({ onClose, onSaved, currentUser, linkOptions, task, pr
   const editing = !!task
   const [title, setTitle]       = useState(task?.title ?? prefill?.title ?? '')
   const [notes, setNotes]       = useState(task?.notes ?? '')
-  const [dueDate, setDueDate]   = useState(task?.due_date ?? prefill?.due_date ?? '')
+  // Nova tarefa nasce com a DATA DE HOJE (editável); edição mantém o que tinha (ou vazio).
+  const [dueDate, setDueDate]   = useState(editing ? (task?.due_date ?? '') : (prefill?.due_date ?? todayLocal()))
   const [dueTime, setDueTime]   = useState((task?.due_time ?? prefill?.due_time ?? '').slice(0, 5))
   const [priority, setPriority] = useState<TaskPriority>(task?.priority ?? prefill?.priority ?? 'normal')
   const [link, setLink]         = useState<LinkOption | null>(
@@ -65,6 +72,14 @@ export function TaskModal({ onClose, onSaved, currentUser, linkOptions, task, pr
   const [responsavelId, setResponsavelId] = useState<string>(task?.responsavel_id ?? '')
 
   const supabase = createClient()
+
+  // Trava o scroll do fundo enquanto o modal está aberto (o conteúdo rola só por dentro) — no mobile
+  // o gesto não arrasta a página nem a barra de baixo. Restaura ao fechar.
+  useEffect(() => {
+    const prev = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => { document.body.style.overflow = prev }
+  }, [])
 
   // Vendedores p/ o campo Responsável (extensível). Nova tarefa nasce com o 1º ativo (Lucas).
   useEffect(() => {
@@ -91,7 +106,7 @@ export function TaskModal({ onClose, onSaved, currentUser, linkOptions, task, pr
       title: title.trim(),
       notes: notes.trim() || null,
       due_date: dueDate || null,
-      due_time: dueDate && dueTime ? dueTime : null,   // hora só faz sentido com data
+      due_time: dueTime || null,   // hora independente da data (data já vem com hoje preenchida)
       priority,
       linked_type: link?.type ?? null,
       linked_id:   link?.id ?? null,
@@ -115,10 +130,10 @@ export function TaskModal({ onClose, onSaved, currentUser, linkOptions, task, pr
 
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-end sm:items-center justify-center z-50 p-0 sm:p-4">
-      <div className="bento-fx rounded-t-frame sm:rounded-frame shadow-card-hover w-full sm:max-w-lg max-h-[92vh] flex flex-col animate-slide-up">
+      <div className="bento-fx rounded-t-frame sm:rounded-frame shadow-card-hover w-full sm:max-w-lg max-h-[92dvh] flex flex-col animate-slide-up">
 
-        {/* Header */}
-        <div className="flex items-center justify-between p-5 border-b border-bento-border shrink-0">
+        {/* Header — X desce respeitando o safe-area (não fica atrás do notch/barra de status). */}
+        <div className="flex items-center justify-between px-5 pb-5 pt-[max(1.25rem,env(safe-area-inset-top))] border-b border-bento-border shrink-0">
           <div className="flex items-center gap-2">
             <h2 className="font-display font-bold text-bento-text text-base">
               {editing ? 'Editar tarefa' : 'Nova tarefa'}
@@ -140,7 +155,7 @@ export function TaskModal({ onClose, onSaved, currentUser, linkOptions, task, pr
         </div>
 
         {/* Form */}
-        <form onSubmit={handleSubmit} className="p-5 space-y-4 overflow-y-auto flex-1">
+        <form onSubmit={handleSubmit} className="p-5 space-y-4 overflow-y-auto overscroll-contain flex-1 pb-safe">
           <Field label="Tarefa *">
             <input
               autoFocus
@@ -164,13 +179,12 @@ export function TaskModal({ onClose, onSaved, currentUser, linkOptions, task, pr
           <div className="grid grid-cols-2 gap-3">
             <Field label="Data">
               <input type="date" value={dueDate}
-                onChange={e => { const v = e.target.value; setDueDate(v); if (!v) setDueTime('') }}
+                onChange={e => setDueDate(e.target.value)}
                 className={inputCls} />
             </Field>
             <Field label="Hora">
               <input type="time" value={dueTime} onChange={e => setDueTime(e.target.value)}
-                disabled={!dueDate}
-                className={cn(inputCls, !dueDate && 'opacity-50 cursor-not-allowed')} />
+                className={inputCls} />
             </Field>
           </div>
 

@@ -246,8 +246,8 @@ export function PresentationPlayer({ name, client, materials, onClose }: {
 
   return (
     <div ref={rootRef} className="fixed inset-0 z-[100] bg-black flex flex-col select-none">
-      {/* Topbar fina: menu + nome/cliente + contador + fechar */}
-      <div className="shrink-0 flex items-center gap-3 h-12 px-3 bg-black/70 backdrop-blur-sm border-b border-white/10">
+      {/* Topbar fina: menu + nome/cliente + contador + fechar. Desce com o safe-area (não fica sob o notch). */}
+      <div className="shrink-0 flex items-center gap-3 min-h-12 px-3 pt-[env(safe-area-inset-top)] bg-black/70 backdrop-blur-sm border-b border-white/10">
         <button onClick={e => { blur(e); setMenuOpen(o => !o) }} title="Materiais" aria-label="Materiais"
           className={cn('flex-none p-2 rounded-lg transition-colors', menuOpen ? 'bg-lime text-lime-ink' : 'bg-white/10 hover:bg-white/20 text-white')}>
           <Menu className="w-4 h-4" />

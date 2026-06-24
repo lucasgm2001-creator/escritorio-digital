@@ -101,8 +101,8 @@ function ClientRow({
   let nextUnpaid = 1; { const s = new Set(paidNums); while (s.has(nextUnpaid)) nextUnpaid++ }
   return (
     <div id={`cli-row-${client.id}`} className={`bento-fx transition-colors duration-150 ${inactive ? 'opacity-60' : 'hover:border-lime/40'}`}>
-      {/* Main row */}
-      <div className="flex items-center gap-3 p-3.5">
+      {/* Main row — flex-wrap: em telas estreitas as ações descem p/ a 2ª linha (dentro do card), sem vazar. */}
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-2 p-3.5">
         <div className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 ${inactive ? 'bg-bento-bg' : 'bg-lime/15 border border-lime/30'}`}>
           <span className={`text-sm font-bold ${inactive ? 'text-bento-muted' : 'text-lime-fg'}`}>{client.name[0]}</span>
         </div>
@@ -123,7 +123,7 @@ function ClientRow({
           </span>
         )}
         {/* Actions */}
-        <div className="flex items-center gap-1 shrink-0">
+        <div className="flex items-center gap-1 shrink-0 ml-auto">
           {!inactive && (
             <button
               onClick={() => onEdit(client)}

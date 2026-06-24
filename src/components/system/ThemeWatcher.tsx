@@ -16,13 +16,16 @@ function applyAutoTheme() {
   if (pref !== 'auto') return
   const html = document.documentElement
   const dark = isDarkByTime()
-  if (dark === html.classList.contains('dark')) return
+  const hasDark = html.classList.contains('dark')
+  const hasLight = html.classList.contains('light')
+  // Só mexe no DOM quando o estado NÃO está exatamente certo (cobre o caso de faltar/sobrar classe).
+  if (dark ? (hasDark && !hasLight) : (hasLight && !hasDark)) return
   if (dark) { html.style.colorScheme = 'dark'; html.classList.add('dark'); html.classList.remove('light') }
   else { html.style.colorScheme = 'light'; html.classList.add('light'); html.classList.remove('dark') }
 }
 
 export function ThemeWatcher() {
-  // Checa a cada 1 min (vira no horário) + ao focar; aplica também no mount.
-  useOnFocusVisible(applyAutoTheme, { intervalMs: 60_000, immediate: true })
+  // Vira sozinho ao cruzar 18h/6h: checa a cada 30s enquanto visível + ao focar/voltar a aba; aplica no mount.
+  useOnFocusVisible(applyAutoTheme, { intervalMs: 30_000, immediate: true })
   return null
 }

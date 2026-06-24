@@ -370,6 +370,7 @@ function AndarSection({ keyId, label }: { keyId: string; label: string }) {
 
 // ─── Comercial · Mapa (estilo + separação das placas; persiste em localStorage) ──────────
 function MapSettingsSection() {
+  const [open, setOpen] = useState(false)   // FECHADO por padrão (acordeão, igual "Fases do funil")
   const [skin, setSkinState] = useState<MapSkin>('blue')
   const [sep, setSepState] = useState<number>(4)
   const [grouping, setGroupingState] = useState<MapGrouping>('cidade')
@@ -381,31 +382,38 @@ function MapSettingsSection() {
   const btn = (on: boolean) => cn('px-3 py-1.5 rounded-[8px] text-xs font-medium transition-colors', on ? 'bg-lime text-lime-ink' : 'text-bento-muted hover:text-bento-text')
   return (
     <div className="border-t border-bento-border/60 pt-4 space-y-3">
-      <div className="flex items-center gap-2 text-bento-text text-sm font-medium"><MapIcon className="w-4 h-4" />Mapa</div>
-      <div className="flex items-center justify-between gap-3 flex-wrap">
-        <div><p className="text-sm text-bento-text">Estilo do mapa</p><p className="font-tech text-[11px] text-bento-muted">Aparência do terreno</p></div>
-        <div className={seg}>
-          {([['blue', 'Blueprint'], ['holo', 'Holograma'], ['relevo', 'Relevo']] as [MapSkin, string][]).map(([v, l]) => (
-            <button key={v} onClick={() => pickSkin(v)} className={btn(skin === v)}>{l}</button>
-          ))}
+      <button onClick={() => setOpen(v => !v)} className={actionBtnCls} aria-expanded={open}>
+        <MapIcon className="w-4 h-4" />Mapa
+        <ChevronDown className={cn('w-4 h-4 transition-transform', open && 'rotate-180')} />
+      </button>
+      {open && (
+        <div className="pt-1 space-y-3">
+          <div className="flex items-center justify-between gap-3 flex-wrap">
+            <div><p className="text-sm text-bento-text">Estilo do mapa</p><p className="font-tech text-[11px] text-bento-muted">Aparência do terreno</p></div>
+            <div className={seg}>
+              {([['blue', 'Blueprint'], ['holo', 'Holograma'], ['relevo', 'Relevo']] as [MapSkin, string][]).map(([v, l]) => (
+                <button key={v} onClick={() => pickSkin(v)} className={btn(skin === v)}>{l}</button>
+              ))}
+            </div>
+          </div>
+          <div className="flex items-center justify-between gap-3 flex-wrap">
+            <div><p className="text-sm text-bento-text">Separação das placas</p><p className="font-tech text-[11px] text-bento-muted">Espaço entre as 3 regiões</p></div>
+            <div className={seg}>
+              {([[4, 'Justo'], [16, 'Espaçoso']] as [number, string][]).map(([v, l]) => (
+                <button key={v} onClick={() => pickSep(v)} className={btn(sep === v)}>{l}</button>
+              ))}
+            </div>
+          </div>
+          <div className="flex items-center justify-between gap-3 flex-wrap">
+            <div><p className="text-sm text-bento-text">Leads no mapa</p><p className="font-tech text-[11px] text-bento-muted">Por cidade (1 ponto/lead) ou agrupados por estado</p></div>
+            <div className={seg}>
+              {([['cidade', 'Por cidade'], ['estado', 'Por estado']] as [MapGrouping, string][]).map(([v, l]) => (
+                <button key={v} onClick={() => pickGrouping(v)} className={btn(grouping === v)}>{l}</button>
+              ))}
+            </div>
+          </div>
         </div>
-      </div>
-      <div className="flex items-center justify-between gap-3 flex-wrap">
-        <div><p className="text-sm text-bento-text">Separação das placas</p><p className="font-tech text-[11px] text-bento-muted">Espaço entre as 3 regiões</p></div>
-        <div className={seg}>
-          {([[4, 'Justo'], [16, 'Espaçoso']] as [number, string][]).map(([v, l]) => (
-            <button key={v} onClick={() => pickSep(v)} className={btn(sep === v)}>{l}</button>
-          ))}
-        </div>
-      </div>
-      <div className="flex items-center justify-between gap-3 flex-wrap">
-        <div><p className="text-sm text-bento-text">Leads no mapa</p><p className="font-tech text-[11px] text-bento-muted">Por cidade (1 ponto/lead) ou agrupados por estado</p></div>
-        <div className={seg}>
-          {([['cidade', 'Por cidade'], ['estado', 'Por estado']] as [MapGrouping, string][]).map(([v, l]) => (
-            <button key={v} onClick={() => pickGrouping(v)} className={btn(grouping === v)}>{l}</button>
-          ))}
-        </div>
-      </div>
+      )}
     </div>
   )
 }

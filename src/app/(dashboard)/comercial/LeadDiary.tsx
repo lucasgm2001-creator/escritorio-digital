@@ -398,7 +398,7 @@ export function LeadDiary({ lead, onClose, onUpdated, onMoveStage, onDeleted, cu
       <div className="w-full max-w-md h-[100dvh] bg-bento-panel border-l border-bento-border flex flex-col shadow-card-hover overflow-hidden">
         {/* Header — FIXO no topo (fora do scroll); swipe-pra-baixo fecha no celular. */}
         <div onTouchStart={onHeaderTouchStart} onTouchEnd={onHeaderTouchEnd}
-          className="shrink-0 flex items-start justify-between p-5 border-b border-border">
+          className="shrink-0 flex items-start justify-between px-5 pb-5 pt-[max(1.25rem,env(safe-area-inset-top))] border-b border-border">
           <div>
             <h2 className="font-bold text-foreground text-base">{currentLead.name}</h2>
             {currentLead.company && <p className="text-sm text-muted-foreground">{currentLead.company}</p>}
