@@ -71,6 +71,42 @@ const INTERACTION_LABEL: Record<string, string> = {
   briefing: 'Briefing IA', sistema: 'Sistema',
 }
 
+// Linha "rótulo: valor" do perfil. Vazio → "—" discreto (deixa claro o que falta, não some).
+function InfoRow({ label, value }: { label: string; value?: string | number | null }) {
+  const v = value == null || String(value).trim() === '' ? '' : String(value)
+  return (
+    <div className="flex items-baseline justify-between gap-3">
+      <span className="text-xs text-muted-foreground flex-none">{label}</span>
+      <span className={cn('text-sm text-right break-words', v ? 'text-bento-text' : 'text-bento-muted/50')}>{v || '—'}</span>
+    </div>
+  )
+}
+
+// Achata o raw_payload (incl. 1 nível aninhado, ex.: customData) em pares [chave, texto] não-vazios.
+function flattenPayload(obj: Record<string, unknown>): [string, string][] {
+  const out: [string, string][] = []
+  const eat = (o: unknown) => {
+    if (!o || typeof o !== 'object' || Array.isArray(o)) return
+    for (const [k, v] of Object.entries(o as Record<string, unknown>)) {
+      if (v && typeof v === 'object' && !Array.isArray(v)) { eat(v); continue }
+      const val = v == null ? '' : Array.isArray(v) ? v.join(', ') : String(v)
+      if (val.trim()) out.push([k, val.trim()])
+    }
+  }
+  eat(obj)
+  return out
+}
+
+// Chaves do raw_payload que JÁ aparecem como campo dedicado → não repetir em "Mais informações".
+const PAYLOAD_SKIP = new Set([
+  'name', 'full_name', 'first_name', 'last_name', 'email', 'phone',
+  'company', 'company_name', 'empresa', 'business', 'business_name', 'nome_da_empresa', 'negocio', 'negócio', 'razao_social',
+  'nicho', 'service', 'servico', 'serviço', 'tipo', 'tipo_de_negocio', 'business_type', 'niche', 'segmento', 'segment',
+  'value', 'valor', 'orcamento', 'orçamento', 'budget', 'investimento', 'faturamento', 'revenue',
+  'message', 'mensagem', 'observacao', 'observação', 'obs', 'comentario', 'comentário', 'comments', 'duvida', 'dúvida', 'nota',
+  'state', 'estado', 'uf', 'city', 'cidade', 'municipio', 'município',
+])
+
 export function LeadDiary({ lead, onClose, onUpdated, onMoveStage, onDeleted, currentUser, stages }: Props) {
   const [interactions, setInteractions] = useState<Interaction[]>([])
   const [currentLead, setCurrentLead] = useState<Lead>(lead)
@@ -338,6 +374,33 @@ export function LeadDiary({ lead, onClose, onUpdated, onMoveStage, onDeleted, cu
             </svg>
           </button>
         </div>
+
+        {/* Informações do lead (cadastro/formulário) — somente leitura; campo vazio = "—". */}
+        <div className="px-5 py-3 border-b border-border space-y-1.5">
+          <InfoRow label="Empresa" value={currentLead.company} />
+          <InfoRow label="E-mail" value={currentLead.email} />
+          <InfoRow label="Telefone" value={currentLead.phone} />
+          <InfoRow label="Nicho" value={currentLead.nicho} />
+          <InfoRow label="Cidade" value={currentLead.city} />
+          <InfoRow label="Estado" value={currentLead.state} />
+          <InfoRow label="DDD" value={currentLead.area_code} />
+          <InfoRow label="Origem" value={currentLead.origem} />
+          <InfoRow label="Mensagem" value={currentLead.notes} />
+        </div>
+
+        {/* Mais informações — campos EXTRAS do formulário (raw_payload) sem coluna própria. */}
+        {currentLead.raw_payload && (() => {
+          const extras = flattenPayload(currentLead.raw_payload).filter(([k]) => !PAYLOAD_SKIP.has(k.toLowerCase()))
+          if (!extras.length) return null
+          return (
+            <div className="px-5 py-3 border-b border-border">
+              <span className="text-xs text-muted-foreground">Mais informações</span>
+              <div className="mt-1.5 space-y-1.5">
+                {extras.map(([k, v]) => <InfoRow key={k} label={k} value={v} />)}
+              </div>
+            </div>
+          )
+        })()}
 
         {/* Fase — seletor (alternativa ao arrastar; vale mobile e desktop) */}
         <div className="px-5 py-3 border-b border-border relative">

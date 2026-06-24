@@ -28,6 +28,7 @@ export interface Lead {
   city?: string | null        // cidade (EUA) — Mapa de Clientes
   state?: string | null       // estado (EUA), sigla de 2 letras — Mapa de Clientes
   area_code?: string | null   // DDD (area code) — Mapa de Clientes
+  raw_payload?: Record<string, unknown> | null   // payload BRUTO do formulário/Magnetic (inbound) — nada se perde
 }
 
 // Fuso horário (EUA) — valor interno → label exibido. Compartilhado (Contatos + formulários de lead/cliente).

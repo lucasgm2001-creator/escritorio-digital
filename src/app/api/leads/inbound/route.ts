@@ -3,20 +3,37 @@ import { createHash, timingSafeEqual } from 'crypto'
 import { createServiceClient } from '@/lib/supabase/service'
 import { stateToFuso } from '@/lib/fuso'
 import { logStageEvent } from '@/lib/stageEvents'
+import { US_STATES } from '@/lib/usStates'
+import usMap from '@/data/us-map.json'
 
 // Webhook PÚBLICO — o Magnetic (GoHighLevel) chama a cada lead novo e nós inserimos no funil
 // (tabela `leads`), com os MESMOS defaults de um lead criado à mão. Sem sessão de usuário → usamos
 // o client service-role (createServiceClient). Protegido por segredo compartilhado.
 //
+// Mapeamento (PROMPT 28): cada campo do formulário vai pra COLUNA certa (não mais tudo em notes):
+//   nome→name, empresa(SÓ o nome)→company, email→email, telefone→phone, serviço/tipo→nicho,
+//   valor/orçamento→value, mensagem→notes (texto limpo). Geografia US (city/state/area_code) vem
+//   do DDD do telefone (sinal CONFIÁVEL de EUA) via us-map.json; o "Estado" do formulário só
+//   sobrescreve se for um estado US VÁLIDO (no form ele às vezes é o estado BRASILEIRO da pessoa).
+//   O PAYLOAD INTEIRO é gravado em raw_payload (jsonb) → nada do formulário se perde.
+//
+// ⚠️ origem: a tabela `leads` tem CHECK (origem in instagram/google/indicacao/tiktok/site/outro),
+// então NÃO dá pra gravar 'Magnetic' direto (o insert falharia). Gravamos origem='outro' e a fonte
+// real fica em raw_payload. Pra ter um valor 'magnetic' de verdade é preciso migration (chat decide).
+//
 // Envs esperadas:
 //   - INBOUND_WEBHOOK_SECRET   (segredo compartilhado; header "x-webhook-secret" ou ?secret=)
 //   - NEXT_PUBLIC_SUPABASE_URL  +  SUPABASE_SERVICE_ROLE_KEY  (lidas dentro de createServiceClient)
-//
-// ⚠️ origem: a tabela `leads` tem CHECK (origem in instagram/google/indicacao/tiktok/site/outro),
-// então NÃO dá pra gravar 'Magnetic' direto. Gravamos origem='outro' e marcamos "Origem: Magnetic"
-// nas notas (info preservada). Pra ter um valor 'magnetic' de verdade, é preciso migration (à parte).
 
 export const runtime = 'nodejs'
+
+// Vendedor responsável padrão dos leads do Magnetic (perfil "Lucas"; FK profiles validada).
+const ASSIGNED_TO = '623dd724-ddeb-426c-956a-4c71f6653fa5'
+const ASSIGNED_NAME = 'Lucas'
+
+const AREA_CODES = (usMap as { areaCodes: Record<string, { st: string; city: string }> }).areaCodes
+const US_CODE = new Set(US_STATES.map(s => s.code))
+const US_NAME_TO_CODE = new Map(US_STATES.map(s => [s.name.toLowerCase(), s.code]))
 
 // Compara o segredo em tempo constante (sha256 garante buffers do mesmo tamanho). Nunca loga o segredo.
 function secretOk(req: Request): boolean {
@@ -35,13 +52,58 @@ function secretOk(req: Request): boolean {
 
 const str = (v: unknown): string => (v == null ? '' : String(v).trim())
 
-// Procura, case-insensitive, o 1º valor não-vazio entre as chaves pedidas.
-function findKeyCI(obj: Record<string, unknown>, keys: string[]): string {
-  const want = new Set(keys.map(k => k.toLowerCase()))
-  for (const [k, v] of Object.entries(obj)) {
-    if (want.has(k.toLowerCase())) { const s = str(v); if (s) return s }
+// Achata TODOS os pares chave→valor do payload (incluindo aninhados em customData/customFields/
+// custom_fields do GHL) num mapa case-insensitive. 1ª ocorrência não-vazia vence.
+function flattenCI(body: Record<string, unknown>): Map<string, string> {
+  const out = new Map<string, string>()
+  const eat = (obj: unknown) => {
+    if (!obj || typeof obj !== 'object' || Array.isArray(obj)) return
+    for (const [k, v] of Object.entries(obj as Record<string, unknown>)) {
+      if (v && typeof v === 'object' && !Array.isArray(v)) { eat(v); continue }
+      const key = k.toLowerCase(); const val = str(v)
+      if (val && !out.has(key)) out.set(key, val)
+    }
   }
+  eat(body)
+  return out
+}
+// 1º valor não-vazio entre as chaves pedidas (case-insensitive).
+function pick(map: Map<string, string>, keys: string[]): string {
+  for (const k of keys) { const v = map.get(k.toLowerCase()); if (v) return v }
   return ''
+}
+
+// "NC" | "north carolina" → "NC"; lixo / estado BRASILEIRO (MG, GO…) → '' (não é estado US).
+function normalizeUsState(raw: string): string {
+  const s = raw.trim()
+  if (!s) return ''
+  const up = s.toUpperCase()
+  if (up.length === 2 && US_CODE.has(up)) return up
+  return US_NAME_TO_CODE.get(s.toLowerCase()) ?? ''
+}
+
+// DDD a partir do telefone US (+1). 11+ díg. começando com 1 → [1..3]; 10 díg. → [0..2]. (Mesma
+// regra do ClienteModal/PROMPT 17.)
+function areaCodeFromPhone(phone: string): string {
+  const digits = phone.replace(/\D/g, '')
+  if (digits.length >= 11 && digits[0] === '1') return digits.slice(1, 4)
+  if (digits.length === 10) return digits.slice(0, 3)
+  return ''
+}
+
+// Valor/orçamento (formato US best-effort): vírgula = milhar, ponto = decimal. Sem número → 0.
+function parseValue(raw: string): number {
+  const cleaned = raw.replace(/[^\d.,]/g, '')
+  if (!cleaned) return 0
+  const n = Number(cleaned.replace(/,/g, ''))
+  return Number.isFinite(n) && n >= 0 ? n : 0
+}
+
+// Heurística: parece ENDEREÇO (não nome de empresa)? CEP US ou logradouro → sim. Evita endereço
+// caindo na coluna company (bug do mapeamento antigo).
+function looksLikeAddress(s: string): boolean {
+  if (/\d{5}(?:-\d{4})?/.test(s)) return true
+  return /\b(st|street|ave|avenue|rd|road|dr|drive|blvd|way|lane|ln|court|ct|hwy)\b/i.test(s)
 }
 
 export async function POST(req: Request) {
@@ -57,11 +119,13 @@ export async function POST(req: Request) {
   } catch {
     return NextResponse.json({ ok: false, error: 'invalid_json' }, { status: 400 })
   }
-  // Loga o payload BRUTO (pra vermos os nomes reais dos campos do GHL). NUNCA loga segredo/keys.
+  // Loga o payload BRUTO (pra confirmarmos os nomes reais dos campos do GHL). NUNCA loga segredo/keys.
   console.log('[leads/inbound] payload:', JSON.stringify(body))
 
   try {
-    // 3) Mapeamento best-effort (resiliente a campo faltando).
+    const flat = flattenCI(body)
+
+    // 3) NOME.
     const first = str(body.first_name)
     const last = str(body.last_name)
     const name =
@@ -69,42 +133,51 @@ export async function POST(req: Request) {
       [first, last].filter(Boolean).join(' ').trim() ||
       str(body.name) ||
       first
+
+    // 4) CONTATO.
     const email = str(body.email)
     const phone = str(body.phone)
-    const company = str(body.company_name) || str(body.company)
 
-    // Notas legíveis ("Chave: valor | ..."): marca a origem (Magnetic) + campos úteis + custom fields.
-    const extras: string[] = ['Origem: Magnetic']
-    const add = (label: string, v: unknown) => { const s = str(v); if (s) extras.push(`${label}: ${s}`) }
-    add('Serviço', body.service ?? body['servico'] ?? body['serviço'])
-    add('Estado', body.state ?? body['estado'])
-    add('Cidade', body.city ?? body['cidade'])
-    add('Mensagem', body.message ?? body['mensagem'])
-    add('Fonte GHL', body.source)
-    const custom = body.customData ?? body.customFields ?? body['custom_fields']
-    if (custom && typeof custom === 'object') {
-      for (const [k, v] of Object.entries(custom as Record<string, unknown>)) add(k, v)
-    }
-    const notes = extras.join(' | ')
-
-    // 3b) Fuso automático a partir do estado: (a) payload (state/estado, inclusive em customData/
-    //     customFields, case-insensitive) → (b) fallback regex nas notes que montamos acima.
-    const customObj = custom && typeof custom === 'object' ? (custom as Record<string, unknown>) : {}
-    let stateRaw = findKeyCI(body, ['state', 'estado']) || findKeyCI(customObj, ['state', 'estado'])
-    if (!stateRaw) {
-      const m = notes.match(/(?:estado|state)\s*:\s*([^|.]+)/i)
-      if (m) stateRaw = m[1].trim()
-    }
-    const fuso = stateToFuso(stateRaw)
-
-    // 4) Sem nome, e-mail e telefone → ignora (não insere).
+    // 5) Sem nome, e-mail e telefone → ignora (não insere).
     if (!name && !email && !phone) {
       return NextResponse.json({ ok: true, ignored: 'empty' })
     }
 
+    // 6) EMPRESA (SÓ o nome do negócio; nunca endereço/cidade/estado).
+    const companyRaw = pick(flat, [
+      'company_name', 'company', 'empresa', 'business_name', 'business', 'nome_da_empresa', 'nome da empresa',
+      'negocio', 'negócio', 'razao_social',
+    ])
+    const company = companyRaw && !looksLikeAddress(companyRaw) ? companyRaw : null
+
+    // 7) NICHO (tipo de serviço/negócio).
+    const nicho = pick(flat, [
+      'nicho', 'service', 'servico', 'serviço', 'tipo_de_negocio', 'tipo de negócio', 'business_type',
+      'niche', 'segmento', 'segment', 'tipo',
+    ]) || null
+
+    // 8) VALOR / ORÇAMENTO.
+    const value = parseValue(pick(flat, ['value', 'valor', 'orcamento', 'orçamento', 'budget', 'investimento', 'faturamento', 'revenue']))
+
+    // 9) MENSAGEM → notes (texto LIMPO; sem "Origem: X | Estado: Y").
+    const notes = pick(flat, ['message', 'mensagem', 'observacao', 'observação', 'obs', 'comentario', 'comentário', 'comments', 'duvida', 'dúvida', 'nota']) || null
+
+    // 10) GEOGRAFIA US — base no DDD do telefone (sinal confiável de EUA); o "Estado" do formulário
+    //     só entra se for estado US VÁLIDO (no form às vezes é o estado BR da pessoa).
+    const area_code = areaCodeFromPhone(phone) || null
+    let state: string | null = null
+    let city: string | null = null
+    if (area_code && AREA_CODES[area_code]) { state = AREA_CODES[area_code].st; city = AREA_CODES[area_code].city }
+    const payloadState = normalizeUsState(pick(flat, ['state', 'estado', 'uf']))
+    const payloadCity = pick(flat, ['city', 'cidade', 'municipio', 'município'])
+    if (payloadState) { state = payloadState; if (payloadCity) city = payloadCity }
+
+    // 11) Fuso a partir do estado US final (não do texto cru do formulário).
+    const fuso = stateToFuso(state ?? '')
+
     const supabase = createServiceClient()
 
-    // 5) Dedup: já existe lead com o MESMO email OU o MESMO phone? (o que vier)
+    // 12) Dedup: já existe lead com o MESMO email OU o MESMO phone? (o que vier)
     if (email) {
       const { data } = await supabase.from('leads').select('id').eq('email', email).limit(1)
       if (data && data.length) return NextResponse.json({ ok: true, duplicate: true })
@@ -114,26 +187,30 @@ export async function POST(req: Request) {
       if (data && data.length) return NextResponse.json({ ok: true, duplicate: true })
     }
 
-    // 6) Insere com os MESMOS padrões de um lead manual (LeadModal): status 'novo' (1º estágio,
-    //    "Novo Lead"), operation 'eua', prioridade 'media', value 0, score 500. assigned ao Lucas
-    //    (assigned_to null evita a FK de profiles, como na criação manual). received_at: default do banco.
+    // 13) Insere com os MESMOS padrões de um lead manual (status 'novo', operation 'eua', prioridade
+    //     'media', score 500) + colunas mapeadas + raw_payload (payload inteiro). assigned ao Lucas.
     const { data, error } = await supabase
       .from('leads')
       .insert({
         name: name || 'Sem nome',
         email: email || null,
         phone: phone || null,
-        company: company || null,
+        company,
+        nicho,
+        city,
+        state,
+        area_code,
+        value,
         notes,
         status: 'novo',
         operation: 'eua',
-        origem: 'outro',          // CHECK não aceita 'Magnetic' → 'outro' + nota "Origem: Magnetic"
+        origem: 'outro',          // CHECK não aceita 'Magnetic' → fonte real preservada em raw_payload
         prioridade: 'media',
-        value: 0,
         score: 500,
-        assigned_to: null,
-        assigned_name: 'Lucas',
-        ...(fuso ? { fuso } : {}),   // só seta se reconhecemos o estado (null → não envia)
+        assigned_to: ASSIGNED_TO,
+        assigned_name: ASSIGNED_NAME,
+        raw_payload: body,
+        ...(fuso ? { fuso } : {}),   // só seta se reconhecemos o estado US (null → não envia)
       })
       .select('id')
       .single()
@@ -147,7 +224,7 @@ export async function POST(req: Request) {
     await logStageEvent(supabase, {
       leadId: data.id, leadName: name || 'Sem nome',
       fromStage: null, toStage: 'novo',
-      sellerId: null, sellerName: 'Lucas',
+      sellerId: null, sellerName: ASSIGNED_NAME,
     })
 
     return NextResponse.json({ ok: true, leadId: data.id })
