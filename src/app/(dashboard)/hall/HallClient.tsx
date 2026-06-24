@@ -3,7 +3,8 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { cn, timeAgo } from '@/lib/utils'
+import { cn } from '@/lib/utils'
+import { TimeAgo } from '@/components/system/TimeAgo'
 import { Panel } from '@/components/bento/Panel'
 import { LiveDot } from '@/components/bento/LiveDot'
 import { AgentChat } from './AgentChat'
@@ -148,7 +149,7 @@ function HistoryModal({ kind, onClose }: {
                   <div className={`w-7 h-7 rounded-md flex items-center justify-center shrink-0 ${ACTIVITY_COLORS[a.type] ?? 'bg-slate-800/60 text-slate-400'}`}>{ACTIVITY_ICONS[a.type]}</div>
                   <div className="min-w-0 flex-1">
                     <p className="text-sm text-bento-text leading-snug">{a.description}</p>
-                    <p className="font-tech text-xs text-bento-muted mt-0.5">{a.user_name ? `${a.user_name} · ` : ''}{timeAgo(a.created_at)}</p>
+                    <p className="font-tech text-xs text-bento-muted mt-0.5">{a.user_name ? `${a.user_name} · ` : ''}<TimeAgo date={a.created_at} /></p>
                   </div>
                 </div>
               ))}
@@ -162,7 +163,7 @@ function HistoryModal({ kind, onClose }: {
                     <span className={`shrink-0 text-[10px] px-2 py-0.5 rounded-full border font-semibold ${NOTICE_PILL[n.priority] ?? 'border-bento-border text-bento-muted'}`}>{NOTICE_LABEL[n.priority] ?? n.priority}</span>
                   </div>
                   {n.content && <p className="text-xs text-bento-dim">{n.content}</p>}
-                  {n.author_name && <p className="font-tech text-xs text-bento-muted/70 mt-1">— {n.author_name} · {timeAgo(n.created_at)}</p>}
+                  {n.author_name && <p className="font-tech text-xs text-bento-muted/70 mt-1">— {n.author_name} · <TimeAgo date={n.created_at} /></p>}
                 </div>
               ))}
             </div>
@@ -455,7 +456,7 @@ export function HallClient({ initialActivities, initialNotices, initialTasks, li
                         <p className="text-sm text-bento-text leading-snug">{a.description}</p>
                         <div className="flex items-center gap-1.5 mt-0.5">
                           {a.user_name && <><p className="text-xs text-bento-muted">{a.user_name}</p><span className="text-bento-muted/50 text-xs">·</span></>}
-                          <p className="font-tech text-xs text-bento-muted">{timeAgo(a.created_at)}</p>
+                          <p className="font-tech text-xs text-bento-muted"><TimeAgo date={a.created_at} /></p>
                         </div>
                       </div>
                     </div>
@@ -569,7 +570,7 @@ export function HallClient({ initialActivities, initialNotices, initialTasks, li
                           </div>
                         </div>
                         <p className="text-xs text-bento-dim">{n.content}</p>
-                        {n.author_name && <p className="font-tech text-xs text-bento-muted/70 mt-1">— {n.author_name} · {timeAgo(n.created_at)}</p>}
+                        {n.author_name && <p className="font-tech text-xs text-bento-muted/70 mt-1">— {n.author_name} · <TimeAgo date={n.created_at} /></p>}
                       </div>
                     ))}
                     </>

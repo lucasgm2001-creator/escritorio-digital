@@ -6,7 +6,8 @@ import { payDueWeeks, voidClientWeek } from '@/lib/commission/actions'
 import { ClienteModal } from './ClienteModal'
 import { createClient } from '@/lib/supabase/client'
 import { useSave } from '@/lib/useSave'
-import { formatCurrency, formatDate, timeAgo } from '@/lib/utils'
+import { formatCurrency, formatDate } from '@/lib/utils'
+import { TimeAgo } from '@/components/system/TimeAgo'
 import { useToast } from '@/components/ui/toast'
 import { FUSO_OPTIONS } from '../comercial/types'
 import { US_STATES, sanitizeAreaCode } from '@/lib/usStates'
@@ -221,7 +222,7 @@ function ClientRow({
                   <span className="w-1 h-1 rounded-full bg-lime mt-1.5 shrink-0" />
                   <div className="flex-1 min-w-0">
                     <span className="text-bento-dim">{a.description}</span>
-                    <span className="text-bento-muted ml-2">— {a.user_name} · {timeAgo(a.created_at)}</span>
+                    <span className="text-bento-muted ml-2">— {a.user_name} · <TimeAgo date={a.created_at} /></span>
                   </div>
                 </div>
               ))}

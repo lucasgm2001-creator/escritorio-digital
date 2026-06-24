@@ -5,7 +5,8 @@ import { createClient } from '@/lib/supabase/client'
 import { useToast } from '@/components/ui/toast'
 import { getScoreInfo } from '@/lib/utils/score'
 import { markMilestones } from '@/lib/leadMilestones'
-import { cn, timeAgo } from '@/lib/utils'
+import { cn } from '@/lib/utils'
+import { TimeAgo } from '@/components/system/TimeAgo'
 import { ALL_COLUMNS, FUSO_OPTIONS, type Lead, type LeadStatus, type ColumnTone } from './types'
 import { type FunnelStage } from '@/lib/funnelStages'
 import { usdCompact } from '@/lib/format'
@@ -603,7 +604,7 @@ export function LeadDiary({ lead, onClose, onUpdated, onMoveStage, onDeleted, cu
                           {i.score_delta > 0 ? '+' : ''}{i.score_delta}
                         </span>
                       )}
-                      <span className="ml-auto text-xs text-muted-foreground">{timeAgo(i.created_at)}</span>
+                      <TimeAgo className="ml-auto text-xs text-muted-foreground" date={i.created_at} />
                     </div>
                     {i.note && <p className="text-xs text-muted-foreground mt-0.5 whitespace-pre-wrap break-words">{i.note}</p>}
                     {i.created_by_name && <p className="text-xs text-muted-foreground mt-0.5">— {i.created_by_name}</p>}

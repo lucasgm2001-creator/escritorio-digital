@@ -3,7 +3,8 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useRealtimeRows } from '@/lib/hooks/useRealtimeRows'
-import { cn, timeAgo } from '@/lib/utils'
+import { cn } from '@/lib/utils'
+import { TimeAgo } from '@/components/system/TimeAgo'
 import { Panel } from '@/components/bento/Panel'
 import { Newspaper, ExternalLink } from 'lucide-react'
 
@@ -146,7 +147,7 @@ function NewsCard({ n }: { n: News }) {
           : <span className="font-tech text-[10px] text-bento-muted truncate">{n.fonte_nome || ''}</span>}
         <span className="flex items-center gap-1.5 flex-none">
           {hasMore && <button type="button" onClick={() => setOpen(o => !o)} className="font-tech text-[10px] text-lime-fg hover:text-lime">{open ? 'menos' : 'ver mais'}</button>}
-          <span className="font-tech text-[10px] text-bento-muted">{timeAgo(n.published_at || n.fetched_at)}</span>
+          <TimeAgo className="font-tech text-[10px] text-bento-muted" date={n.published_at || n.fetched_at} />
         </span>
       </div>
     </div>
