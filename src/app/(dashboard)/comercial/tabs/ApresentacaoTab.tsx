@@ -452,12 +452,12 @@ export function ApresentacaoTab() {
 
   return (
     <div className="flex flex-col h-full">
-      {/* Sub-tabs */}
+      {/* Sub-tabs — rolam na horizontal no celular (sem quebrar linha); header fixo já não rola. */}
       <div className="px-4 sm:px-6 pt-4 shrink-0">
-        <div className="flex items-center gap-1 border-b border-bento-border">
+        <div className="flex flex-nowrap items-center gap-1 border-b border-bento-border overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           {TABS.map(t => (
             <button key={t.key} onClick={() => setView(t.key)}
-              className={cn('flex items-center gap-2 px-3 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors',
+              className={cn('flex items-center gap-2 px-3 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors shrink-0 whitespace-nowrap',
                 view === t.key ? 'border-lime text-lime-fg' : 'border-transparent text-bento-muted hover:text-bento-text')}>
               <t.Icon className="w-4 h-4" />
               {t.label}
