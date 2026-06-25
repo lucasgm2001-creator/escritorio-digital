@@ -12,14 +12,14 @@ import { rangeFor, type Mode, type Range } from '@/lib/period'
 
 const REPORT_MODES: [Mode, string][] = [['semana', 'Semana'], ['mes', 'Mês'], ['semestre', 'Semestre'], ['ano', 'Ano']]
 
-interface LeadRow { id: string; name: string; company: string | null; status: string; received_at: string | null; incluir_no_relatorio: boolean | null }
+interface LeadRow { id: string; name: string; company: string | null; status: string; received_at: string | null; created_at: string | null; incluir_no_relatorio: boolean | null }
 interface MsRow { lead_id: string; marco: string }
 interface ClientRow { id: string; name: string; company: string | null; status: string }
 interface StageRow { slug: string; nome: string; posicao: number }
 
 export function RelatorioComercial() {
   const supabase = createClient()
-  const [range, setRange] = useState<Range>(() => rangeFor('ano'))   // padrão: ano (mostra o all-time)
+  const [range, setRange] = useState<Range>(() => rangeFor('semana'))   // padrão: semana
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [leads, setLeads] = useState<LeadRow[]>([])
@@ -33,7 +33,7 @@ export function RelatorioComercial() {
     ;(async () => {
       setLoading(true)
       const [lr, mr, cr, sr] = await Promise.all([
-        supabase.from('leads').select('id, name, company, status, received_at, incluir_no_relatorio'),
+        supabase.from('leads').select('id, name, company, status, received_at, created_at, incluir_no_relatorio'),
         supabase.from('lead_milestones').select('lead_id, marco'),
         supabase.from('clients').select('id, name, company, status').order('name'),
         supabase.from('funnel_stages').select('slug, nome, posicao').order('posicao'),
@@ -52,16 +52,19 @@ export function RelatorioComercial() {
   // Métricas + agrupamento por desfecho. Filtro: incluir_no_relatorio≠false, fora da Lixeira,
   // received_at dentro do período (parse como meia-noite LOCAL p/ não escorregar de dia por fuso).
   const r = useMemo(() => {
+    // Eixo = received_at; se null (lead manual/antigo), cai em created_at (como o MetricasTab) p/ não
+    // sumir do relatório. slice(0,10) = defensivo caso venha timestamp completo.
     const inPeriod = (d?: string | null) => {
       if (!d) return false
-      const t = new Date(`${d}T00:00:00`).getTime()
+      const t = new Date(`${String(d).slice(0, 10)}T00:00:00`).getTime()
+      if (Number.isNaN(t)) return false
       return t >= range.start.getTime() && t <= range.end.getTime()
     }
     const byLead = new Map<string, Set<string>>()
     for (const m of ms) { if (!byLead.has(m.lead_id)) byLead.set(m.lead_id, new Set()); byLead.get(m.lead_id)!.add(m.marco) }
     const has = (id: string, marco: string) => byLead.get(id)?.has(marco) ?? false
 
-    const inc = leads.filter(l => l.incluir_no_relatorio !== false && l.status !== 'lixeira' && inPeriod(l.received_at))
+    const inc = leads.filter(l => l.incluir_no_relatorio !== false && l.status !== 'lixeira' && inPeriod(l.received_at || l.created_at))
     const chegaram = inc.length
     const reunioes = inc.filter(l => has(l.id, 'reuniao')).length
     const vendas = inc.filter(l => has(l.id, 'fechou')).length

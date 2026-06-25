@@ -7,7 +7,7 @@ import { Phone, MessageCircle, FileText, ArrowRight, ChevronDown, Check } from '
 import { cn } from '@/lib/utils'
 import { daysInStage, heatLevel, nextActionLabel, type Heat } from './leadSignals'
 import { LeadTasks } from './LeadTasks'
-import { ALL_COLUMNS, type Lead, type LeadStatus } from './types'
+import { type Lead, type LeadStatus } from './types'
 
 const HEAT: Record<Heat, { dot: string; text: string; label: string }> = {
   hot:  { dot: 'bg-lime',      text: 'text-lime-fg',   label: 'Quente' },
@@ -17,9 +17,10 @@ const HEAT: Record<Heat, { dot: string; text: string; label: string }> = {
 
 const onlyDigits = (s?: string) => (s ?? '').replace(/\D/g, '')
 
-export function FunnelLeadCard({ lead, coldDays, onMove, onOpenDiary, onLog, userId }: {
+export function FunnelLeadCard({ lead, coldDays, moveTargets, onMove, onOpenDiary, onLog, userId }: {
   lead: Lead
   coldDays?: number | null   // dias_esfriamento da fase (limite "esfriando"); null = padrão global
+  moveTargets: { key: LeadStatus; label: string }[]   // fases REAIS (funnel_stages) p/ o "Mover para"
   onMove: (status: LeadStatus) => void
   onOpenDiary: () => void
   onLog: (type: string) => void
@@ -94,7 +95,7 @@ export function FunnelLeadCard({ lead, coldDays, onMove, onOpenDiary, onLog, use
           <div className="rounded-lg border border-bento-border bg-bento-bg p-2">
             <p className="font-tech text-[10px] text-bento-muted mb-1.5">Mover para</p>
             <div className="grid grid-cols-2 gap-1">
-              {ALL_COLUMNS.map(c => {
+              {moveTargets.map(c => {
                 const current = c.key === lead.status
                 return (
                   <button

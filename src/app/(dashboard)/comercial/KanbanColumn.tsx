@@ -35,9 +35,10 @@ const NAME_COLOR: Record<ColumnTone, string> = {
   loss:    'text-[#EF4444]',
 }
 
-export function KanbanColumn({ column, leads, onMove, onOpenDiary, onLog, userId }: {
+export function KanbanColumn({ column, leads, moveTargets, onMove, onOpenDiary, onLog, userId }: {
   column: ColumnConfig
   leads: Lead[]
+  moveTargets: { key: LeadStatus; label: string }[]
   onMove: (lead: Lead, status: LeadStatus) => void
   onOpenDiary: (lead: Lead) => void
   onLog: (lead: Lead, type: string) => void
@@ -106,7 +107,7 @@ export function KanbanColumn({ column, leads, onMove, onOpenDiary, onLog, userId
                 </div>
               ) : (
                 leads.map(l => (
-                  <FunnelLeadCard key={l.id} lead={l} coldDays={column.coldDays} onMove={(s) => onMove(l, s)} onOpenDiary={() => onOpenDiary(l)} onLog={(t) => onLog(l, t)} userId={userId} />
+                  <FunnelLeadCard key={l.id} lead={l} coldDays={column.coldDays} moveTargets={moveTargets} onMove={(s) => onMove(l, s)} onOpenDiary={() => onOpenDiary(l)} onLog={(t) => onLog(l, t)} userId={userId} />
                 ))
               )}
             </SortableContext>

@@ -131,6 +131,8 @@ export function KanbanBoard({ initialLeads, initialStages, initialClients, curre
     return Array.from(map.entries()).map(([name, columns]) => ({ name, columns }))
   }, [cols])
   const wonStatus = useMemo(() => wonSlug(initialStages) as LeadStatus, [initialStages])
+  // Alvos de "Mover para" no card = fases REAIS (renomeadas/novas refletem), não ALL_COLUMNS fixo.
+  const moveTargets = useMemo(() => cols.map(c => ({ key: c.key, label: c.label })), [cols])
 
   const showToast = (message: string, type: 'success' | 'error' = 'success') => {
     setToast({ message, type })
@@ -306,6 +308,7 @@ export function KanbanBoard({ initialLeads, initialStages, initialClients, curre
                             key={col.key}
                             column={col}
                             leads={filteredLeads.filter(l => l.status === col.key)}
+                            moveTargets={moveTargets}
                             onMove={moveLeadToStatus}
                             onOpenDiary={setSelectedLead}
                             onLog={logInteraction}

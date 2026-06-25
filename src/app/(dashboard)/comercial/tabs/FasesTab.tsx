@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react'
 import {
   DndContext, PointerSensor, useSensor, useSensors, closestCenter, type DragEndEvent,
 } from '@dnd-kit/core'
-import { SortableContext, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable'
+import { SortableContext, useSortable, arrayMove, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { ChevronUp, ChevronDown, ChevronRight, GripVertical, Plus, Lock, Trash2, X, Pencil, Check } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
@@ -80,30 +80,35 @@ export function FasesTab() {
   const sel = selSlug ? stages.find(s => s.slug === selSlug) ?? null : null
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }))
 
-  // Persiste uma ordem PLANA (slug + grupo) → grava posicao (índice+1) e grupo só nas linhas que mudaram.
+  // Persiste uma ordem PLANA (slug + grupo) → grava posicao (índice+1) e grupo só nas linhas que
+  // mudaram. O diff é calculado DENTRO do setStages(prev) → 2 drags rápidos não gravam posicao errada.
   const persist = async (ordered: { slug: string; grupo: string | null }[]) => {
-    setStages(prev => ordered.map((o, i) => ({ ...prev.find(p => p.slug === o.slug)!, posicao: i + 1, grupo: o.grupo })))
-    for (let i = 0; i < ordered.length; i++) {
-      const o = ordered[i]; const orig = stages.find(s => s.slug === o.slug); const pos = i + 1
-      if (orig && (orig.posicao !== pos || (orig.grupo ?? null) !== (o.grupo ?? null))) {
-        await supabase.from('funnel_stages').update({ posicao: pos, grupo: o.grupo }).eq('slug', o.slug)
-      }
-    }
+    let updates: { slug: string; posicao: number; grupo: string | null }[] = []
+    setStages(prev => {
+      updates = ordered.flatMap((o, i) => {
+        const orig = prev.find(p => p.slug === o.slug); const pos = i + 1
+        return orig && (orig.posicao !== pos || (orig.grupo ?? null) !== (o.grupo ?? null))
+          ? [{ slug: o.slug, posicao: pos, grupo: o.grupo }] : []
+      })
+      return ordered.map((o, i) => ({ ...prev.find(p => p.slug === o.slug)!, posicao: i + 1, grupo: o.grupo }))
+    })
+    for (const u of updates) await supabase.from('funnel_stages').update({ posicao: u.posicao, grupo: u.grupo }).eq('slug', u.slug)
   }
 
   // Arrastar fase: reordena dentro do grupo OU entra noutro grupo (soltando sobre um card de lá).
+  // arrayMove (dnd-kit) calcula o índice destino certo — sem off-by-one ao remover antes de inserir.
   const onDragEnd = async (e: DragEndEvent) => {
     const { active, over } = e
     if (!over || active.id === over.id) return
     const flat = buildGroups(stages).flatMap(g => g.items.map(s => ({ slug: s.slug, grupo: g.name === NO_GROUP ? null : g.name })))
     const from = flat.findIndex(f => f.slug === active.id)
-    if (from < 0) return
-    const targetGroup = flat.find(f => f.slug === over.id)?.grupo ?? null
-    const [moved] = flat.splice(from, 1)
-    moved.grupo = targetGroup
     const to = flat.findIndex(f => f.slug === over.id)
-    flat.splice(to < 0 ? flat.length : to, 0, moved)
-    await persist(flat)
+    if (from < 0 || to < 0) return
+    const targetGroup = flat[to].grupo
+    const moved = arrayMove(flat, from, to)
+    const idx = moved.findIndex(f => f.slug === active.id)
+    moved[idx] = { ...moved[idx], grupo: targetGroup }
+    await persist(moved)
   }
 
   // Reordenar GRUPO (só entre grupos COM fases; grupos vazios ficam no fim, ordem local).
@@ -127,6 +132,8 @@ export function FasesTab() {
     const nn = renameDraft.trim()
     setEditingGroup(null)
     if (!nn || nn === oldName || oldName === NO_GROUP) return
+    // Nome já existe → seria MERGE silencioso. Confirma antes (evita fundir A em B sem querer).
+    if (groupNames.some(n => n !== oldName && n === nn) && !window.confirm(`Já existe um grupo "${nn}". Mesclar as fases de "${oldName}" nele?`)) return
     const hasStages = stages.some(s => ((s.grupo && s.grupo.trim()) || NO_GROUP) === oldName)
     if (hasStages) {
       setBusy(true)
@@ -208,6 +215,9 @@ export function FasesTab() {
             {displayGroups.map((g, gi) => {
               const isClosed = collapsed.has(g.name)
               const editing = editingGroup === g.name
+              // Setas só ativas entre grupos COM fases (igual o guard do moveGroup) → sem no-op enganoso.
+              const canUp = g.items.length > 0 && displayGroups.slice(0, gi).some(x => x.items.length > 0)
+              const canDown = g.items.length > 0 && displayGroups.slice(gi + 1).some(x => x.items.length > 0)
               return (
                 <div key={g.name} className="bento-fx p-2">
                   {/* Cabeçalho do grupo: colapsar + nome(renome inline) + contagem + reordenar + adicionar fase */}
@@ -230,8 +240,8 @@ export function FasesTab() {
                       <button onClick={() => { setEditingGroup(g.name); setRenameDraft(g.name) }} className="p-1 text-bento-muted hover:text-bento-text" aria-label="Renomear grupo" title="Renomear grupo"><Pencil className="w-3.5 h-3.5" /></button>
                     )}
                     {editing && <button onClick={() => saveGroupName(g.name)} className="p-1 text-lime-fg" aria-label="Salvar"><Check className="w-4 h-4" /></button>}
-                    <button onClick={() => moveGroup(g.name, -1)} disabled={gi === 0 || busy} className="p-1 text-bento-muted hover:text-bento-text disabled:opacity-30" aria-label="Subir grupo"><ChevronUp className="w-4 h-4" /></button>
-                    <button onClick={() => moveGroup(g.name, 1)} disabled={gi === displayGroups.length - 1 || busy} className="p-1 text-bento-muted hover:text-bento-text disabled:opacity-30" aria-label="Descer grupo"><ChevronDown className="w-4 h-4" /></button>
+                    <button onClick={() => moveGroup(g.name, -1)} disabled={!canUp || busy} className="p-1 text-bento-muted hover:text-bento-text disabled:opacity-30" aria-label="Subir grupo"><ChevronUp className="w-4 h-4" /></button>
+                    <button onClick={() => moveGroup(g.name, 1)} disabled={!canDown || busy} className="p-1 text-bento-muted hover:text-bento-text disabled:opacity-30" aria-label="Descer grupo"><ChevronDown className="w-4 h-4" /></button>
                   </div>
 
                   {!isClosed && (
@@ -243,7 +253,8 @@ export function FasesTab() {
                           ))}
                         </div>
                       </SortableContext>
-                      <button onClick={() => addFaseToGroup(g.name)} disabled={busy}
+                      <button onClick={() => addFaseToGroup(g.name)} disabled={busy || editing}
+                        title={editing ? 'Salve o nome do grupo primeiro' : undefined}
                         className="mt-1.5 w-full flex items-center justify-center gap-1.5 border border-dashed border-bento-border rounded-md py-2 text-xs text-bento-muted hover:border-lime hover:text-lime-fg transition-colors disabled:opacity-50">
                         <Plus className="w-3.5 h-3.5" />Adicionar fase aqui
                       </button>

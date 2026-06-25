@@ -90,18 +90,22 @@ function areaCodeFromPhone(phone: string): string {
   return ''
 }
 
-// Valor/orçamento (formato US best-effort): vírgula = milhar, ponto = decimal. Sem número → 0.
+// Valor/orçamento: aceita US ("1,234.56") E BR ("1.234,56"). O ÚLTIMO separador é o decimal;
+// os demais são milhar. Sem número → 0.
 function parseValue(raw: string): number {
-  const cleaned = raw.replace(/[^\d.,]/g, '')
-  if (!cleaned) return 0
-  const n = Number(cleaned.replace(/,/g, ''))
+  let s = raw.replace(/[^\d.,]/g, '')
+  if (!s) return 0
+  const lastComma = s.lastIndexOf(','), lastDot = s.lastIndexOf('.')
+  if (lastComma > lastDot) s = s.replace(/\./g, '').replace(',', '.')   // vírgula decimal (BR)
+  else s = s.replace(/,/g, '')                                          // ponto decimal (US)
+  const n = Number(s)
   return Number.isFinite(n) && n >= 0 ? n : 0
 }
 
-// Heurística: parece ENDEREÇO (não nome de empresa)? CEP US ou logradouro → sim. Evita endereço
-// caindo na coluna company (bug do mapeamento antigo).
+// Heurística: parece ENDEREÇO (não nome de empresa)? CEP US (com \b → nome com 5 dígitos não cai)
+// ou logradouro → sim. Evita endereço caindo na coluna company.
 function looksLikeAddress(s: string): boolean {
-  if (/\d{5}(?:-\d{4})?/.test(s)) return true
+  if (/\b\d{5}(?:-\d{4})?\b/.test(s)) return true
   return /\b(st|street|ave|avenue|rd|road|dr|drive|blvd|way|lane|ln|court|ct|hwy)\b/i.test(s)
 }
 
@@ -118,8 +122,12 @@ export async function POST(req: Request) {
   } catch {
     return NextResponse.json({ ok: false, error: 'invalid_json' }, { status: 400 })
   }
-  // Loga o payload BRUTO (pra confirmarmos os nomes reais dos campos do GHL). NUNCA loga segredo/keys.
-  console.log('[leads/inbound] payload:', JSON.stringify(body))
+  // Payload bruto: log SÓ com INBOUND_DEBUG ligado (não polui o hot path nem vaza dado em prod).
+  const rawStr = JSON.stringify(body)
+  if (process.env.INBOUND_DEBUG) console.log('[leads/inbound] payload:', rawStr)
+  // raw_payload com TETO de 64KB: payload gigante não incha a linha (guarda só um marcador).
+  const RAW_MAX = 64 * 1024
+  const rawPayload: unknown = rawStr.length <= RAW_MAX ? body : { _truncated: true, _bytes: rawStr.length }
 
   try {
     const flat = flattenCI(body)
@@ -208,16 +216,19 @@ export async function POST(req: Request) {
         score: 500,
         assigned_to: ASSIGNED_TO,
         assigned_name: ASSIGNED_NAME,
-        raw_payload: body,
+        raw_payload: rawPayload,
         ...(fuso ? { fuso } : {}),   // só seta se reconhecemos o estado US (null → não envia)
       })
       .select('id')
       .single()
 
-    if (error || !data) {
-      console.error('[leads/inbound] insert failed:', error?.message)
+    if (error) {
+      // 23505 = índice único (email/phone) → lead JÁ existe; trata como duplicado, nunca 500.
+      if (error.code === '23505') return NextResponse.json({ ok: true, duplicate: true })
+      console.error('[leads/inbound] insert failed:', error.message)
       return NextResponse.json({ ok: false, error: 'insert_failed' }, { status: 500 })
     }
+    if (!data) return NextResponse.json({ ok: false, error: 'insert_failed' }, { status: 500 })
 
     // Histórico de movimentação: entrada no funil (ADITIVO/best-effort).
     await logStageEvent(supabase, {

@@ -218,17 +218,18 @@ export function LeadDiary({ lead, onClose, onUpdated, onMoveStage, onDeleted, cu
 
   // Edita a "data de chegada" (received_at) — dado de lead/relatório, não dinheiro. Otimista + rollback.
   const changeReceivedAt = async (value: string) => {
-    if (!value || value === (currentLead.received_at ?? '').slice(0, 10)) return
+    const next = value || null   // vazio → LIMPA (null), em vez de ignorar
+    if ((next ?? '') === (currentLead.received_at ?? '').slice(0, 10)) return
     const prev = currentLead.received_at
-    const updated = { ...currentLead, received_at: value }
+    const updated = { ...currentLead, received_at: next ?? undefined }
     setCurrentLead(updated)
-    const { error } = await supabase.from('leads').update({ received_at: value }).eq('id', lead.id)
+    const { error } = await supabase.from('leads').update({ received_at: next }).eq('id', lead.id)
     if (error) {
       setCurrentLead(c => ({ ...c, received_at: prev }))
       toast({ type: 'error', message: `Não foi possível mudar a data de chegada: ${error.message}` })
     } else {
       onUpdated(updated)
-      toast({ type: 'success', message: 'Data de chegada atualizada.' })
+      toast({ type: 'success', message: next ? 'Data de chegada atualizada.' : 'Data de chegada removida.' })
     }
   }
 
@@ -704,7 +705,7 @@ export function LeadDiary({ lead, onClose, onUpdated, onMoveStage, onDeleted, cu
           {briefing && (
             <div className="rounded-btn border border-lime/30 bg-lime/5 p-3 space-y-2">
               {briefing.resumo && <p className="text-xs text-bento-dim leading-relaxed whitespace-pre-wrap break-words">{briefing.resumo}</p>}
-              {briefing.pontos_chave.length > 0 && (
+              {Array.isArray(briefing.pontos_chave) && briefing.pontos_chave.length > 0 && (
                 <ul className="text-xs text-bento-dim list-disc pl-4 space-y-0.5">
                   {briefing.pontos_chave.map((p, i) => <li key={i} className="break-words">{p}</li>)}
                 </ul>

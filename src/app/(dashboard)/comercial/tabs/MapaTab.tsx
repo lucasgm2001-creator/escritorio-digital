@@ -85,14 +85,20 @@ export function MapaTab({ leads, clients }: { leads: Lead[]; clients: Client[] }
   useEffect(() => {
     if (!sel) return
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setSel(null) }
-    const onDoc = (e: globalThis.MouseEvent) => {
-      const t = e.target as Element
-      if (t.closest?.('.ed-map-panel') || t.closest?.('.pin')) return
+    // pointerdown cobre mouse E toque; touchstart é fallback p/ iOS antigo. Fecha ao tocar fora.
+    const onDoc = (e: Event) => {
+      const t = e.target as Element | null
+      if (t?.closest?.('.ed-map-panel') || t?.closest?.('.pin')) return
       setSel(null)
     }
     window.addEventListener('keydown', onKey)
-    document.addEventListener('mousedown', onDoc)
-    return () => { window.removeEventListener('keydown', onKey); document.removeEventListener('mousedown', onDoc) }
+    document.addEventListener('pointerdown', onDoc)
+    document.addEventListener('touchstart', onDoc)
+    return () => {
+      window.removeEventListener('keydown', onKey)
+      document.removeEventListener('pointerdown', onDoc)
+      document.removeEventListener('touchstart', onDoc)
+    }
   }, [sel])
 
   // Agrupa por DDD (area_code); sem DDD, agrupa por estado.

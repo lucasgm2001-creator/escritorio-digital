@@ -357,11 +357,11 @@ export function HallClient({ initialActivities, initialNotices, initialTasks, li
         </div>
       </div>
 
-      {/* Tabs */}
-      <div className="flex gap-1 border-b border-bento-border">
+      {/* Tabs — rola NA HORIZONTAL no mobile (sem quebrar linha) e fica fixo no topo (segue o scroll). */}
+      <div className="flex flex-nowrap gap-1 border-b border-bento-border overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sticky top-0 z-20 bg-background">
         {TABS.map(tab => (
           <button key={tab.id} onClick={() => setActiveTab(tab.id)}
-            className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
+            className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors shrink-0 whitespace-nowrap ${
               activeTab === tab.id ? 'border-lime text-lime-fg' : 'border-transparent text-bento-muted hover:text-bento-text'
             }`}>
             {tab.icon}
