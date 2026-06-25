@@ -27,7 +27,7 @@ import { ErrorBoundary } from '@/components/system/ErrorBoundary'
 const MapaTab = dynamic(() => import('./tabs/MapaTab').then(m => ({ default: m.MapaTab })), { ssr: false })
 import { ClientesClient, type Client as ClienteRow } from '../clientes/ClientesClient'
 import type { Lead, LeadStatus } from './types'
-import { columnsFromStages, tiersFromColumns, wonSlug, type FunnelStage } from '@/lib/funnelStages'
+import { columnsFromStages, wonSlug, type FunnelStage } from '@/lib/funnelStages'
 import { WonPlanModal } from './WonPlanModal'
 import { PeriodChips } from './PeriodChips'
 import { rangeFor, inPeriodByActivity, type Range } from '@/lib/period'
@@ -107,9 +107,19 @@ export function KanbanBoard({ initialLeads, initialStages, initialClients, curre
   }, [])
 
   const supabase = createClient()
-  // Fases do funil vindas do banco (incremento 1: idênticas ao estático). Render + won-flow leem daqui.
+  // Fases do funil vindas do banco. Render + won-flow leem daqui. Refletem edições ao reabrir/atualizar
+  // a aba (server refetch em foco/navegação).
   const cols = useMemo(() => columnsFromStages(initialStages), [initialStages])
-  const tiers = useMemo(() => tiersFromColumns(cols), [cols])
+  // Funil montado DINAMICAMENTE: agrupado por `grupo` (ordem por posicao), nada hardcoded.
+  const funnelGroups = useMemo(() => {
+    const map = new Map<string, typeof cols>()
+    for (const c of cols) {
+      const g = (c.grupo && c.grupo.trim()) || 'Sem grupo'
+      if (!map.has(g)) map.set(g, [])
+      map.get(g)!.push(c)
+    }
+    return Array.from(map.entries()).map(([name, columns]) => ({ name, columns }))
+  }, [cols])
   const wonStatus = useMemo(() => wonSlug(initialStages) as LeadStatus, [initialStages])
 
   const showToast = (message: string, type: 'success' | 'error' = 'success') => {
@@ -273,11 +283,15 @@ export function KanbanBoard({ initialLeads, initialStages, initialClients, curre
           <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
             <div className="h-full flex flex-col bg-bento-bg">
               <div className="flex-1 overflow-x-auto overflow-y-hidden p-4 sm:p-5">
-                <div className="flex items-stretch gap-3 min-w-max h-full">
-                  {tiers.map((tier, ti) => (
-                    <div key={ti} className="flex items-center gap-3 h-full">
-                      <div className="flex flex-col gap-3 self-start">
-                        {tier.map(col => (
+                <div className="flex items-stretch gap-4 min-w-max h-full">
+                  {funnelGroups.map(g => (
+                    <div key={g.name} className="flex flex-col gap-2 self-start">
+                      {/* Faixa/cabeçalho do grupo (nome atual) */}
+                      <div className="px-2.5 py-1 rounded-md bg-bento-panel border border-bento-border">
+                        <span className="font-tech text-[10px] uppercase tracking-[0.14em] text-bento-dim truncate">{g.name}</span>
+                      </div>
+                      <div className="flex flex-col gap-3">
+                        {g.columns.map(col => (
                           <KanbanColumn
                             key={col.key}
                             column={col}
@@ -289,11 +303,6 @@ export function KanbanBoard({ initialLeads, initialStages, initialClients, curre
                           />
                         ))}
                       </div>
-                      {ti < tiers.length - 1 && (
-                        <svg className="w-5 h-5 text-bento-border flex-none self-center" fill="currentColor" viewBox="0 0 20 20">
-                          <path fillRule="evenodd" d="M10.293 3.293a1 1 0 011.414 0l6 6a1 1 0 010 1.414l-6 6a1 1 0 01-1.414-1.414L14.586 11H3a1 1 0 110-2h11.586l-4.293-4.293a1 1 0 010-1.414z" clipRule="evenodd" />
-                        </svg>
-                      )}
                     </div>
                   ))}
                 </div>

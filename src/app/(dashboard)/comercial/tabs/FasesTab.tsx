@@ -6,15 +6,24 @@ import {
 } from '@dnd-kit/core'
 import { SortableContext, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import { ChevronUp, ChevronDown, ChevronRight, GripVertical, Plus, Lock, Trash2, X, Pencil } from 'lucide-react'
+import { ChevronUp, ChevronDown, ChevronRight, GripVertical, Plus, Lock, Trash2, X, Pencil, Check } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { useToast } from '@/components/ui/toast'
 import { isStageProtected, stageRole, type FunnelStage, type StageRole } from '@/lib/funnelStages'
 import { cn } from '@/lib/utils'
 
 const NO_GROUP = 'Sem grupo'
-// Paleta de cores das fases (hex gravado em `cor`).
-const PALETTE = ['#C2F73A', '#22C55E', '#38BDF8', '#6366F1', '#A78BFA', '#F59E0B', '#EF4444', '#EC4899', '#14B8A6', '#94A3B8']
+// Paleta FIXA das fases (rótulo + hex gravado em `cor`). É a cor PRÓPRIA da fase (não o rotting).
+const PALETTE: { hex: string; label: string }[] = [
+  { hex: '#FACC15', label: 'Amarelo' },
+  { hex: '#F97316', label: 'Laranja' },
+  { hex: '#16A34A', label: 'Verde forte' },
+  { hex: '#4ADE80', label: 'Verde fraco' },
+  { hex: '#DC2626', label: 'Vermelho forte' },
+  { hex: '#F87171', label: 'Vermelho fraco' },
+  { hex: '#475569', label: 'Chumbo' },
+  { hex: '#38BDF8', label: 'Azul celeste' },
+]
 const ROLE_LABEL: Record<StageRole, string> = { ganho: 'Ganho', perdido: 'Perdido', arquivo: 'Arquivo', ativo: 'Ativo' }
 const ROLE_CLS: Record<StageRole, string> = {
   ganho: 'text-green-400 border-green-800/50', perdido: 'text-red-400 border-red-800/50',
@@ -26,8 +35,7 @@ function slugify(s: string): string {
   return s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '')
 }
 
-// Agrupa as fases por `grupo` (null → "Sem grupo"). Ordem dos grupos = pela MENOR posição (1º visto,
-// já que iteramos ordenado por posicao). Dentro do grupo, por posicao.
+// Agrupa as fases por `grupo` (null → "Sem grupo"), grupos por MENOR posição, fases por posicao.
 function buildGroups(stages: FunnelStage[]): { name: string; items: FunnelStage[] }[] {
   const map = new Map<string, FunnelStage[]>()
   for (const s of [...stages].sort((a, b) => a.posicao - b.posicao)) {
@@ -38,9 +46,9 @@ function buildGroups(stages: FunnelStage[]): { name: string; items: FunnelStage[
   return Array.from(map.entries()).map(([name, items]) => ({ name, items }))
 }
 
-// Editor PROFISSIONAL do funil (funnel_stages). O editor SÓ escreve: nome, cor, grupo, posicao,
-// dias_esfriamento, conta_interagiu, arquivada — e cria/exclui conforme regras. NUNCA escreve
-// slug/is_won/is_lost/is_system/conta_reuniao/conta_fechou em fase existente (DINHEIRO intocado).
+// Editor PROFISSIONAL do funil. SÓ escreve: nome, cor, grupo, posicao, dias_esfriamento,
+// conta_interagiu, arquivada — e cria/exclui conforme regras. NUNCA escreve slug/is_won/is_lost/
+// is_system/conta_reuniao/conta_fechou em fase existente (DINHEIRO intocado). stage_events intocado.
 export function FasesTab() {
   const supabase = createClient()
   const { toast } = useToast()
@@ -49,8 +57,9 @@ export function FasesTab() {
   const [busy, setBusy] = useState(false)
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set())
   const [selSlug, setSelSlug] = useState<string | null>(null)
-  const [newFase, setNewFase] = useState('')
-  const [newFaseGroup, setNewFaseGroup] = useState('')
+  const [emptyGroups, setEmptyGroups] = useState<string[]>([])           // grupos criados ainda SEM fase (locais)
+  const [editingGroup, setEditingGroup] = useState<string | null>(null)  // grupo em renome inline
+  const [renameDraft, setRenameDraft] = useState('')
   const [delState, setDelState] = useState<{ stage: FunnelStage; dest: string } | null>(null)
 
   const load = useCallback(async () => {
@@ -60,8 +69,14 @@ export function FasesTab() {
   }, [supabase])
   useEffect(() => { load() }, [load])
 
-  const groups = useMemo(() => buildGroups(stages), [stages])
-  const groupNames = useMemo(() => groups.map(g => g.name).filter(n => n !== NO_GROUP), [groups])
+  // Grupos exibidos = derivados das fases + grupos vazios criados agora (que ainda não têm fase).
+  const displayGroups = useMemo(() => {
+    const derived = buildGroups(stages)
+    const have = new Set(derived.map(g => g.name))
+    const empties = emptyGroups.filter(n => !have.has(n)).map(n => ({ name: n, items: [] as FunnelStage[] }))
+    return [...derived, ...empties]
+  }, [stages, emptyGroups])
+  const groupNames = useMemo(() => displayGroups.map(g => g.name), [displayGroups])
   const sel = selSlug ? stages.find(s => s.slug === selSlug) ?? null : null
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }))
 
@@ -91,31 +106,56 @@ export function FasesTab() {
     await persist(flat)
   }
 
-  // Reordenar GRUPO inteiro (sobe/desce o bloco).
+  // Reordenar GRUPO (só entre grupos COM fases; grupos vazios ficam no fim, ordem local).
   const moveGroup = async (name: string, dir: -1 | 1) => {
-    const gs = buildGroups(stages); const idx = gs.findIndex(g => g.name === name); const j = idx + dir
-    if (j < 0 || j >= gs.length) return
-    ;[gs[idx], gs[j]] = [gs[j], gs[idx]]
-    await persist(gs.flatMap(g => g.items.map(s => ({ slug: s.slug, grupo: g.name === NO_GROUP ? null : g.name }))))
+    const gs = displayGroups; const idx = gs.findIndex(g => g.name === name); const j = idx + dir
+    if (j < 0 || j >= gs.length || gs[idx].items.length === 0 || gs[j].items.length === 0) return
+    const order = gs.map(g => g.name);[order[idx], order[j]] = [order[j], order[idx]]
+    const byName = new Map(gs.map(g => [g.name, g.items]))
+    await persist(order.flatMap(n => (byName.get(n) ?? []).map(s => ({ slug: s.slug, grupo: n === NO_GROUP ? null : n }))))
   }
 
-  const renameGroup = async (oldName: string) => {
-    const nome = window.prompt(`Renomear grupo "${oldName}" para:`, oldName === NO_GROUP ? '' : oldName)?.trim()
-    if (nome == null) return
-    const next = nome || null
-    setBusy(true)
-    for (const s of stages.filter(s => ((s.grupo && s.grupo.trim()) || NO_GROUP) === oldName)) {
-      await supabase.from('funnel_stages').update({ grupo: next }).eq('slug', s.slug)
+  // "+ Novo grupo": cria grupo vazio NA HORA (local) com renome inline aberto.
+  const newGroup = () => {
+    const taken = new Set(groupNames); let name = 'Novo grupo'; let i = 2
+    while (taken.has(name)) name = `Novo grupo ${i++}`
+    setEmptyGroups(p => [...p, name]); setEditingGroup(name); setRenameDraft(name)
+  }
+
+  // Renomeia o grupo: COM fases → UPDATE funnel_stages SET grupo=novo WHERE grupo=antigo; vazio → local.
+  const saveGroupName = async (oldName: string) => {
+    const nn = renameDraft.trim()
+    setEditingGroup(null)
+    if (!nn || nn === oldName || oldName === NO_GROUP) return
+    const hasStages = stages.some(s => ((s.grupo && s.grupo.trim()) || NO_GROUP) === oldName)
+    if (hasStages) {
+      setBusy(true)
+      const { error } = await supabase.from('funnel_stages').update({ grupo: nn }).eq('grupo', oldName)
+      setBusy(false)
+      if (error) { toast({ type: 'error', message: `Não foi possível renomear: ${error.message}` }); return }
+      setEmptyGroups(p => p.filter(n => n !== oldName)); load()
+    } else {
+      setEmptyGroups(p => p.map(n => (n === oldName ? nn : n)))
     }
-    setBusy(false); load()
   }
 
-  // Move uma fase p/ outro grupo (combobox do painel) — posicao no FIM (não bagunça a ordem).
-  const moveToGroup = async (slug: string, grupoRaw: string) => {
-    const grupo = grupoRaw.trim() || null
+  // "+ Adicionar fase aqui": cria fase NOVA neutra no grupo, no fim. Aparece na hora (editor + funil).
+  const addFaseToGroup = async (groupName: string) => {
+    if (busy) return
+    setBusy(true)
+    const baseSlug = slugify('Nova fase') || 'fase'
+    let slug = baseSlug; let i = 2
+    while (stages.some(s => s.slug === slug)) slug = `${baseSlug}_${i++}`
     const posicao = Math.max(0, ...stages.map(s => s.posicao)) + 1
-    setStages(prev => prev.map(s => s.slug === slug ? { ...s, grupo, posicao } : s))
-    await supabase.from('funnel_stages').update({ grupo, posicao }).eq('slug', slug)
+    const grupo = groupName === NO_GROUP ? null : groupName
+    const { error } = await supabase.from('funnel_stages').insert({
+      slug, nome: 'Nova fase', posicao, grupo, dias_esfriamento: null, cor: null,
+      is_won: false, is_lost: false, is_system: false, conta_interagiu: true, conta_reuniao: false, conta_fechou: false, arquivada: false,
+    })
+    setBusy(false)
+    if (error) { toast({ type: 'error', message: `Não foi possível adicionar a fase: ${error.message}` }); return }
+    setEmptyGroups(p => p.filter(n => n !== groupName))
+    setSelSlug(slug); await load()
   }
 
   // Patch de colunas PERMITIDAS apenas (nunca flags de dinheiro).
@@ -125,23 +165,16 @@ export function FasesTab() {
     if (error) { toast({ type: 'error', message: `Não foi possível salvar: ${error.message}` }); load() }
   }
 
-  const criar = async () => {
-    const nome = newFase.trim(); if (!nome || busy) return
-    let slug = slugify(nome); if (!slug) { toast({ type: 'error', message: 'Nome inválido.' }); return }
-    if (stages.some(s => s.slug === slug)) slug = `${slug}_${Date.now().toString().slice(-4)}`
-    setBusy(true)
+  // Mover fase p/ outro grupo (select do painel) — posicao no FIM (não bagunça a ordem).
+  const moveToGroup = async (slug: string, groupName: string) => {
+    const grupo = groupName === NO_GROUP ? null : groupName
     const posicao = Math.max(0, ...stages.map(s => s.posicao)) + 1
-    // Fase nova NEUTRA: nada de dinheiro (is_won/is_lost/is_system false; reuniao/fechou false).
-    const { error } = await supabase.from('funnel_stages').insert({
-      slug, nome, posicao, grupo: newFaseGroup.trim() || null, dias_esfriamento: null, cor: null,
-      is_won: false, is_lost: false, is_system: false, conta_interagiu: true, conta_reuniao: false, conta_fechou: false, arquivada: false,
-    })
-    setBusy(false)
-    if (error) { toast({ type: 'error', message: `Não foi possível criar a fase: ${error.message}` }); return }
-    setNewFase(''); load()
+    setStages(prev => prev.map(s => s.slug === slug ? { ...s, grupo, posicao } : s))
+    setEmptyGroups(p => p.filter(n => n !== groupName))
+    await supabase.from('funnel_stages').update({ grupo, posicao }).eq('slug', slug)
   }
 
-  // Excluir-mesclar: move os leads do slug antigo → destino ANTES de apagar (nunca órfão). NÃO toca stage_events.
+  // Excluir-mesclar: move os leads do slug antigo → destino ANTES de apagar. NÃO toca stage_events.
   const confirmDelete = async () => {
     if (!delState) return
     const { stage, dest } = delState
@@ -159,54 +192,62 @@ export function FasesTab() {
 
   return (
     <div className="space-y-4 max-w-2xl font-body">
-      <div>
-        <h2 className="font-display font-bold text-bento-text text-base">Fases do funil</h2>
-        <p className="text-bento-muted text-xs mt-0.5">Agrupe, arraste pra reordenar e clique numa fase pra editar. Renomear muda só o rótulo — o identificador interno é preservado, então nenhum lead muda de fase. Fases protegidas (cadeado) não podem ser excluídas.</p>
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h2 className="font-display font-bold text-bento-text text-base">Fases do funil</h2>
+          <p className="text-bento-muted text-xs mt-0.5">Crie grupos, adicione fases e arraste pra reordenar. Renomear muda só o rótulo — o identificador interno é preservado, então nenhum lead muda de fase. Protegidas (cadeado) não podem ser excluídas.</p>
+        </div>
+        <button onClick={newGroup} className="bento-btn flex items-center gap-1.5 px-3 py-2 rounded-btn text-xs font-semibold shrink-0 min-h-[40px]"><Plus className="w-4 h-4" />Novo grupo</button>
       </div>
-
-      {/* Criar fase (nome + grupo opcional) */}
-      <div className="flex flex-col sm:flex-row gap-2">
-        <input value={newFase} onChange={e => setNewFase(e.target.value)} onKeyDown={e => e.key === 'Enter' && criar()}
-          placeholder="Nova fase (ex.: Negócio Futuro)"
-          className="flex-1 bg-bento-bg border border-bento-border rounded-btn px-3 py-2 text-sm text-bento-text placeholder:text-bento-muted focus:outline-none focus:border-lime min-h-[44px]" />
-        <input list="grupos-list" value={newFaseGroup} onChange={e => setNewFaseGroup(e.target.value)}
-          placeholder="Grupo (opcional)"
-          className="sm:w-44 bg-bento-bg border border-bento-border rounded-btn px-3 py-2 text-sm text-bento-text placeholder:text-bento-muted focus:outline-none focus:border-lime min-h-[44px]" />
-        <button onClick={criar} disabled={busy || !newFase.trim()}
-          className="bento-btn flex items-center justify-center gap-1.5 px-4 py-2 rounded-btn text-sm font-semibold disabled:opacity-50 min-h-[44px]"><Plus className="w-4 h-4" />Criar</button>
-      </div>
-      <datalist id="grupos-list">{groupNames.map(n => <option key={n} value={n} />)}</datalist>
 
       {loading ? (
         <p className="text-sm text-bento-muted">Carregando...</p>
       ) : (
         <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
           <div className="space-y-3">
-            {groups.map((g, gi) => {
+            {displayGroups.map((g, gi) => {
               const isClosed = collapsed.has(g.name)
+              const editing = editingGroup === g.name
               return (
                 <div key={g.name} className="bento-fx p-2">
-                  {/* Cabeçalho do grupo: colapsar + nome + contagem + renomear + reordenar grupo */}
+                  {/* Cabeçalho do grupo: colapsar + nome(renome inline) + contagem + reordenar + adicionar fase */}
                   <div className="flex items-center gap-1.5 px-1.5 py-1">
                     <button onClick={() => setCollapsed(p => { const n = new Set(p); if (n.has(g.name)) n.delete(g.name); else n.add(g.name); return n })}
                       className="p-1 text-bento-muted hover:text-bento-text" aria-label="Colapsar grupo">
                       <ChevronRight className={cn('w-4 h-4 transition-transform', !isClosed && 'rotate-90')} />
                     </button>
-                    <span className="font-tech text-[11px] uppercase tracking-[0.12em] text-bento-dim flex-1 truncate">{g.name}</span>
+                    {editing ? (
+                      <input value={renameDraft} onChange={e => setRenameDraft(e.target.value)} autoFocus
+                        onKeyDown={e => { if (e.key === 'Enter') saveGroupName(g.name); if (e.key === 'Escape') setEditingGroup(null) }}
+                        onBlur={() => saveGroupName(g.name)}
+                        className="flex-1 bg-bento-bg border border-bento-border rounded-btn px-2 py-1 text-xs text-bento-text focus:outline-none focus:border-lime" />
+                    ) : (
+                      <button onClick={() => { if (g.name !== NO_GROUP) { setEditingGroup(g.name); setRenameDraft(g.name) } }}
+                        className="font-tech text-[11px] uppercase tracking-[0.12em] text-bento-dim flex-1 truncate text-left hover:text-bento-text">{g.name}</button>
+                    )}
                     <span className="font-tech text-[10px] text-bento-muted tabular-nums">{g.items.length}</span>
-                    <button onClick={() => renameGroup(g.name)} className="p-1 text-bento-muted hover:text-bento-text" aria-label="Renomear grupo" title="Renomear grupo"><Pencil className="w-3.5 h-3.5" /></button>
+                    {g.name !== NO_GROUP && !editing && (
+                      <button onClick={() => { setEditingGroup(g.name); setRenameDraft(g.name) }} className="p-1 text-bento-muted hover:text-bento-text" aria-label="Renomear grupo" title="Renomear grupo"><Pencil className="w-3.5 h-3.5" /></button>
+                    )}
+                    {editing && <button onClick={() => saveGroupName(g.name)} className="p-1 text-lime-fg" aria-label="Salvar"><Check className="w-4 h-4" /></button>}
                     <button onClick={() => moveGroup(g.name, -1)} disabled={gi === 0 || busy} className="p-1 text-bento-muted hover:text-bento-text disabled:opacity-30" aria-label="Subir grupo"><ChevronUp className="w-4 h-4" /></button>
-                    <button onClick={() => moveGroup(g.name, 1)} disabled={gi === groups.length - 1 || busy} className="p-1 text-bento-muted hover:text-bento-text disabled:opacity-30" aria-label="Descer grupo"><ChevronDown className="w-4 h-4" /></button>
+                    <button onClick={() => moveGroup(g.name, 1)} disabled={gi === displayGroups.length - 1 || busy} className="p-1 text-bento-muted hover:text-bento-text disabled:opacity-30" aria-label="Descer grupo"><ChevronDown className="w-4 h-4" /></button>
                   </div>
 
                   {!isClosed && (
-                    <SortableContext items={g.items.map(s => s.slug)} strategy={verticalListSortingStrategy}>
-                      <div className="space-y-1.5 pt-1">
-                        {g.items.map(s => (
-                          <SortableFase key={s.slug} stage={s} selected={selSlug === s.slug} onSelect={setSelSlug} />
-                        ))}
-                      </div>
-                    </SortableContext>
+                    <>
+                      <SortableContext items={g.items.map(s => s.slug)} strategy={verticalListSortingStrategy}>
+                        <div className="space-y-1.5 pt-1">
+                          {g.items.map(s => (
+                            <SortableFase key={s.slug} stage={s} selected={selSlug === s.slug} onSelect={setSelSlug} />
+                          ))}
+                        </div>
+                      </SortableContext>
+                      <button onClick={() => addFaseToGroup(g.name)} disabled={busy}
+                        className="mt-1.5 w-full flex items-center justify-center gap-1.5 border border-dashed border-bento-border rounded-md py-2 text-xs text-bento-muted hover:border-lime hover:text-lime-fg transition-colors disabled:opacity-50">
+                        <Plus className="w-3.5 h-3.5" />Adicionar fase aqui
+                      </button>
+                    </>
                   )}
                 </div>
               )
@@ -220,6 +261,7 @@ export function FasesTab() {
         <StagePanel
           key={sel.slug}
           stage={sel}
+          groupNames={groupNames}
           onClose={() => setSelSlug(null)}
           onPatch={patchStage}
           onMoveGroup={moveToGroup}
@@ -251,7 +293,7 @@ export function FasesTab() {
         </div>
       )}
 
-      <p className="font-tech text-[11px] text-bento-muted/70">Mudanças aparecem no funil ao recarregar. Fases de venda/perda/sistema são protegidas (cadeado) e não afetam dinheiro por aqui.</p>
+      <p className="font-tech text-[11px] text-bento-muted/70">Mudanças aparecem no funil ao reabrir/atualizar a aba Comercial. Fases de venda/perda/sistema são protegidas (cadeado) e não afetam dinheiro por aqui.</p>
     </div>
   )
 }
@@ -275,8 +317,9 @@ function SortableFase({ stage, selected, onSelect }: { stage: FunnelStage; selec
 }
 
 // ── Painel de edição de UMA fase ──
-function StagePanel({ stage, onClose, onPatch, onMoveGroup, onArchive, onAskDelete }: {
+function StagePanel({ stage, groupNames, onClose, onPatch, onMoveGroup, onArchive, onAskDelete }: {
   stage: FunnelStage
+  groupNames: string[]
   onClose: () => void
   onPatch: (slug: string, patch: Partial<Pick<FunnelStage, 'nome' | 'cor' | 'dias_esfriamento' | 'conta_interagiu'>>) => void
   onMoveGroup: (slug: string, grupo: string) => void
@@ -286,8 +329,9 @@ function StagePanel({ stage, onClose, onPatch, onMoveGroup, onArchive, onAskDele
   const prot = isStageProtected(stage)
   const role = stageRole(stage)
   const [nome, setNome] = useState(stage.nome)
-  const [grupo, setGrupo] = useState(stage.grupo ?? '')
   const [dias, setDias] = useState(stage.dias_esfriamento != null ? String(stage.dias_esfriamento) : '')
+  const curGroup = (stage.grupo && stage.grupo.trim()) || NO_GROUP
+  const groupOptions = Array.from(new Set([NO_GROUP, ...groupNames, curGroup]))
 
   return (
     <div className="bento-fx p-4 space-y-4">
@@ -304,12 +348,12 @@ function StagePanel({ stage, onClose, onPatch, onMoveGroup, onArchive, onAskDele
       </div>
 
       <div>
-        <label className="block text-xs font-medium text-bento-dim mb-1">Cor</label>
+        <label className="block text-xs font-medium text-bento-dim mb-1">Cor da fase</label>
         <div className="flex items-center gap-1.5 flex-wrap">
           {PALETTE.map(c => (
-            <button key={c} onClick={() => onPatch(stage.slug, { cor: c })} aria-label={`Cor ${c}`}
-              className={cn('w-6 h-6 rounded-full border-2 transition-transform', stage.cor === c ? 'border-bento-text scale-110' : 'border-transparent')}
-              style={{ backgroundColor: c }} />
+            <button key={c.hex} onClick={() => onPatch(stage.slug, { cor: c.hex })} aria-label={c.label} title={c.label}
+              className={cn('w-7 h-7 rounded-full border-2 transition-transform', stage.cor === c.hex ? 'border-bento-text scale-110' : 'border-transparent hover:scale-105')}
+              style={{ backgroundColor: c.hex }} />
           ))}
           <button onClick={() => onPatch(stage.slug, { cor: null })} className="text-[10px] text-bento-muted hover:text-bento-text px-1.5">limpar</button>
         </div>
@@ -318,8 +362,10 @@ function StagePanel({ stage, onClose, onPatch, onMoveGroup, onArchive, onAskDele
       <div className="grid grid-cols-2 gap-3">
         <div>
           <label className="block text-xs font-medium text-bento-dim mb-1">Grupo</label>
-          <input list="grupos-list" value={grupo} onChange={e => setGrupo(e.target.value)} onBlur={() => (grupo.trim() || '') !== (stage.grupo ?? '') && onMoveGroup(stage.slug, grupo)}
-            placeholder="Sem grupo" className="w-full bg-bento-bg border border-bento-border rounded-btn px-3 py-2 text-sm text-bento-text focus:outline-none focus:border-lime" />
+          <select value={curGroup} onChange={e => e.target.value !== curGroup && onMoveGroup(stage.slug, e.target.value)}
+            className="w-full bg-bento-bg border border-bento-border rounded-btn px-3 py-2 text-sm text-bento-text focus:outline-none focus:border-lime">
+            {groupOptions.map(g => <option key={g} value={g}>{g}</option>)}
+          </select>
         </div>
         <div>
           <label className="block text-xs font-medium text-bento-dim mb-1">Esfria em (dias)</label>
