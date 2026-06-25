@@ -10,7 +10,7 @@ import { LiveDot } from '@/components/bento/LiveDot'
 import { AgentChat } from './AgentChat'
 import { NewsSection } from './NewsSection'
 import { CollapsibleSection } from '@/components/mobile/CollapsibleSection'
-import { X, Clock, LayoutGrid, CalendarDays, Activity as ActivityIcon, Newspaper, Sparkles, Maximize2, ChevronLeft } from 'lucide-react'
+import { X, Clock, LayoutGrid, CalendarDays, Activity as ActivityIcon, Newspaper, Maximize2, ChevronLeft } from 'lucide-react'
 import type { Activity, Notice } from '@/types'
 import type { Task, LinkOption } from '../tarefas/types'
 import type { Lead } from '../comercial/types'
@@ -207,8 +207,6 @@ export function HallClient({ initialActivities, initialTasks, linkOptions, userN
   const [calEvents, setCalEvents]     = useState<CalendarEvent[]>([])
   const [focusEvent, setFocusEvent]   = useState<CalendarEvent | null>(null)
   const [activitiesExpanded, setActivitiesExpanded] = useState(false)
-  const [dayBriefing, setDayBriefing] = useState('')          // Briefing do dia (IA, sob demanda)
-  const [dayBriefingLoading, setDayBriefingLoading] = useState(false)
   // Mapa + métricas (leads/clientes do banco) e config da Visão Geral (por usuário).
   const [mapLeads, setMapLeads]   = useState<Lead[]>([])
   const [mapClients, setMapClients] = useState<Client[]>([])
@@ -249,21 +247,6 @@ export function HallClient({ initialActivities, initialTasks, linkOptions, userN
       .subscribe()
     return () => { dataChannel.unsubscribe().then(() => supabase.removeChannel(dataChannel)) }
   }, [userId])
-
-  // Briefing do dia (IA, só leitura, sob demanda). Guarda no estado — não re-chama a cada render.
-  const genBriefing = async () => {
-    if (dayBriefingLoading) return
-    setDayBriefingLoading(true)
-    try {
-      const res = await fetch('/api/hall/briefing', { method: 'POST', headers: { 'Content-Type': 'application/json' } })
-      const data = await res.json().catch(() => null)
-      setDayBriefing(data?.briefing || 'Não consegui gerar o briefing agora.')
-    } catch {
-      setDayBriefing('Não consegui gerar o briefing agora — tente novamente.')
-    } finally {
-      setDayBriefingLoading(false)
-    }
-  }
 
   // ── Mural ↔ Agenda: MESMA fonte (initialTasks, idêntica à do Calendar) ──────────
   // Toda tarefa com data que aparece na Agenda aparece aqui também. Ordem: atrasadas →
@@ -343,29 +326,6 @@ export function HallClient({ initialActivities, initialTasks, linkOptions, userN
 
         {activeTab === 'activities' && (
           <>
-            {/* Briefing do dia (IA, só leitura). Aberto por padrão no mobile. */}
-            <CollapsibleSection title="Briefing do dia" icon={Sparkles} defaultOpen>
-              <Panel className="max-lg:p-3" headerClassName="max-lg:hidden" label="Briefing do dia"
-                action={<Sparkles className="w-3.5 h-3.5 text-lime-fg" />}>
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="font-tech text-xs text-bento-muted capitalize">{today}</span>
-                    <button onClick={genBriefing} disabled={dayBriefingLoading}
-                      className="bento-btn flex items-center gap-2 px-3 py-1.5 rounded-btn text-xs font-semibold disabled:opacity-50 min-h-0">
-                      <Sparkles className="w-3.5 h-3.5" />
-                      {dayBriefingLoading ? 'Gerando…' : dayBriefing ? 'Atualizar' : 'Gerar briefing'}
-                    </button>
-                  </div>
-                  {dayBriefingLoading && !dayBriefing
-                    ? <p className="text-sm text-bento-muted animate-pulse">Lendo seu dia…</p>
-                    : dayBriefing
-                      ? <div className="text-sm text-bento-dim whitespace-pre-wrap leading-relaxed">{dayBriefing}</div>
-                      : <p className="text-sm text-bento-muted">Toque em &quot;Gerar briefing&quot; para um resumo do que precisa de atenção hoje.</p>}
-                  <p className="font-tech text-[10px] text-bento-muted/70 border-t border-bento-border/60 pt-2">Resumo automático — não executa ações.</p>
-                </div>
-              </Panel>
-            </CollapsibleSection>
-
             {/* (1) Métricas — do banco. Mobile: LADO A LADO só Clientes ativos + Leads em aberto. */}
             {METRICS.some(m => hallCfg.metrics[m.key]) && (
               <CollapsibleSection title="Visão Geral" icon={LayoutGrid} defaultOpen>
@@ -380,13 +340,22 @@ export function HallClient({ initialActivities, initialTasks, linkOptions, userN
               </CollapsibleSection>
             )}
 
-            {/* (2) Agenda — aberta por padrão no mobile. Altura NATURAL (sem stretch/h-full). */}
-            <CollapsibleSection title="Agenda" icon={CalendarDays} defaultOpen>
-              <Calendar userId={userId} events={calEvents} tasks={initialTasks} onEventsChange={setCalEvents} focusEvent={focusEvent} onFocusHandled={() => setFocusEvent(null)} />
-            </CollapsibleSection>
+            {/* (2) MAPA em DESTAQUE — largura cheia (máx ~1000px centralizado) e bem alto. */}
+            {hallCfg.blocks.mapa && (
+              <CollapsibleSection title="Mapa de Clientes e Leads" icon={LayoutGrid} defaultOpen>
+                <Panel className="max-lg:p-3" headerClassName="max-lg:hidden" label="Mapa de Clientes e Leads"
+                  action={<button onClick={() => setMapFull(true)} className="font-tech text-[11px] uppercase tracking-wide text-bento-muted hover:text-lime-fg flex items-center gap-1" aria-label="Mapa em tela cheia"><Maximize2 className="w-3.5 h-3.5" />Tela cheia</button>}>
+                  <div className="h-[440px] sm:h-[560px] max-w-[1000px] mx-auto">
+                    <ErrorBoundary>
+                      <MapaTab embedded leads={mapLeads} clients={mapClients} showLeads={hallCfg.map.leads} showClients={hallCfg.map.clients} showFusos={hallCfg.map.fusos} />
+                    </ErrorBoundary>
+                  </div>
+                </Panel>
+              </CollapsibleSection>
+            )}
 
-            {/* (2) Corpo em 3 colunas: Tarefas de hoje · Mapa (centro) · Atividade recente. */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 items-stretch">
+            {/* (3) Tarefas de hoje · Atividade recente · Agenda — lado a lado no desktop, empilha no mobile. */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 items-start">
               {hallCfg.blocks.tarefas && (
                 <CollapsibleSection title="Tarefas de hoje" icon={CalendarDays} defaultOpen>
                   <Panel className="h-full max-lg:p-3" headerClassName="max-lg:hidden" label="Tarefas de hoje">
@@ -397,18 +366,6 @@ export function HallClient({ initialActivities, initialTasks, linkOptions, userN
                             {eventosHoje.map(ev => <MuralAgendaRow key={`ev-${ev.id}`} ev={ev} onClick={() => setFocusEvent(ev)} />)}
                             {tarefasHoje.map(t => <MuralTaskRow key={`tk-${t.id}`} task={t} onClick={() => router.push('/tarefas')} />)}
                           </>}
-                    </div>
-                  </Panel>
-                </CollapsibleSection>
-              )}
-              {hallCfg.blocks.mapa && (
-                <CollapsibleSection title="Mapa de Clientes e Leads" icon={LayoutGrid} defaultOpen>
-                  <Panel className="h-full max-lg:p-3" headerClassName="max-lg:hidden" label="Mapa de Clientes e Leads"
-                    action={<button onClick={() => setMapFull(true)} className="font-tech text-[11px] uppercase tracking-wide text-bento-muted hover:text-lime-fg flex items-center gap-1" aria-label="Mapa em tela cheia"><Maximize2 className="w-3.5 h-3.5" />Tela cheia</button>}>
-                    <div className="h-[340px]">
-                      <ErrorBoundary>
-                        <MapaTab embedded leads={mapLeads} clients={mapClients} showLeads={hallCfg.map.leads} showClients={hallCfg.map.clients} showFusos={hallCfg.map.fusos} />
-                      </ErrorBoundary>
                     </div>
                   </Panel>
                 </CollapsibleSection>
@@ -474,6 +431,9 @@ export function HallClient({ initialActivities, initialTasks, linkOptions, userN
                 </Panel>
               </CollapsibleSection>
               )}
+              <CollapsibleSection title="Agenda" icon={CalendarDays} defaultOpen>
+                <Calendar userId={userId} events={calEvents} tasks={initialTasks} onEventsChange={setCalEvents} focusEvent={focusEvent} onFocusHandled={() => setFocusEvent(null)} />
+              </CollapsibleSection>
             </div>
 
             {/* (5) Notícias do Setor — fechada por padrão no mobile */}
