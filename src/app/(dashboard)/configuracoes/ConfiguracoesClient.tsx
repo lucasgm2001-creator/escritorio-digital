@@ -20,6 +20,12 @@ import { loadDensity, saveDensity, applyDensity, type Density } from '@/lib/uiPr
 import { weeklyCommissionUsd, hasCommissionPct, DEFAULT_TETO_SEMANAS, LEGACY_VPS_USD } from '@/lib/commission/planCommission'
 import { FasesTab } from '../comercial/tabs/FasesTab'
 import { getMapSkin, getMapSep, getMapGrouping, setMapSkin, setMapSep, setMapGrouping, type MapSkin, type MapGrouping } from '@/lib/mapSettings'
+import { getHallSettings, setHallSettings, DEFAULT_HALL_SETTINGS, type HallSettings } from '@/lib/hallSettings'
+import { ErrorBoundary } from '@/components/system/ErrorBoundary'
+import dynamic from 'next/dynamic'
+import type { Lead } from '../comercial/types'
+import type { Client } from '../clientes/ClientesClient'
+const MapaTabDyn = dynamic(() => import('../comercial/tabs/MapaTab').then(m => ({ default: m.MapaTab })), { ssr: false })
 
 // classes compartilhadas
 const inputCls = 'w-full bg-bento-bg border border-bento-border rounded-btn px-3 py-2 text-sm text-bento-text placeholder:text-bento-muted focus:outline-none focus:border-lime min-h-[44px]'
@@ -513,6 +519,102 @@ function LogoUploadSection({ userId }: { userId: string }) {
 }
 
 // ─── Navegação ────────────────────────────────────────────────────────────────
+// ─── Andar · Hall — switches da Visão Geral + PRÉVIA AO VIVO (mini-Hall). Salva por usuário. ──
+function HallSwitchGroup({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <div className="space-y-2">
+      <p className="font-tech text-[10px] uppercase tracking-[0.14em] text-bento-muted">{title}</p>
+      <div className="bento-fx divide-y divide-bento-border/60 overflow-hidden">{children}</div>
+    </div>
+  )
+}
+function HallSwitchRow({ label, on, onToggle }: { label: string; on: boolean; onToggle: () => void }) {
+  return (
+    <button type="button" onClick={onToggle} aria-pressed={on} className="w-full flex items-center justify-between gap-3 px-3 min-h-[48px] text-left hover:bg-bento-bg/50 transition-colors">
+      <span className="text-sm text-bento-text">{label}</span>
+      <span className={cn('relative w-10 h-6 rounded-full flex-none transition-colors', on ? 'bg-lime' : 'bg-bento-border')}>
+        <span className={cn('absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white transition-transform', on && 'translate-x-4')} />
+      </span>
+    </button>
+  )
+}
+
+function HallSettingsSection({ userId }: { userId: string }) {
+  const [cfg, setCfg] = useState<HallSettings>(DEFAULT_HALL_SETTINGS)
+  const [leads, setLeads] = useState<Lead[]>([])
+  const [clients, setClients] = useState<Client[]>([])
+  useEffect(() => { setCfg(getHallSettings(userId)) }, [userId])
+  useEffect(() => {
+    const supabase = createClient()
+    supabase.from('leads').select('id, name, status, state, area_code, created_at').then(({ data }) => { if (data) setLeads(data as unknown as Lead[]) })
+    supabase.from('clients').select('id, name, status, state, area_code').then(({ data }) => { if (data) setClients(data as unknown as Client[]) })
+  }, [])
+  const apply = (next: HallSettings) => { setCfg(next); setHallSettings(userId, next) }
+  const tB = (k: keyof HallSettings['blocks']) => apply({ ...cfg, blocks: { ...cfg.blocks, [k]: !cfg.blocks[k] } })
+  const tM = (k: keyof HallSettings['metrics']) => apply({ ...cfg, metrics: { ...cfg.metrics, [k]: !cfg.metrics[k] } })
+  const tMap = (k: keyof HallSettings['map']) => apply({ ...cfg, map: { ...cfg.map, [k]: !cfg.map[k] } })
+
+  const clientesAtivos = clients.filter(c => c.status === 'ativo').length
+  const leadsAbertos = leads.filter(l => !['fechado', 'perdido', 'lixeira'].includes(l.status)).length
+  const leadsNovos = leads.filter(l => l.created_at && new Date(l.created_at).getTime() >= Date.now() - 7 * 86400000).length
+  const conversao = (clientesAtivos + leadsAbertos) > 0 ? Math.round((clientesAtivos / (clientesAtivos + leadsAbertos)) * 100) : 0
+  const pm: { k: keyof HallSettings['metrics']; label: string; value: string }[] = [
+    { k: 'clientesAtivos', label: 'Clientes ativos', value: String(clientesAtivos) },
+    { k: 'leadsAbertos', label: 'Leads em aberto', value: String(leadsAbertos) },
+    { k: 'leadsNovos', label: 'Leads novos', value: String(leadsNovos) },
+    { k: 'conversao', label: 'Conversão', value: `${conversao}%` },
+  ]
+
+  return (
+    <Panel label="Configurações · Hall">
+      <div className="flex flex-col lg:flex-row gap-5">
+        <div className="flex-1 space-y-5 min-w-0">
+          <HallSwitchGroup title="Blocos da Visão Geral">
+            <HallSwitchRow label="Mapa" on={cfg.blocks.mapa} onToggle={() => tB('mapa')} />
+            <HallSwitchRow label="Tarefas de hoje" on={cfg.blocks.tarefas} onToggle={() => tB('tarefas')} />
+            <HallSwitchRow label="Atividade recente" on={cfg.blocks.atividade} onToggle={() => tB('atividade')} />
+          </HallSwitchGroup>
+          <HallSwitchGroup title="Métricas">
+            <HallSwitchRow label="Clientes ativos" on={cfg.metrics.clientesAtivos} onToggle={() => tM('clientesAtivos')} />
+            <HallSwitchRow label="Leads em aberto" on={cfg.metrics.leadsAbertos} onToggle={() => tM('leadsAbertos')} />
+            <HallSwitchRow label="Leads novos" on={cfg.metrics.leadsNovos} onToggle={() => tM('leadsNovos')} />
+            <HallSwitchRow label="Conversão" on={cfg.metrics.conversao} onToggle={() => tM('conversao')} />
+          </HallSwitchGroup>
+          <HallSwitchGroup title="Mapa">
+            <HallSwitchRow label="Mostrar leads" on={cfg.map.leads} onToggle={() => tMap('leads')} />
+            <HallSwitchRow label="Mostrar clientes" on={cfg.map.clients} onToggle={() => tMap('clients')} />
+            <HallSwitchRow label="Faixas de fuso" on={cfg.map.fusos} onToggle={() => tMap('fusos')} />
+          </HallSwitchGroup>
+        </div>
+
+        {/* Prévia AO VIVO — atualiza conforme liga/desliga os switches. */}
+        <div className="lg:w-[380px] shrink-0">
+          <p className="font-tech text-[10px] uppercase tracking-[0.14em] text-bento-muted mb-2">Prévia ao vivo</p>
+          <div className="bento-fx p-3 space-y-3">
+            {pm.some(m => cfg.metrics[m.k]) && (
+              <div className="grid grid-cols-2 gap-2">
+                {pm.filter(m => cfg.metrics[m.k]).map(m => (
+                  <div key={m.k} className="bento-fx px-2.5 py-2">
+                    <p className="font-tech text-[9px] uppercase tracking-wide text-bento-muted truncate">{m.label}</p>
+                    <p className="font-display text-lg font-bold text-bento-text tabular-nums leading-none">{m.value}</p>
+                  </div>
+                ))}
+              </div>
+            )}
+            {cfg.blocks.mapa && (
+              <div className="h-[200px] rounded-bento overflow-hidden border border-bento-border">
+                <ErrorBoundary><MapaTabDyn embedded leads={leads} clients={clients} showLeads={cfg.map.leads} showClients={cfg.map.clients} showFusos={cfg.map.fusos} /></ErrorBoundary>
+              </div>
+            )}
+            {cfg.blocks.tarefas && <div className="bento-fx px-3 py-2 font-tech text-[11px] text-bento-muted">Tarefas de hoje</div>}
+            {cfg.blocks.atividade && <div className="bento-fx px-3 py-2 font-tech text-[11px] text-bento-muted">Atividade recente</div>}
+          </div>
+        </div>
+      </div>
+    </Panel>
+  )
+}
+
 const ANDARES: NavItem[] = [
   { key: 'andar-hall', label: 'Hall', Icon: Home },
   { key: 'andar-comercial', label: 'Comercial', Icon: Briefcase },
@@ -657,6 +759,7 @@ export function ConfiguracoesClient({ userId }: Props) {
   const content = (() => {
     if (sub === 'fases') return <FasesTab />
     if (sub === 'mapa') return <MapSettingsContent />
+    if (active === 'andar-hall') return <HallSettingsSection userId={userId} />
     if (active.startsWith('andar-')) {
       const label = ANDARES.find(a => a.key === active)?.label ?? 'Andar'
       return <AndarSection keyId={active} label={label} onOpenSub={setSub} />

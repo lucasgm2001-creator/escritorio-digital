@@ -538,6 +538,8 @@ html.light .ed-map-stage { box-shadow:inset 0 1px 0 rgba(255,255,255,.04), inset
 /* Regiões = 3 FUSOS, em tons de verde (Oeste mais escuro → Leste mais claro). */
 .ed-map .region-W .fill { fill:#0E3322 } .ed-map .region-C .fill { fill:#134029 } .ed-map .region-E .fill { fill:#1F5E3C }
 html.light .ed-map .region-W .fill { fill:#CDE3AE } html.light .ed-map .region-C .fill { fill:#DAEDBF } html.light .ed-map .region-E .fill { fill:#E6F3D2 }
+/* Faixas de fuso DESLIGADAS → tinta neutra única (theme-aware), sem bandas alternadas. */
+.ed-map.flat-fuso .region-W .fill, .ed-map.flat-fuso .region-C .fill, .ed-map.flat-fuso .region-E .fill { fill:rgba(var(--acc),var(--fillT)) }
 .ed-map .lines { fill:none; stroke:rgba(var(--acc),var(--lineA)); stroke-width:.45; stroke-linejoin:round; vector-effect:non-scaling-stroke }
 html.dark .ed-map .lines { stroke:rgba(194,247,58,.22) }   /* linhas internas: lima fininho */
 html.light .ed-map .lines { stroke:rgba(141,190,48,.4) }

@@ -3,25 +3,24 @@
 import { useState, useEffect, useMemo, useRef, type MouseEvent } from 'react'
 import usMap from '@/data/us-map.json'
 import { cn } from '@/lib/utils'
-import { getMapSkin, getMapSep, getMapGrouping, MAP_SETTINGS_EVENT, type MapSkin, type MapGrouping } from '@/lib/mapSettings'
+import { getMapSkin, getMapSep, MAP_SETTINGS_EVENT, type MapSkin } from '@/lib/mapSettings'
 import type { Lead } from '../types'
 import type { Client } from '../../clientes/ClientesClient'
 
-// ── Mapa de Clientes (EUA). Geografia = src/data/us-map.json; pontos = dados reais do Supabase
-//    (clientes ativos = verde; leads em aberto = azul-celeste). Visual portado do mockup. ──
+// ── Mapa dos EUA. Geografia = src/data/us-map.json. UM ponto por ESTADO: leads (azul #2E7BFF) e
+//    clientes (verde #00E08A) lado a lado, com o NÚMERO dentro; halo + sombra (3D sutil). As 3 placas
+//    são tingidas como faixas de fuso (nomes iguais ao relógio do topo). Dinheiro NÃO entra aqui. ──
 
 type Region = 'W' | 'C' | 'E'
 type Filter = 'todos' | 'clientes' | 'leads'
 
 const DIR: Record<Region, number> = { W: -1, C: 0, E: 1 }   // deslocamento das placas (×SEP)
-const REGION_TZ: Record<Region, string> = { W: 'Oeste', C: 'Centro', E: 'Leste' }
+// Nomes de fuso IGUAIS ao relógio do topo (Topbar): EUA Oeste · EUA Mont. · EUA Leste.
+const FUSO_LABEL: Record<Region, string> = { W: 'EUA Oeste', C: 'EUA Mont.', E: 'EUA Leste' }
 const OPEN_EXCLUDE = new Set(['fechado', 'perdido', 'lixeira'])   // leads "fechados" não entram
 
-// ── Tamanhos dos pontos (px ALVO na tela; convertidos p/ viewBox por /scale). Fáceis de ajustar. ──
-const CORE_PX = 5     // núcleo de vidro (cresce um pouco com n / com o número no modo estado)
-const SEL_PX = 9      // anel de seleção
-const HIT_PX = 26     // área de toque generosa (mobile)
-const SPREAD_PX = 5   // espalhamento entre pontos do mesmo local (modo cidade)
+const HIT_PX = 26                              // área de toque generosa
+const LEAD_COLOR = '#2E7BFF', CLIENT_COLOR = '#00E08A'
 
 const MAP = usMap as unknown as {
   W: number; H: number
@@ -30,62 +29,57 @@ const MAP = usMap as unknown as {
   states: Record<string, { x: number; y: number; region: Region }>
 }
 
-interface Loc {
-  key: string; x: number; y: number; region: Region
-  st: string; code: string | null; city: string
-  clients: string[]; novos: string[]; leads: string[]   // novos = leads na fase 'novo' (ponto roxo); leads = demais abertos
-}
+interface StateAgg { st: string; x: number; y: number; region: Region; leads: string[]; clients: string[] }
 
-export function MapaTab({ leads, clients }: { leads: Lead[]; clients: Client[] }) {
+export function MapaTab({ leads, clients, showLeads = true, showClients = true, showFusos = true, embedded = false }: {
+  leads: Lead[]; clients: Client[]
+  showLeads?: boolean; showClients?: boolean; showFusos?: boolean
+  embedded?: boolean   // dentro do Hall/prévia: esconde a barra de topo e ajusta o fit ao container
+}) {
   const [skin, setSkin] = useState<MapSkin>('blue')
   const [sep, setSep] = useState<number>(4)
-  const [grouping, setGrouping] = useState<MapGrouping>('cidade')   // leads por cidade (1 pin/lead) ou por estado (agregado)
   const [filter, setFilter] = useState<Filter>('todos')
-  const [hot, setHot] = useState<Region | null>(null)   // região sob o mouse (acende o contorno)
-  const [sel, setSel] = useState<{ loc: Loc; left: number; top: number; mobile: boolean } | null>(null)
-  // Fit do SVG na tela: dimensiona pela MENOR dimensão (largura OU altura visível), mantendo 1000:624.
+  const [hot, setHot] = useState<Region | null>(null)
+  const [sel, setSel] = useState<{ agg: StateAgg; left: number; top: number; mobile: boolean } | null>(null)
   const outerRef = useRef<HTMLDivElement>(null)
   const stageRef = useRef<HTMLDivElement>(null)
   const [box, setBox] = useState({ w: MAP.W, h: MAP.H, scale: 1 })
-  // SEP fino: "Justo" (4) renderiza 2; "Espaçoso" (16) mantém. Não toca no toggle/localStorage.
   const effSep = sep === 4 ? 2 : sep
 
-  // Lê as configs (localStorage) e reage a mudanças feitas em Configurações.
   useEffect(() => {
-    const sync = () => { setSkin(getMapSkin()); setSep(getMapSep()); setGrouping(getMapGrouping()) }
+    const sync = () => { setSkin(getMapSkin()); setSep(getMapSep()) }
     sync()
     window.addEventListener(MAP_SETTINGS_EVENT, sync)
     window.addEventListener('storage', sync)
     return () => { window.removeEventListener(MAP_SETTINGS_EVENT, sync); window.removeEventListener('storage', sync) }
   }, [])
 
-  // Mapa INTEIRO na tela: mede a largura do palco e a altura visível abaixo dele; escala pela menor.
+  // Fit: embutido → cabe no container; tela cheia → mede a altura visível abaixo do palco.
   useEffect(() => {
-    const PAD = 14, GAP = 40   // padding do palco (cada lado) + espaço da legenda + folga embaixo
+    const PAD = 14, GAP = 40
     const recompute = () => {
-      const el = stageRef.current
-      if (!el) return
-      const top = el.getBoundingClientRect().top
+      const el = stageRef.current, outer = outerRef.current
+      if (!el || !outer) return
       const availW = el.clientWidth - PAD * 2
-      const availH = window.innerHeight - top - PAD * 2 - GAP
+      const availH = embedded
+        ? Math.max(160, outer.clientHeight - el.offsetTop - PAD * 2 - 28)
+        : window.innerHeight - el.getBoundingClientRect().top - PAD * 2 - GAP
       if (availW <= 0 || availH <= 0) return
       const scale = Math.min(availW / MAP.W, availH / MAP.H)
       const w = Math.round(MAP.W * scale), h = Math.round(MAP.H * scale)
       setBox(prev => (prev.w === w && prev.h === h ? prev : { w, h, scale }))
     }
     recompute()
-    const ro = new ResizeObserver(recompute)   // observa o container externo (altura estável) → sem loop
+    const ro = new ResizeObserver(recompute)
     if (outerRef.current) ro.observe(outerRef.current)
     window.addEventListener('resize', recompute)
-    const t = setTimeout(recompute, 120)        // re-mede após fontes/layout assentarem
+    const t = setTimeout(recompute, 120)
     return () => { ro.disconnect(); window.removeEventListener('resize', recompute); clearTimeout(t) }
-  }, [])
+  }, [embedded])
 
-  // Fecha o popover com Esc / clique fora (mas não em pin nem no próprio painel).
   useEffect(() => {
     if (!sel) return
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setSel(null) }
-    // pointerdown cobre mouse E toque; touchstart é fallback p/ iOS antigo. Fecha ao tocar fora.
     const onDoc = (e: Event) => {
       const t = e.target as Element | null
       if (t?.closest?.('.ed-map-panel') || t?.closest?.('.pin')) return
@@ -101,119 +95,90 @@ export function MapaTab({ leads, clients }: { leads: Lead[]; clients: Client[] }
     }
   }, [sel])
 
-  // Agrupa por DDD (area_code); sem DDD, agrupa por estado.
-  const locations = useMemo(() => {
-    const map = new Map<string, Loc>()
-    const place = (rec: { area_code?: string | null; state?: string | null }): Loc | null => {
-      const code = (rec.area_code ?? '').trim()
-      if (code && MAP.areaCodes[code]) {
-        const a = MAP.areaCodes[code]; const key = 'c:' + code
-        let loc = map.get(key)
-        if (!loc) { loc = { key, x: a.x, y: a.y, region: a.region, st: a.st, code, city: a.city, clients: [], novos: [], leads: [] }; map.set(key, loc) }
-        return loc
-      }
+  // Estado do registro: state (US válido) ou DDD→estado. Agrega leads em aberto + clientes ativos.
+  const states = useMemo(() => {
+    const map = new Map<string, StateAgg>()
+    const get = (st: string): StateAgg | null => {
+      const s = MAP.states[st]; if (!s) return null
+      let b = map.get(st)
+      if (!b) { b = { st, x: s.x, y: s.y, region: s.region, leads: [], clients: [] }; map.set(st, b) }
+      return b
+    }
+    const stateOf = (rec: { state?: string | null; area_code?: string | null }): string | null => {
       const st = (rec.state ?? '').trim().toUpperCase()
-      if (st && MAP.states[st]) {
-        const s = MAP.states[st]; const key = 's:' + st
-        let loc = map.get(key)
-        if (!loc) { loc = { key, x: s.x, y: s.y, region: s.region, st, code: null, city: '', clients: [], novos: [], leads: [] }; map.set(key, loc) }
-        return loc
-      }
+      if (st && MAP.states[st]) return st
+      const code = (rec.area_code ?? '').trim()
+      if (code && MAP.areaCodes[code]) return MAP.areaCodes[code].st
       return null
     }
-    for (const c of clients) { if (c.status === 'ativo') { const loc = place(c); if (loc) loc.clients.push(c.name || 'Cliente') } }
-    for (const l of leads) {
-      if (OPEN_EXCLUDE.has(l.status)) continue
-      const loc = place(l); if (!loc) continue
-      if (l.status === 'novo') loc.novos.push(l.name || 'Lead')   // fase Novo → ponto roxo
-      else loc.leads.push(l.name || 'Lead')                       // demais abertos → azul-céu
-    }
+    for (const c of clients) { if (c.status !== 'ativo') continue; const st = stateOf(c); if (st) get(st)?.clients.push(c.name || 'Cliente') }
+    for (const l of leads) { if (OPEN_EXCLUDE.has(l.status)) continue; const st = stateOf(l); if (st) get(st)?.leads.push(l.name || 'Lead') }
     return Array.from(map.values())
   }, [leads, clients])
 
-  const totalClients = useMemo(() => locations.reduce((s, l) => s + l.clients.length, 0), [locations])
-  // "novo" continua contando como Lead (contador inalterado).
-  const totalLeads = useMemo(() => locations.reduce((s, l) => s + l.novos.length + l.leads.length, 0), [locations])
+  const totalClients = useMemo(() => states.reduce((s, m) => s + m.clients.length, 0), [states])
+  const totalLeads = useMemo(() => states.reduce((s, m) => s + m.leads.length, 0), [states])
 
-  // Pins a renderizar. CIDADE = como hoje (1 pin por cliente/lead na localização). ESTADO = LEADS
-  // agregados por estado num pin só (na média das posições, com o número dentro); CLIENTES sempre
-  // individuais. Cada pin guarda a Loc (real ou sintética) que abre o popover. Só layout/estilo.
-  interface PinDef { key: string; type: 'client' | 'novo' | 'lead'; x: number; y: number; n: number; label?: number; loc: Loc }
-  const pins = useMemo<PinDef[]>(() => {
-    const out: PinDef[] = []
-    const off = SPREAD_PX / box.scale
-    if (grouping === 'estado') {
-      if (filter !== 'leads') {
-        for (const loc of locations) {
-          if (loc.clients.length) out.push({ key: loc.key + ':client', type: 'client', x: loc.x + DIR[loc.region] * effSep, y: loc.y, n: loc.clients.length, loc })
-        }
-      }
-      if (filter !== 'clientes') {
-        const byState = new Map<string, { sx: number; sy: number; n: number; region: Region; novos: string[]; leads: string[] }>()
-        for (const loc of locations) {
-          const cnt = loc.novos.length + loc.leads.length
-          if (!cnt) continue
-          let b = byState.get(loc.st)
-          if (!b) { b = { sx: 0, sy: 0, n: 0, region: loc.region, novos: [], leads: [] }; byState.set(loc.st, b) }
-          b.sx += loc.x * cnt; b.sy += loc.y * cnt; b.n += cnt
-          b.novos.push(...loc.novos); b.leads.push(...loc.leads)
-        }
-        for (const [st, b] of Array.from(byState.entries())) {
-          const ax = b.sx / b.n, ay = b.sy / b.n
-          const loc: Loc = { key: 'st:' + st, x: ax, y: ay, region: b.region, st, code: null, city: '', clients: [], novos: b.novos, leads: b.leads }
-          out.push({ key: 'st:' + st + ':lead', type: 'lead', x: ax + DIR[b.region] * effSep, y: ay, n: b.n, label: b.n, loc })
-        }
-      }
-    } else {
-      for (const loc of locations) {
-        const bx = loc.x + DIR[loc.region] * effSep, by = loc.y
-        const kinds: { type: 'client' | 'novo' | 'lead'; n: number }[] = []
-        if (filter !== 'leads' && loc.clients.length) kinds.push({ type: 'client', n: loc.clients.length })
-        if (filter !== 'clientes' && loc.novos.length) kinds.push({ type: 'novo', n: loc.novos.length })
-        if (filter !== 'clientes' && loc.leads.length) kinds.push({ type: 'lead', n: loc.leads.length })
-        const mid = (kinds.length - 1) / 2
-        kinds.forEach((k, i) => out.push({ key: loc.key + k.type, type: k.type, x: bx + (i - mid) * off, y: by, n: k.n, loc }))
+  // Pontos a desenhar (respeitando filtro + toggles). Estado com os dois → azul à esq, verde à dir.
+  interface Pt { key: string; type: 'lead' | 'client'; x: number; y: number; count: number; agg: StateAgg }
+  const points = useMemo<Pt[]>(() => {
+    const showL = showLeads && filter !== 'clientes'
+    const showC = showClients && filter !== 'leads'
+    const off = 7 / box.scale
+    const out: Pt[] = []
+    for (const m of states) {
+      const hasL = showL && m.leads.length > 0
+      const hasC = showC && m.clients.length > 0
+      const bx = m.x + DIR[m.region] * effSep
+      if (hasL && hasC) {
+        out.push({ key: m.st + ':l', type: 'lead', x: bx - off, y: m.y, count: m.leads.length, agg: m })
+        out.push({ key: m.st + ':c', type: 'client', x: bx + off, y: m.y, count: m.clients.length, agg: m })
+      } else if (hasL) {
+        out.push({ key: m.st + ':l', type: 'lead', x: bx, y: m.y, count: m.leads.length, agg: m })
+      } else if (hasC) {
+        out.push({ key: m.st + ':c', type: 'client', x: bx, y: m.y, count: m.clients.length, agg: m })
       }
     }
     return out
-  }, [locations, grouping, filter, effSep, box.scale])
+  }, [states, showLeads, showClients, filter, effSep, box.scale])
 
-  const openPanel = (loc: Loc, e: MouseEvent) => {
+  const openPanel = (agg: StateAgg, e: MouseEvent) => {
     const r = (e.currentTarget as Element).getBoundingClientRect()
     const mobile = window.innerWidth <= 700
-    if (mobile) { setSel({ loc, left: 0, top: 0, mobile }); return }
+    if (mobile) { setSel({ agg, left: 0, top: 0, mobile }); return }
     const pw = 268, ph = 260
     let left = r.right + 14, top = r.top - 12
     if (left + pw > window.innerWidth - 12) left = r.left - pw - 14
     if (left < 12) left = 12
     if (top + ph > window.innerHeight - 12) top = window.innerHeight - ph - 12
     if (top < 12) top = 12
-    setSel({ loc, left, top, mobile })
+    setSel({ agg, left, top, mobile })
   }
 
   return (
-    <div ref={outerRef} className="h-full overflow-hidden bg-bento-bg p-4 sm:p-6">
-      <div className={cn('ed-map max-w-[1180px] mx-auto', 'skin-' + skin)}>
-        {/* Barra (filtro + contadores) — nada flutua sobre o mapa */}
-        <div className="flex items-center justify-between gap-3 flex-wrap mb-3">
-          <div className="flex items-center gap-3 flex-wrap">
-            <h2 className="font-display font-bold text-bento-text text-lg">Mapa de Clientes</h2>
-            <div className="flex bg-bento-bg border border-bento-border rounded-btn p-1 gap-1">
-              {(['todos', 'clientes', 'leads'] as Filter[]).map(f => (
-                <button key={f} onClick={() => { setFilter(f); setSel(null) }}
-                  className={cn('px-3 py-1.5 rounded-[8px] text-xs font-medium transition-colors',
-                    filter === f ? 'bg-lime text-lime-ink' : 'text-bento-muted hover:text-bento-text')}>
-                  {f === 'todos' ? 'Todos' : f === 'clientes' ? 'Clientes' : 'Leads'}
-                </button>
-              ))}
+    <div ref={outerRef} className={cn('overflow-hidden bg-bento-bg', embedded ? 'h-full p-0' : 'h-full p-4 sm:p-6')}>
+      <div className={cn('ed-map mx-auto', !embedded && 'max-w-[1180px]', 'skin-' + skin, !showFusos && 'flat-fuso')}>
+        {!embedded && (
+          <div className="flex items-center justify-between gap-3 flex-wrap mb-3">
+            <div className="flex items-center gap-3 flex-wrap">
+              <h2 className="font-display font-bold text-bento-text text-lg">Mapa de Clientes e Leads</h2>
+              <div className="flex bg-bento-bg border border-bento-border rounded-btn p-1 gap-1">
+                {(['todos', 'clientes', 'leads'] as Filter[]).map(f => (
+                  <button key={f} onClick={() => { setFilter(f); setSel(null) }}
+                    className={cn('px-3 py-1.5 rounded-[8px] text-xs font-medium transition-colors',
+                      filter === f ? 'bg-lime text-lime-ink' : 'text-bento-muted hover:text-bento-text')}>
+                    {f === 'todos' ? 'Todos' : f === 'clientes' ? 'Clientes' : 'Leads'}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <Counter label="Estados" value={states.length} />
+              <Counter label="Clientes" value={totalClients} cls="text-[#00E08A]" />
+              <Counter label="Leads" value={totalLeads} cls="text-[#2E7BFF]" />
             </div>
           </div>
-          <div className="flex items-center gap-2">
-            <Counter label="Cidades" value={locations.length} />
-            <Counter label="Clientes" value={totalClients} cls="text-green-500" />
-            <Counter label="Leads" value={totalLeads} cls="text-sky-400" />
-          </div>
-        </div>
+        )}
 
         {/* Palco do mapa */}
         <div className="ed-map-stage" ref={stageRef}>
@@ -221,17 +186,11 @@ export function MapaTab({ leads, clients }: { leads: Lead[]; clients: Client[] }
             width={box.w} height={box.h} style={{ width: box.w, height: box.h, margin: '0 auto', display: 'block' }}
             xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Mapa dos EUA com clientes e leads">
             <defs>
-              {/* Pontos = VIDRO/LUZ (radial, luz vinda de cima-esquerda). Cliente=lima, Lead/Novo=azul. */}
-              <radialGradient id="ed-g-cli-l" cx="40%" cy="34%" r="68%"><stop offset="0" stopColor="#FBFFE8" /><stop offset=".34" stopColor="#DFFF82" /><stop offset=".72" stopColor="#A6D92A" /><stop offset="1" stopColor="#4E7A12" /></radialGradient>
-              <radialGradient id="ed-g-led-l" cx="40%" cy="34%" r="68%"><stop offset="0" stopColor="#EAF7FF" /><stop offset=".34" stopColor="#A8DEFF" /><stop offset=".72" stopColor="#2D9BE8" /><stop offset="1" stopColor="#0E4E86" /></radialGradient>
-              <radialGradient id="ed-g-cli-d" cx="40%" cy="34%" r="68%"><stop offset="0" stopColor="#FBFFE8" /><stop offset=".34" stopColor="#E2FF87" /><stop offset=".72" stopColor="#BBF22F" /><stop offset="1" stopColor="#5E8A14" /></radialGradient>
-              <radialGradient id="ed-g-led-d" cx="40%" cy="34%" r="68%"><stop offset="0" stopColor="#EAF7FF" /><stop offset=".34" stopColor="#AEE3FF" /><stop offset=".72" stopColor="#3FB6F2" /><stop offset="1" stopColor="#135E9E" /></radialGradient>
-              {/* Leads na fase "Novo" — azul levemente mais claro que o lead */}
-              <radialGradient id="ed-g-novo-l" cx="40%" cy="34%" r="68%"><stop offset="0" stopColor="#EAF7FF" /><stop offset=".34" stopColor="#B3E0FF" /><stop offset=".72" stopColor="#43A8EE" /><stop offset="1" stopColor="#15578F" /></radialGradient>
-              <radialGradient id="ed-g-novo-d" cx="40%" cy="34%" r="68%"><stop offset="0" stopColor="#EAF7FF" /><stop offset=".34" stopColor="#BFE6FF" /><stop offset=".72" stopColor="#5BC0F5" /><stop offset="1" stopColor="#1C6BB0" /></radialGradient>
-              <filter id="ed-pgL" x="-200%" y="-200%" width="500%" height="500%"><feGaussianBlur stdDeviation="0.6" result="b" /><feMerge><feMergeNode in="b" /><feMergeNode in="SourceGraphic" /></feMerge></filter>
-              <filter id="ed-pgB" x="-300%" y="-300%" width="700%" height="700%"><feGaussianBlur stdDeviation="1.4" result="b" /><feMerge><feMergeNode in="b" /><feMergeNode in="SourceGraphic" /></feMerge></filter>
-              {/* Brilho do contorno das regiões (edge + edgeGlow no hover) */}
+              {/* Pontos de vidro: leads azul, clientes verde. Halo (blur) + sombra suave (flutuando). */}
+              <radialGradient id="ed-g-lead" cx="38%" cy="32%" r="70%"><stop offset="0" stopColor="#EAF3FF" /><stop offset=".35" stopColor="#7FB2FF" /><stop offset=".72" stopColor="#2E7BFF" /><stop offset="1" stopColor="#15539C" /></radialGradient>
+              <radialGradient id="ed-g-client" cx="38%" cy="32%" r="70%"><stop offset="0" stopColor="#E6FFF6" /><stop offset=".35" stopColor="#5FF0C0" /><stop offset=".72" stopColor="#00E08A" /><stop offset="1" stopColor="#018A56" /></radialGradient>
+              <filter id="ed-pt-halo" x="-150%" y="-150%" width="400%" height="400%"><feGaussianBlur stdDeviation="3" /></filter>
+              <filter id="ed-pt-shadow" x="-80%" y="-80%" width="260%" height="260%"><feDropShadow dx="0" dy="0.9" stdDeviation="0.9" floodColor="#000" floodOpacity="0.35" /></filter>
               <filter id="ed-glow" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="1.4" result="b" /><feMerge><feMergeNode in="b" /><feMergeNode in="SourceGraphic" /></feMerge></filter>
             </defs>
 
@@ -243,37 +202,39 @@ export function MapaTab({ leads, clients }: { leads: Lead[]; clients: Client[] }
                 <path className="lines" d={r.lines} />
                 <path className="edge" d={r.fill} />
                 <path className="edgeGlow" d={r.fill} />
-                <text className="rlabel" x={r.lx} y={r.ly}>{r.name}</text>
+                {showFusos && <text className="rlabel" x={r.lx} y={r.ly}>{FUSO_LABEL[r.key]}</text>}
               </g>
             ))}
 
             <g>
-              {pins.map(p => (
-                <Pin key={p.key} type={p.type} x={p.x} y={p.y} n={p.n} label={p.label} scale={box.scale}
-                  selected={sel?.loc.key === p.loc.key} onClick={e => openPanel(p.loc, e)} />
+              {points.map(p => (
+                <StatePoint key={p.key} type={p.type} x={p.x} y={p.y} count={p.count} scale={box.scale}
+                  selected={sel?.agg.st === p.agg.st} onClick={e => openPanel(p.agg, e)} />
               ))}
             </g>
           </svg>
           <div className="ed-map-vig" />
           {skin === 'holo' && <div className="ed-map-scan" />}
         </div>
-        <p className="font-tech text-[10.5px] text-bento-muted text-center mt-3">Clique num ponto para ver clientes e leads.</p>
 
-        {/* Popover ancorado (dentro de .ed-map p/ herdar as variáveis de tema) */}
+        {/* Legenda */}
+        <div className="flex items-center justify-center gap-x-4 gap-y-1 flex-wrap mt-2 font-tech text-[10.5px] text-bento-muted">
+          <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full" style={{ background: LEAD_COLOR }} />Leads no estado</span>
+          <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full" style={{ background: CLIENT_COLOR }} />Clientes no estado</span>
+          <span className="text-bento-muted/70">dois lado a lado = tem os dois</span>
+        </div>
+
         {sel && (
           <div className="ed-map-panel" style={sel.mobile ? { left: 8, right: 8, bottom: 10 } : { left: sel.left, top: sel.top }}>
             <button className="ed-map-x" onClick={() => setSel(null)} aria-label="Fechar">&#215;</button>
             <div className="ed-map-ph">
-              <div className="ed-map-city">{sel.loc.city || sel.loc.st}<span className="ed-map-st">{sel.loc.st}</span></div>
-              <div className="ed-map-badges">
-                {sel.loc.code && <span className="ed-map-bdg">DDD {sel.loc.code}</span>}
-                <span className="ed-map-bdg">{REGION_TZ[sel.loc.region]}</span>
-              </div>
+              <div className="ed-map-city">{sel.agg.st}</div>
+              <div className="ed-map-badges"><span className="ed-map-bdg">{FUSO_LABEL[sel.agg.region]}</span></div>
             </div>
             <div className="ed-map-pb">
-              {sel.loc.clients.length > 0 && <PanelSection title="Clientes" cls="client" items={sel.loc.clients} />}
-              {(sel.loc.novos.length + sel.loc.leads.length) > 0 && <PanelSection title="Leads" cls="lead" items={[...sel.loc.novos, ...sel.loc.leads]} />}
-              {sel.loc.clients.length === 0 && sel.loc.novos.length === 0 && sel.loc.leads.length === 0 && <p className="ed-map-empty">Sem registros.</p>}
+              {sel.agg.clients.length > 0 && <PanelSection title="Clientes" cls="client" items={sel.agg.clients} />}
+              {sel.agg.leads.length > 0 && <PanelSection title="Leads" cls="lead" items={sel.agg.leads} />}
+              {sel.agg.clients.length === 0 && sel.agg.leads.length === 0 && <p className="ed-map-empty">Sem registros.</p>}
             </div>
           </div>
         )}
@@ -291,22 +252,24 @@ function Counter({ label, value, cls }: { label: string; value: number; cls?: st
   )
 }
 
-function Pin({ type, x, y, n, label, scale, selected, onClick }: {
-  type: 'client' | 'novo' | 'lead'; x: number; y: number; n: number; label?: number; scale: number; selected: boolean; onClick: (e: MouseEvent) => void
+// Ponto do estado: halo + núcleo de vidro (gradiente) + sombra + reflexo + NÚMERO branco no centro.
+function StatePoint({ type, x, y, count, scale, selected, onClick }: {
+  type: 'lead' | 'client'; x: number; y: number; count: number; scale: number; selected: boolean; onClick: (e: MouseEvent) => void
 }) {
-  // Raios ~CONSTANTES na tela: px-alvo / escala (escala = larguraRenderizada/1000). Pin de VIDRO:
-  // core + reflexo (cima-esquerda) + aro fino. Pin agregado por estado (label) cresce p/ caber o número.
   const u = (px: number) => px / (scale || 1)
-  const coreR = CORE_PX + (label != null ? 3 : Math.min(n - 1, 2))
+  const color = type === 'lead' ? LEAD_COLOR : CLIENT_COLOR
+  const digits = String(count).length
+  const coreR = 8 + (digits >= 3 ? 2.5 : 0)
   return (
     <g className={cn('pin', type, selected && 'sel')} transform={`translate(${x},${y})`}
       role="button" tabIndex={0} onClick={e => { e.stopPropagation(); onClick(e) }}>
-      <circle className="selRing" r={u(SEL_PX)} />
-      <circle className="core" r={u(coreR)} />
-      <circle className="ring" r={u(coreR)} />
-      <circle className="gloss" cx={u(-0.3 * coreR)} cy={u(-0.34 * coreR)} r={u(coreR * 0.22)} />
-      {label != null && <text className="pinCount" y={u(0.5)} fontSize={u(7)}>{label}</text>}
-      <circle className="hit" r={u(HIT_PX)} />
+      <circle r={u(coreR + 5)} fill={color} opacity={0.18} filter="url(#ed-pt-halo)" />
+      <circle className="selRing" r={u(coreR + 3)} />
+      <circle r={u(coreR)} fill={`url(#ed-g-${type})`} filter="url(#ed-pt-shadow)" />
+      <circle r={u(coreR)} fill="none" stroke="rgba(255,255,255,0.32)" strokeWidth="0.6" vectorEffect="non-scaling-stroke" />
+      <circle cx={u(-coreR * 0.32)} cy={u(-coreR * 0.36)} r={u(coreR * 0.26)} fill="#fff" opacity={0.7} />
+      <text className="pinCount" fontSize={u(digits >= 3 ? 6.5 : 8)}>{count}</text>
+      <circle className="hit" r={u(HIT_PX)} fill="transparent" />
     </g>
   )
 }

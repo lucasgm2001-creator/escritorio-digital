@@ -10,15 +10,21 @@ import { LiveDot } from '@/components/bento/LiveDot'
 import { AgentChat } from './AgentChat'
 import { NewsSection } from './NewsSection'
 import { CollapsibleSection } from '@/components/mobile/CollapsibleSection'
-import { X, Trash2, Check, Clock, LayoutGrid, CalendarDays, Activity as ActivityIcon, Megaphone, Newspaper, Plus, Sparkles } from 'lucide-react'
+import { X, Clock, LayoutGrid, CalendarDays, Activity as ActivityIcon, Newspaper, Sparkles, Maximize2, ChevronLeft } from 'lucide-react'
 import type { Activity, Notice } from '@/types'
 import type { Task, LinkOption } from '../tarefas/types'
+import type { Lead } from '../comercial/types'
+import type { Client } from '../clientes/ClientesClient'
 import { TarefasClient } from '../tarefas/TarefasClient'
 import { RelatorioComercial } from '../tarefas/RelatorioComercial'
 import { ErrorBoundary } from '@/components/system/ErrorBoundary'
 import { Calendar } from './Calendar'
 import { type CalendarEvent } from './calendarShared'
 import { dayBR } from './dateBR'
+import dynamic from 'next/dynamic'
+import { getHallSettings, DEFAULT_HALL_SETTINGS, HALL_SETTINGS_EVENT, type HallSettings } from '@/lib/hallSettings'
+// Mapa pesado (geografia us-map.json) — só no client, sob demanda.
+const MapaTab = dynamic(() => import('../comercial/tabs/MapaTab').then(m => ({ default: m.MapaTab })), { ssr: false })
 
 type Tab = 'activities' | 'tarefas' | 'relatorio' | 'agent'
 
@@ -190,32 +196,25 @@ function HistoryModal({ kind, onClose }: {
 
 // ─── Main HallClient ──────────────────────────────────────────────────────────
 
-export function HallClient({ initialActivities, initialNotices, initialTasks, linkOptions, userName, userId }: Props) {
+export function HallClient({ initialActivities, initialTasks, linkOptions, userName, userId }: Props) {
   const [activeTab, setActiveTab]     = useState<Tab>('activities')
   const [activities, setActivities]   = useState<Activity[]>(initialActivities)
-  const [notices, setNotices]         = useState<Notice[]>(initialNotices)
   // Reflete dados frescos do servidor após router.refresh() (revalidação ao focar a aba).
-  // Realtime continua atualizando entre refreshes; aqui só reconcilia com a verdade do server.
-  useEffect(() => { setActivities(initialActivities); setNotices(initialNotices) }, [initialActivities, initialNotices])
+  useEffect(() => { setActivities(initialActivities) }, [initialActivities])
   const [greeting, setGreeting]       = useState('')
   const [today, setToday]             = useState('')
   const [history, setHistory] = useState<null | 'activities' | 'notices'>(null)
-  const [showNoticeForm, setShowNoticeForm] = useState(false)
-  const [noticeForm, setNoticeForm]   = useState({ title: '', content: '', priority: 'info' as 'info' | 'warning' | 'urgent' })
-  const [savingNotice, setSavingNotice] = useState(false)
-  const [confirmDelete, setConfirmDelete] = useState<string | null>(null)   // aviso aguardando confirmação
-  const [deletingNotice, setDeletingNotice] = useState<string | null>(null) // aviso sendo excluído
   const [calEvents, setCalEvents]     = useState<CalendarEvent[]>([])
   const [focusEvent, setFocusEvent]   = useState<CalendarEvent | null>(null)
-  const [counts, setCounts]           = useState({ leads: 0, clientes: 0 })
   const [activitiesExpanded, setActivitiesExpanded] = useState(false)
   const [dayBriefing, setDayBriefing] = useState('')          // Briefing do dia (IA, sob demanda)
   const [dayBriefingLoading, setDayBriefingLoading] = useState(false)
-  const [muralVerMais, setMuralVerMais] = useState(false)   // Mural: revela o resto das tarefas de hoje
+  // Mapa + métricas (leads/clientes do banco) e config da Visão Geral (por usuário).
+  const [mapLeads, setMapLeads]   = useState<Lead[]>([])
+  const [mapClients, setMapClients] = useState<Client[]>([])
+  const [hallCfg, setHallCfg]     = useState<HallSettings>(DEFAULT_HALL_SETTINGS)
+  const [mapFull, setMapFull]     = useState(false)
   const router = useRouter()
-
-  // App pessoal de usuário único: acesso total.
-  const canPostNotice = true
 
   // Deep-link: /hall?tab=tarefas (vindo do redirect de /tarefas) abre a aba certa.
   useEffect(() => {
@@ -228,62 +227,28 @@ export function HallClient({ initialActivities, initialNotices, initialTasks, li
     setToday(new Date().toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }))
   }, [])
 
-  // Contagens p/ os KPIs (Leads/Clientes) — head count, barato.
+  // Config da Visão Geral (por usuário, localStorage) — lida no client p/ não dar hydration mismatch.
+  useEffect(() => {
+    const sync = () => setHallCfg(getHallSettings(userId))
+    sync()
+    window.addEventListener(HALL_SETTINGS_EVENT, sync)
+    window.addEventListener('storage', sync)
+    return () => { window.removeEventListener(HALL_SETTINGS_EVENT, sync); window.removeEventListener('storage', sync) }
+  }, [userId])
+
+  // Leads + clientes p/ o MAPA e as MÉTRICAS (campos leves). Agenda em paralelo + realtime de atividades.
   useEffect(() => {
     const supabase = createClient()
-    Promise.all([
-      supabase.from('leads').select('id', { count: 'exact', head: true }),
-      supabase.from('clients').select('id', { count: 'exact', head: true }).eq('status', 'ativo'),
-    ]).then(([l, c]) => setCounts({ leads: l.count ?? 0, clientes: c.count ?? 0 }))
-  }, [])
-
-  useEffect(() => {
-    const supabase = createClient()
-
-    supabase.from('calendar_events').select('*').eq('user_id', userId).order('date').then(({ data }) => {
-      if (data) setCalEvents(data as CalendarEvent[])
-    })
-
-    // Tarefas do Mural vêm de initialTasks (mesma fonte da Agenda) — sem carga separada aqui.
+    supabase.from('leads').select('id, name, status, state, area_code, created_at').then(({ data }) => { if (data) setMapLeads(data as unknown as Lead[]) })
+    supabase.from('clients').select('id, name, status, state, area_code').then(({ data }) => { if (data) setMapClients(data as unknown as Client[]) })
+    supabase.from('calendar_events').select('*').eq('user_id', userId).order('date').then(({ data }) => { if (data) setCalEvents(data as CalendarEvent[]) })
 
     const dataChannel = supabase.channel('hall-realtime')
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'activities' },
         p => setActivities(prev => [p.new as Activity, ...prev.slice(0, 19)]))
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'notices' },
-        p => setNotices(prev => [p.new as Notice, ...prev.slice(0, 9)]))
-      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'notices' },
-        p => setNotices(prev => prev.filter(n => n.id !== (p.old as { id?: string }).id)))
       .subscribe()
-
-    return () => {
-      dataChannel.unsubscribe().then(() => supabase.removeChannel(dataChannel))
-    }
-  }, [userId, userName])
-
-  const handlePostNotice = async () => {
-    if (!noticeForm.title.trim()) return
-    setSavingNotice(true)
-    try {
-      const supabase = createClient()
-      const { error } = await supabase.from('notices').insert({ ...noticeForm, author_id: userId, author_name: userName })
-      if (error) { alert('Erro ao postar aviso.'); setSavingNotice(false); return }
-      setNoticeForm({ title: '', content: '', priority: 'info' })
-      setShowNoticeForm(false)
-    } finally {
-      setSavingNotice(false)
-    }
-  }
-
-  // Exclui só o aviso (notices). NÃO toca em activities. RLS já permite delete (migration 005).
-  const handleDeleteNotice = async (id: string) => {
-    setDeletingNotice(id)
-    const supabase = createClient()
-    const { error } = await supabase.from('notices').delete().eq('id', id)
-    if (error) { alert('Não foi possível excluir o aviso.'); setDeletingNotice(null); return }
-    setNotices(prev => prev.filter(n => n.id !== id))
-    setConfirmDelete(null)
-    setDeletingNotice(null)
-  }
+    return () => { dataChannel.unsubscribe().then(() => supabase.removeChannel(dataChannel)) }
+  }, [userId])
 
   // Briefing do dia (IA, só leitura, sob demanda). Guarda no estado — não re-chama a cada render.
   const genBriefing = async () => {
@@ -303,21 +268,24 @@ export function HallClient({ initialActivities, initialNotices, initialTasks, li
   // ── Mural ↔ Agenda: MESMA fonte (initialTasks, idêntica à do Calendar) ──────────
   // Toda tarefa com data que aparece na Agenda aparece aqui também. Ordem: atrasadas →
   // próximas (por data) → concluídas (apagadas). Mantém os eventos de HOJE e os avisos.
+  // Tarefas/eventos de HOJE (data civil de Brasília) — alimentam a coluna "Tarefas de hoje" (com hora).
   const hojeStr = dayBR(new Date())
-  // Mural ENXUTO: só o DIA. Tarefas de HOJE pendentes (data civil de Brasília) — atrasadas, futuras
-  // e concluídas NÃO entram (a Agenda continua mostrando tudo). Eventos de hoje + avisos seguem.
-  const MURAL_LIMIT = 4
   const tarefasHoje = initialTasks
     .filter(t => t.due_date === hojeStr && !t.done)
     .sort((a, b) => (a.due_time || '99:99').localeCompare(b.due_time || '99:99'))
-  const tarefasHojeVis = muralVerMais ? tarefasHoje : tarefasHoje.slice(0, MURAL_LIMIT)
   const eventosHoje = calEvents.filter(e => e.date === hojeStr).sort((a, b) => (a.start_time || '99:99').localeCompare(b.start_time || '99:99'))
-  const muralVazio = tarefasHoje.length + eventosHoje.length + notices.length === 0
 
-  const todaySP = dayBR(new Date())
-  // KPIs do dia (reusa dados já carregados): tarefas de hoje pendentes + próximas reuniões na agenda.
-  const tasksToday = initialTasks.filter(t => t.due_date === todaySP && !t.done).length
-  const reunioesUpcoming = calEvents.filter(e => e.type === 'reuniao' && e.date >= todaySP).length
+  // Métricas da Visão Geral — do banco (leads/clientes). Conversão coerente com o funil.
+  const clientesAtivos = mapClients.filter(c => c.status === 'ativo').length
+  const leadsAbertos = mapLeads.filter(l => !['fechado', 'perdido', 'lixeira'].includes(l.status)).length
+  const leadsNovos = mapLeads.filter(l => l.created_at && new Date(l.created_at).getTime() >= Date.now() - 7 * 86400000).length
+  const conversao = (clientesAtivos + leadsAbertos) > 0 ? Math.round((clientesAtivos / (clientesAtivos + leadsAbertos)) * 100) : 0
+  const METRICS: { key: keyof HallSettings['metrics']; label: string; value: string; mobile: boolean }[] = [
+    { key: 'clientesAtivos', label: 'Clientes ativos', value: String(clientesAtivos), mobile: true },
+    { key: 'leadsAbertos', label: 'Leads em aberto', value: String(leadsAbertos), mobile: true },
+    { key: 'leadsNovos', label: 'Leads novos', value: String(leadsNovos), mobile: false },
+    { key: 'conversao', label: 'Conversão', value: `${conversao}%`, mobile: false },
+  ]
 
   // Proporção por tipo de atividade (funil → barras de proporção).
   const typeCounts = Object.entries(
@@ -398,30 +366,54 @@ export function HallClient({ initialActivities, initialNotices, initialTasks, li
               </Panel>
             </CollapsibleSection>
 
-            {/* (1) Visão Geral — números do dia. Mobile: caixa aberta por padrão. */}
-            <CollapsibleSection title="Visão Geral" icon={LayoutGrid} defaultOpen>
-              <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-                {[
-                  { label: 'Leads',        value: counts.leads },
-                  { label: 'Clientes',     value: counts.clientes },
-                  { label: 'Tarefas hoje', value: tasksToday },
-                  { label: 'Reuniões',     value: reunioesUpcoming },
-                ].map(k => (
-                  <div key={k.label} className="bento-fx px-3 py-2 flex items-baseline justify-between gap-2">
-                    <span className="font-tech text-[11px] uppercase tracking-wide text-bento-muted truncate">{k.label}</span>
-                    <span className="font-display text-xl font-bold text-bento-text tabular-nums leading-none">{k.value}</span>
-                  </div>
-                ))}
-              </div>
-            </CollapsibleSection>
+            {/* (1) Métricas — do banco. Mobile: LADO A LADO só Clientes ativos + Leads em aberto. */}
+            {METRICS.some(m => hallCfg.metrics[m.key]) && (
+              <CollapsibleSection title="Visão Geral" icon={LayoutGrid} defaultOpen>
+                <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+                  {METRICS.filter(m => hallCfg.metrics[m.key]).map(m => (
+                    <div key={m.key} className={cn('bento-fx px-3 py-2.5 flex flex-col gap-1', !m.mobile && 'hidden lg:flex')}>
+                      <span className="font-tech text-[10px] uppercase tracking-wide text-bento-muted truncate">{m.label}</span>
+                      <span className="font-display text-2xl font-bold text-bento-text tabular-nums leading-none">{m.value}</span>
+                    </div>
+                  ))}
+                </div>
+              </CollapsibleSection>
+            )}
 
             {/* (2) Agenda — aberta por padrão no mobile. Altura NATURAL (sem stretch/h-full). */}
             <CollapsibleSection title="Agenda" icon={CalendarDays} defaultOpen>
               <Calendar userId={userId} events={calEvents} tasks={initialTasks} onEventsChange={setCalEvents} focusEvent={focusEvent} onFocusHandled={() => setFocusEvent(null)} />
             </CollapsibleSection>
 
-            {/* ATIVIDADES RECENTES + MURAL — lado a lado, mesma altura */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 items-stretch">
+            {/* (2) Corpo em 3 colunas: Tarefas de hoje · Mapa (centro) · Atividade recente. */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 items-stretch">
+              {hallCfg.blocks.tarefas && (
+                <CollapsibleSection title="Tarefas de hoje" icon={CalendarDays} defaultOpen>
+                  <Panel className="h-full max-lg:p-3" headerClassName="max-lg:hidden" label="Tarefas de hoje">
+                    <div className="space-y-2">
+                      {eventosHoje.length === 0 && tarefasHoje.length === 0
+                        ? <p className="text-sm text-bento-muted py-6 text-center">Nada para hoje.</p>
+                        : <>
+                            {eventosHoje.map(ev => <MuralAgendaRow key={`ev-${ev.id}`} ev={ev} onClick={() => setFocusEvent(ev)} />)}
+                            {tarefasHoje.map(t => <MuralTaskRow key={`tk-${t.id}`} task={t} onClick={() => router.push('/tarefas')} />)}
+                          </>}
+                    </div>
+                  </Panel>
+                </CollapsibleSection>
+              )}
+              {hallCfg.blocks.mapa && (
+                <CollapsibleSection title="Mapa de Clientes e Leads" icon={LayoutGrid} defaultOpen>
+                  <Panel className="h-full max-lg:p-3" headerClassName="max-lg:hidden" label="Mapa de Clientes e Leads"
+                    action={<button onClick={() => setMapFull(true)} className="font-tech text-[11px] uppercase tracking-wide text-bento-muted hover:text-lime-fg flex items-center gap-1" aria-label="Mapa em tela cheia"><Maximize2 className="w-3.5 h-3.5" />Tela cheia</button>}>
+                    <div className="h-[340px]">
+                      <ErrorBoundary>
+                        <MapaTab embedded leads={mapLeads} clients={mapClients} showLeads={hallCfg.map.leads} showClients={hallCfg.map.clients} showFusos={hallCfg.map.fusos} />
+                      </ErrorBoundary>
+                    </div>
+                  </Panel>
+                </CollapsibleSection>
+              )}
+              {hallCfg.blocks.atividade && (
               <CollapsibleSection title="Atividades Recentes" icon={ActivityIcon}>
                 <Panel className="h-full max-lg:p-3" headerClassName="max-lg:hidden" label="Atividades Recentes" action={<LiveDot />}>
                 {/* Resumo por tipo — barras de proporção */}
@@ -481,113 +473,7 @@ export function HallClient({ initialActivities, initialNotices, initialTasks, li
                 </button>
                 </Panel>
               </CollapsibleSection>
-
-              <CollapsibleSection title="Mural de Avisos" icon={Megaphone}>
-                <Panel
-                  className="h-full max-lg:p-3"
-                  headerClassName="max-lg:hidden"
-                  label="Mural de Avisos"
-                  action={
-                  <div className="flex items-center gap-2.5">
-                    {canPostNotice && (
-                      <button onClick={() => setShowNoticeForm(!showNoticeForm)}
-                        className="font-tech text-[11px] uppercase tracking-wide text-lime-fg hover:text-lime transition-colors font-semibold flex items-center gap-1">
-                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                        </svg>
-                        Postar
-                      </button>
-                    )}
-                  </div>
-                }
-              >
-                <div className="space-y-2.5">
-                  {/* Postar no mobile (no desktop o botão fica no header do painel, escondido aqui). */}
-                  {canPostNotice && (
-                    <button type="button" onClick={() => setShowNoticeForm(s => !s)}
-                      className="lg:hidden w-full flex items-center justify-center gap-1.5 mb-1 py-2 rounded-btn border border-bento-border text-lime-fg font-tech text-[11px] uppercase tracking-wide font-semibold min-h-[40px]">
-                      <Plus className="w-3.5 h-3.5" />Postar aviso
-                    </button>
-                  )}
-                  {showNoticeForm && (
-                    <div className="bg-bento-bg border border-bento-border rounded-bento p-3 space-y-2 mb-3">
-                      <input value={noticeForm.title} onChange={e => setNoticeForm(p => ({ ...p, title: e.target.value }))}
-                        placeholder="Título" className="w-full bg-bento-panel border border-bento-border rounded-btn px-3 py-1.5 text-sm text-bento-text placeholder:text-bento-muted focus:outline-none focus:border-lime" />
-                      <textarea value={noticeForm.content} onChange={e => setNoticeForm(p => ({ ...p, content: e.target.value }))}
-                        placeholder="Mensagem..." rows={2}
-                        className="w-full bg-bento-panel border border-bento-border rounded-btn px-3 py-1.5 text-sm text-bento-text placeholder:text-bento-muted focus:outline-none focus:border-lime resize-none" />
-                      <div className="flex gap-1.5">
-                        {(['info','warning','urgent'] as const).map(p => (
-                          <button key={p} onClick={() => setNoticeForm(prev => ({ ...prev, priority: p }))}
-                            className={`flex-1 py-1 rounded-md text-xs font-medium border transition-all ${
-                              noticeForm.priority === p ? NOTICE_PILL[p] : 'bg-transparent text-bento-muted border-bento-border'
-                            }`}>
-                            {NOTICE_LABEL[p]}
-                          </button>
-                        ))}
-                        <button onClick={handlePostNotice} disabled={savingNotice || !noticeForm.title.trim()}
-                          className="bento-btn px-3 py-1 rounded-btn text-xs font-semibold disabled:opacity-50">
-                          {savingNotice ? '...' : 'OK'}
-                        </button>
-                      </div>
-                    </div>
-                  )}
-                  {muralVazio
-                    ? <p className="text-sm text-bento-muted py-6 text-center">Nenhuma tarefa para hoje.</p>
-                    : <>
-                    {/* Só o DIA: eventos de hoje + tarefas de hoje (máx 4 + "ver mais") + avisos. */}
-                    {eventosHoje.map(ev => (
-                      <MuralAgendaRow key={`ev-${ev.id}`} ev={ev} onClick={() => setFocusEvent(ev)} />
-                    ))}
-                    {tarefasHojeVis.map(t => (
-                      <MuralTaskRow key={`tk-${t.id}`} task={t} onClick={() => router.push('/tarefas')} />
-                    ))}
-                    {tarefasHoje.length > MURAL_LIMIT && (
-                      <button type="button" onClick={() => setMuralVerMais(v => !v)}
-                        className="w-full text-center font-tech text-[11px] text-bento-muted hover:text-lime-fg py-1 transition-colors">
-                        {muralVerMais ? 'ver menos' : `ver mais (${tarefasHoje.length - MURAL_LIMIT})`}
-                      </button>
-                    )}
-                    {notices.map(n => (
-                      <div key={n.id} className={`rounded-bento border p-3 ${NOTICE_BORDER[n.priority] ?? 'border-bento-border'}`}>
-                        <div className="flex items-center justify-between mb-1 gap-2">
-                          <p className="text-sm font-semibold text-bento-text truncate">{n.title}</p>
-                          <div className="flex items-center gap-1.5 shrink-0">
-                            <span className={`text-[10px] px-2 py-0.5 rounded-full border font-semibold ${NOTICE_PILL[n.priority] ?? 'border-bento-border text-bento-muted'}`}>
-                              {NOTICE_LABEL[n.priority] ?? n.priority}
-                            </span>
-                            {confirmDelete === n.id ? (
-                              <span className="flex items-center gap-1">
-                                <button onClick={() => handleDeleteNotice(n.id)} disabled={deletingNotice === n.id}
-                                  className="p-1 rounded-btn text-red-400 hover:bg-red-900/20 disabled:opacity-50 transition-colors" aria-label="Confirmar exclusão" title="Confirmar exclusão">
-                                  <Check className="w-3.5 h-3.5" />
-                                </button>
-                                <button onClick={() => setConfirmDelete(null)} disabled={deletingNotice === n.id}
-                                  className="p-1 rounded-btn text-bento-muted hover:text-bento-text hover:bg-bento-bg disabled:opacity-50 transition-colors" aria-label="Cancelar" title="Cancelar">
-                                  <X className="w-3.5 h-3.5" />
-                                </button>
-                              </span>
-                            ) : (
-                              <button onClick={() => setConfirmDelete(n.id)}
-                                className="p-1 rounded-btn text-bento-muted hover:text-red-400 hover:bg-red-900/20 transition-colors" aria-label="Excluir aviso" title="Excluir aviso">
-                                <Trash2 className="w-3.5 h-3.5" />
-                              </button>
-                            )}
-                          </div>
-                        </div>
-                        <p className="text-xs text-bento-dim">{n.content}</p>
-                        {n.author_name && <p className="font-tech text-xs text-bento-muted/70 mt-1">— {n.author_name} · <TimeAgo date={n.created_at} /></p>}
-                      </div>
-                    ))}
-                    </>
-                  }
-                  <button type="button" onClick={() => setHistory('notices')}
-                    className="mt-1 pt-3 border-t border-bento-border/60 w-full text-center font-tech text-[11px] uppercase tracking-wide text-bento-muted hover:text-lime-fg transition-colors">
-                    Ver histórico
-                  </button>
-                </div>
-                </Panel>
-              </CollapsibleSection>
+              )}
             </div>
 
             {/* (5) Notícias do Setor — fechada por padrão no mobile */}
@@ -619,6 +505,23 @@ export function HallClient({ initialActivities, initialNotices, initialTasks, li
 
       {history && (
         <HistoryModal kind={history} onClose={() => setHistory(null)} />
+      )}
+
+      {/* Mapa em TELA CHEIA (‹ Voltar). Mesmo componente, só maior. */}
+      {mapFull && (
+        <div className="fixed inset-0 z-[80] bg-bento-bg flex flex-col">
+          <div className="shrink-0 flex items-center gap-2 px-4 h-12 border-b border-bento-border pt-[env(safe-area-inset-top)]">
+            <button onClick={() => setMapFull(false)} className="flex items-center gap-1 text-sm font-medium text-bento-dim hover:text-bento-text min-h-[44px]">
+              <ChevronLeft className="w-4 h-4" />Voltar
+            </button>
+            <span className="font-display font-bold text-bento-text text-sm ml-1">Mapa de Clientes e Leads</span>
+          </div>
+          <div className="flex-1 min-h-0">
+            <ErrorBoundary>
+              <MapaTab embedded leads={mapLeads} clients={mapClients} showLeads={hallCfg.map.leads} showClients={hallCfg.map.clients} showFusos={hallCfg.map.fusos} />
+            </ErrorBoundary>
+          </div>
+        </div>
       )}
     </div>
   )
