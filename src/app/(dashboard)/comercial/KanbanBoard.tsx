@@ -107,10 +107,20 @@ export function KanbanBoard({ initialLeads, initialStages, initialClients, curre
   }, [])
 
   const supabase = createClient()
-  // Fases do funil vindas do banco. Render + won-flow leem daqui. Refletem edições ao reabrir/atualizar
-  // a aba (server refetch em foco/navegação).
-  const cols = useMemo(() => columnsFromStages(initialStages), [initialStages])
-  // Funil montado DINAMICAMENTE: agrupado por `grupo` (ordem por posicao), nada hardcoded.
+  // Fases ao vivo: o servidor manda initialStages (sujeito a cache de rota); relemos funnel_stages no
+  // mount p/ o funil refletir QUALQUER grupo/cor/ordem nova ao abrir a aba, sem depender de reload.
+  // SÓ VISUAL — o won-flow/comissão continua lendo initialStages (dinheiro intocado).
+  const [liveStages, setLiveStages] = useState<FunnelStage[]>(initialStages)
+  useEffect(() => { setLiveStages(initialStages) }, [initialStages])
+  useEffect(() => {
+    let alive = true
+    supabase.from('funnel_stages').select('*').order('posicao').then(({ data }) => { if (alive && data) setLiveStages(data as FunnelStage[]) })
+    return () => { alive = false }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+  const cols = useMemo(() => columnsFromStages(liveStages), [liveStages])
+  // Funil montado DINAMICAMENTE: faixas = valores DISTINTOS de `grupo` (ordem da menor posicao, pois
+  // cols já vem ordenado por posicao); grupo null → "Sem grupo". Nada hardcoded → grupo novo ganha faixa.
   const funnelGroups = useMemo(() => {
     const map = new Map<string, typeof cols>()
     for (const c of cols) {
