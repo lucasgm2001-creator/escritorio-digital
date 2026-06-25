@@ -17,8 +17,9 @@ const HEAT: Record<Heat, { dot: string; text: string; label: string }> = {
 
 const onlyDigits = (s?: string) => (s ?? '').replace(/\D/g, '')
 
-export function FunnelLeadCard({ lead, onMove, onOpenDiary, onLog, userId }: {
+export function FunnelLeadCard({ lead, coldDays, onMove, onOpenDiary, onLog, userId }: {
   lead: Lead
+  coldDays?: number | null   // dias_esfriamento da fase (limite "esfriando"); null = padrão global
   onMove: (status: LeadStatus) => void
   onOpenDiary: () => void
   onLog: (type: string) => void
@@ -29,7 +30,7 @@ export function FunnelLeadCard({ lead, onMove, onOpenDiary, onLog, userId }: {
   const style = { transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.3 : 1 }
 
   const terminal = lead.status === 'fechado' || lead.status === 'perdido' || lead.status === 'lixeira'
-  const heat = heatLevel(lead)
+  const heat = heatLevel(lead, coldDays)
   const dotClass = lead.status === 'fechado' ? 'bg-green-500'
     : lead.status === 'perdido' ? 'bg-red-500'
     : lead.status === 'lixeira' ? 'bg-bento-muted'

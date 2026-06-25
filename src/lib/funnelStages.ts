@@ -17,6 +17,24 @@ export interface FunnelStage {
   conta_fechou: boolean
   cor: string | null
   arquivada: boolean
+  grupo: string | null              // seção do editor (Captação/Qualificação/…); texto livre
+  dias_esfriamento: number | null   // limite de "esfriando" (vermelho) da fase; null = padrão global
+}
+
+// Fase PROTEGIDA (trava dura): nome/cor/grupo/posicao/dias_esfriamento OK; excluir e mexer em
+// slug/is_won/is_lost/is_system/conta_reuniao/conta_fechou são PROIBIDOS. Casa novo/reuniao/proposta/
+// fechado/perdido/lixeira. O editor NUNCA escreve as flags de dinheiro.
+export function isStageProtected(s: FunnelStage): boolean {
+  return s.is_system || s.is_won || s.is_lost || s.conta_reuniao || s.conta_fechou || s.slug === 'reuniao'
+}
+
+export type StageRole = 'ganho' | 'perdido' | 'arquivo' | 'ativo'
+// Papel DERIVADO das flags (o editor não escreve is_won/is_lost; só liga/desliga arquivada em comuns).
+export function stageRole(s: FunnelStage): StageRole {
+  if (s.is_won) return 'ganho'
+  if (s.is_lost) return 'perdido'
+  if (s.arquivada) return 'arquivo'
+  return 'ativo'
 }
 
 // Fallback estático = o mapa de hoje. Garante comportamento IDÊNTICO se as fases do banco não
@@ -50,12 +68,15 @@ export function marcosForSlug(stages: FunnelStage[], slug: string): Marco[] {
 const STYLE_BY_SLUG: Record<string, ColumnConfig> = Object.fromEntries(ALL_COLUMNS.map(c => [c.key, c]))
 
 export function toColumnConfig(stage: FunnelStage): ColumnConfig {
+  // Cor/rotting/grupo da fase viajam junto p/ o funil refletir (indicador, deal-rotting, seção).
+  const extra = { cor: stage.cor ?? null, coldDays: stage.dias_esfriamento ?? null, grupo: stage.grupo ?? null }
   const base = STYLE_BY_SLUG[stage.slug]
-  if (base) return { ...base, label: stage.nome }   // estilo idêntico ao de hoje; nome do banco
+  if (base) return { ...base, label: stage.nome, ...extra }   // estilo idêntico ao de hoje; nome do banco
   // Fase nova (incremento 2): estilo neutro.
   return {
     key: stage.slug as ColumnConfig['key'], label: stage.nome, tier: stage.posicao, tone: 'neutral',
     textColor: 'text-bento-text', bgColor: 'bg-bento-bg', dotColor: 'bg-bento-muted', borderColor: 'border-bento-border',
+    ...extra,
   }
 }
 

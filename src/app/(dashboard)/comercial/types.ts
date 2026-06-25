@@ -54,6 +54,9 @@ export interface ColumnConfig {
   bgColor: string
   dotColor: string
   borderColor: string
+  cor?: string | null        // cor da fase (hex) — indicador no funil; null = neutro
+  coldDays?: number | null   // dias_esfriamento da fase (limite "esfriando"); null = padrão global
+  grupo?: string | null      // seção do funil (faixa/cabeçalho); null = sem grupo
 }
 
 // Funil horizontal em 6 níveis (tiers). A ORDEM aqui é a ordem lógica do funil.

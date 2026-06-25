@@ -29,12 +29,20 @@ export function daysInStage(lead: Lead): number {
 
 export type Heat = 'hot' | 'warm' | 'cold'
 
-/** Temperatura do funil por dias parado na fase: 0–1 quente, 2–4 atenção, 5+ esfriando. */
-export function heatLevel(lead: Lead): Heat {
+/** Limite global padrão de "esfriando" (dias). Usado quando a fase não tem dias_esfriamento. */
+export const DEFAULT_COLD_DAYS = 5
+
+/**
+ * Temperatura do funil por dias parado na fase. 0–1 = quente; a faixa "atenção" (âmbar) vai até o
+ * limite; a partir de `coldDays` = esfriando (vermelho). `coldDays` vem do dias_esfriamento da fase;
+ * se null/ausente, cai no padrão global (5) → comportamento idêntico ao de hoje (2–4 atenção, 5+ frio).
+ */
+export function heatLevel(lead: Lead, coldDays: number | null = DEFAULT_COLD_DAYS): Heat {
+  const limit = coldDays && coldDays > 1 ? coldDays : DEFAULT_COLD_DAYS
   const d = daysInStage(lead)
   if (d <= 1) return 'hot'
-  if (d <= 4) return 'warm'
-  return 'cold'
+  if (d >= limit) return 'cold'
+  return 'warm'
 }
 
 /** Sinal do card. Etapas terminais (ganho/perda) nunca rotulam rotting/quente. */
