@@ -232,6 +232,22 @@ export function LeadDiary({ lead, onClose, onUpdated, onMoveStage, onDeleted, cu
     }
   }
 
+  // Liga/desliga o lead nas contas do Relatório — Resumo (incluir_no_relatorio). NÃO apaga o lead
+  // nem afeta comissão (relatório usa received_at; comissão usa o mês do cliente). Otimista + rollback.
+  const toggleIncluir = async () => {
+    const next = currentLead.incluir_no_relatorio === false   // estava off → liga; senão desliga
+    const updated = { ...currentLead, incluir_no_relatorio: next }
+    setCurrentLead(updated)
+    const { error } = await supabase.from('leads').update({ incluir_no_relatorio: next }).eq('id', lead.id)
+    if (error) {
+      setCurrentLead(c => ({ ...c, incluir_no_relatorio: !next }))
+      toast({ type: 'error', message: `Não foi possível mudar: ${error.message}` })
+    } else {
+      onUpdated(updated)
+      toast({ type: 'success', message: next ? 'Incluído no relatório.' : 'Fora do relatório.' })
+    }
+  }
+
   // Edita o fuso horário (EUA) — dado de contato, não dinheiro. Otimista + rollback.
   const changeFuso = async (value: string) => {
     const next = (value || null) as Lead['fuso']
@@ -576,6 +592,16 @@ export function LeadDiary({ lead, onClose, onUpdated, onMoveStage, onDeleted, cu
           <input type="date" value={(currentLead.received_at ?? '').slice(0, 10)}
             onChange={e => changeReceivedAt(e.target.value)}
             className="mt-1 w-full bg-bento-bg border border-bento-border rounded-btn px-3 py-2 text-sm text-bento-text focus:outline-none focus:border-lime min-h-[44px]" />
+          {/* Incluir no Relatório — Resumo (default ligado). Desligar tira das contas, NÃO apaga o lead. */}
+          <button type="button" onClick={toggleIncluir} className="mt-3 flex items-center justify-between w-full text-sm text-bento-text">
+            <span className="flex flex-col items-start">
+              Incluir no relatório
+              <span className="text-[11px] text-muted-foreground">{currentLead.incluir_no_relatorio === false ? 'Fora das contas do relatório' : 'Conta no Relatório — Resumo'}</span>
+            </span>
+            <span className={cn('relative w-10 h-6 rounded-full flex-none transition-colors', currentLead.incluir_no_relatorio === false ? 'bg-bento-border' : 'bg-lime')}>
+              <span className={cn('absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white transition-transform', currentLead.incluir_no_relatorio !== false && 'translate-x-4')} />
+            </span>
+          </button>
         </div>
 
         {/* Fuso horário (EUA) — editável */}

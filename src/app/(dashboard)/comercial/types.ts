@@ -24,6 +24,7 @@ export interface Lead {
   updated_at?: string
   created_at: string
   received_at?: string        // data de CHEGADA do lead ('YYYY-MM-DD'); default hoje. Separa de created_at (cadastro).
+  incluir_no_relatorio?: boolean   // entra nas contas do Relatório — Resumo (default true). NÃO afeta comissão.
   fuso?: 'leste' | 'central' | 'montanha' | 'pacifico' | null   // fuso horário (EUA)
   city?: string | null        // cidade (EUA) — Mapa de Clientes
   state?: string | null       // estado (EUA), sigla de 2 letras — Mapa de Clientes
