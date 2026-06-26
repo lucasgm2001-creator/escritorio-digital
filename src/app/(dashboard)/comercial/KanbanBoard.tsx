@@ -327,7 +327,8 @@ export function KanbanBoard({ initialLeads, initialStages, initialClients, curre
         {/* Funil — MOBILE: seletor de fase (dropdown) + cards da fase escolhida. SEM drag: tocar no
             card abre o LeadDiary, que move pela MESMA função (e dispara a comissão igual ao desktop). */}
         {tab === 'funil' && !isDesktop && (
-          <div className="h-full overflow-auto p-3 bg-bento-bg">
+          /* Rola ATÉ O FIM: scroll vertical explícito + folga inferior (clear da BottomNav/safe-area). */
+          <div className="h-full overflow-y-auto overscroll-contain p-3 pb-[max(2rem,env(safe-area-inset-bottom))] bg-bento-bg">
             <PhaseSelectorMobile columns={cols} leads={filteredLeads} onOpenDiary={setSelectedLead} />
           </div>
         )}
@@ -344,6 +345,8 @@ export function KanbanBoard({ initialLeads, initialStages, initialClients, curre
           onClose={() => setNewLeadOpen(false)}
           onCreated={handleLeadCreated}
           currentUser={currentUser}
+          stages={liveStages}
+          clients={clients}
         />
       )}
 

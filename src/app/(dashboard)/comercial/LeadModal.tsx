@@ -7,6 +7,8 @@ import { US_STATES, sanitizeAreaCode } from '@/lib/usStates'
 import { logStageEvent } from '@/lib/stageEvents'
 import { useToast } from '@/components/ui/toast'
 import { ymd } from '@/lib/format'
+import { wonSlug, type FunnelStage } from '@/lib/funnelStages'
+import type { Client } from '../clientes/ClientesClient'
 
 interface Seller { id: string; name: string }
 
@@ -14,6 +16,8 @@ interface Props {
   onClose: () => void
   onCreated: (lead: Lead) => void
   currentUser: { id: string; name: string }
+  stages: FunnelStage[]   // fases do funil (p/ o seletor no modo "Já é cliente")
+  clients: Client[]       // clientes existentes (p/ a busca no modo "Já é cliente")
 }
 
 const EMPTY_FORM = {
@@ -63,7 +67,7 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
   )
 }
 
-export function LeadModal({ onClose, onCreated, currentUser }: Props) {
+export function LeadModal({ onClose, onCreated, currentUser, stages, clients }: Props) {
   const { toast } = useToast()
   const [form, setForm] = useState({ ...EMPTY_FORM, assigned_to: currentUser.id, assigned_name: currentUser.name, received_at: ymd(new Date()) })
   const [loading, setLoading] = useState(false)
@@ -73,6 +77,23 @@ export function LeadModal({ onClose, onCreated, currentUser }: Props) {
   const [aiLoading, setAiLoading] = useState(false)
   const [sellers, setSellers] = useState<Seller[]>([])
   const [submitError, setSubmitError] = useState('')
+
+  // ── Modo "Já é cliente": adiciona ao funil um CLIENTE existente (INSERT simples, FORA do fluxo de
+  //    fechamento — sem runWonFlow/WonPlanModal/registerMeeting/payWeek, sem comissão, sem novo cliente). ──
+  const stageOptions = stages.filter(s => !s.arquivada).sort((a, b) => a.posicao - b.posicao)
+  const [isClient, setIsClient] = useState(false)
+  const [clientQuery, setClientQuery] = useState('')
+  const [selectedClient, setSelectedClient] = useState<Client | null>(null)
+  const [clientStageSlug, setClientStageSlug] = useState<string>(wonSlug(stages))   // default "Venda Concluída"
+  const clientMatches = (() => {
+    const q = clientQuery.trim().toLowerCase()
+    if (!q) return []
+    return clients.filter(c =>
+      c.name.toLowerCase().includes(q) ||
+      c.company?.toLowerCase().includes(q) ||
+      c.email?.toLowerCase().includes(q)
+    ).slice(0, 8)
+  })()
 
   const supabase = createClient()
 
@@ -109,7 +130,58 @@ export function LeadModal({ onClose, onCreated, currentUser }: Props) {
     }
   }
 
+  // Modo "Já é cliente": UMA linha em leads com os dados do cliente. origem='cliente_existente'
+  // (flag p/ relatórios não contarem como venda/comissão nova). Mesmo que a fase seja is_won, é só
+  // um INSERT — NÃO chama runWonFlow/registerMeeting/payWeek (won-flow só dispara ao MOVER um lead).
+  const handleSubmitClient = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!selectedClient) return
+    setLoading(true)
+    setSubmitError('')
+    const c = selectedClient
+    const stageSlug = clientStageSlug || wonSlug(stages)
+    const { data, error } = await supabase.from('leads').insert({
+      name: c.name,
+      company: c.company || null,
+      email: c.email || null,
+      phone: c.phone || null,
+      value: c.plan_weekly || 0,          // valor = mensalidade semanal do cliente (ou 0)
+      operation: 'eua',
+      fuso: c.fuso || null,
+      city: c.city || null,
+      state: c.state || null,
+      area_code: c.area_code || null,
+      origem: 'cliente_existente',        // FLAG: relatórios não contam como venda/comissão nova
+      prioridade: 'media',
+      received_at: ymd(new Date()),       // chegada = hoje
+      assigned_to: currentUser.id,
+      assigned_name: currentUser.name,    // Lucas
+      score: 500,
+      status: stageSlug,                  // fase escolhida (default Venda Concluída)
+    }).select().single()
+
+    if (error || !data) {
+      // Se o CHECK de origem ainda não foi ampliado no banco, avisa de forma clara.
+      const friendly = error?.message?.includes('leads_origem_check')
+        ? 'Falta aplicar a migration 038 (origem cliente_existente) no banco.'
+        : (error?.message ?? 'Não foi possível adicionar ao funil. Tente novamente.')
+      setSubmitError(friendly)
+      setLoading(false)
+      return
+    }
+    // Feed de atividades (NÃO é dinheiro). NÃO loga "fechou"/stage-event nem dispara won-flow.
+    await supabase.from('activities').insert({
+      type: 'lead',
+      description: `Cliente existente adicionado ao funil: ${c.name}`,
+      user_name: currentUser.name,
+      entity_id: data.id,
+    })
+    onCreated(data as Lead)
+    onClose()
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
+    if (isClient) return handleSubmitClient(e)
     e.preventDefault()
     if (!form.name.trim()) return
     setLoading(true)
@@ -176,6 +248,7 @@ export function LeadModal({ onClose, onCreated, currentUser }: Props) {
         <div className="flex items-center justify-between p-5 border-b border-bento-border shrink-0">
           <h2 className="font-display font-bold text-bento-text text-base">Novo Lead</h2>
           <div className="flex items-center gap-2">
+            {!isClient && (
             <button
               onClick={() => setAiPaste(!aiPaste)}
               className={`text-xs px-3 py-1.5 rounded-btn border transition-colors ${
@@ -191,6 +264,7 @@ export function LeadModal({ onClose, onCreated, currentUser }: Props) {
                 Preencher com IA
               </span>
             </button>
+            )}
             <button onClick={onClose} className="text-bento-muted hover:text-bento-text">
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -223,6 +297,70 @@ export function LeadModal({ onClose, onCreated, currentUser }: Props) {
         {/* Form */}
         <form onSubmit={handleSubmit} className="p-5 space-y-4 overflow-y-auto flex-1">
 
+          {/* Toggle "Já é cliente" — adiciona ao funil um cliente existente (sem fluxo de fechamento). */}
+          <div className="flex items-center justify-between gap-3 bento-fx px-3 py-2.5">
+            <div className="min-w-0">
+              <p className="text-sm font-medium text-bento-text">Já é cliente</p>
+              <p className="font-tech text-[10px] text-bento-muted/80">Adiciona um cliente existente ao funil — não cria venda nem comissão.</p>
+            </div>
+            <button type="button" role="switch" aria-checked={isClient} onClick={() => setIsClient(v => !v)}
+              className={`relative w-11 h-6 rounded-full flex-none transition-colors ${isClient ? 'bg-lime' : 'bg-bento-border'}`}>
+              <span className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white transition-transform ${isClient ? 'translate-x-5' : ''}`} />
+            </button>
+          </div>
+
+          {isClient && (
+            <>
+              {/* Busca do cliente existente (nome / empresa / e-mail) */}
+              <Field label="Cliente *">
+                {selectedClient ? (
+                  <div className="flex items-center justify-between gap-2 bg-bento-bg border border-lime/40 rounded-btn px-3 py-2">
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium text-bento-text truncate">{selectedClient.name}</p>
+                      {selectedClient.company && <p className="text-xs text-bento-muted truncate">{selectedClient.company}</p>}
+                    </div>
+                    <button type="button" onClick={() => { setSelectedClient(null); setClientQuery('') }}
+                      className="text-bento-muted hover:text-bento-text shrink-0 font-tech text-xs">trocar</button>
+                  </div>
+                ) : (
+                  <div className="relative">
+                    <input value={clientQuery} onChange={e => setClientQuery(e.target.value)} autoFocus
+                      className={inputCls} placeholder="Buscar por nome, empresa ou e-mail..." />
+                    {clientMatches.length > 0 && (
+                      <div className="absolute left-0 right-0 z-20 mt-1 bg-bento-panel border border-bento-border rounded-btn shadow-card-hover overflow-hidden max-h-60 overflow-y-auto">
+                        {clientMatches.map(c => (
+                          <button key={c.id} type="button" onClick={() => { setSelectedClient(c); setClientQuery('') }}
+                            className="w-full text-left px-3 py-2 hover:bg-bento-bg/60 transition-colors border-b border-bento-border/50 last:border-0">
+                            <p className="text-sm text-bento-text truncate">{c.name}</p>
+                            <p className="text-xs text-bento-muted truncate">{[c.company || c.email, c.state].filter(Boolean).join(' · ') || '—'}</p>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                    {clientQuery.trim() && clientMatches.length === 0 && (
+                      <p className="font-tech text-[11px] text-bento-muted mt-1">Nenhum cliente encontrado.</p>
+                    )}
+                  </div>
+                )}
+              </Field>
+
+              {/* Fase do funil (default = Venda Concluída) */}
+              <Field label="Fase do funil">
+                <select value={clientStageSlug} onChange={e => setClientStageSlug(e.target.value)} className={inputCls}>
+                  {stageOptions.map(s => <option key={s.slug} value={s.slug}>{s.nome}</option>)}
+                </select>
+              </Field>
+
+              {selectedClient && (
+                <p className="font-tech text-[11px] text-bento-muted/80">
+                  Entra como <span className="text-bento-text">{stageOptions.find(s => s.slug === clientStageSlug)?.nome ?? clientStageSlug}</span> · valor US$ {selectedClient.plan_weekly || 0}/sem · sem comissão.
+                </p>
+              )}
+            </>
+          )}
+
+          {!isClient && (
+          <>
           {/* Data de chegada — separa quando o lead CHEGOU de quando foi cadastrado (default hoje) */}
           <Field label="Data de chegada">
             <input type="date" value={form.received_at} onChange={e => set('received_at', e.target.value)}
@@ -368,6 +506,8 @@ export function LeadModal({ onClose, onCreated, currentUser }: Props) {
               placeholder="Contexto, dores, próximos passos..."
             />
           </Field>
+          </>
+          )}
 
           {/* Erro do salvamento (não falha mais em silêncio) */}
           {submitError && (
@@ -385,9 +525,9 @@ export function LeadModal({ onClose, onCreated, currentUser }: Props) {
               className="flex-1 border border-bento-border text-bento-dim py-2.5 rounded-btn text-sm hover:border-lime hover:text-bento-text transition-colors">
               Cancelar
             </button>
-            <button type="submit" disabled={loading}
+            <button type="submit" disabled={loading || (isClient && !selectedClient)}
               className="bento-btn flex-1 py-2.5 rounded-btn text-sm font-semibold disabled:opacity-50">
-              {loading ? 'Salvando...' : 'Criar Lead'}
+              {loading ? 'Salvando...' : isClient ? 'Adicionar ao funil' : 'Criar Lead'}
             </button>
           </div>
         </form>

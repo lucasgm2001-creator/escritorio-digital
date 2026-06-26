@@ -98,7 +98,9 @@ export function KanbanColumn({ column, leads, moveTargets, onMove, onOpenDiary, 
             <span className="font-tech text-[11px] text-bento-muted tabular-nums">{leads.length}</span>
             <X className="w-3.5 h-3.5 flex-none text-bento-muted" />
           </button>
-          <div className="p-2 space-y-2 overflow-y-auto max-h-[340px]">
+          {/* Lista da fase: rola ATÉ O FIM. Altura relativa à viewport (não mais 340px fixo, que
+              cortava em telas maiores) e cabe dentro da área do funil (acima do rodapé de resumo). */}
+          <div className="p-2 space-y-2 overflow-y-auto overscroll-contain max-h-[max(220px,calc(100vh-300px))]">
             <SortableContext items={leads.map(l => l.id)} strategy={verticalListSortingStrategy}>
               {leads.length === 0 ? (
                 <div className={cn('flex items-center justify-center h-14 text-xs rounded-lg border border-dashed font-tech',

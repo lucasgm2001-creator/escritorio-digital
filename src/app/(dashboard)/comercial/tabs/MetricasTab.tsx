@@ -19,8 +19,11 @@ type Milestone = { lead_id: string; marco: string; achieved_on: string }
 const isTerminal = (s: string) => s === 'fechado' || s === 'perdido' || s === 'lixeira'
 const card = 'bento-fx p-5'
 
-export function MetricasTab({ leads }: Props) {
+export function MetricasTab({ leads: allLeads }: Props) {
   const [range, setRange] = useState<Range>(() => rangeFor('mes'))
+  // Clientes existentes adicionados ao funil (origem='cliente_existente') NÃO entram nas métricas
+  // (não são venda/lead novo). Filtra a base inteira — todos os contadores abaixo já os ignoram.
+  const leads = useMemo(() => allLeads.filter(l => l.origem !== 'cliente_existente'), [allLeads])
 
   // Marcos do ciclo (lead_milestones) com a DATA do marco — fonte das métricas por período.
   const [milestones, setMilestones] = useState<Milestone[] | null>(null)
