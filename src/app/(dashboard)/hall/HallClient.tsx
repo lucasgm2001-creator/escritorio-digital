@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { cn } from '@/lib/utils'
@@ -233,11 +233,29 @@ export function HallClient({ initialActivities, initialTasks, linkOptions, userN
     return () => { window.removeEventListener(HALL_SETTINGS_EVENT, sync); window.removeEventListener('storage', sync) }
   }, [userId])
 
-  // Leads + clientes p/ o MAPA e as MÉTRICAS (campos leves). Agenda em paralelo + realtime de atividades.
-  useEffect(() => {
+  // Leads + clientes p/ o MAPA e as MÉTRICAS (campos leves) — SÓ LEITURA. Refetcha ao montar, ao
+  // voltar pra aba (foco/visível) e ao abrir a aba Mapa, p/ as métricas baterem com a aba Clientes
+  // sem precisar de F5 (o problema era ficar com o snapshot do mount).
+  const fetchMapData = useCallback(() => {
     const supabase = createClient()
     supabase.from('leads').select('id, name, status, state, area_code, created_at').then(({ data }) => { if (data) setMapLeads(data as unknown as Lead[]) })
     supabase.from('clients').select('id, name, status, state, area_code').then(({ data }) => { if (data) setMapClients(data as unknown as Client[]) })
+  }, [])
+
+  useEffect(() => {
+    fetchMapData()
+    const onVisible = () => { if (document.visibilityState === 'visible') fetchMapData() }
+    window.addEventListener('focus', fetchMapData)
+    document.addEventListener('visibilitychange', onVisible)
+    return () => { window.removeEventListener('focus', fetchMapData); document.removeEventListener('visibilitychange', onVisible) }
+  }, [fetchMapData])
+
+  // Abrir/alternar p/ a aba Mapa revalida as métricas na hora.
+  useEffect(() => { if (activeTab === 'mapa') fetchMapData() }, [activeTab, fetchMapData])
+
+  // Agenda (uma carga) + realtime de atividades.
+  useEffect(() => {
+    const supabase = createClient()
     supabase.from('calendar_events').select('*').eq('user_id', userId).order('date').then(({ data }) => { if (data) setCalEvents(data as CalendarEvent[]) })
 
     const dataChannel = supabase.channel('hall-realtime')
@@ -438,10 +456,10 @@ export function HallClient({ initialActivities, initialTasks, linkOptions, userN
                 ))}
               </div>
             )}
-            {/* Mapa CHEIO — largura do conteúdo (máx ~1000px centralizado) e bem alto. Sem botão tela cheia. */}
-            <Panel className="max-lg:p-3" headerClassName="max-lg:hidden" label="Mapa de Clientes e Leads">
-              {/* Mobile: caixa pela PROPORÇÃO do mapa (sem corte/vazio). Desktop: altura fixa ideal. */}
-              <div className="aspect-[1000/624] sm:aspect-auto sm:h-[560px] max-w-[1000px] mx-auto">
+            {/* Mapa CHEIO — enche a LARGURA; a altura vem da proporção (height:auto do SVG). Sem altura
+                fixa (não letterboxa). Mobile: padding mínimo no card pra o mapa usar quase a tela toda. */}
+            <Panel className="max-lg:p-1" headerClassName="max-lg:hidden" label="Mapa de Clientes e Leads">
+              <div className="w-full max-w-[960px] mx-auto">
                 <ErrorBoundary>
                   <MapaTab embedded leads={mapLeads} clients={mapClients} showLeads={hallCfg.map.leads} showClients={hallCfg.map.clients} showFusos={hallCfg.map.fusos} />
                 </ErrorBoundary>

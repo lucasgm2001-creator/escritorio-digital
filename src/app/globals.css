@@ -533,7 +533,9 @@ html.light .ed-map {
     linear-gradient(#C2F73A,#C2F73A) right bottom/16px 2px no-repeat, linear-gradient(#C2F73A,#C2F73A) right bottom/2px 16px no-repeat;
 }
 html.light .ed-map-stage { box-shadow:inset 0 1px 0 rgba(255,255,255,.04), inset 0 0 70px rgba(0,0,0,.06); }
-.ed-map-svg { display:block; margin:0 auto }   /* tamanho vem do componente (fit na tela) */
+/* Mobile: padding mínimo no palco → o mapa usa quase toda a largura da tela (fica maior). */
+@media (max-width:1023px){ .ed-map-stage { padding:5px; border-radius:12px } }
+.ed-map-svg { display:block; margin:0 auto; width:100%; height:auto }   /* escala pelo viewBox (height:auto) */
 .ed-map .fill { fill:rgba(var(--acc),var(--fillT)) }
 /* Regiões = 3 FUSOS, em tons de verde (Oeste mais escuro → Leste mais claro). */
 .ed-map .region-W .fill { fill:#0E3322 } .ed-map .region-C .fill { fill:#134029 } .ed-map .region-E .fill { fill:#1F5E3C }

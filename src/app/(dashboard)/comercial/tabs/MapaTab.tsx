@@ -134,8 +134,8 @@ export function MapaTab({ leads, clients, showLeads = true, showClients = true, 
   }
 
   return (
-    <div className={cn('overflow-hidden bg-bento-bg', embedded ? 'h-full p-0' : 'h-full p-4 sm:p-6')}>
-      <div className={cn('ed-map mx-auto', !embedded && 'max-w-[1180px]', embedded && 'h-full flex flex-col', 'skin-' + skin, !showFusos && 'flat-fuso')}>
+    <div className={cn('overflow-hidden bg-bento-bg', embedded ? 'p-0' : 'p-4 sm:p-6')}>
+      <div className={cn('ed-map mx-auto', !embedded && 'max-w-[1180px]', 'skin-' + skin, !showFusos && 'flat-fuso')}>
         {!embedded && (
           <div className="flex items-center justify-between gap-3 flex-wrap mb-3">
             <div className="flex items-center gap-3 flex-wrap">
@@ -158,12 +158,12 @@ export function MapaTab({ leads, clients, showLeads = true, showClients = true, 
           </div>
         )}
 
-        {/* Palco do mapa — embutido: preenche a altura (flex-1); avulso: usa a proporção do mapa. */}
-        <div className={cn('ed-map-stage', embedded ? 'flex-1 min-h-0' : 'aspect-[1000/624]')}>
-          {/* Escala SÓ pelo viewBox: w/h 100% do palco, sem px fixos. preserveAspectRatio centraliza
-              e nunca distorce (letterbox se a caixa não bater 1000/624). */}
+        {/* Palco do mapa — altura AUTOMÁTICA: vem da largura × proporção (height:auto do svg). Sem
+            altura fixa nos ancestrais → não letterboxa, o mapa enche a largura em qualquer tela. */}
+        <div className="ed-map-stage">
+          {/* Escala SÓ pelo viewBox: width 100% + height:auto. preserveAspectRatio centraliza/não distorce. */}
           <svg className="ed-map-svg" viewBox={`0 0 ${MAP.W} ${MAP.H}`} preserveAspectRatio="xMidYMid meet"
-            style={{ width: '100%', height: '100%', margin: '0 auto', display: 'block' }}
+            style={{ width: '100%', height: 'auto', margin: '0 auto', display: 'block' }}
             xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Mapa dos EUA com clientes e leads">
             <defs>
               {/* Pontos de vidro: leads azul, clientes verde. Halo (blur) + sombra suave (flutuando). */}
