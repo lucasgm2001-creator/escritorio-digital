@@ -131,6 +131,21 @@ export function TarefasClient({ initialTasks, linkOptions, currentUser }: Props)
 
   const supabase = createClient()
   const router = useRouter()
+  // Link de chamada do usuário (profiles.call_link) — p/ o botão "Copiar link" nas tarefas com add_call.
+  const [callLink, setCallLink] = useState('')
+  const [copiedId, setCopiedId] = useState<string | null>(null)
+  useEffect(() => {
+    supabase.from('profiles').select('call_link').eq('id', currentUser.id).single()
+      .then(({ data }) => setCallLink((data?.call_link as string | null) ?? ''))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+  const copyCall = (taskId: string) => {
+    if (!callLink) return
+    navigator.clipboard?.writeText(callLink).then(() => {
+      setCopiedId(taskId)
+      setTimeout(() => setCopiedId(id => (id === taskId ? null : id)), 1500)
+    }).catch(() => {})
+  }
 
   // Vendedores p/ o filtro "Responsável" (extensível; hoje só Lucas).
   useEffect(() => {
@@ -343,6 +358,17 @@ export function TarefasClient({ initialTasks, linkOptions, currentUser }: Props)
               </div>
             )}
 
+            {/* Copiar o link de chamada (só tarefas com add_call e link configurado). */}
+            {t.add_call && callLink && (
+              <div className="mt-1.5">
+                <button type="button" onClick={() => copyCall(t.id)}
+                  className="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded bg-bento-bg border border-bento-border text-bento-dim hover:border-lime hover:text-lime-fg transition-colors">
+                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>
+                  {copiedId === t.id ? 'Copiado!' : 'Copiar link'}
+                </button>
+              </div>
+            )}
+
             {/* Briefing expandido */}
             {isExpanded && t.notes && (
               <p className="mt-2 text-xs text-bento-dim whitespace-pre-wrap bg-bento-bg border border-bento-border rounded-btn p-2.5">
@@ -431,6 +457,13 @@ export function TarefasClient({ initialTasks, linkOptions, currentUser }: Props)
                   className="inline-flex items-center justify-center w-6 h-6 rounded text-bento-muted hover:text-lime-fg transition-colors">
                   <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" /></svg>
                 </a>
+              )}
+              {t.add_call && callLink && (
+                <button type="button" onClick={e => { e.stopPropagation(); copyCall(t.id) }}
+                  className="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded bg-bento-bg border border-bento-border text-bento-dim hover:border-lime hover:text-lime-fg transition-colors">
+                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>
+                  {copiedId === t.id ? 'Copiado!' : 'Copiar link'}
+                </button>
               )}
               {t.due_date && (
                 <span className={cn('font-tech text-[10px] tabular-nums ml-auto',

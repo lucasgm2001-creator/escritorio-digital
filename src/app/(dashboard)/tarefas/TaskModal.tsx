@@ -70,6 +70,8 @@ export function TaskModal({ onClose, onSaved, currentUser, linkOptions, task, pr
   const [saving, setSaving]       = useState(false)
   const [sellers, setSellers]     = useState<{ id: string; name: string }[]>([])
   const [responsavelId, setResponsavelId] = useState<string>(task?.responsavel_id ?? '')
+  const [addCall, setAddCall]     = useState<boolean>(task?.add_call ?? false)   // inclui link de chamada no evento
+  const [callLink, setCallLink]   = useState<string>('')                          // link do usuário (só p/ saber se há)
 
   const supabase = createClient()
 
@@ -88,6 +90,9 @@ export function TaskModal({ onClose, onSaved, currentUser, linkOptions, task, pr
       setSellers(list)
       setResponsavelId(prev => prev || task?.responsavel_id || list[0]?.id || '')
     })
+    // Link de chamada do usuário (profiles.call_link) — só p/ saber se está configurado (aviso do toggle).
+    supabase.from('profiles').select('call_link').eq('id', currentUser.id).single()
+      .then(({ data }) => setCallLink((data?.call_link as string | null) ?? ''))
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
@@ -113,6 +118,7 @@ export function TaskModal({ onClose, onSaved, currentUser, linkOptions, task, pr
       linked_name: link?.name ?? null,
       responsavel_id:   responsavelId || null,
       responsavel_nome: sellers.find(s => s.id === responsavelId)?.name ?? null,
+      add_call:         addCall,
     }
 
     if (editing && task) {
@@ -277,6 +283,23 @@ export function TaskModal({ onClose, onSaved, currentUser, linkOptions, task, pr
                   </div>
                 )}
               </div>
+            )}
+          </Field>
+
+          {/* Adicionar chamada — inclui o link fixo do usuário (profiles.call_link) no evento. */}
+          <Field label="Reunião">
+            <div className="flex items-center justify-between gap-3 bg-bento-bg border border-bento-border rounded-btn px-3 py-2.5">
+              <div className="min-w-0">
+                <p className="text-sm font-medium text-bento-text">Adicionar chamada</p>
+                <p className="font-tech text-[10px] text-bento-muted/80">Inclui seu link de videochamada na descrição do evento.</p>
+              </div>
+              <button type="button" role="switch" aria-checked={addCall} onClick={() => setAddCall(v => !v)}
+                className={cn('relative w-11 h-6 rounded-full flex-none transition-colors', addCall ? 'bg-lime' : 'bg-bento-border')}>
+                <span className={cn('absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white transition-transform', addCall && 'translate-x-5')} />
+              </button>
+            </div>
+            {addCall && !callLink && (
+              <p className="font-tech text-[11px] text-amber-400/90 mt-1.5">Configure seu link em Configurações → Conta.</p>
             )}
           </Field>
 

@@ -178,8 +178,32 @@ function ContaSection() {
   const [pw2, setPw2] = useState('')
   const [busy, setBusy] = useState(false)
   const [msg, setMsg] = useState<{ t: 'ok' | 'err'; m: string } | null>(null)
+  // Link de chamada (videochamada) — profiles.call_link do usuário logado.
+  const [uid, setUid] = useState('')
+  const [callLink, setCallLink] = useState('')
+  const [callBusy, setCallBusy] = useState(false)
+  const [callMsg, setCallMsg] = useState<{ t: 'ok' | 'err'; m: string } | null>(null)
 
-  useEffect(() => { supabase.auth.getUser().then(({ data }) => setEmail(data.user?.email ?? '')) }, [supabase])
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data }) => {
+      const u = data.user
+      setEmail(u?.email ?? '')
+      if (u?.id) {
+        setUid(u.id)
+        supabase.from('profiles').select('call_link').eq('id', u.id).single()
+          .then(({ data }) => setCallLink((data?.call_link as string | null) ?? ''))
+      }
+    })
+  }, [supabase])
+
+  const salvarCall = async () => {
+    if (!uid) return
+    setCallBusy(true); setCallMsg(null)
+    const { error } = await supabase.from('profiles').update({ call_link: callLink.trim() || null }).eq('id', uid)
+    setCallBusy(false)
+    if (error) setCallMsg({ t: 'err', m: `Não foi possível salvar: ${error.message}` })
+    else setCallMsg({ t: 'ok', m: 'Link salvo.' })
+  }
 
   const trocarSenha = async () => {
     setMsg(null)
@@ -207,6 +231,16 @@ function ContaSection() {
             {busy ? 'Salvando...' : 'Salvar senha'}
           </button>
           {msg && <p className={cn('text-xs', msg.t === 'ok' ? 'text-green-400' : 'text-red-400')}>{msg.m}</p>}
+        </div>
+        <div className="border-t border-bento-border/60 pt-4 space-y-2 max-w-md">
+          <p className="text-sm font-medium text-bento-text">Link de chamada (videochamada)</p>
+          <p className="font-tech text-[10px] text-bento-muted">Sua sala fixa (Zoom/Meet/etc.). Entra nas reuniões marcadas com &quot;Adicionar chamada&quot;.</p>
+          <input value={callLink} onChange={e => setCallLink(e.target.value)}
+            placeholder="https://zoom.us/j/... ou https://meet.google.com/..." className={inputCls} />
+          <button onClick={salvarCall} disabled={callBusy} className="bento-btn px-4 py-2 rounded-btn text-sm font-semibold disabled:opacity-50 min-h-[44px]">
+            {callBusy ? 'Salvando...' : 'Salvar link'}
+          </button>
+          {callMsg && <p className={cn('text-xs', callMsg.t === 'ok' ? 'text-green-400' : 'text-red-400')}>{callMsg.m}</p>}
         </div>
         <div className="border-t border-bento-border/60 pt-4">
           <a href="/perfil" className="inline-flex items-center gap-1.5 text-sm text-lime-fg hover:underline">Editar nome e foto no Perfil <ExternalLink className="w-3.5 h-3.5" /></a>

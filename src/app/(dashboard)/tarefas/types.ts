@@ -17,6 +17,7 @@ export interface Task {
   responsavel_id?: string | null     // vendedor dono da tarefa (FK sellers)
   responsavel_nome?: string | null   // nome no momento (exibição/relatório)
   google_event_id?: string | null    // id do evento no Google Agenda (sync via conta de serviço)
+  add_call?: boolean                  // inclui o link de chamada do usuário (profiles.call_link) no evento
   created_at: string
   updated_at: string
 }

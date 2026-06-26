@@ -13,12 +13,14 @@ const DURATION_MIN = 30
 
 interface TaskRow {
   id: string
+  user_id?: string | null
   title: string
   notes?: string | null
   due_date?: string | null
   due_time?: string | null
   linked_name?: string | null
   google_event_id?: string | null
+  add_call?: boolean | null
 }
 
 // SÓ PRA LOG: extrai mensagem + código do erro (googleapis põe err.code / err.response.status).
@@ -70,12 +72,16 @@ function addMinutes(date: string, time: string, mins: number): { date: string; t
 }
 
 // Tarefa → corpo do evento. due_date vazio → null (não vira evento).
-function buildEventBody(task: TaskRow) {
+// callLink: se add_call e o usuário tem profiles.call_link, acrescenta UMA linha LIMPA na descrição —
+// nada de conferenceData/Meet automático (que injeta o bloco padrão do Google).
+function buildEventBody(task: TaskRow, callLink?: string | null) {
   if (!task.due_date) return null
   const desc: string[] = []
   if (task.notes?.trim()) desc.push(task.notes.trim())
   if (task.linked_name?.trim()) desc.push(`Lead: ${task.linked_name.trim()}`)
-  const base = { summary: task.title?.trim() || 'Tarefa', description: desc.join('\n\n') || undefined }
+  let description = desc.join('\n\n')
+  if (callLink?.trim()) description = (description ? `${description}\n` : '') + `Link da videochamada: ${callLink.trim()}`
+  const base = { summary: task.title?.trim() || 'Tarefa', description: description || undefined }
 
   if (task.due_time) {
     const t = task.due_time.slice(0, 5)
@@ -90,9 +96,9 @@ function buildEventBody(task: TaskRow) {
   return { ...base, start: { date: task.due_date }, end: { date: addDays(task.due_date, 1) } }
 }
 
-export async function createEvent(task: TaskRow): Promise<string | null> {
+export async function createEvent(task: TaskRow, callLink?: string | null): Promise<string | null> {
   const ctx = getCalendarClient(); if (!ctx) return null
-  const requestBody = buildEventBody(task); if (!requestBody) return null
+  const requestBody = buildEventBody(task, callLink); if (!requestBody) return null
   try {
     const res = await ctx.calendar.events.insert({ calendarId: ctx.calendarId, requestBody })
     console.log('[gcal] event OK id:', res.data.id)
@@ -103,9 +109,9 @@ export async function createEvent(task: TaskRow): Promise<string | null> {
   }
 }
 
-export async function updateEvent(googleEventId: string, task: TaskRow): Promise<void> {
+export async function updateEvent(googleEventId: string, task: TaskRow, callLink?: string | null): Promise<void> {
   const ctx = getCalendarClient(); if (!ctx) return
-  const requestBody = buildEventBody(task); if (!requestBody) return
+  const requestBody = buildEventBody(task, callLink); if (!requestBody) return
   try {
     await ctx.calendar.events.update({ calendarId: ctx.calendarId, eventId: googleEventId, requestBody })
     console.log('[gcal] event OK id:', googleEventId, '(updated)')
@@ -139,12 +145,20 @@ export async function syncTaskCalendar(taskId: string): Promise<void> {
     const supabase = createServiceClient()
     const { data, error } = await supabase
       .from('tasks')
-      .select('id, title, notes, due_date, due_time, linked_name, google_event_id')
+      .select('id, user_id, title, notes, due_date, due_time, linked_name, google_event_id, add_call')
       .eq('id', taskId)
       .single()
     if (error || !data) return
     const task = data as TaskRow
-    console.log('[gcal] task', taskId, 'due_date:', task.due_date, 'due_time:', task.due_time, 'existing event:', task.google_event_id)
+    console.log('[gcal] task', taskId, 'due_date:', task.due_date, 'due_time:', task.due_time, 'existing event:', task.google_event_id, 'add_call:', task.add_call)
+
+    // Link de chamada FIXO do dono (profiles.call_link) — só quando a tarefa marcou "Adicionar chamada".
+    let callLink: string | null = null
+    if (task.add_call && task.user_id) {
+      const { data: prof } = await supabase.from('profiles').select('call_link').eq('id', task.user_id).single()
+      callLink = (prof?.call_link as string | null) ?? null
+      console.log('[gcal] add_call on · call_link present:', Boolean(callLink))
+    }
 
     if (!task.due_date) {
       if (task.google_event_id) {
@@ -154,9 +168,9 @@ export async function syncTaskCalendar(taskId: string): Promise<void> {
       return
     }
     if (task.google_event_id) {
-      await updateEvent(task.google_event_id, task)
+      await updateEvent(task.google_event_id, task, callLink)
     } else {
-      const eventId = await createEvent(task)
+      const eventId = await createEvent(task, callLink)
       if (eventId) await supabase.from('tasks').update({ google_event_id: eventId }).eq('id', taskId)
     }
   } catch (e) {
