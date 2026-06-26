@@ -290,7 +290,9 @@ export function KanbanBoard({ initialLeads, initialStages, initialClients, curre
         {tab === 'funil' && isDesktop && (
           <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
             <div className="h-full flex flex-col bg-bento-bg">
-              <div className="flex-1 overflow-x-auto overflow-y-hidden p-4 sm:p-5">
+              {/* Rola na VERTICAL (alcança as fases empilhadas quando uma expande) e na HORIZONTAL
+                  (colunas). flex-1 já limita a altura (dentro do flex-col h-full) → o overflow-y rola aqui. */}
+              <div className="flex-1 overflow-x-auto overflow-y-auto overscroll-y-contain p-4 sm:p-5">
                 <div className="flex items-stretch gap-4 min-w-max h-full">
                   {funnelGroups.map(g => (
                     <div key={g.name} className="flex flex-col gap-2 self-start">
