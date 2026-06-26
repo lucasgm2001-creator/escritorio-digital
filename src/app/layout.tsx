@@ -3,6 +3,7 @@ import localFont from 'next/font/local'
 import { Space_Grotesk, JetBrains_Mono, Inter } from 'next/font/google'
 import './globals.css'
 import { ServiceWorkerRegister } from '@/components/system/ServiceWorkerRegister'
+import { NoPinchZoom } from '@/components/system/NoPinchZoom'
 
 const geistSans = localFont({
   src: './fonts/GeistVF.woff',
@@ -36,6 +37,11 @@ export const metadata: Metadata = {
 export const viewport: Viewport = {
   themeColor: '#0D140F',   // combina com o fundo escuro do tema
   viewportFit: 'cover',    // expõe env(safe-area-inset-*) no iOS (respiro da barra inferior no mobile)
+  // App-shell: sem pinch-zoom (a pinça mexia header/menus). iOS Safari ignora isto → ver <NoPinchZoom/>.
+  width: 'device-width',
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
@@ -69,6 +75,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       </head>
       <body className={`${geistSans.variable} ${geistMono.variable} ${spaceGrotesk.variable} ${jetbrainsMono.variable} ${inter.variable} font-sans antialiased`}>
         {children}
+        <NoPinchZoom />
         <ServiceWorkerRegister />
       </body>
     </html>

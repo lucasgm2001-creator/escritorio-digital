@@ -262,7 +262,7 @@ export function ContatosTab({ leads, clients, onOpenLead, onClientUpdated }: Pro
   )
 
   return (
-    <div className="h-full overflow-y-auto bg-bento-bg p-4 sm:p-6">
+    <div className="h-full overflow-y-auto overscroll-contain bg-bento-bg p-4 sm:p-6 pb-[max(1.5rem,env(safe-area-inset-bottom))]">
       <div className="max-w-4xl mx-auto space-y-4">
         {/* Cabeçalho + contador */}
         <div className="flex items-baseline gap-2">

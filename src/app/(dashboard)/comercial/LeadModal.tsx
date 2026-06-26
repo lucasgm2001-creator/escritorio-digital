@@ -242,7 +242,7 @@ export function LeadModal({ onClose, onCreated, currentUser, stages, clients }: 
 
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-end sm:items-center justify-center z-50 p-0 sm:p-4">
-      <div className="bento-fx rounded-t-frame sm:rounded-frame shadow-card-hover w-full sm:max-w-2xl max-h-[92vh] flex flex-col animate-slide-up">
+      <div className="bento-fx rounded-t-frame sm:rounded-frame shadow-card-hover w-full sm:max-w-2xl max-h-[92dvh] flex flex-col animate-slide-up">
 
         {/* Header */}
         <div className="flex items-center justify-between p-5 border-b border-bento-border shrink-0">

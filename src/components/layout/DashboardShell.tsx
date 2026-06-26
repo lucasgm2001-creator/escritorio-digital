@@ -52,7 +52,7 @@ export function DashboardShell({ children, userName, userId, avatarUrl, pageTitl
   }
 
   return (
-    <div className="flex h-screen overflow-hidden bg-background">
+    <div className="flex h-[100dvh] overflow-hidden bg-background">
       {/* Revalida dados ao focar a aba + reavalia o tema (dia/noite) ao vivo. Sem UI. */}
       <RevalidateOnFocus />
       <ThemeWatcher />
@@ -71,7 +71,7 @@ export function DashboardShell({ children, userName, userId, avatarUrl, pageTitl
             className="fixed inset-0 bg-black/60 backdrop-blur-sm z-40"
             onClick={() => setMobileOpen(false)}
           />
-          <div className="fixed left-0 top-0 h-screen z-50">
+          <div className="fixed left-0 top-0 h-[100dvh] z-50">
             <Sidebar
               open={true}
               onToggle={() => setMobileOpen(false)}
@@ -91,7 +91,8 @@ export function DashboardShell({ children, userName, userId, avatarUrl, pageTitl
           userId={userId}
           avatarUrl={avatarUrl}
         />
-        <main className="flex-1 overflow-y-auto">
+        {/* ÚNICO container que rola na vertical (header e bottom-nav ficam fixos). */}
+        <main className="flex-1 overflow-y-auto overscroll-contain touch-pan-y [-webkit-overflow-scrolling:touch]">
           {children}
         </main>
         {/* Navegação inferior — só mobile (<1024px); fica no fluxo, abaixo do main, sem cobrir conteúdo. */}

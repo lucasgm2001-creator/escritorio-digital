@@ -154,8 +154,9 @@ export function TaskModal({ onClose, onSaved, currentUser, linkOptions, task, pr
           </button>
         </div>
 
-        {/* Form */}
-        <form onSubmit={handleSubmit} className="p-5 space-y-4 overflow-y-auto overscroll-contain flex-1 pb-safe">
+        {/* Form: corpo rola; rodapé fixo (abaixo). */}
+        <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0">
+          <div className="p-5 space-y-4 overflow-y-auto overscroll-contain flex-1">
           <Field label="Tarefa *">
             <input
               autoFocus
@@ -268,14 +269,16 @@ export function TaskModal({ onClose, onSaved, currentUser, linkOptions, task, pr
             )}
           </Field>
 
-          {/* Botões */}
-          <div className="flex gap-3 pt-1">
+          </div>
+
+          {/* Rodapé FIXO — não rola; botão salvar sempre visível, respeitando a safe-area inferior. */}
+          <div className="shrink-0 flex gap-3 px-5 py-4 border-t border-bento-border bg-bento-panel pb-[max(1rem,env(safe-area-inset-bottom))]">
             <button type="button" onClick={onClose}
-              className="flex-1 border border-bento-border text-bento-dim py-2.5 rounded-btn text-sm hover:border-lime hover:text-bento-text transition-colors">
+              className="flex-1 border border-bento-border text-bento-dim py-2.5 rounded-btn text-sm hover:border-lime hover:text-bento-text transition-colors min-h-[44px]">
               Cancelar
             </button>
             <button type="submit" disabled={saving || !title.trim()}
-              className="bento-btn flex-1 py-2.5 rounded-btn text-sm font-semibold disabled:opacity-50">
+              className="bento-btn flex-1 py-2.5 rounded-btn text-sm font-semibold disabled:opacity-50 min-h-[44px]">
               {saving ? 'Salvando...' : editing ? 'Salvar' : 'Criar tarefa'}
             </button>
           </div>

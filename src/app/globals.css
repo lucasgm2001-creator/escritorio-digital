@@ -111,6 +111,15 @@ html.light {
 @layer base {
   * { box-sizing: border-box; }
 
+  /* App-shell: a página NÃO rola (sem bounce/zoom). Quem rola é só o <main> do dashboard.
+     touch-action:pan-y bloqueia pinch-zoom; trilhos horizontais reativam pan-x (regra abaixo). */
+  html, body {
+    height: 100%;
+    width: 100%;
+    overflow: hidden;
+    overscroll-behavior: none;
+    touch-action: pan-y;
+  }
   html { -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility; }
 
   body {
@@ -134,6 +143,10 @@ html.light {
   }
   input::placeholder, textarea::placeholder { color: rgb(var(--c-muted-foreground)); }
 }
+
+/* Scroll lateral SÓ nos trilhos horizontais (funil/kanban, abas que rolam, agenda): reativa pan-x
+   sob o touch-action:pan-y global. O resto do app não tem overflow-x → sem scroll horizontal. */
+[class~="overflow-x-auto"] { touch-action: pan-x; }
 
 /* ─── Keyframes ──────────────────────────────────────────────── */
 @keyframes fadeIn   { from { opacity: 0 } to { opacity: 1 } }

@@ -55,7 +55,7 @@ export default function LoginPage() {
   }
 
   return (
-    <main className="min-h-screen bg-gradient-to-br from-[#080D0A] via-[#0D140F] to-[#111A14] flex items-center justify-center p-4">
+    <main className="h-[100dvh] overflow-y-auto bg-gradient-to-br from-[#080D0A] via-[#0D140F] to-[#111A14] flex items-center justify-center p-4 py-[max(1rem,env(safe-area-inset-top))]">
       <div className="w-full max-w-md">
         {/* Logo */}
         <div className="text-center mb-12">
