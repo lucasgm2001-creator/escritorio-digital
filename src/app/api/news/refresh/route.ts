@@ -13,6 +13,7 @@ const ESTADOS = ['MA', 'NJ', 'CA', 'NC', 'SC', 'US']
 const SEV = new Set(['critico', 'alta', 'media'])
 const MAX_AGE_DAYS = 10   // descarta no insert o que for mais antigo que isso
 const PURGE_AGE_DAYS = 30 // apaga do banco o que passar disso
+const AI_TIMEOUT_MS = 45_000 // guard: aborta a IA ANTES do limite estrutural de 60s da função
 
 // Agendador: header x-cron-secret === CRON_SECRET. (Fallback do Hall usa requireAuth.)
 function authorizedByToken(req: Request): boolean {
@@ -69,12 +70,15 @@ export async function POST(req: Request) {
       + `Responda APENAS um array JSON (nada fora dele). Cada item:\n`
       + `{"titulo","categoria","estados":["MA"],"severidade":"critico|alta|media","resumo":"1-2 frases","impacto":"1 linha de impacto pra empresa","fonte_url","fonte_nome","published_at":"ISO8601 real"}`
 
+    // Guard de tempo: aborta a IA em AI_TIMEOUT_MS (< 60s) pra a função NÃO estourar o limite e segurar
+    // a rota. Menos buscas/tokens = mais rápido. Falha/timeout cai no catch e retorna rápido (sem travar).
     const { text } = await generateText({
       model: anthropic('claude-sonnet-4-6'),
-      tools: { web_search: anthropic.tools.webSearch_20250305({ maxUses: 4 }) },
+      tools: { web_search: anthropic.tools.webSearch_20250305({ maxUses: 3 }) },
       system,
       prompt,
-      maxOutputTokens: 4000,
+      maxOutputTokens: 2500,
+      abortSignal: AbortSignal.timeout(AI_TIMEOUT_MS),
     })
 
     // Normaliza + valida.
@@ -123,7 +127,12 @@ export async function POST(req: Request) {
 
     return NextResponse.json({ ok: true, inserted: toInsert.length })
   } catch (e) {
-    console.error('[news/refresh] failed', e)
-    return NextResponse.json({ ok: false, error: 'refresh falhou' }, { status: 500 })
+    // Timeout da IA (abort) → retorna RÁPIDO 504; outras falhas → 500. Nunca segura a função até os 60s.
+    const isTimeout = e instanceof Error && (e.name === 'TimeoutError' || e.name === 'AbortError')
+    console.error('[news/refresh] failed', isTimeout ? `IA abortada após ${AI_TIMEOUT_MS}ms (guard de tempo)` : e)
+    return NextResponse.json(
+      { ok: false, error: isTimeout ? 'IA demorou demais — abortada pelo guard de tempo' : 'refresh falhou' },
+      { status: isTimeout ? 504 : 500 },
+    )
   }
 }

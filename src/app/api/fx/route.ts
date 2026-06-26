@@ -12,18 +12,22 @@ const TIMEOUT_MS = 3000
 // Dia YYYY-MM-DD no fuso de Brasília — define "cotação de hoje".
 const spDay = (d: Date) => d.toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' })
 
-// Busca USD->BRL na AwesomeAPI (campo bid). Timeout curto; null em QUALQUER falha.
-async function fetchUsdBrl(): Promise<number | null> {
+// Busca USD->BRL na AwesomeAPI (campo bid). Timeout curto. NÃO engole o erro: retorna o MOTIVO
+// (status HTTP / valor inválido / exceção / endpoint) pra dar pra diagnosticar no log [fx].
+async function fetchUsdBrl(): Promise<{ value: number } | { error: string }> {
   const ctrl = new AbortController()
   const t = setTimeout(() => ctrl.abort(), TIMEOUT_MS)
   try {
     const res = await fetch(FX_URL, { signal: ctrl.signal, cache: 'no-store' })
-    if (!res.ok) return null
+    if (!res.ok) return { error: `HTTP ${res.status} em ${FX_URL}` }
     const json = await res.json()
-    const bid = Number(json?.USDBRL?.bid)
-    return Number.isFinite(bid) && bid > 0 ? bid : null
-  } catch {
-    return null
+    const raw = json?.USDBRL?.bid
+    const bid = Number(raw)
+    if (!(Number.isFinite(bid) && bid > 0)) return { error: `valor inválido (bid=${String(raw)}) em ${FX_URL}` }
+    return { value: bid }
+  } catch (e) {
+    const msg = e instanceof Error ? `${e.name}: ${e.message}` : String(e)
+    return { error: `exceção ao buscar ${FX_URL}: ${msg}` }
   } finally {
     clearTimeout(t)
   }
@@ -61,19 +65,34 @@ export async function POST(req: Request) {
   const freshToday = !!updatedAt && referencia != null && spDay(new Date(updatedAt)) === spDay(new Date())
   let source: 'auto' | 'fallback' = 'auto'
 
-  // 4) Não-fresca (ou forçada): busca na AwesomeAPI e grava a referência.
+  // 4) Não-fresca (ou forçada): busca na AwesomeAPI e GRAVA a referência (+ updated_at). A trava já
+  //    foi tratada acima (travada+manual nunca chega aqui) → aqui é sempre referência automática.
   if (force || !freshToday) {
     const fetched = await fetchUsdBrl()
-    if (fetched != null) {
-      referencia = fetched
-      await auth.supabase.from('fx_config')
-        .update({ cotacao_referencia: fetched, updated_at: new Date().toISOString() })
+    if ('value' in fetched) {
+      referencia = fetched.value
+      const { error: upErr } = await auth.supabase.from('fx_config')
+        .update({ cotacao_referencia: fetched.value, updated_at: new Date().toISOString() })
         .eq('id', 1)
+      if (upErr) {
+        // Busca OK mas o WRITE falhou (provável RLS no fx_config). Surface — não engole.
+        console.error('[fx] write da cotacao_referencia falhou:', upErr.message)
+        return NextResponse.json(
+          { referencia: fetched.value, effective: fetched.value, source: 'auto', travada, error: `[fx] write falhou: ${upErr.message}` },
+          { status: 502 },
+        )
+      }
       source = 'auto'
     } else {
-      // 5) Fallback: última referência conhecida → manual → default. Nunca 0.
-      source = 'fallback'
-      referencia = referencia ?? manual ?? FX_FALLBACK
+      // Busca FALHOU/ inválida: loga o motivo e RETORNA AVISO DE ERRO (não 200 silencioso). Mantém
+      // o fallback de EXIBIÇÃO no corpo (última referência → manual → default) pra a tela não quebrar.
+      console.error('[fx]', fetched.error)
+      const ref = referencia ?? manual ?? FX_FALLBACK
+      const effective = travada && manual != null ? manual : ref
+      return NextResponse.json(
+        { referencia: ref, effective, source: 'fallback', travada, error: `[fx] ${fetched.error}` },
+        { status: 502 },
+      )
     }
   }
 
