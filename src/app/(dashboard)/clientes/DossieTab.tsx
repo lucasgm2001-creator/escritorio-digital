@@ -4,19 +4,32 @@ import { useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useToast } from '@/components/ui/toast'
 import { cn } from '@/lib/utils'
-import { ChevronDown, ExternalLink, FolderOpen, Link2 } from 'lucide-react'
+import { ChevronDown, ExternalLink, FolderOpen, Pencil, Plus } from 'lucide-react'
 import type { Client } from './ClientesClient'
 
-// Dossiê do cliente (Nível 1, read-only): só GUARDA e ABRE links do Drive — não sobe arquivo nem
-// escreve no Drive. Persiste na coluna jsonb `dossie` da tabela clients. NÃO toca em dinheiro.
+// Dossiê do cliente (read-only do conteúdo): só GUARDA e ABRE links/notas do Drive — não sobe arquivo.
+// Pasta raiz → coluna `drive_folder_url` (text). Seções → coluna `dossie` (jsonb), uma {url,notas} por
+// seção, sempre com MERGE (preserva as outras). NÃO toca em dinheiro/plano/comissão.
 
-const SECTIONS: { key: string; label: string }[] = [
+const SECTIONS = [
   { key: 'planejamento', label: 'Planejamento Estratégico' },
-  { key: 'briefing', label: 'Briefing' },
-  { key: 'materiais', label: 'Materiais & Criativos' },
-  { key: 'relatorios', label: 'Relatórios' },
-  { key: 'contrato', label: 'Contrato' },
-]
+  { key: 'briefing',     label: 'Briefing' },
+  { key: 'materiais',    label: 'Materiais & Criativos' },
+  { key: 'relatorios',   label: 'Relatórios' },
+  { key: 'contrato',     label: 'Contrato' },
+] as const
+type SecKey = typeof SECTIONS[number]['key']
+
+interface DossieSection { url: string; notas: string }
+type Dossie = Record<SecKey, DossieSection>
+
+// dossie vazio/null → objeto com as 5 seções tudo "".
+function normalizeDossie(d: Client['dossie']): Dossie {
+  const src = (d ?? {}) as Record<string, { url?: string; notas?: string } | undefined>
+  return Object.fromEntries(
+    SECTIONS.map(s => [s.key, { url: src[s.key]?.url ?? '', notas: src[s.key]?.notas ?? '' }]),
+  ) as Dossie
+}
 
 // URL http/https válida (senão NÃO salva).
 function isValidUrl(s: string): boolean {
@@ -26,89 +39,164 @@ function isValidUrl(s: string): boolean {
 }
 
 const inputCls = 'w-full bg-bento-bg border border-bento-border rounded-btn px-3 py-2 text-sm text-bento-text placeholder:text-bento-muted focus:outline-none focus:border-lime font-mono'
+const saveBtn = 'bento-btn flex items-center justify-center gap-1.5 px-4 py-2 rounded-btn text-sm font-semibold disabled:opacity-50 min-h-[40px]'
+const ghostBtn = 'flex items-center gap-1.5 px-3 py-1.5 rounded-btn text-xs font-medium border border-bento-border text-bento-dim hover:border-lime hover:text-bento-text transition-colors min-h-[36px]'
 
 export function DossieTab({ client, onSaved }: { client: Client; onSaved: (c: Client) => void }) {
   const supabase = createClient()
   const { toast } = useToast()
-  const [folderUrl, setFolderUrl] = useState(client.dossie?.folder_url ?? '')
-  const [sections, setSections] = useState<Record<string, string>>(() => {
-    const s = client.dossie?.sections ?? {}
-    return Object.fromEntries(SECTIONS.map(x => [x.key, s[x.key] ?? '']))
-  })
-  const [open, setOpen] = useState<Set<string>>(new Set())   // sanfona FECHADA por padrão
-  const [busy, setBusy] = useState(false)
 
-  // Grava o dossiê INTEIRO (folder + sections) na coluna jsonb. Reflete no estado do pai (sem fechar).
-  const persist = async (folder: string, secs: Record<string, string>): Promise<boolean> => {
-    const dossie = { folder_url: folder, sections: secs }
-    setBusy(true)
-    const { error } = await supabase.from('clients').update({ dossie }).eq('id', client.id)
-    setBusy(false)
-    if (error) { toast({ type: 'error', message: `Não foi possível salvar: ${error.message}` }); return false }
-    onSaved({ ...client, dossie })
-    return true
+  // Estado LOCAL (evita merge em cima de prop desatualizada dentro do modal).
+  const [driveUrl, setDriveUrl] = useState(client.drive_folder_url ?? '')
+  const [editingDrive, setEditingDrive] = useState(false)
+  const [savingDrive, setSavingDrive] = useState(false)
+
+  const [dossie, setDossie] = useState<Dossie>(() => normalizeDossie(client.dossie))
+  const [open, setOpen] = useState<Set<SecKey>>(new Set())          // sanfonas FECHADAS por padrão
+  const [editing, setEditing] = useState<Set<SecKey>>(new Set())    // seções em modo edição
+  const [draft, setDraft] = useState<Dossie>(() => normalizeDossie(client.dossie))
+  const [savingKey, setSavingKey] = useState<SecKey | null>(null)
+
+  const toggle = (k: SecKey) => setOpen(p => { const n = new Set(p); if (n.has(k)) n.delete(k); else n.add(k); return n })
+
+  const startEdit = (k: SecKey) => {
+    setDraft(p => ({ ...p, [k]: { ...dossie[k] } }))   // carrega o valor atual no rascunho
+    setEditing(p => new Set(p).add(k))
   }
+  const cancelEdit = (k: SecKey) =>
+    setEditing(p => { const n = new Set(p); n.delete(k); return n })
 
-  const saveFolder = async () => {
-    const v = folderUrl.trim()
+  // ── Pasta raiz no Drive (coluna drive_folder_url) ──
+  const saveDrive = async () => {
+    const v = driveUrl.trim()
     if (v && !isValidUrl(v)) { toast({ type: 'error', message: 'Link inválido — use uma URL (http/https).' }); return }
-    if (v === (client.dossie?.folder_url ?? '')) return
-    if (await persist(v, sections) && v) toast({ type: 'success', message: 'Pasta salva.' })
+    setSavingDrive(true)
+    const { error } = await supabase.from('clients').update({ drive_folder_url: v || null }).eq('id', client.id)
+    setSavingDrive(false)
+    if (error) { toast({ type: 'error', message: `Não foi possível salvar: ${error.message}` }); return }
+    setDriveUrl(v)
+    setEditingDrive(false)
+    onSaved({ ...client, drive_folder_url: v || null })
+    if (v) toast({ type: 'success', message: 'Pasta salva.' })
   }
 
-  const saveSection = async (key: string) => {
-    const v = (sections[key] ?? '').trim()
-    if (v && !isValidUrl(v)) { toast({ type: 'error', message: 'Link inválido — use uma URL (http/https).' }); return }
-    if (v === ((client.dossie?.sections ?? {})[key] ?? '')) return
-    const next = { ...sections, [key]: v }; setSections(next)
-    if (await persist(folderUrl.trim(), next) && v) toast({ type: 'success', message: 'Link salvo.' })
+  // ── Seção do dossiê (coluna dossie, jsonb) — MERGE preservando as outras seções ──
+  const saveSection = async (k: SecKey) => {
+    const url = (draft[k]?.url ?? '').trim()
+    const notas = (draft[k]?.notas ?? '').trim()
+    if (url && !isValidUrl(url)) { toast({ type: 'error', message: 'Link inválido — use uma URL (http/https).' }); return }
+    const merged: Dossie = { ...dossie, [k]: { url, notas } }
+    setSavingKey(k)
+    const { error } = await supabase.from('clients').update({ dossie: merged }).eq('id', client.id)
+    setSavingKey(null)
+    if (error) { toast({ type: 'error', message: `Não foi possível salvar: ${error.message}` }); return }
+    setDossie(merged)
+    cancelEdit(k)
+    onSaved({ ...client, dossie: merged })
+    toast({ type: 'success', message: 'Salvo.' })
   }
 
-  const toggle = (k: string) => setOpen(p => { const n = new Set(p); if (n.has(k)) n.delete(k); else n.add(k); return n })
+  const driveValid = isValidUrl(driveUrl)
 
   return (
     <div className="space-y-4">
-      {/* Faixa: Pasta no Google Drive */}
-      <div className="bento-fx p-4 space-y-2">
+      {/* FAIXA DO DRIVE — pasta raiz do cliente. */}
+      <div className="bento-fx p-4 space-y-3">
         <div className="flex items-center justify-between gap-2">
-          <span className="flex items-center gap-2 font-display font-semibold text-bento-text text-sm"><FolderOpen className="w-4 h-4 text-lime-fg" />Pasta no Google Drive</span>
-          {isValidUrl(folderUrl) && (
-            <a href={folderUrl.trim()} target="_blank" rel="noopener noreferrer"
-              className="bento-btn flex items-center gap-1.5 px-3 py-1.5 rounded-btn text-xs font-semibold min-h-[36px]"><ExternalLink className="w-3.5 h-3.5" />Abrir pasta</a>
+          <span className="flex items-center gap-2 font-display font-semibold text-bento-text text-sm">
+            <FolderOpen className="w-4 h-4 text-lime-fg" />Pasta no Google Drive
+          </span>
+          {driveValid && !editingDrive && (
+            <div className="flex items-center gap-2">
+              <a href={driveUrl.trim()} target="_blank" rel="noopener noreferrer"
+                className="bento-btn flex items-center gap-1.5 px-3 py-1.5 rounded-btn text-xs font-semibold min-h-[36px]">
+                <ExternalLink className="w-3.5 h-3.5" />Abrir pasta no Drive
+              </a>
+              <button type="button" onClick={() => setEditingDrive(true)} aria-label="Editar link da pasta"
+                className="p-2 rounded-btn border border-bento-border text-bento-muted hover:border-lime hover:text-bento-text transition-colors min-h-[36px]">
+                <Pencil className="w-3.5 h-3.5" />
+              </button>
+            </div>
           )}
         </div>
-        <input value={folderUrl} onChange={e => setFolderUrl(e.target.value)} onBlur={saveFolder}
-          onKeyDown={e => { if (e.key === 'Enter') (e.currentTarget as HTMLInputElement).blur() }}
-          placeholder="Cole o link da pasta do Drive…" disabled={busy} className={inputCls} />
+
+        {(editingDrive || !driveValid) && (
+          <div className="flex flex-col sm:flex-row gap-2">
+            <input value={driveUrl} onChange={e => setDriveUrl(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter') saveDrive() }}
+              placeholder="Colar link da pasta do Drive…" disabled={savingDrive} className={inputCls} />
+            <button type="button" onClick={saveDrive} disabled={savingDrive} className={cn(saveBtn, 'sm:w-auto')}>
+              {savingDrive ? 'Salvando…' : 'Salvar'}
+            </button>
+          </div>
+        )}
       </div>
 
-      {/* Seções em sanfona — FECHADAS por padrão; clica no título pra abrir. */}
+      {/* 5 SANFONAS — fechadas por padrão. */}
       <div className="space-y-2">
         {SECTIONS.map(s => {
-          const link = sections[s.key] ?? ''
-          const valid = isValidUrl(link)
+          const cur = dossie[s.key]
+          const hasContent = isValidUrl(cur.url) || !!cur.notas
           const isOpen = open.has(s.key)
+          const isEditing = editing.has(s.key)
+          const d = draft[s.key] ?? { url: '', notas: '' }
           return (
             <div key={s.key} className="bento-fx overflow-hidden">
               <button type="button" onClick={() => toggle(s.key)} aria-expanded={isOpen}
                 className="w-full flex items-center justify-between gap-2 px-4 py-3 text-left min-h-[48px]">
                 <span className="flex items-center gap-2 min-w-0">
-                  <span className={cn('w-1.5 h-1.5 rounded-full flex-none', valid ? 'bg-lime' : 'bg-bento-muted/50')} />
+                  <span className={cn('w-1.5 h-1.5 rounded-full flex-none', hasContent ? 'bg-lime' : 'bg-bento-muted/50')} />
                   <span className="font-display font-semibold text-bento-text text-sm truncate">{s.label}</span>
                 </span>
                 <ChevronDown className={cn('w-4 h-4 text-bento-muted flex-none transition-transform', isOpen && 'rotate-180')} />
               </button>
+
               {isOpen && (
-                <div className="px-4 pb-3 pt-1 border-t border-bento-border/60 space-y-2">
-                  {valid ? (
-                    <a href={link.trim()} target="_blank" rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1.5 text-xs font-semibold text-lime-fg hover:text-lime"><ExternalLink className="w-3.5 h-3.5" />Abrir no Drive</a>
+                <div className="px-4 pb-3 pt-1 border-t border-bento-border/60 space-y-2.5">
+                  {isEditing ? (
+                    <>
+                      <div>
+                        <label className="block font-tech text-[10px] uppercase tracking-wide text-bento-muted mb-1">Link no Drive</label>
+                        <input value={d.url} onChange={e => setDraft(p => ({ ...p, [s.key]: { ...p[s.key], url: e.target.value } }))}
+                          placeholder="Cole a URL do Drive…" disabled={savingKey === s.key} className={inputCls} />
+                      </div>
+                      <div>
+                        <label className="block font-tech text-[10px] uppercase tracking-wide text-bento-muted mb-1">Notas</label>
+                        <textarea value={d.notas} onChange={e => setDraft(p => ({ ...p, [s.key]: { ...p[s.key], notas: e.target.value } }))}
+                          rows={2} placeholder="Anotações desta seção…" disabled={savingKey === s.key}
+                          className={cn(inputCls, 'font-sans resize-none')} />
+                      </div>
+                      <div className="flex gap-2 pt-0.5">
+                        <button type="button" onClick={() => saveSection(s.key)} disabled={savingKey === s.key} className={saveBtn}>
+                          {savingKey === s.key ? 'Salvando…' : 'Salvar'}
+                        </button>
+                        <button type="button" onClick={() => cancelEdit(s.key)} disabled={savingKey === s.key}
+                          className="px-4 py-2 rounded-btn text-sm font-medium border border-bento-border text-bento-dim hover:border-lime hover:text-bento-text transition-colors min-h-[40px]">
+                          Cancelar
+                        </button>
+                      </div>
+                    </>
+                  ) : hasContent ? (
+                    <>
+                      <div className="flex items-center justify-between gap-2">
+                        {isValidUrl(cur.url)
+                          ? <a href={cur.url.trim()} target="_blank" rel="noopener noreferrer"
+                              className="inline-flex items-center gap-1.5 text-xs font-semibold text-lime-fg hover:text-lime">
+                              <ExternalLink className="w-3.5 h-3.5" />Abrir no Drive
+                            </a>
+                          : <span className="font-tech text-[11px] text-bento-muted">Sem link</span>}
+                        <button type="button" onClick={() => startEdit(s.key)} className={ghostBtn}>
+                          <Pencil className="w-3.5 h-3.5" />Editar
+                        </button>
+                      </div>
+                      {cur.notas && <p className="text-sm text-bento-dim whitespace-pre-wrap leading-relaxed">{cur.notas}</p>}
+                    </>
                   ) : (
-                    <p className="inline-flex items-center gap-1.5 font-tech text-[11px] text-bento-muted"><Link2 className="w-3.5 h-3.5" />Vincular link do Drive</p>
+                    <button type="button" onClick={() => startEdit(s.key)}
+                      className="inline-flex items-center gap-1.5 font-tech text-[11px] text-bento-muted hover:text-lime-fg transition-colors">
+                      <Plus className="w-3.5 h-3.5" />Adicionar link / nota
+                    </button>
                   )}
-                  <input value={link} onChange={e => setSections(p => ({ ...p, [s.key]: e.target.value }))} onBlur={() => saveSection(s.key)}
-                    onKeyDown={e => { if (e.key === 'Enter') (e.currentTarget as HTMLInputElement).blur() }}
-                    placeholder="Cole a URL do Drive…" disabled={busy} className={inputCls} />
                 </div>
               )}
             </div>

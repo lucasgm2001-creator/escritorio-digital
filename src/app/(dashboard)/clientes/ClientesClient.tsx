@@ -31,7 +31,9 @@ export interface Client {
   area_code?: string | null   // DDD (area code) — Mapa de Clientes
   jobs?: string[]
   created_at: string
-  dossie?: { folder_url?: string; sections?: Record<string, string> } | null   // links do Drive (read-only)
+  // Dossiê do cliente — só links/notas do Drive (read-only do conteúdo). Coluna separada p/ a pasta raiz.
+  drive_folder_url?: string | null
+  dossie?: Record<string, { url?: string; notas?: string }> | null   // { planejamento|briefing|materiais|relatorios|contrato: {url, notas} }
 }
 
 interface Plan { id: string; nome: string; valor_semanal: number }
