@@ -13,7 +13,7 @@ const ESTADOS = ['MA', 'NJ', 'CA', 'NC', 'SC', 'US']
 const SEV = new Set(['critico', 'alta', 'media'])
 const MAX_AGE_DAYS = 10   // descarta no insert o que for mais antigo que isso
 const PURGE_AGE_DAYS = 30 // apaga do banco o que passar disso
-const AI_TIMEOUT_MS = 45_000 // guard: aborta a IA ANTES do limite estrutural de 60s da função
+const AI_TIMEOUT_MS = 40_000 // guard: aborta a IA ANTES do limite estrutural de 60s da função (margem p/ retornar 504 controlado)
 
 // Agendador: header x-cron-secret === CRON_SECRET. (Fallback do Hall usa requireAuth.)
 function authorizedByToken(req: Request): boolean {
@@ -78,6 +78,9 @@ export async function POST(req: Request) {
       system,
       prompt,
       maxOutputTokens: 2500,
+      // Sem isto, o AI SDK faz 2 retries (até 3 tentativas) com backoff próprio e o abortSignal não corta
+      // a sequência inteira → poderia passar dos 60s da Vercel. 0 retries = 1 tentativa, dentro do guard.
+      maxRetries: 0,
       abortSignal: AbortSignal.timeout(AI_TIMEOUT_MS),
     })
 

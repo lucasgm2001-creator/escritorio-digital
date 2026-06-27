@@ -8,9 +8,9 @@ export const maxDuration = 15
 const FX_URL = 'https://economia.awesomeapi.com.br/json/last/USD-BRL'
 const FX_FALLBACK = 5.40 // último caso (regra 5): a cotação efetiva NUNCA pode ser 0/nula
 const TIMEOUT_MS = 3000
-
-// Dia YYYY-MM-DD no fuso de Brasília — define "cotação de hoje".
-const spDay = (d: Date) => d.toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' })
+// TTL da referência (anti-429): só rebusca na API externa se a referência estiver vazia OU tiver sido
+// gravada há mais de ~12h. Entre buscas, devolve a referência já gravada SEM chamar a API.
+const REF_TTL_MS = 12 * 60 * 60 * 1000
 
 // Busca USD->BRL na AwesomeAPI (campo bid). Timeout curto. NÃO engole o erro: retorna o MOTIVO
 // (status HTTP / valor inválido / exceção / endpoint) pra dar pra diagnosticar no log [fx].
@@ -61,13 +61,15 @@ export async function POST(req: Request) {
     return NextResponse.json({ referencia: referencia ?? manual, effective: manual, source: 'manual', travada: true })
   }
 
-  // 3) Referência "fresca" = updated_at de hoje (Brasília) e referencia não-nula.
-  const freshToday = !!updatedAt && referencia != null && spDay(new Date(updatedAt)) === spDay(new Date())
+  // 3) Referência "fresca" = referencia não-nula E gravada há menos de ~12h (REF_TTL_MS). Fresca →
+  //    devolve a referência já gravada SEM chamar a API externa (corta o 429 por excesso de chamadas).
+  const ageMs = updatedAt ? (Date.now() - new Date(updatedAt).getTime()) : Infinity
+  const fresh = referencia != null && ageMs < REF_TTL_MS
   let source: 'auto' | 'fallback' = 'auto'
 
-  // 4) Não-fresca (ou forçada): busca na AwesomeAPI e GRAVA a referência (+ updated_at). A trava já
-  //    foi tratada acima (travada+manual nunca chega aqui) → aqui é sempre referência automática.
-  if (force || !freshToday) {
+  // 4) Não-fresca (referência vazia OU > ~12h) ou forçada: UMA busca na AwesomeAPI e GRAVA a referência
+  //    (+ updated_at). A trava já foi tratada acima (travada+manual nunca chega aqui) → sempre automática.
+  if (force || !fresh) {
     const fetched = await fetchUsdBrl()
     if ('value' in fetched) {
       referencia = fetched.value
@@ -84,9 +86,12 @@ export async function POST(req: Request) {
       }
       source = 'auto'
     } else {
-      // Busca FALHOU/ inválida: loga o motivo e RETORNA AVISO DE ERRO (não 200 silencioso). Mantém
-      // o fallback de EXIBIÇÃO no corpo (última referência → manual → default) pra a tela não quebrar.
+      // Busca FALHOU/inválida (ex.: 429). NÃO sobrescreve o VALOR cotacao_referencia (preserva a última
+      // referência boa) — só AVANÇA o carimbo updated_at p/ throttlar a PRÓXIMA busca por ~12h. É isso que
+      // faz o 429 sumir: sem avançar o carimbo, com a referência vazia cada page load rebuscaria e o
+      // rate-limit nunca cederia. (cotacao_manual/cotacao_travada/histórico continuam intocados.)
       console.error('[fx]', fetched.error)
+      await auth.supabase.from('fx_config').update({ updated_at: new Date().toISOString() }).eq('id', 1)
       const ref = referencia ?? manual ?? FX_FALLBACK
       const effective = travada && manual != null ? manual : ref
       return NextResponse.json(

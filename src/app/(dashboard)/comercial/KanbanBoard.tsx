@@ -38,13 +38,16 @@ interface CurrentUser { id: string; name: string }
 // ── Barra de resumo do funil (rodapé) ──────────────────────────────────────────
 const isTerminal = (s: LeadStatus) => s === 'fechado' || s === 'perdido' || s === 'lixeira'
 
-function FunnelSummary({ leads }: { leads: Lead[] }) {
+// `leads` = lista do período selecionado (Pipeline/Ativos/Fechados/Perdidos respeitam o chip de período).
+// `allLeads` = base CHEIA (todos os leads, ignora o período) — usada SÓ na Conversão GERAL p/ ela bater
+// SEMPRE com o Mapa (Hall), que também usa a base cheia. Mesma definição/util nos dois (fechados ÷ não-Lixeira).
+function FunnelSummary({ leads, allLeads }: { leads: Lead[]; allLeads: Lead[] }) {
   const ativos = leads.filter(l => !isTerminal(l.status))
   const fechados = leads.filter(l => l.status === 'fechado').length
   const perdidos = leads.filter(l => l.status === 'perdido').length
   const pipeline = ativos.reduce((s, l) => s + (l.value || 0), 0)
-  // Conversão GERAL — definição ÚNICA compartilhada (fechados ÷ não-Lixeira). MESMO número do Mapa (Hall).
-  const conv = funnelConversionLabel(leads)
+  // Conversão GERAL — base cheia (não a do período) → MESMO número do Mapa (Hall) em qualquer período.
+  const conv = funnelConversionLabel(allLeads)
   return (
     <div className="flex-none border-t border-bento-border bg-bento-panel px-4 sm:px-6 py-2.5 flex items-center gap-x-6 gap-y-1 flex-wrap">
       <SummaryStat label="Pipeline" value={fmtUSDc(pipeline)} />
@@ -318,7 +321,7 @@ export function KanbanBoard({ initialLeads, initialStages, initialClients, curre
                   ))}
                 </div>
               </div>
-              <FunnelSummary leads={filteredLeads} />
+              <FunnelSummary leads={filteredLeads} allLeads={leads} />
             </div>
             <DragOverlay>
               {activeLead ? <LeadCard lead={activeLead} isDragging /> : null}
