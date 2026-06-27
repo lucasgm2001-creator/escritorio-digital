@@ -775,8 +775,8 @@ export function CommissionSection({ sellerId, sellerName }: { sellerId: string; 
         }>
 
         <div className="space-y-0.5">
+          {/* Componentes da COMISSÃO (reuniões + vendas) — o salário é separado, mais abaixo. */}
           {[
-            { label: 'Salário fixo', u: summary.salaryUsd, b: summary.salaryBrl },
             { label: `Reuniões (${summary.meetingsCount})`, u: summary.meetingsUsd, b: summary.meetingsBrl },
             { label: `Vendas (${summary.weeksCount} sem.)`, u: summary.weeksUsd, b: summary.weeksBrl },
           ].map(r => (
@@ -788,8 +788,25 @@ export function CommissionSection({ sellerId, sellerName }: { sellerId: string; 
               </div>
             </div>
           ))}
+          {/* Subtotal: comissão PURA = reuniões + vendas (sem salário). Só soma valores já recebidos. */}
+          <div className="flex items-center justify-between py-2 border-b border-bento-border/40">
+            <span className="text-xs font-semibold text-bento-text">Comissão (reuniões + vendas)</span>
+            <div className="text-right">
+              <p className="text-sm font-semibold text-bento-text tabular-nums">{usd(summary.meetingsUsd + summary.weeksUsd)}</p>
+              <p className="text-[11px] text-bento-muted tabular-nums">{brl(summary.meetingsBrl + summary.weeksBrl)}</p>
+            </div>
+          </div>
+          {/* Salário fixo — separado da comissão (não é comissão). */}
+          <div className="flex items-center justify-between py-2 border-b border-bento-border/40">
+            <span className="text-xs text-bento-muted">Salário fixo</span>
+            <div className="text-right">
+              <p className="text-sm font-medium text-bento-text tabular-nums">{usd(summary.salaryUsd)}</p>
+              <p className="text-[11px] text-bento-muted tabular-nums">{brl(summary.salaryBrl)}</p>
+            </div>
+          </div>
+          {/* Total a receber = comissão + salário (era rotulado só "Total"). */}
           <div className="flex items-center justify-between pt-2.5">
-            <span className="text-sm font-semibold text-bento-text">Total</span>
+            <span className="text-sm font-semibold text-bento-text">Total a receber</span>
             <div className="text-right">
               <p className="text-base font-bold text-lime-fg tabular-nums">{usd(summary.totalUsd)}</p>
               <p className="text-xs text-bento-muted tabular-nums">{brl(summary.totalBrl)}</p>

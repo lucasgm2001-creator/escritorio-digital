@@ -103,7 +103,9 @@ function SellerProfile({ seller, onClose, onUpdated, onDeleted }: {
 
   const [section, setSection] = useState<Section>('dados')
   const [current, setCurrent] = useState<SellerRow>(seller)
-  const [mc, setMc] = useState({ comissaoAtual: 0, comissaoAnterior: 0, comissaoAtualBrl: 0, vendasMes: 0, reunioesMes: 0, salarioUsd: 0, salarioBrl: 0, rate: 0 })
+  // comissaoAtual/Anterior/Brl = comissão PURA (reuniões + vendas, SEM salário). totalAtual/Brl = total a
+  // receber (comissão + salário). Salário aparece em card próprio. Só EXIBIÇÃO — a matemática vem do monthlySummary.
+  const [mc, setMc] = useState({ comissaoAtual: 0, comissaoAnterior: 0, comissaoAtualBrl: 0, totalAtual: 0, totalAtualBrl: 0, vendasMes: 0, reunioesMes: 0, salarioUsd: 0, salarioBrl: 0, rate: 0 })
   const [uploading, setUploading] = useState(false)
 
   // Form Metas & Remuneração (salário fixo + metas juntos)
@@ -148,8 +150,13 @@ function SellerProfile({ seller, onClose, onUpdated, onDeleted }: {
       const cur = monthlySummary({ year: y, month: m, salaries, meetings, weeks, fx, automaticRate: manual ?? 0 })
       const prev = monthlySummary({ year: py, month: pm, salaries, meetings, weeks, fx, automaticRate: manual ?? 0 })
       const mp = `${y}-${pad2(m)}`
+      // Comissão PURA = reuniões + vendas (sem salário). Total a receber = totalUsd (já inclui o salário).
+      const comissaoPuraUsd = cur.meetingsUsd + cur.weeksUsd
+      const comissaoPuraBrl = cur.meetingsBrl + cur.weeksBrl
+      const comissaoPuraPrevUsd = prev.meetingsUsd + prev.weeksUsd
       setMc({
-        comissaoAtual: cur.totalUsd, comissaoAnterior: prev.totalUsd, comissaoAtualBrl: cur.totalBrl,
+        comissaoAtual: comissaoPuraUsd, comissaoAnterior: comissaoPuraPrevUsd, comissaoAtualBrl: comissaoPuraBrl,
+        totalAtual: cur.totalUsd, totalAtualBrl: cur.totalBrl,
         vendasMes: dealsData.filter(d => (d.data_fechamento ?? '').slice(0, 7) === mp).length,
         reunioesMes: cur.meetingsCount, salarioUsd: cur.salaryUsd, salarioBrl: cur.salaryBrl, rate: cur.rateUsed,
       })
@@ -288,6 +295,11 @@ function SellerProfile({ seller, onClose, onUpdated, onDeleted }: {
             {pct == null
               ? <p className={cn('text-[9px] tabular-nums', mc.comissaoAtual > 0 ? 'text-lime-fg' : 'text-bento-muted')}>{mc.comissaoAtual > 0 ? 'novo' : '—'}</p>
               : <p className={cn('text-[9px] tabular-nums', pct >= 0 ? 'text-lime-fg' : 'text-red-400')}>{pct >= 0 ? '+' : ''}{pct.toFixed(0)}% vs mês ant.</p>}
+          </div>
+          <div>
+            <p className="text-[10px] text-bento-muted">Total a receber</p>
+            <p className="text-sm font-bold text-bento-text tabular-nums">{usd(mc.totalAtual)}</p>
+            <p className="text-[9px] text-bento-muted tabular-nums">comissão + salário</p>
           </div>
           <div>
             <p className="text-[10px] text-bento-muted">Vendas (mês)</p>
@@ -590,11 +602,11 @@ export function VendedoresTab() {
                   {s.status === 'ativo' ? 'Ativo' : 'Inativo'}
                 </span>
               </div>
-              {/* ENTRADA SEM VALORES: só "Ver comissão" (trancado). Abre o detalhe após o PIN. */}
+              {/* ENTRADA SEM VALORES: só "Ver vendedor" (trancado). Abre o detalhe após o PIN. */}
               <button type="button" onClick={() => openSeller(s)}
                 className="w-full flex items-center justify-center gap-2 rounded-btn border border-bento-border py-2 min-h-[40px] text-sm font-medium text-bento-dim hover:border-lime hover:text-lime-fg transition-colors">
                 <Lock className="w-3.5 h-3.5" />
-                Ver comissão
+                Ver vendedor
               </button>
             </div>
           ))}
