@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo, useEffect } from 'react'
+import { useState, useMemo, useEffect, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { cn } from '@/lib/utils'
 import type { Task, TaskPriority, LinkOption } from './types'
@@ -89,6 +89,7 @@ export function TaskModal({ onClose, onSaved, currentUser, linkOptions, task, pr
   const [timezone, setTimezone]   = useState<string>(task?.timezone ?? 'America/Sao_Paulo')
 
   const supabase = createClient()
+  const overlayRef = useRef<HTMLDivElement>(null)
 
   // Trava o scroll do fundo enquanto o modal está aberto (o conteúdo rola só por dentro) — no mobile
   // o gesto não arrasta a página nem a barra de baixo. Restaura ao fechar.
@@ -96,6 +97,29 @@ export function TaskModal({ onClose, onSaved, currentUser, linkOptions, task, pr
     const prev = document.body.style.overflow
     document.body.style.overflow = 'hidden'
     return () => { document.body.style.overflow = prev }
+  }, [])
+
+  // A folha SEGUE o viewport VISÍVEL (visualViewport): quando o teclado abre, a área visível encolhe →
+  // ajustamos o overlay pra cobrir só o visível (height + top do visualViewport). Como o painel é
+  // items-end e max-h relativo ao overlay, o rodapé "Criar tarefa" sobe pra CIMA do teclado (nunca atrás).
+  // No desktop o visualViewport == janela inteira → vira no-op (o modal centrado fica igual).
+  useEffect(() => {
+    const vv = window.visualViewport
+    const el = overlayRef.current
+    if (!vv || !el) return
+    const sync = () => {
+      el.style.height = `${vv.height}px`
+      el.style.top = `${vv.offsetTop}px`
+      el.style.bottom = 'auto'
+    }
+    sync()
+    vv.addEventListener('resize', sync)
+    vv.addEventListener('scroll', sync)
+    return () => {
+      vv.removeEventListener('resize', sync)
+      vv.removeEventListener('scroll', sync)
+      el.style.height = ''; el.style.top = ''; el.style.bottom = ''
+    }
   }, [])
 
   // Vendedores p/ o campo Responsável (extensível). Nova tarefa nasce com o 1º ativo (Lucas).
@@ -164,8 +188,10 @@ export function TaskModal({ onClose, onSaved, currentUser, linkOptions, task, pr
   }
 
   return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-end sm:items-center justify-center z-50 p-0 sm:p-4">
-      <div className="bento-fx rounded-t-frame sm:rounded-frame shadow-card-hover w-full sm:max-w-lg max-h-[92dvh] flex flex-col animate-slide-up">
+    <div ref={overlayRef} className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-end sm:items-center justify-center z-50 p-0 sm:p-4">
+      {/* Mobile: altura relativa ao overlay (que segue o visualViewport) → encolhe com o teclado, rodapé
+          sempre acima dele. Desktop (sm): max-h-[92dvh] de sempre. */}
+      <div className="bento-fx rounded-t-frame sm:rounded-frame shadow-card-hover w-full sm:max-w-lg max-h-[92%] sm:max-h-[92dvh] flex flex-col animate-slide-up">
 
         {/* Header — X desce respeitando o safe-area (não fica atrás do notch/barra de status). */}
         <div className="flex items-center justify-between px-5 pb-5 pt-[max(1.25rem,env(safe-area-inset-top))] border-b border-bento-border shrink-0">

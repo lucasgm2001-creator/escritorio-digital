@@ -42,6 +42,8 @@ export const viewport: Viewport = {
   initialScale: 1,
   maximumScale: 1,
   userScalable: false,
+  // Teclado REDIMENSIONA o layout (100dvh encolhe junto) → folhas/modais não ficam atrás do teclado.
+  interactiveWidget: 'resizes-content',
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
