@@ -138,23 +138,26 @@ export async function deleteEvent(googleEventId: string): Promise<void> {
   }
 }
 
-// ── Orquestração (best-effort) ──────────────────────────────────────────────
+// Resultado do sync. O client usa pra AVISAR (toast discreto) quando o Google falhar — sem reverter
+// a tarefa (que já foi salva/excluída no banco). `ok:true` cobre tanto "sincronizou" quanto "no-op"
+// (integração desligada / sem due_date), pois nenhum dos dois é falha a mostrar pro usuário.
+export type CalSyncResult = { ok: true } | { ok: false; step: 'read' | 'create' | 'update' | 'delete' | 'write' | 'sync'; reason: string }
+
+// ── Orquestração (best-effort, mas com resultado VISÍVEL) ───────────────────────
 // Lê a linha FRESCA da tarefa e reconcilia o evento:
-//  • sem due_date  → se tinha evento, apaga e limpa google_event_id.
-//  • com due_date  → tem evento? atualiza. não tem? cria e grava o id.
-export async function syncTaskCalendar(taskId: string): Promise<void> {
+//  • sem due_date  → se tinha evento, apaga; só zera google_event_id DEPOIS do delete confirmado.
+//  • com due_date  → tem evento? atualiza (patch). não tem? cria e grava o id (com ROLLBACK se o write falhar).
+export async function syncTaskCalendar(taskId: string): Promise<CalSyncResult> {
+  // Integração desligada (sem env) → no-op silencioso; NÃO é falha a sinalizar pro usuário.
+  if (!process.env.GOOGLE_SERVICE_ACCOUNT_KEY || !process.env.GOOGLE_CALENDAR_ID) return { ok: true }
   try {
-    console.log('[gcal] env key present:', Boolean(process.env.GOOGLE_SERVICE_ACCOUNT_KEY))
-    console.log('[gcal] env calendarId present:', Boolean(process.env.GOOGLE_CALENDAR_ID))
-    console.log('[gcal] key length:', process.env.GOOGLE_SERVICE_ACCOUNT_KEY?.length ?? 0)
-    if (!process.env.GOOGLE_SERVICE_ACCOUNT_KEY || !process.env.GOOGLE_CALENDAR_ID) return
     const supabase = createServiceClient()
     const { data, error } = await supabase
       .from('tasks')
       .select('id, user_id, title, notes, due_date, due_time, linked_name, google_event_id, add_call, duration_min, timezone')
       .eq('id', taskId)
       .single()
-    if (error || !data) return
+    if (error || !data) return { ok: false, step: 'read', reason: error?.message ?? 'tarefa não encontrada' }
     const task = data as TaskRow
     console.log('[gcal] task', taskId, 'due_date:', task.due_date, 'due_time:', task.due_time, 'existing event:', task.google_event_id, 'add_call:', task.add_call)
 
@@ -163,33 +166,70 @@ export async function syncTaskCalendar(taskId: string): Promise<void> {
     if (task.add_call && task.user_id) {
       const { data: prof } = await supabase.from('profiles').select('call_link').eq('id', task.user_id).single()
       callLink = (prof?.call_link as string | null) ?? null
-      console.log('[gcal] add_call on · call_link present:', Boolean(callLink))
     }
 
+    // (A) SEM due_date: remove o evento (se houver). Só zera o id DEPOIS do delete confirmado — se o delete
+    //     falhar, MANTÉM o id (trilha pra limpar depois) e sinaliza, em vez de perder a referência (ponto 2).
     if (!task.due_date) {
-      if (task.google_event_id) {
+      if (!task.google_event_id) return { ok: true }
+      try {
         await deleteEvent(task.google_event_id)
-        await supabase.from('tasks').update({ google_event_id: null }).eq('id', taskId)
+      } catch (e) {
+        console.error('[gcal] delete FALHOU — MANTENDO google_event_id (trilha) · task', taskId, '· event', task.google_event_id, ':', errMsg(e))
+        return { ok: false, step: 'delete', reason: errMsg(e) }
       }
-      return
+      await supabase.from('tasks').update({ google_event_id: null }).eq('id', taskId)
+      return { ok: true }
     }
+
+    // (B) COM due_date + evento existente: atualiza (patch preserva ajustes manuais no Google).
     if (task.google_event_id) {
-      await updateEvent(task.google_event_id, task, callLink)
-    } else {
-      const eventId = await createEvent(task, callLink)
-      if (eventId) await supabase.from('tasks').update({ google_event_id: eventId }).eq('id', taskId)
+      try {
+        await updateEvent(task.google_event_id, task, callLink)
+      } catch (e) {
+        console.error('[gcal] update FALHOU · task', taskId, '· event', task.google_event_id, ':', errMsg(e))
+        return { ok: false, step: 'update', reason: errMsg(e) }
+      }
+      return { ok: true }
     }
+
+    // (C) COM due_date + sem evento: cria e grava o id.
+    let eventId: string | null
+    try {
+      eventId = await createEvent(task, callLink)
+    } catch (e) {
+      console.error('[gcal] create FALHOU · task', taskId, ':', errMsg(e))
+      return { ok: false, step: 'create', reason: errMsg(e) }
+    }
+    if (!eventId) return { ok: true }   // sem ctx/sem corpo → no-op (não é erro)
+    const { error: upErr } = await supabase.from('tasks').update({ google_event_id: eventId }).eq('id', taskId)
+    if (upErr) {
+      // ROLLBACK (ponto 1): o evento foi CRIADO no Google mas o id NÃO gravou → apaga o evento, senão sobra
+      // um evento sem id e o PRÓXIMO sync cria um SEGUNDO (duplicata). Se o rollback também falhar, loga o órfão.
+      console.error('[gcal] gravar google_event_id FALHOU — rollback do evento', eventId, '· task', taskId, ':', upErr.message)
+      try {
+        await deleteEvent(eventId)
+      } catch (delErr) {
+        console.error('[gcal] ROLLBACK delete FALHOU — EVENTO ÓRFÃO', eventId, '· task', taskId, ':', errMsg(delErr))
+      }
+      return { ok: false, step: 'write', reason: `falha ao gravar id do evento: ${upErr.message}` }
+    }
+    return { ok: true }
   } catch (e) {
-    console.error('[gcal] ERROR sync:', errMsg(e))
+    console.error('[gcal] ERROR sync · task', taskId, ':', errMsg(e))
+    return { ok: false, step: 'sync', reason: errMsg(e) }
   }
 }
 
-// Apaga o evento de uma tarefa que está sendo excluída (a linha some logo em seguida).
-export async function deleteTaskEvent(googleEventId: string): Promise<void> {
+// Apaga o evento de uma tarefa que está sendo excluída (a linha some logo em seguida). Retorna o
+// resultado REAL pra o client avisar se o Google falhar (sem reverter a exclusão da tarefa).
+export async function deleteTaskEvent(googleEventId: string): Promise<CalSyncResult> {
+  if (!process.env.GOOGLE_SERVICE_ACCOUNT_KEY || !process.env.GOOGLE_CALENDAR_ID) return { ok: true }
   try {
-    if (!process.env.GOOGLE_SERVICE_ACCOUNT_KEY || !process.env.GOOGLE_CALENDAR_ID) return
     await deleteEvent(googleEventId)
+    return { ok: true }
   } catch (e) {
-    console.error('[gcal] ERROR delete (best-effort):', errMsg(e))
+    console.error('[gcal] delete (exclusão de tarefa) FALHOU · event', googleEventId, ':', errMsg(e))
+    return { ok: false, step: 'delete', reason: errMsg(e) }
   }
 }

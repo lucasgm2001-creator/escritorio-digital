@@ -3,6 +3,7 @@
 import { useState, useMemo, useEffect, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { cn } from '@/lib/utils'
+import { useToast } from '@/components/ui/toast'
 import type { Task, TaskPriority, LinkOption } from './types'
 
 export interface TaskPrefill {
@@ -64,6 +65,7 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 }
 
 export function TaskModal({ onClose, onSaved, currentUser, linkOptions, task, prefill, aiFilled }: Props) {
+  const { toast } = useToast()
   const editing = !!task
   const [title, setTitle]       = useState(task?.title ?? prefill?.title ?? '')
   const [notes, setNotes]       = useState(task?.notes ?? '')
@@ -177,14 +179,18 @@ export function TaskModal({ onClose, onSaved, currentUser, linkOptions, task, pr
     }
   }
 
-  // Sincroniza a tarefa com o Google Agenda no SERVIDOR (best-effort, fire-and-forget). O servidor
-  // lê a linha fresca e cria/atualiza/remove o evento conforme due_date/due_time. Não bloqueia a UI
-  // nem o salvamento; keepalive garante o envio mesmo fechando o modal. A credencial nunca vem ao client.
+  // Sincroniza a tarefa com o Google Agenda no SERVIDOR. NÃO bloqueia a UI nem o salvamento (a tarefa
+  // já foi salva antes daqui); keepalive garante o envio mesmo fechando o modal. Aguarda a resposta e,
+  // se o Google falhar ({ok:false}), mostra um toast discreto — SEM reverter a tarefa. Credencial nunca
+  // vem ao client. Não é await no chamador → o save/fechar acontecem na hora; o aviso vem depois.
   const syncCalendar = (taskId: string) => {
+    const warn = () => toast({ type: 'error', message: 'Tarefa salva, mas não consegui sincronizar com o Google Agenda.' })
     fetch('/api/tasks/calendar-sync', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ taskId }), keepalive: true,
-    }).catch(() => {})
+    })
+      .then(async r => { const j = await r.json().catch(() => ({ ok: false })); if (!j?.ok) warn() })
+      .catch(warn)
   }
 
   return (

@@ -224,14 +224,6 @@ export function TarefasClient({ initialTasks, linkOptions, currentUser }: Props)
   const handleDelete = async (t: Task) => {
     setConfirmId(null)
     setActionError('')
-    // Apaga o evento no Google Agenda ANTES de remover a linha (best-effort, fire-and-forget). Usa o
-    // id que já está no estado; o servidor cuida da credencial. Não bloqueia a exclusão.
-    if (t.google_event_id) {
-      fetch('/api/tasks/calendar-sync', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ deleteEventId: t.google_event_id }), keepalive: true,
-      }).catch(() => {})
-    }
     const snapshot = tasks
     deletedIds.current.add(t.id)                          // trava: refresh defasado não re-insere
     setTasks(prev => prev.filter(x => x.id !== t.id))   // some da lista na hora
@@ -240,8 +232,23 @@ export function TarefasClient({ initialTasks, linkOptions, currentUser }: Props)
       deletedIds.current.delete(t.id)                          // deleção falhou → libera a trava
       setTasks(snapshot)                                        // rollback (re-insere)
       setActionError(`Não foi possível excluir a tarefa: ${error.message}`)
-    } else {
-      router.refresh()                                          // reconcilia com o server
+      return
+    }
+    router.refresh()                                            // reconcilia com o server
+    // Evento no Google Agenda: AGUARDA a resposta da rota (não fire-and-forget, que pode ser cortado antes
+    // de sair) pra garantir que a remoção CHEGUE ao servidor. A tarefa JÁ foi excluída — isto NÃO a reverte;
+    // em falha, só um toast discreto + log do servidor (o evento pode ter ficado no Google p/ remover à mão).
+    if (t.google_event_id) {
+      try {
+        const res = await fetch('/api/tasks/calendar-sync', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ deleteEventId: t.google_event_id }),
+        })
+        const j = await res.json().catch(() => ({ ok: false }))
+        if (!j?.ok) toast({ type: 'error', message: 'Tarefa excluída, mas não consegui remover o evento do Google Agenda.' })
+      } catch {
+        toast({ type: 'error', message: 'Tarefa excluída, mas não consegui remover o evento do Google Agenda.' })
+      }
     }
   }
   const openNew  = () => { setModalKey(k => k + 1); setEditing(null); setModalPrefill(null); setModalAiFilled(false); setModalOpen(true) }
