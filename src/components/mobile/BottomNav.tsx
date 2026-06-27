@@ -38,7 +38,10 @@ export function BottomNav() {
               aria-current={active ? 'page' : undefined}
               onClick={e => e.currentTarget.blur()}   // limpa o foco após navegar (verde não persiste no item tocado)
               className={cn(
-                'flex-1 flex flex-col items-center justify-center gap-0.5 min-h-[52px] py-1 transition-colors outline-none',
+                // SEM transition-colors: a cor ativo/inativo é text-lime-fg/text-bento-muted (ambas rgb(var(--x)));
+                // o Chrome NÃO interpola entre duas cores var() na navegação client-side e a transição CONGELA na
+                // cor antiga (aba velha ficava verde). Tab bar deve trocar a cor NA HORA → sem transição.
+                'flex-1 flex flex-col items-center justify-center gap-0.5 min-h-[52px] py-1 outline-none',
                 'focus-visible:ring-2 focus-visible:ring-lime/50 rounded-md',
                 active ? 'text-lime-fg' : 'text-bento-muted',   // cor SÓ na rota atual (sem :hover/:active grudado)
               )}
