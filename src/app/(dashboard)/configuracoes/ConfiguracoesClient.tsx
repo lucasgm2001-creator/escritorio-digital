@@ -20,6 +20,7 @@ import { weeklyCommissionUsd, hasCommissionPct, DEFAULT_TETO_SEMANAS, LEGACY_VPS
 import { FasesTab } from '../comercial/tabs/FasesTab'
 import { getMapSkin, getMapSep, getMapGrouping, setMapSkin, setMapSep, setMapGrouping, type MapSkin, type MapGrouping } from '@/lib/mapSettings'
 import { getHallSettings, setHallSettings, DEFAULT_HALL_SETTINGS, type HallSettings } from '@/lib/hallSettings'
+import { funnelConversionLabel } from '@/lib/funnelMetrics'
 import { ErrorBoundary } from '@/components/system/ErrorBoundary'
 import dynamic from 'next/dynamic'
 import type { Lead } from '../comercial/types'
@@ -590,7 +591,7 @@ function HallSettingsSection({ userId }: { userId: string }) {
   const clientesAtivos = clients.filter(c => c.status === 'ativo').length
   const leadsAbertos = leads.filter(l => !['fechado', 'perdido', 'lixeira'].includes(l.status)).length
   const leadsNovos = leads.filter(l => l.created_at && new Date(l.created_at).getTime() >= Date.now() - 7 * 86400000).length
-  const conversao = (clientesAtivos + leadsAbertos) > 0 ? Math.round((clientesAtivos / (clientesAtivos + leadsAbertos)) * 100) : 0
+  const conversao = funnelConversionLabel(leads)   // MESMA definição do Funil/Mapa (fechados ÷ não-Lixeira)
   const pm: { k: keyof HallSettings['metrics']; label: string; value: string }[] = [
     { k: 'clientesAtivos', label: 'Clientes ativos', value: String(clientesAtivos) },
     { k: 'leadsAbertos', label: 'Leads em aberto', value: String(leadsAbertos) },

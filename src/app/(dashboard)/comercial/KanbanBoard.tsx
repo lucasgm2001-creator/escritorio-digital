@@ -28,6 +28,7 @@ import { columnsFromStages, wonSlug, type FunnelStage } from '@/lib/funnelStages
 import { WonPlanModal } from './WonPlanModal'
 import { PeriodChips } from './PeriodChips'
 import { rangeFor, inPeriodByActivity, type Range } from '@/lib/period'
+import { funnelConversionLabel } from '@/lib/funnelMetrics'
 export type { LeadStatus, Lead, ColumnConfig } from './types'
 
 type Tab = 'funil' | 'contatos' | 'clientes' | 'metricas' | 'vendedores'
@@ -42,9 +43,8 @@ function FunnelSummary({ leads }: { leads: Lead[] }) {
   const fechados = leads.filter(l => l.status === 'fechado').length
   const perdidos = leads.filter(l => l.status === 'perdido').length
   const pipeline = ativos.reduce((s, l) => s + (l.value || 0), 0)
-  // Conversão = fechados / (fechados + perdidos + ativos) — sobre tudo, não só os terminais.
-  const denom = fechados + perdidos + ativos.length
-  const conv = denom > 0 ? ((fechados / denom) * 100).toFixed(1) : '0'
+  // Conversão GERAL — definição ÚNICA compartilhada (fechados ÷ não-Lixeira). MESMO número do Mapa (Hall).
+  const conv = funnelConversionLabel(leads)
   return (
     <div className="flex-none border-t border-bento-border bg-bento-panel px-4 sm:px-6 py-2.5 flex items-center gap-x-6 gap-y-1 flex-wrap">
       <SummaryStat label="Pipeline" value={fmtUSDc(pipeline)} />

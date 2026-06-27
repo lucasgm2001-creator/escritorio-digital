@@ -23,6 +23,7 @@ import { type CalendarEvent } from './calendarShared'
 import { dayBR } from './dateBR'
 import dynamic from 'next/dynamic'
 import { getHallSettings, DEFAULT_HALL_SETTINGS, HALL_SETTINGS_EVENT, type HallSettings } from '@/lib/hallSettings'
+import { funnelConversionLabel } from '@/lib/funnelMetrics'
 // Mapa pesado (geografia us-map.json) — só no client, sob demanda.
 const MapaTab = dynamic(() => import('../comercial/tabs/MapaTab').then(m => ({ default: m.MapaTab })), { ssr: false })
 
@@ -279,7 +280,8 @@ export function HallClient({ initialActivities, initialTasks, linkOptions, userN
   const clientesAtivos = mapClients.filter(c => c.status === 'ativo').length
   const leadsAbertos = mapLeads.filter(l => !['fechado', 'perdido', 'lixeira'].includes(l.status)).length
   const leadsNovos = mapLeads.filter(l => l.created_at && new Date(l.created_at).getTime() >= Date.now() - 7 * 86400000).length
-  const conversao = (clientesAtivos + leadsAbertos) > 0 ? Math.round((clientesAtivos / (clientesAtivos + leadsAbertos)) * 100) : 0
+  // Conversão GERAL — MESMA definição/número do rodapé do Funil (fechados ÷ não-Lixeira), via util.
+  const conversao = funnelConversionLabel(mapLeads)
   const METRICS: { key: keyof HallSettings['metrics']; label: string; value: string; mobile: boolean }[] = [
     { key: 'clientesAtivos', label: 'Clientes ativos', value: String(clientesAtivos), mobile: true },
     { key: 'leadsAbertos', label: 'Leads em aberto', value: String(leadsAbertos), mobile: true },
