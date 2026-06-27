@@ -4,13 +4,13 @@ const requestCounts = new Map<string, { count: number; resetTime: number }>()
 const DEFAULT_LIMIT = 20
 const DEFAULT_WINDOW_MS = 60 * 1000 // 1 minuto
 
-export interface RateLimitInfo {
+interface RateLimitInfo {
   allowed: boolean
   remaining: number
   resetTime: number
 }
 
-export interface RateLimitOptions {
+interface RateLimitOptions {
   /** Máximo de requisições permitidas na janela. Default: 20. */
   limit?: number
   /** Tamanho da janela em ms. Default: 60_000 (1 min). */

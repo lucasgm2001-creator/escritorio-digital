@@ -171,7 +171,7 @@ function needsConfirm(toolName: string, p: Record<string, unknown>, wonSlugStr: 
   return true
 }
 
-export type AgentTurn =
+type AgentTurn =
   | { type: 'text'; resposta: string }
   | { type: 'action'; tool: string; params: Record<string, unknown>; requiresConfirm: boolean; resposta: string }
 
@@ -258,7 +258,7 @@ export class SuperAgent {
   }
 
   // Chat interativo com o agente
-  async chat(userQuestion: string, userId: string, userRole: string = 'admin'): Promise<string> {
+  async chat(userQuestion: string, userRole: string = 'admin'): Promise<string> {
     const context = await this.getContextData()
 
     // Filtrar dados pelo role do usuário

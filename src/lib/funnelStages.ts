@@ -49,9 +49,6 @@ const FALLBACK_MARCOS: Record<string, Marco[]> = {
 export function wonSlug(stages: FunnelStage[]): string {
   return stages.find(s => s.is_won)?.slug ?? 'fechado'
 }
-export function lostSlug(stages: FunnelStage[]): string {
-  return stages.find(s => s.is_lost)?.slug ?? 'perdido'
-}
 
 // Marcos do estágio: lê conta_* da fase; cai no mapa estático se a fase não veio do banco.
 export function marcosForSlug(stages: FunnelStage[], slug: string): Marco[] {
@@ -67,7 +64,7 @@ export function marcosForSlug(stages: FunnelStage[], slug: string): Marco[] {
 // ── Render: funde a fase do banco (nome/ordem/flags) com o ESTILO atual por slug ──
 const STYLE_BY_SLUG: Record<string, ColumnConfig> = Object.fromEntries(ALL_COLUMNS.map(c => [c.key, c]))
 
-export function toColumnConfig(stage: FunnelStage): ColumnConfig {
+function toColumnConfig(stage: FunnelStage): ColumnConfig {
   // Cor/rotting/grupo da fase viajam junto p/ o funil refletir (indicador, deal-rotting, seção).
   const extra = { cor: stage.cor ?? null, coldDays: stage.dias_esfriamento ?? null, grupo: stage.grupo ?? null }
   const base = STYLE_BY_SLUG[stage.slug]
@@ -84,10 +81,6 @@ export function toColumnConfig(stage: FunnelStage): ColumnConfig {
 export function columnsFromStages(stages: FunnelStage[]): ColumnConfig[] {
   if (!stages || stages.length === 0) return ALL_COLUMNS
   return [...stages].filter(s => !s.arquivada).sort((a, b) => a.posicao - b.posicao).map(toColumnConfig)
-}
-export function tiersFromColumns(cols: ColumnConfig[]): ColumnConfig[][] {
-  const tiers = Array.from(new Set(cols.map(c => c.tier))).sort((a, b) => a - b)
-  return tiers.map(t => cols.filter(c => c.tier === t))
 }
 
 // ── Client: carrega as fases uma vez por sessão (memoizado). Falha → [] (consumidores

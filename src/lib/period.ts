@@ -42,8 +42,6 @@ export function rangeFor(mode: Mode, now = new Date()): Range {
   return { mode, start, end, label: `Ano de ${now.getFullYear()}` }
 }
 
-export const MODES: [Mode, string][] = [['dia', 'Dia'], ['semana', 'Semana'], ['mes', 'Mês'], ['semestre', 'Semestre'], ['ano', 'Ano']]
-
 // Filtro por ATIVIDADE: usa a data de última atividade (updated_at); na falta, created_at.
 // 'tudo' nunca filtra (mostra tudo). Compartilhado pelo Funil e por Contatos — sem duplicar lógica.
 export function inPeriodByActivity(range: Range, updated?: string | null, created?: string | null): boolean {

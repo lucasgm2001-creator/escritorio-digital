@@ -6,7 +6,7 @@
 //
 // (denominador = tudo menos a Lixeira: inclui ativos, perdidos, no-show etc. — espelha o rodapé do Funil.)
 
-export function funnelConversionPct(leads: { status: string }[]): number {
+function funnelConversionPct(leads: { status: string }[]): number {
   const naoLixeira = leads.filter(l => l.status !== 'lixeira').length
   const fechados = leads.filter(l => l.status === 'fechado').length
   return naoLixeira > 0 ? (fechados / naoLixeira) * 100 : 0

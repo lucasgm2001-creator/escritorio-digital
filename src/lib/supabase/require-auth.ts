@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createClient } from './server'
 
-export type AuthRole = 'admin' | 'comercial' | 'trafego' | 'financeiro'
+type AuthRole = 'admin' | 'comercial' | 'trafego' | 'financeiro'
 
 export async function requireAuth(requiredRole?: AuthRole) {
   const supabase = createClient()

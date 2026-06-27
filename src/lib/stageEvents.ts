@@ -3,7 +3,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 // Histórico de MOVIMENTAÇÃO do funil (tabela stage_events, já criada no banco). ADITIVO:
 // só registra a mudança de fase — não toca em nada de comissão/dinheiro. NUNCA lança: uma
 // falha de log não pode quebrar a criação/movimentação do lead (best-effort, try/catch).
-export interface StageEventInput {
+interface StageEventInput {
   leadId: string
   leadName: string
   fromStage: string | null   // null = criação do lead (entrou no funil)

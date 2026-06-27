@@ -1,4 +1,4 @@
-export type ScoreFaixa =
+type ScoreFaixa =
   | 'Perdido'
   | 'Muito Frio'
   | 'Frio'
@@ -7,7 +7,7 @@ export type ScoreFaixa =
   | 'Muito Quente'
   | 'Fechando'
 
-export interface ScoreInfo {
+interface ScoreInfo {
   faixa: ScoreFaixa
   color: string
   bg: string
@@ -26,12 +26,4 @@ export function getScoreInfo(score: number): ScoreInfo {
   if (score <= 800) return { faixa: 'Quente',       color: 'text-orange-400', bg: 'bg-orange-900/30', border: 'border-orange-800/50', dot: 'bg-orange-500' }
   if (score <= 950) return { faixa: 'Muito Quente', color: 'text-red-400',    bg: 'bg-red-900/30',    border: 'border-red-800/50',    dot: 'bg-red-500' }
   return                   { faixa: 'Fechando',     color: 'text-green-400',  bg: 'bg-green-900/30',  border: 'border-green-800/50',  dot: 'bg-green-500' }
-}
-
-export const SCORE_DELTAS: Record<string, number> = {
-  atendeu:      80,
-  nao_atendeu: -30,
-  mensagem:     20,
-  reuniao:     150,
-  proposta:    100,
 }
