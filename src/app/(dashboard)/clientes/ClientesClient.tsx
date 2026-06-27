@@ -20,6 +20,7 @@ export interface Client {
   phone?: string
   plan_weekly: number
   plano_id?: string | null
+  dia_pagamento_semana?: number | null   // dia-da-semana de cobrança (0=Dom..6=Sáb), MESMA convenção do cron/payDueWeeks
   status: 'ativo' | 'inativo' | 'prospect'
   start_date?: string
   end_date?: string
@@ -37,6 +38,11 @@ export interface Client {
 }
 
 interface Plan { id: string; nome: string; valor_semanal: number }
+// Dia de pagamento da semana — 0=Dom..6=Sáb, MESMA convenção que o cron/payDueWeeks lê (getUTCDay civil).
+const WEEKDAYS: { value: number; label: string }[] = [
+  { value: 0, label: 'Domingo' }, { value: 1, label: 'Segunda' }, { value: 2, label: 'Terça' },
+  { value: 3, label: 'Quarta' }, { value: 4, label: 'Quinta' }, { value: 5, label: 'Sexta' }, { value: 6, label: 'Sábado' },
+]
 interface ClientPayment { id: string; numero_semana: number; valor_usd: number; paid_on: string; anulado?: boolean }
 
 interface Activity {
@@ -300,7 +306,7 @@ export function ClientesClient({ initialClients, currentUser, focusClientId, onF
   const [newOpen, setNewOpen] = useState(false)
   const [editClient, setEditClient] = useState<Client | null>(null)
   const [editTab, setEditTab] = useState<'editar' | 'dossie'>('editar')   // aba inicial do modal do cliente
-  const [form, setForm] = useState({ name: '', company: '', email: '', phone: '', plano_id: '', fuso: '', nicho: '', city: '', state: '', area_code: '' })
+  const [form, setForm] = useState({ name: '', company: '', email: '', phone: '', plano_id: '', dia_pagamento_semana: '', fuso: '', nicho: '', city: '', state: '', area_code: '' })
   const [plans, setPlans] = useState<Plan[]>([])
   const [payments, setPayments] = useState<Record<string, ClientPayment[]>>({})
   const [payOpenId, setPayOpenId] = useState<string | null>(null)
@@ -438,6 +444,7 @@ export function ClientesClient({ initialClients, currentUser, focusClientId, onF
         phone: form.phone || null,
         plano_id: createPlan?.id ?? null,
         plan_weekly: createPlan?.valor_semanal ?? 140,
+        dia_pagamento_semana: Number(form.dia_pagamento_semana),
         status: 'ativo',
         start_date: new Date().toISOString().slice(0, 10),
         assigned_name: currentUser.name,
@@ -461,7 +468,7 @@ export function ClientesClient({ initialClients, currentUser, focusClientId, onF
         entity_id: data.id,
       })
       setNewOpen(false)
-      setForm({ name: '', company: '', email: '', phone: '', plano_id: plans[0]?.id ?? '', fuso: '', nicho: '', city: '', state: '', area_code: '' })
+      setForm({ name: '', company: '', email: '', phone: '', plano_id: plans[0]?.id ?? '', dia_pagamento_semana: '', fuso: '', nicho: '', city: '', state: '', area_code: '' })
     }
     setLoading(false)
   }
@@ -661,6 +668,13 @@ export function ClientesClient({ initialClients, currentUser, focusClientId, onF
                 <select value={form.plano_id} onChange={e => set('plano_id', e.target.value)} className={inputCls}>
                   {plans.length === 0 && <option value="">Carregando…</option>}
                   {plans.map(p => <option key={p.id} value={p.id}>{p.nome} — ${p.valor_semanal}/sem</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-bento-dim mb-1">Dia de pagamento (semana)</label>
+                <select required value={form.dia_pagamento_semana} onChange={e => set('dia_pagamento_semana', e.target.value)} className={inputCls}>
+                  <option value="">Selecione…</option>
+                  {WEEKDAYS.map(d => <option key={d.value} value={d.value}>{d.label}</option>)}
                 </select>
               </div>
               <div>

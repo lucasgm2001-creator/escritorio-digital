@@ -11,6 +11,17 @@ import { DossieTab } from './DossieTab'
 import type { Client } from './ClientesClient'
 
 interface Plan { id: string; nome: string; valor_semanal: number }
+// Dia de pagamento da semana — 0=Dom..6=Sáb, MESMA convenção que o cron/payDueWeeks lê (getUTCDay civil).
+const WEEKDAYS: { value: number; label: string }[] = [
+  { value: 0, label: 'Domingo' }, { value: 1, label: 'Segunda' }, { value: 2, label: 'Terça' },
+  { value: 3, label: 'Quarta' }, { value: 4, label: 'Quinta' }, { value: 5, label: 'Sexta' }, { value: 6, label: 'Sábado' },
+]
+// Dia-da-semana (0=Dom..6=Sáb) de um YMD, na convenção do cron. Default p/ cliente legado sem o dia: o dia do start_date.
+const weekdayOf = (d?: string | null): number => {
+  const ymd = (d || new Date().toISOString()).slice(0, 10)
+  const [y, m, dd] = ymd.split('-').map(Number)
+  return new Date(Date.UTC(y, m - 1, dd)).getUTCDay()
+}
 const inputCls = 'w-full bg-bento-bg border border-bento-border rounded-btn px-3 py-2 text-sm text-bento-text placeholder:text-bento-muted focus:outline-none focus:border-lime'
 
 // Modal de edição de cliente — COMPARTILHADO entre a aba Clientes e a aba Contatos. Salva na
@@ -29,7 +40,8 @@ export function ClienteModal({ client, onClose, onSaved, initialTab }: {
   const [loading, setLoading] = useState(false)
   const [form, setForm] = useState({
     name: client.name, company: client.company ?? '', email: client.email ?? '', phone: client.phone ?? '',
-    plano_id: client.plano_id ?? '', fuso: client.fuso ?? '', nicho: client.nicho ?? '',
+    plano_id: client.plano_id ?? '', dia_pagamento_semana: String(client.dia_pagamento_semana ?? weekdayOf(client.start_date)),
+    fuso: client.fuso ?? '', nicho: client.nicho ?? '',
     city: client.city ?? '', state: client.state ?? '', area_code: client.area_code ?? '',
   })
 
@@ -65,6 +77,7 @@ export function ClienteModal({ client, onClose, onSaved, initialTab }: {
       phone: form.phone || null,
       plano_id: form.plano_id || client.plano_id || null,
       plan_weekly: editPlan?.valor_semanal ?? client.plan_weekly,
+      dia_pagamento_semana: Number(form.dia_pagamento_semana),
       nicho: form.nicho.trim() || null,
       fuso: form.fuso || null,
       city: form.city.trim() || null,
@@ -124,6 +137,12 @@ export function ClienteModal({ client, onClose, onSaved, initialTab }: {
             <select value={form.plano_id} onChange={e => setForm(p => ({ ...p, plano_id: e.target.value }))} className={inputCls}>
               {plans.length === 0 && <option value="">Carregando…</option>}
               {plans.map(p => <option key={p.id} value={p.id}>{p.nome} — ${p.valor_semanal}/sem</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-bento-dim mb-1">Dia de pagamento (semana)</label>
+            <select value={form.dia_pagamento_semana} onChange={e => setForm(p => ({ ...p, dia_pagamento_semana: e.target.value }))} className={inputCls}>
+              {WEEKDAYS.map(d => <option key={d.value} value={d.value}>{d.label}</option>)}
             </select>
           </div>
           <div>
