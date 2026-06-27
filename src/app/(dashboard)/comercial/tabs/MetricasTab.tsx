@@ -79,16 +79,18 @@ export function MetricasTab({ leads: allLeads }: Props) {
     return { recebidos, fechados, pipeline, closedValue, avgTicket, convRate, convReuniao, reuniaoBase: reuniaoIds.size, fechouBase: fechouIds.size }
   }, [leads, milestones, range])
 
-  // ── Estado ATUAL do funil (snapshot — não filtra por período) ──
-  const total = leads.length
-  const ativos = leads.filter(l => !isTerminal(l.status))
-  const fechadosTotal = leads.filter(l => l.status === 'fechado').length
-  const hot  = leads.filter(l => l.score > 650).length
-  const warm = leads.filter(l => l.score > 400 && l.score <= 650).length
-  const cold = leads.filter(l => l.score <= 400).length
+  // ── Estado ATUAL do funil (snapshot) — SÓ pelo status atual, SEM filtro nenhum (nem período, nem
+  //    origem). Usa allLeads (inclui os 'cliente_existente') p/ BATER com a aba Funil e o estado real.
+  //    As métricas DO PERÍODO acima (m) seguem usando `leads`, que exclui cliente_existente.
+  const total = allLeads.length
+  const ativos = allLeads.filter(l => !isTerminal(l.status))
+  const fechadosTotal = allLeads.filter(l => l.status === 'fechado').length
+  const hot  = allLeads.filter(l => l.score > 650).length
+  const warm = allLeads.filter(l => l.score > 400 && l.score <= 650).length
+  const cold = allLeads.filter(l => l.score <= 400).length
 
   const byStage = ALL_COLUMNS.map(col => {
-    const ls = leads.filter(l => l.status === col.key)
+    const ls = allLeads.filter(l => l.status === col.key)
     return { ...col, count: ls.length, value: ls.reduce((acc, l) => acc + (l.value || 0), 0) }
   })
   const maxCount = Math.max(...byStage.map(x => x.count), 1)
