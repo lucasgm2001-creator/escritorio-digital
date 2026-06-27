@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo, useEffect } from 'react'
+import { useState, useMemo, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { useRealtimeRows } from '@/lib/hooks/useRealtimeRows'
 import Link from 'next/link'
@@ -101,8 +101,18 @@ function sortPending(a: Task, b: Task): number {
 
 export function TarefasClient({ initialTasks, linkOptions, currentUser }: Props) {
   const [tasks, setTasks] = useState<Task[]>(initialTasks)
-  // Reflete dados frescos do servidor após router.refresh() (revalidação ao focar a aba).
-  useEffect(() => { setTasks(initialTasks) }, [initialTasks])
+  // Ids deletados otimisticamente que o servidor (refresh defasado) ainda pode trazer de volta.
+  // Enquanto o id estiver aqui, a tarefa é filtrada do initialTasks pra NÃO "piscar de volta".
+  const deletedIds = useRef<Set<string>>(new Set())
+  // Reflete dados frescos do servidor após router.refresh(), MAS respeita as deleções otimistas pendentes
+  // (não re-insere uma tarefa que acabamos de excluir). Quando o server já não traz mais o id, esquecemos.
+  useEffect(() => {
+    setTasks(initialTasks.filter(t => !deletedIds.current.has(t.id)))
+    if (deletedIds.current.size) {
+      const present = new Set(initialTasks.map(t => t.id))
+      deletedIds.current.forEach(id => { if (!present.has(id)) deletedIds.current.delete(id) })
+    }
+  }, [initialTasks])
   // Tempo real: criar/editar/concluir/excluir tarefa reflete ao vivo (merge por id).
   useRealtimeRows<Task>('tasks', setTasks)
   const view = 'tarefas' as const   // Relatório virou item próprio do menu do Hall (ao lado de Tarefas)
@@ -223,9 +233,11 @@ export function TarefasClient({ initialTasks, linkOptions, currentUser }: Props)
       }).catch(() => {})
     }
     const snapshot = tasks
+    deletedIds.current.add(t.id)                          // trava: refresh defasado não re-insere
     setTasks(prev => prev.filter(x => x.id !== t.id))   // some da lista na hora
     const { error } = await supabase.from('tasks').delete().eq('id', t.id)
     if (error) {
+      deletedIds.current.delete(t.id)                          // deleção falhou → libera a trava
       setTasks(snapshot)                                        // rollback (re-insere)
       setActionError(`Não foi possível excluir a tarefa: ${error.message}`)
     } else {

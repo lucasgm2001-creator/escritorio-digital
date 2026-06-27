@@ -157,8 +157,8 @@ export function TaskModal({ onClose, onSaved, currentUser, linkOptions, task, pr
       linked_name: link?.name ?? null,
       responsavel_id:   responsavelId || null,
       responsavel_nome: sellers.find(s => s.id === responsavelId)?.name ?? null,
-      // Formulário único: toda tarefa pode virar evento. is_meeting aposentado (sempre false, sem lógica).
-      is_meeting:    false,
+      // is_meeting aposentado e NÃO lido em lugar nenhum → não enviamos: no insert o banco usa o default
+      // (false); na edição o campo NÃO é tocado (antes era forçado a false, zerando a cada save).
       add_call:      addCall,
       duration_min:  durationMin,
       timezone:      timezone,

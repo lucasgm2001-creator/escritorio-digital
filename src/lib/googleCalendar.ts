@@ -117,8 +117,10 @@ export async function updateEvent(googleEventId: string, task: TaskRow, callLink
   const ctx = getCalendarClient(); if (!ctx) return
   const requestBody = buildEventBody(task, callLink); if (!requestBody) return
   try {
-    await ctx.calendar.events.update({ calendarId: ctx.calendarId, eventId: googleEventId, requestBody })
-    console.log('[gcal] event OK id:', googleEventId, '(updated)')
+    // PATCH (não update/PUT): atualiza só os campos enviados e PRESERVA o resto do evento —
+    // convidados, lembretes, cor e recorrência ajustados manualmente no Google Agenda não são apagados.
+    await ctx.calendar.events.patch({ calendarId: ctx.calendarId, eventId: googleEventId, requestBody })
+    console.log('[gcal] event OK id:', googleEventId, '(patched)')
   } catch (e) {
     console.error('[gcal] ERROR update:', errMsg(e))
     throw e
