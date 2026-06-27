@@ -14,15 +14,29 @@ import { cn } from '@/lib/utils'
 
 const NO_GROUP = 'Sem grupo'
 // Paleta FIXA das fases (rótulo + hex gravado em `cor`). É a cor PRÓPRIA da fase (não o rotting).
+// Inclui teal (#14B8A6 = Interagiu) e rosa (#EC4899 = Não Interagiu) + espectro completo. Trocar a
+// paleta NÃO altera a cor já gravada em nenhuma fase — só amplia as opções clicáveis.
 const PALETTE: { hex: string; label: string }[] = [
-  { hex: '#FACC15', label: 'Amarelo' },
+  { hex: '#EF4444', label: 'Vermelho' },
   { hex: '#F97316', label: 'Laranja' },
-  { hex: '#16A34A', label: 'Verde forte' },
-  { hex: '#4ADE80', label: 'Verde fraco' },
-  { hex: '#DC2626', label: 'Vermelho forte' },
-  { hex: '#F87171', label: 'Vermelho fraco' },
-  { hex: '#475569', label: 'Chumbo' },
+  { hex: '#F59E0B', label: 'Âmbar' },
+  { hex: '#FACC15', label: 'Amarelo' },
+  { hex: '#C2F73A', label: 'Lima' },
+  { hex: '#84CC16', label: 'Verde-lima' },
+  { hex: '#22C55E', label: 'Verde' },
+  { hex: '#10B981', label: 'Esmeralda' },
+  { hex: '#14B8A6', label: 'Teal (Interagiu)' },
+  { hex: '#06B6D4', label: 'Ciano' },
   { hex: '#38BDF8', label: 'Azul celeste' },
+  { hex: '#3B82F6', label: 'Azul' },
+  { hex: '#6366F1', label: 'Índigo' },
+  { hex: '#8B5CF6', label: 'Violeta' },
+  { hex: '#A855F7', label: 'Roxo' },
+  { hex: '#D946EF', label: 'Magenta' },
+  { hex: '#EC4899', label: 'Rosa (Não Interagiu)' },
+  { hex: '#F43F5E', label: 'Carmim' },
+  { hex: '#64748B', label: 'Ardósia' },
+  { hex: '#475569', label: 'Chumbo' },
 ]
 const ROLE_LABEL: Record<StageRole, string> = { ganho: 'Ganho', perdido: 'Perdido', arquivo: 'Arquivo', ativo: 'Ativo' }
 const ROLE_CLS: Record<StageRole, string> = {
@@ -363,7 +377,7 @@ function StagePanel({ stage, groupNames, onClose, onPatch, onMoveGroup, onArchiv
         <div className="flex items-center gap-1.5 flex-wrap">
           {PALETTE.map(c => (
             <button key={c.hex} onClick={() => onPatch(stage.slug, { cor: c.hex })} aria-label={c.label} title={c.label}
-              className={cn('w-7 h-7 rounded-full border-2 transition-transform', stage.cor === c.hex ? 'border-bento-text scale-110' : 'border-transparent hover:scale-105')}
+              className={cn('w-7 h-7 rounded-full border-2 transition-transform', stage.cor?.toUpperCase() === c.hex ? 'border-bento-text scale-110' : 'border-transparent hover:scale-105')}
               style={{ backgroundColor: c.hex }} />
           ))}
           <button onClick={() => onPatch(stage.slug, { cor: null })} className="text-[10px] text-bento-muted hover:text-bento-text px-1.5">limpar</button>
