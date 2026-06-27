@@ -82,20 +82,23 @@ export function MetricasTab({ leads: allLeads }: Props) {
   // ── Estado ATUAL do funil (snapshot) — SÓ pelo status atual, SEM filtro nenhum (nem período, nem
   //    origem). Usa allLeads (inclui os 'cliente_existente') p/ BATER com a aba Funil e o estado real.
   //    As métricas DO PERÍODO acima (m) seguem usando `leads`, que exclui cliente_existente.
-  const total = allLeads.length
-  const ativos = allLeads.filter(l => !isTerminal(l.status))
-  const fechadosTotal = allLeads.filter(l => l.status === 'fechado').length
-  const hot  = allLeads.filter(l => l.score > 650).length
-  const warm = allLeads.filter(l => l.score > 400 && l.score <= 650).length
-  const cold = allLeads.filter(l => l.score <= 400).length
-
-  const byStage = ALL_COLUMNS.map(col => {
-    const ls = allLeads.filter(l => l.status === col.key)
-    return { ...col, count: ls.length, value: ls.reduce((acc, l) => acc + (l.value || 0), 0) }
-  })
-  const maxCount = Math.max(...byStage.map(x => x.count), 1)
-  const stageWithValue = byStage.filter(x => x.count > 0)
-  const maxStageValue = Math.max(...stageWithValue.map(x => x.value), 1)
+  // useMemo: recomputa só quando allLeads muda (não a cada render).
+  const { total, ativos, fechadosTotal, hot, warm, cold, byStage, maxCount, stageWithValue, maxStageValue } = useMemo(() => {
+    const total = allLeads.length
+    const ativos = allLeads.filter(l => !isTerminal(l.status))
+    const fechadosTotal = allLeads.filter(l => l.status === 'fechado').length
+    const hot  = allLeads.filter(l => l.score > 650).length
+    const warm = allLeads.filter(l => l.score > 400 && l.score <= 650).length
+    const cold = allLeads.filter(l => l.score <= 400).length
+    const byStage = ALL_COLUMNS.map(col => {
+      const ls = allLeads.filter(l => l.status === col.key)
+      return { ...col, count: ls.length, value: ls.reduce((acc, l) => acc + (l.value || 0), 0) }
+    })
+    const maxCount = Math.max(...byStage.map(x => x.count), 1)
+    const stageWithValue = byStage.filter(x => x.count > 0)
+    const maxStageValue = Math.max(...stageWithValue.map(x => x.value), 1)
+    return { total, ativos, fechadosTotal, hot, warm, cold, byStage, maxCount, stageWithValue, maxStageValue }
+  }, [allLeads])
 
   // Receita por vendedor = SOMA de client_payments.valor_usd (não-anulado) no PERÍODO (por paid_on),
   // agrupada pelo vendedor do cliente (clients.assigned_name). Acumula por semana (plano×4 no mês cheio).

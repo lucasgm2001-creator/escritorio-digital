@@ -106,7 +106,7 @@ export function FasesTab() {
       })
       return ordered.map((o, i) => ({ ...prev.find(p => p.slug === o.slug)!, posicao: i + 1, grupo: o.grupo }))
     })
-    for (const u of updates) await supabase.from('funnel_stages').update({ posicao: u.posicao, grupo: u.grupo }).eq('slug', u.slug)
+    await Promise.all(updates.map(u => supabase.from('funnel_stages').update({ posicao: u.posicao, grupo: u.grupo }).eq('slug', u.slug)))
   }
 
   // Arrastar fase: reordena dentro do grupo OU entra noutro grupo (soltando sobre um card de lá).

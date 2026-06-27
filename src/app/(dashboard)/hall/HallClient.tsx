@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useMemo, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { cn } from '@/lib/utils'
@@ -237,21 +237,26 @@ export function HallClient({ initialActivities, initialTasks, linkOptions, userN
   // Leads + clientes p/ o MAPA e as MÉTRICAS (campos leves) — SÓ LEITURA. Refetcha ao montar, ao
   // voltar pra aba (foco/visível) e ao abrir a aba Mapa, p/ as métricas baterem com a aba Clientes
   // sem precisar de F5 (o problema era ficar com o snapshot do mount).
-  const fetchMapData = useCallback(() => {
+  const lastMapFetch = useRef(0)
+  const fetchMapData = useCallback((force = false) => {
+    // Throttle: no máximo 1 refetch a cada 30s (foco/visibilidade são barulhentos). force=true ignora.
+    const nowMs = Date.now()
+    if (!force && nowMs - lastMapFetch.current < 30_000) return
+    lastMapFetch.current = nowMs
     const supabase = createClient()
     supabase.from('leads').select('id, name, status, state, area_code, created_at').then(({ data }) => { if (data) setMapLeads(data as unknown as Lead[]) })
     supabase.from('clients').select('id, name, status, state, area_code').then(({ data }) => { if (data) setMapClients(data as unknown as Client[]) })
   }, [])
 
   useEffect(() => {
-    fetchMapData()
+    fetchMapData(true)   // carga inicial (força)
+    // 'focus' removido (disparava a cada clique na janela/alt-tab); visibilitychange basta (e é throttled).
     const onVisible = () => { if (document.visibilityState === 'visible') fetchMapData() }
-    window.addEventListener('focus', fetchMapData)
     document.addEventListener('visibilitychange', onVisible)
-    return () => { window.removeEventListener('focus', fetchMapData); document.removeEventListener('visibilitychange', onVisible) }
+    return () => document.removeEventListener('visibilitychange', onVisible)
   }, [fetchMapData])
 
-  // Abrir/alternar p/ a aba Mapa revalida as métricas na hora.
+  // Abrir/alternar p/ a aba Mapa revalida (throttled — nunca fica >30s desatualizado).
   useEffect(() => { if (activeTab === 'mapa') fetchMapData() }, [activeTab, fetchMapData])
 
   // Agenda (uma carga) + realtime de atividades.
@@ -290,9 +295,9 @@ export function HallClient({ initialActivities, initialTasks, linkOptions, userN
   ]
 
   // Proporção por tipo de atividade (funil → barras de proporção).
-  const typeCounts = Object.entries(
+  const typeCounts = useMemo(() => Object.entries(
     activities.reduce<Record<string, number>>((acc, a) => { acc[a.type] = (acc[a.type] ?? 0) + 1; return acc }, {})
-  ).sort((a, b) => b[1] - a[1])
+  ).sort((a, b) => b[1] - a[1]), [activities])
   const maxType = Math.max(1, ...typeCounts.map(([, c]) => c))
 
   const TABS = [

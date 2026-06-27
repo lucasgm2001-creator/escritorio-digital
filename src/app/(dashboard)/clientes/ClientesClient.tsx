@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useMemo } from 'react'
 import { useRealtimeRows } from '@/lib/hooks/useRealtimeRows'
 import { payDueWeeks, voidClientWeek } from '@/lib/commission/actions'
 import { ClienteModal } from './ClienteModal'
@@ -404,19 +404,18 @@ export function ClientesClient({ initialClients, currentUser, focusClientId, onF
 
   const togglePay = (id: string) => setPayOpenId(payOpenId === id ? null : id)
 
-  const filtered = clients.filter(c => {
+  const filtered = useMemo(() => clients.filter(c => {
     if (!search) return true
     const q = search.toLowerCase()
     return c.name.toLowerCase().includes(q) ||
       c.company?.toLowerCase().includes(q) ||
       c.email?.toLowerCase().includes(q) ||
       c.phone?.includes(q)
-  })
+  }), [clients, search])
 
-  const ativos   = filtered.filter(c => c.status === 'ativo')
-  const inativos = filtered.filter(c => c.status === 'inativo')
-  const planOf   = (c: Client) => plans.find(p => p.id === c.plano_id)
-  const mrr      = clients.filter(c => c.status === 'ativo').reduce((sum, c) => sum + (planOf(c)?.valor_semanal ?? c.plan_weekly) * 4, 0)
+  const ativos   = useMemo(() => filtered.filter(c => c.status === 'ativo'), [filtered])
+  const inativos = useMemo(() => filtered.filter(c => c.status === 'inativo'), [filtered])
+  const mrr      = useMemo(() => clients.filter(c => c.status === 'ativo').reduce((sum, c) => sum + ((plans.find(p => p.id === c.plano_id)?.valor_semanal ?? c.plan_weekly) * 4), 0), [clients, plans])
 
   const set = (k: string, v: string) => setForm(prev => ({ ...prev, [k]: v }))
 

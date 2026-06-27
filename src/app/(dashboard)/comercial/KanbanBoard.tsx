@@ -107,17 +107,11 @@ export function KanbanBoard({ initialLeads, initialStages, initialClients, curre
   }, [])
 
   const supabase = createClient()
-  // Fases ao vivo: o servidor manda initialStages (sujeito a cache de rota); relemos funnel_stages no
-  // mount p/ o funil refletir QUALQUER grupo/cor/ordem nova ao abrir a aba, sem depender de reload.
-  // SÓ VISUAL — o won-flow/comissão continua lendo initialStages (dinheiro intocado).
+  // Fases ao vivo: vêm de initialStages — a page do Comercial é dinâmica (Supabase/cookies), então
+  // initialStages já chega fresco; um router.refresh re-hidrata via o efeito abaixo. SÓ VISUAL — o
+  // won-flow/comissão lê initialStages (dinheiro intocado). (Removida a re-leitura redundante no mount.)
   const [liveStages, setLiveStages] = useState<FunnelStage[]>(initialStages)
   useEffect(() => { setLiveStages(initialStages) }, [initialStages])
-  useEffect(() => {
-    let alive = true
-    supabase.from('funnel_stages').select('*').order('posicao').then(({ data }) => { if (alive && data) setLiveStages(data as FunnelStage[]) })
-    return () => { alive = false }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
   const cols = useMemo(() => columnsFromStages(liveStages), [liveStages])
   // Funil montado DINAMICAMENTE: faixas = valores DISTINTOS de `grupo` (ordem da menor posicao, pois
   // cols já vem ordenado por posicao); grupo null → "Sem grupo". Nada hardcoded → grupo novo ganha faixa.
