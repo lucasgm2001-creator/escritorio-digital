@@ -614,7 +614,7 @@ export function TarefasClient({ initialTasks, linkOptions, currentUser }: Props)
 
       {/* Barra fixa do rodapé (mobile): criar por texto (IA) + Nova tarefa. Fica acima da BottomNav. */}
       {view === 'tarefas' && (
-        <div className="xl:hidden sticky bottom-[calc(4rem_+_env(safe-area-inset-bottom,0px))] z-20 border-t border-bento-border bg-bento-panel/95 backdrop-blur px-3 py-2 flex items-center gap-2">
+        <div className="xl:hidden fixed inset-x-0 bottom-[calc(4rem_+_env(safe-area-inset-bottom,0px))] z-20 border-t border-bento-border bg-bento-panel/95 backdrop-blur px-3 py-2 flex items-center gap-2">
           <input value={aiText} onChange={e => { setAiText(e.target.value); if (aiError) setAiError('') }}
             onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleAiCreate() } }} disabled={aiLoading}
             placeholder="Escreva uma tarefa…"
