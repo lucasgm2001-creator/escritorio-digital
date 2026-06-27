@@ -51,11 +51,33 @@ export async function runWonFlow(supabase: SupaClient, lead: MovableLead, userNa
       await supabase.from('clients').update({ status: 'ativo' }).eq('id', existing[0].id)
     }
   } else {
+    // CLIENTE NOVO nasce COMPLETO (plano + preço semanal + dia de pagamento) — senão o cron de cobrança
+    // pula o cliente (exige dia_pagamento_semana != null) e a receita semanal nunca roda pra ele.
+    const startIso = new Date().toISOString()
+    // dia_pagamento_semana = dia-da-semana do start_date na MESMA convenção que payDueWeeks/dowOfYmd usam
+    // pra LER (getUTCDay do YMD civil, 0=Dom..6=Sáb) → o cliente cobra no mesmo dia em que fechou.
+    const [yy, mm, dd] = startIso.slice(0, 10).split('-').map(Number)
+    const diaPagamentoSemana = new Date(Date.UTC(yy, mm - 1, dd)).getUTCDay()
+    // Plano efetivo: o escolhido no fechamento (planoId) OU, sem escolha, o default que o app já usa hoje
+    // (1º plano ATIVO por ordem = "Start"/US$140, mesmo valor-padrão do resolveClientPlan). NÃO inventa plano.
+    // plan_weekly SEMPRE = valor_semanal DESSE plano (nunca 0); plano_id e plan_weekly apontam pro MESMO plano.
+    let novoPlanoId: string | null = null
+    let novoPlanWeekly = 0
+    if (planoId) {
+      const { data: pl } = await supabase.from('plans').select('id, valor_semanal').eq('id', planoId).maybeSingle()
+      if (pl) { novoPlanoId = pl.id as string; novoPlanWeekly = Number(pl.valor_semanal) || 0 }
+    }
+    if (!novoPlanoId || novoPlanWeekly <= 0) {
+      const { data: def } = await supabase.from('plans').select('id, valor_semanal')
+        .eq('ativo', true).order('ordem', { ascending: true, nullsFirst: false }).order('valor_semanal').limit(1).maybeSingle()
+      if (def) { novoPlanoId = def.id as string; novoPlanWeekly = Number(def.valor_semanal) || 0 }
+    }
     const { data: newClient, error: clientErr } = await supabase.from('clients').insert({
       name: lead.name, email: lead.email ?? null, phone: lead.phone ?? null, company: lead.company ?? null,
-      plan_weekly: 0, status: 'ativo',
+      plano_id: novoPlanoId, plan_weekly: novoPlanWeekly, status: 'ativo',
+      dia_pagamento_semana: diaPagamentoSemana,
       assigned_to: lead.assigned_to ?? null, assigned_name: lead.assigned_name ?? null,
-      start_date: new Date().toISOString(),
+      start_date: startIso,
     }).select('id').single()
     if (clientErr) notes.push({ message: `Lead movido, mas falhou ao cadastrar o cliente: ${clientErr.message}`, type: 'error' })
     else clientId = newClient?.id ?? null
