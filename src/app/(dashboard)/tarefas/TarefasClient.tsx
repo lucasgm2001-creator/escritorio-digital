@@ -107,7 +107,23 @@ export function TarefasClient({ initialTasks, linkOptions, currentUser }: Props)
   // Reflete dados frescos do servidor após router.refresh(), MAS respeita as deleções otimistas pendentes
   // (não re-insere uma tarefa que acabamos de excluir). Quando o server já não traz mais o id, esquecemos.
   useEffect(() => {
-    setTasks(initialTasks.filter(t => !deletedIds.current.has(t.id)))
+    // A5: merge POR CAMPO. O sync do Google grava google_event_id/meet_link DEPOIS deste refresh; se a linha
+    // do server vier SEM eles mas o local já tiver (via realtime), PRESERVA — senão a corrida apagaria o id e
+    // o evento ficaria órfão (próxima edição/exclusão não acharia). O realtime depois traz o oficial (merge por id).
+    setTasks(prev => {
+      const local = new Map(prev.map(t => [t.id, t]))
+      return initialTasks
+        .filter(t => !deletedIds.current.has(t.id))
+        .map(t => {
+          const cur = local.get(t.id)
+          if (!cur) return t
+          return {
+            ...t,
+            google_event_id: t.google_event_id ?? cur.google_event_id ?? null,
+            meet_link: t.meet_link ?? cur.meet_link ?? null,
+          }
+        })
+    })
     if (deletedIds.current.size) {
       const present = new Set(initialTasks.map(t => t.id))
       deletedIds.current.forEach(id => { if (!present.has(id)) deletedIds.current.delete(id) })

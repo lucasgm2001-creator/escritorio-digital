@@ -1,6 +1,5 @@
 import 'server-only'
 import { google, calendar_v3 } from 'googleapis'
-import { randomUUID } from 'node:crypto'
 import { createServiceClient } from '@/lib/supabase/service'
 import { getUserCalendar } from '@/lib/google/oauth'
 
@@ -36,6 +35,13 @@ function errMsg(e: unknown): string {
   const code = err?.code ?? err?.response?.status
   const msg = err?.message ?? String(e)
   return code !== undefined && code !== null ? `${msg} [code ${code}]` : msg
+}
+
+// 404/410 do Google = o evento não existe NESTE calendário (ex.: criado por outro caminho do dual-path).
+function isNotFound(e: unknown): boolean {
+  const err = e as { code?: unknown; response?: { status?: unknown } }
+  const code = err?.code ?? err?.response?.status
+  return code === 404 || code === '404' || code === 410 || code === '410'
 }
 
 // CONTA DE SERVIÇO (GOOGLE_SERVICE_ACCOUNT_KEY = JSON completo). private_key tem \n — JSON.parse resolve.
@@ -190,7 +196,8 @@ async function createEvent(ctx: CalCtx, task: TaskRow): Promise<{ eventId: strin
   // 2) Meet REAL — SÓ no caminho OAuth. Best-effort; devolve a URL e a põe (pura) na descrição.
   let meetLink: string | null = null
   if (ctx.meet && eventId && task.add_call) {
-    meetLink = await tryConference(ctx, eventId, meetConference(randomUUID()))
+    // B1: requestId determinístico por evento (mesmo da re-tentativa) → re-pedido devolve o MESMO Meet, não duplica.
+    meetLink = await tryConference(ctx, eventId, meetConference(`meet-${eventId}`))
     if (meetLink) await patchDescriptionWithMeet(ctx, eventId, task, meetLink)
   }
   return { eventId, meetLink }
@@ -221,15 +228,15 @@ async function updateEvent(ctx: CalCtx, googleEventId: string, task: TaskRow): P
       calendarId: ctx.calendarId, eventId: googleEventId, fields: 'hangoutLink,conferenceData',
     })
     const hasMeet = !!(ev.hangoutLink || ev.conferenceData?.conferenceId || (ev.conferenceData?.entryPoints?.length ?? 0) > 0)
-    if (task.add_call && !hasMeet) {                       // cria o Meet e põe a URL pura na descrição
-      const url = await tryConference(ctx, googleEventId, meetConference(randomUUID()))
+    if (task.add_call && !hasMeet) {                       // cria o Meet (requestId determinístico) e põe a URL na descrição
+      const url = await tryConference(ctx, googleEventId, meetConference(`meet-${googleEventId}`))
       if (url) await patchDescriptionWithMeet(ctx, googleEventId, task, url)
       return url
     }
-    if (task.add_call && hasMeet) {                        // preserva → lê a url e a RE-ANEXA (o patch principal a removeu)
+    if (task.add_call && hasMeet) {                        // já tem Meet → lê a url e a RE-ANEXA (o patch principal a removeu)
       const url = meetUrlOf(ev)
-      if (url) await patchDescriptionWithMeet(ctx, googleEventId, task, url)
-      return url
+      if (url) { await patchDescriptionWithMeet(ctx, googleEventId, task, url); return url }
+      return undefined   // B2: tem Meet mas a releitura não trouxe url → PRESERVA o meet_link atual (não zera)
     }
     if (!task.add_call && hasMeet) { await tryConference(ctx, googleEventId, null); return null }   // remove → descrição já sem URL
     return null                                                                            // !add_call && sem Meet
@@ -249,6 +256,8 @@ async function deleteEvent(ctx: CalCtx, googleEventId: string): Promise<void> {
     await ctx.calendar.events.delete({ calendarId: ctx.calendarId, eventId: googleEventId })
     console.log('[gcal] event OK id:', googleEventId, '(deleted)')
   } catch (e) {
+    // M5: 404/410 = evento não existe no calendário atual (trocou de caminho) → trata como já-apagado, não falha.
+    if (isNotFound(e)) { console.warn('[gcal] delete 404/410 (evento já não existe aqui) · event', googleEventId); return }
     console.error('[gcal] ERROR delete:', errMsg(e))
     throw e
   }
@@ -268,6 +277,43 @@ async function setMeetLink(supabase: ReturnType<typeof createServiceClient>, tas
   } catch (e) {
     console.warn('[gcal] gravar meet_link exceção (segue):', errMsg(e))
   }
+}
+
+// Cria o evento no caminho atual e grava o id de volta com WRITE CONDICIONAL (.is('google_event_id', null)):
+//  • erro de DB → ROLLBACK: apaga o evento criado.
+//  • 0 linhas afetadas = outro sync concorrente JÁ gravou um id (corrida) → o evento novo é DUPLICADO → apaga
+//    e fica com o id que venceu. Fecha a janela de duplicação (M4) sem lock.
+// setMeetLink só roda quando o id realmente venceu. Best-effort em tudo.
+async function createAndPersist(
+  ctx: CalCtx,
+  supabase: ReturnType<typeof createServiceClient>,
+  task: TaskRow,
+  taskId: string,
+): Promise<CalSyncResult> {
+  let created: { eventId: string | null; meetLink: string | null }
+  try {
+    created = await createEvent(ctx, task)
+  } catch (e) {
+    console.error('[gcal] create FALHOU · task', taskId, ':', errMsg(e))
+    return { ok: false, step: 'create', reason: errMsg(e) }
+  }
+  const eventId = created.eventId
+  if (!eventId) return { ok: true }   // sem corpo (sem due_date) → no-op (não é erro)
+  const { data: rows, error: upErr } = await supabase
+    .from('tasks').update({ google_event_id: eventId })
+    .eq('id', taskId).is('google_event_id', null).select('id')
+  if (upErr) {
+    console.error('[gcal] gravar google_event_id FALHOU — rollback do evento', eventId, '· task', taskId, ':', upErr.message)
+    try { await deleteEvent(ctx, eventId) } catch (delErr) { console.error('[gcal] ROLLBACK delete FALHOU — ÓRFÃO', eventId, '·', errMsg(delErr)) }
+    return { ok: false, step: 'write', reason: `falha ao gravar id do evento: ${upErr.message}` }
+  }
+  if (!rows || rows.length === 0) {
+    console.warn('[gcal] corrida: google_event_id já estava gravado — apagando evento DUPLICADO', eventId, '· task', taskId)
+    try { await deleteEvent(ctx, eventId) } catch (delErr) { console.error('[gcal] apagar duplicado FALHOU — ÓRFÃO', eventId, '·', errMsg(delErr)) }
+    return { ok: true }
+  }
+  await setMeetLink(supabase, taskId, created.meetLink)
+  return { ok: true }
 }
 
 // ── Orquestração (best-effort, mas com resultado VISÍVEL) ───────────────────────
@@ -307,43 +353,27 @@ export async function syncTaskCalendar(taskId: string): Promise<CalSyncResult> {
       return { ok: true }
     }
 
-    // (B) COM due_date + evento existente: atualiza (patch preserva ajustes manuais no Google).
+    // (B) COM due_date + evento existente: atualiza (patch). Se o evento sumiu do calendário atual (404 —
+    //     trocou de caminho OAuth↔service account), limpa o id/meet_link stale e RE-CRIA no caminho atual (M5).
     if (task.google_event_id) {
-      let meetLink: string | null | undefined
       try {
-        meetLink = await updateEvent(ctx, task.google_event_id, task)
+        const meetLink = await updateEvent(ctx, task.google_event_id, task)
+        if (meetLink !== undefined) await setMeetLink(supabase, taskId, meetLink)   // undefined = não mexer (service account / B2)
+        return { ok: true }
       } catch (e) {
+        if (isNotFound(e)) {
+          console.warn('[gcal] update 404 — evento em outro calendário; limpando id/meet_link stale e recriando · task', taskId, '· stale', task.google_event_id)
+          await supabase.from('tasks').update({ google_event_id: null }).eq('id', taskId)
+          await setMeetLink(supabase, taskId, null)
+          return await createAndPersist(ctx, supabase, task, taskId)   // re-sincroniza no caminho atual
+        }
         console.error('[gcal] update FALHOU · task', taskId, '· event', task.google_event_id, ':', errMsg(e))
         return { ok: false, step: 'update', reason: errMsg(e) }
       }
-      if (meetLink !== undefined) await setMeetLink(supabase, taskId, meetLink)   // undefined = não mexer (service account)
-      return { ok: true }
     }
 
-    // (C) COM due_date + sem evento: cria e grava o id.
-    let created: { eventId: string | null; meetLink: string | null }
-    try {
-      created = await createEvent(ctx, task)
-    } catch (e) {
-      console.error('[gcal] create FALHOU · task', taskId, ':', errMsg(e))
-      return { ok: false, step: 'create', reason: errMsg(e) }
-    }
-    const eventId = created.eventId
-    if (!eventId) return { ok: true }   // sem corpo (sem due_date) → no-op (não é erro)
-    const { error: upErr } = await supabase.from('tasks').update({ google_event_id: eventId }).eq('id', taskId)
-    if (upErr) {
-      // ROLLBACK: o evento foi CRIADO no Google mas o id NÃO gravou → apaga o evento, senão sobra um evento
-      // sem id e o PRÓXIMO sync cria um SEGUNDO (duplicata). Se o rollback também falhar, loga o órfão.
-      console.error('[gcal] gravar google_event_id FALHOU — rollback do evento', eventId, '· task', taskId, ':', upErr.message)
-      try {
-        await deleteEvent(ctx, eventId)
-      } catch (delErr) {
-        console.error('[gcal] ROLLBACK delete FALHOU — EVENTO ÓRFÃO', eventId, '· task', taskId, ':', errMsg(delErr))
-      }
-      return { ok: false, step: 'write', reason: `falha ao gravar id do evento: ${upErr.message}` }
-    }
-    await setMeetLink(supabase, taskId, created.meetLink)   // best-effort, separado do google_event_id (sem rollback)
-    return { ok: true }
+    // (C) COM due_date + sem evento: cria e grava o id (write condicional + rollback/dedup → M4).
+    return await createAndPersist(ctx, supabase, task, taskId)
   } catch (e) {
     console.error('[gcal] ERROR sync · task', taskId, ':', errMsg(e))
     return { ok: false, step: 'sync', reason: errMsg(e) }
