@@ -1,52 +1,27 @@
 import { NextResponse } from 'next/server'
-import { cookies } from 'next/headers'
-import { requireAuth } from '@/lib/supabase/require-auth'
-import { getOAuthClient, saveTokensForUser, emailFromIdToken } from '@/lib/google/oauth'
+import { verifyState, exchangeCodeForTokens, fetchGoogleEmail, saveTokensForUser } from '@/lib/google/oauth'
 
-// Retorno do consentimento Google. VALIDA o state (CSRF) contra o cookie, confirma a SESSÃO (só vincula na
-// conta logada — anti-vincular-na-conta-errada), troca code→tokens e salva (service role). googleapis = Node.
+// Retorno do consentimento Google. VALIDA o state assinado (CSRF) → user_id; troca code por tokens; descobre
+// o email (userinfo); UPSERT preservando o refresh_token salvo. Sempre volta pra /configuracoes. Node runtime.
 export const runtime = 'nodejs'
-
-function back(req: Request, path: string) {
-  return new URL(path, new URL(req.url).origin)
-}
 
 export async function GET(req: Request) {
   const url = new URL(req.url)
+  const to = (q: string) => NextResponse.redirect(new URL(`/configuracoes?google=${q}`, url.origin))
+
   const code = url.searchParams.get('code')
   const state = url.searchParams.get('state')
-  const oauthError = url.searchParams.get('error')
+  if (url.searchParams.get('error') || !code) return to('error')
 
-  const clearState = (res: NextResponse) => { res.cookies.delete('g_oauth_state'); return res }
+  // CSRF: o user_id vem do state ASSINADO (não do browser). State inválido/forjado/vencido → aborta.
+  const userId = verifyState(state)
+  if (!userId) return to('error')
 
-  if (oauthError) return clearState(NextResponse.redirect(back(req, '/configuracoes?google=erro')))
+  const tokens = await exchangeCodeForTokens(code)
+  if (!tokens?.access_token) return to('error')
 
-  // CSRF: o state tem que existir e bater com o cookie httpOnly.
-  const cookieState = cookies().get('g_oauth_state')?.value
-  if (!code || !state || !cookieState || state !== cookieState) {
-    return clearState(NextResponse.redirect(back(req, '/configuracoes?google=erro')))
-  }
+  const email = await fetchGoogleEmail(tokens.access_token)
+  await saveTokensForUser(userId, { ...tokens, google_email: email })
 
-  // Sessão Supabase: vincula SOMENTE na conta logada.
-  const auth = await requireAuth()
-  if ('error' in auth) return clearState(NextResponse.redirect(back(req, '/login')))
-
-  const oauth = getOAuthClient()
-  if (!oauth) return clearState(NextResponse.redirect(back(req, '/configuracoes?google=erro')))
-
-  try {
-    const { tokens } = await oauth.getToken(code)   // troca code por tokens (usa client_id/secret/redirect_uri)
-    await saveTokensForUser(auth.user.id, {
-      access_token: tokens.access_token,
-      refresh_token: tokens.refresh_token,   // só vem no 1º consentimento; saveTokens preserva se vier null
-      expiry_date: tokens.expiry_date,
-      scope: tokens.scope,
-      google_email: emailFromIdToken(tokens.id_token),
-    })
-  } catch (e) {
-    console.error('[google-oauth] callback troca de code FALHOU:', (e as Error)?.message ?? e)
-    return clearState(NextResponse.redirect(back(req, '/configuracoes?google=erro')))
-  }
-
-  return clearState(NextResponse.redirect(back(req, '/configuracoes?google=ok')))
+  return to('connected')
 }

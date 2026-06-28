@@ -1,19 +1,20 @@
 import 'server-only'
-import { calendar_v3 } from 'googleapis'
+import { google, calendar_v3 } from 'googleapis'
 import { randomUUID } from 'node:crypto'
 import { createServiceClient } from '@/lib/supabase/service'
 import { getUserCalendar } from '@/lib/google/oauth'
 
-// Sincroniza tarefas (tabela `tasks`) com o Google Agenda via OAUTH DO USUÁRIO — cada um conecta a própria
-// conta Google em Configurações → Integrações. Rodando COMO o usuário, o Google Meet É criado de verdade
-// (conta de serviço não podia). SOMENTE servidor. Tudo BEST-EFFORT: o salvamento da tarefa NUNCA depende
-// disto; quem não conectou simplesmente não sincroniza (no-op silencioso). NÃO toca em dinheiro/comissão.
+// Sincroniza tarefas (tabela `tasks`) com o Google Agenda. DUAL-PATH por tarefa, escolhido pelo DONO:
+//  • dono conectou a conta Google (OAuth) → cria o evento COMO ele, no 'primary', e liga o Google Meet real.
+//  • dono NÃO conectou → cai na CONTA DE SERVIÇO (JWT) EXATAMENTE como antes — sem Meet, sem regressão.
+// SOMENTE servidor. Tudo BEST-EFFORT: o salvamento da tarefa NUNCA depende disto. NÃO toca em dinheiro/comissão.
 
+const SA_SCOPES = ['https://www.googleapis.com/auth/calendar.events']
 const TIMEZONE = 'America/Sao_Paulo'
 const DURATION_MIN = 30
 
-// Cliente do Calendar já autenticado como o dono da tarefa + calendarId ('primary').
-type CalCtx = { calendar: calendar_v3.Calendar; calendarId: string }
+// Cliente do Calendar + calendarId + se PODE criar Meet (só o caminho OAuth pode).
+type CalCtx = { calendar: calendar_v3.Calendar; calendarId: string; meet: boolean }
 
 interface TaskRow {
   id: string
@@ -35,6 +36,38 @@ function errMsg(e: unknown): string {
   const code = err?.code ?? err?.response?.status
   const msg = err?.message ?? String(e)
   return code !== undefined && code !== null ? `${msg} [code ${code}]` : msg
+}
+
+// CONTA DE SERVIÇO (GOOGLE_SERVICE_ACCOUNT_KEY = JSON completo). private_key tem \n — JSON.parse resolve.
+// null se faltar env/credencial. Caminho IDÊNTICO ao de sempre (sem Meet) → fallback de quem não conectou.
+function getServiceAccountClient(): { calendar: calendar_v3.Calendar; calendarId: string } | null {
+  const raw = process.env.GOOGLE_SERVICE_ACCOUNT_KEY
+  const calendarId = process.env.GOOGLE_CALENDAR_ID
+  if (!raw || !calendarId) return null
+  let creds: { client_email?: string; private_key?: string }
+  try {
+    creds = JSON.parse(raw)
+  } catch (e) {
+    console.error('[gcal] JSON parse FAIL:', (e as Error)?.message ?? e)
+    return null
+  }
+  if (!creds.client_email || !creds.private_key) {
+    console.error('[gcal] ERROR auth: credencial sem client_email/private_key.')
+    return null
+  }
+  const auth = new google.auth.JWT({ email: creds.client_email, key: creds.private_key, scopes: SA_SCOPES })
+  return { calendar: google.calendar({ version: 'v3', auth }), calendarId }
+}
+
+// Escolhe o caminho: OAuth do dono (com Meet) se conectado; senão conta de serviço (sem Meet). null se nenhum.
+async function resolveCtx(userId: string | null | undefined): Promise<CalCtx | null> {
+  if (userId) {
+    const oauth = await getUserCalendar(userId)
+    if (oauth) return { ...oauth, meet: true }
+  }
+  const sa = getServiceAccountClient()
+  if (sa) return { ...sa, meet: false }
+  return null
 }
 
 // 'YYYY-MM-DD' + dias → 'YYYY-MM-DD' (UTC puro, sem escorregar por fuso).
@@ -63,7 +96,7 @@ function meetConference(requestId: string): calendar_v3.Schema$ConferenceData {
 
 // Tarefa → corpo do evento (summary/description/start/end). due_date vazio → null (não vira evento).
 // callLink: se add_call e o usuário tem profiles.call_link, acrescenta UMA linha na descrição (link fixo
-// pessoal). O Google Meet por-evento é anexado em createEvent/updateEvent (conferenceData + version:1).
+// pessoal). O Google Meet por-evento é anexado em createEvent/updateEvent (só no caminho OAuth).
 function buildEventBody(task: TaskRow, callLink?: string | null): calendar_v3.Schema$Event | null {
   if (!task.due_date) return null
   const desc: string[] = []
@@ -89,8 +122,7 @@ function buildEventBody(task: TaskRow, callLink?: string | null): calendar_v3.Sc
 }
 
 // Anexa (ou remove, com null) o Google Meet num evento JÁ existente — SEMPRE best-effort: patch ISOLADO só
-// do conferenceData + conferenceDataVersion:1, e QUALQUER erro é ENGOLIDO. Assim uma falha de conference
-// NÃO pode derrubar o evento (que já foi criado/atualizado antes). Por isso vai sempre numa chamada à parte.
+// do conferenceData + conferenceDataVersion:1, e QUALQUER erro é ENGOLIDO. Só é chamado no caminho OAuth.
 async function tryConference(ctx: CalCtx, eventId: string, conferenceData: calendar_v3.Schema$ConferenceData | null): Promise<void> {
   try {
     await ctx.calendar.events.patch({
@@ -115,18 +147,17 @@ async function createEvent(ctx: CalCtx, task: TaskRow, callLink?: string | null)
     console.log('[gcal] event OK id:', eventId)
   } catch (e) {
     console.error('[gcal] ERROR create:', errMsg(e))
-    throw e   // re-lança: best-effort segue no chamador (comportamento idêntico ao de antes)
+    throw e
   }
-  // 2) Meet REAL, best-effort: patch isolado só do conferenceData (createRequest hangoutsMeet + version:1).
-  if (eventId && task.add_call) await tryConference(ctx, eventId, meetConference(randomUUID()))
+  // 2) Meet REAL — SÓ no caminho OAuth (a conta de serviço não pode criar Meet). Best-effort.
+  if (ctx.meet && eventId && task.add_call) await tryConference(ctx, eventId, meetConference(randomUUID()))
   return eventId
 }
 
 async function updateEvent(ctx: CalCtx, googleEventId: string, task: TaskRow, callLink?: string | null): Promise<void> {
   const requestBody = buildEventBody(task, callLink); if (!requestBody) return
 
-  // 1) O EVENTO (título, notas, start/end, fuso, duração) é atualizado SEMPRE, SEM conferenceData — assim
-  //    uma falha de Meet NUNCA derruba a atualização do evento.
+  // 1) O EVENTO (título, notas, start/end, fuso, duração) é atualizado SEMPRE, SEM conferenceData.
   try {
     // PATCH (não update/PUT): atualiza só os campos enviados e PRESERVA o resto do evento —
     // convidados, lembretes, cor e recorrência ajustados manualmente no Google Agenda não são apagados.
@@ -137,9 +168,10 @@ async function updateEvent(ctx: CalCtx, googleEventId: string, task: TaskRow, ca
     throw e
   }
 
-  // 2) Meet best-effort (patch ISOLADO via tryConference, nunca propaga). Reconcilia SEM duplicar:
-  //  • quer chamada e ainda não tem → cria;  já tem → preserva (não mexe);  não quer e tem → remove.
+  // 2) Meet — SÓ no caminho OAuth. Reconcilia SEM duplicar (best-effort, nunca propaga):
+  //  • quer chamada e ainda não tem → cria;  já tem → preserva;  não quer e tem → remove.
   //  • se o get falhar e quer chamada → requestId ESTÁVEL por evento (idempotente: cria 1x, não duplica).
+  if (!ctx.meet) return
   try {
     const { data: ev } = await ctx.calendar.events.get({
       calendarId: ctx.calendarId, eventId: googleEventId, fields: 'hangoutLink,conferenceData',
@@ -147,7 +179,6 @@ async function updateEvent(ctx: CalCtx, googleEventId: string, task: TaskRow, ca
     const hasMeet = !!(ev.hangoutLink || ev.conferenceData?.conferenceId || (ev.conferenceData?.entryPoints?.length ?? 0) > 0)
     if (task.add_call && !hasMeet) await tryConference(ctx, googleEventId, meetConference(randomUUID()))
     else if (!task.add_call && hasMeet) await tryConference(ctx, googleEventId, null)
-    // quer chamada e já tem → não mexe (preserva o Meet existente)
   } catch (e) {
     console.warn('[gcal] get p/ checar Meet falhou (segue best-effort):', errMsg(e))
     if (task.add_call) await tryConference(ctx, googleEventId, meetConference(`meet-${googleEventId}`))
@@ -166,12 +197,12 @@ async function deleteEvent(ctx: CalCtx, googleEventId: string): Promise<void> {
 
 // Resultado do sync. O client usa pra AVISAR (toast discreto) quando o Google falhar — sem reverter
 // a tarefa (que já foi salva/excluída no banco). `ok:true` cobre tanto "sincronizou" quanto "no-op"
-// (não conectou / sem due_date), pois nenhum dos dois é falha a mostrar pro usuário.
+// (integração desligada / sem due_date), pois nenhum dos dois é falha a mostrar pro usuário.
 export type CalSyncResult = { ok: true } | { ok: false; step: 'read' | 'create' | 'update' | 'delete' | 'write' | 'sync'; reason: string }
 
 // ── Orquestração (best-effort, mas com resultado VISÍVEL) ───────────────────────
-// Lê a linha FRESCA da tarefa, autentica como o DONO (OAuth) e reconcilia o evento:
-//  • dono não conectou o Google → no-op silencioso (tarefa salva, sem google_event_id).
+// Lê a linha FRESCA da tarefa, escolhe o caminho (OAuth do dono > conta de serviço) e reconcilia o evento:
+//  • nenhum caminho disponível → no-op silencioso.
 //  • sem due_date  → se tinha evento, apaga; só zera google_event_id DEPOIS do delete confirmado.
 //  • com due_date  → tem evento? atualiza (patch). não tem? cria e grava o id (com ROLLBACK se o write falhar).
 export async function syncTaskCalendar(taskId: string): Promise<CalSyncResult> {
@@ -186,14 +217,14 @@ export async function syncTaskCalendar(taskId: string): Promise<CalSyncResult> {
     const task = data as TaskRow
     console.log('[gcal] task', taskId, 'due_date:', task.due_date, 'due_time:', task.due_time, 'existing event:', task.google_event_id, 'add_call:', task.add_call)
 
-    // Sem dono OU dono não conectou o Google → pula o sync silenciosamente (não é falha pro usuário).
-    if (!task.user_id) return { ok: true }
-    const ctx = await getUserCalendar(task.user_id)
+    // OAuth do dono (com Meet) > conta de serviço (sem Meet). Nenhum → no-op (não é falha pro usuário).
+    const ctx = await resolveCtx(task.user_id)
     if (!ctx) return { ok: true }
+    console.log('[gcal] path:', ctx.meet ? 'oauth(+meet)' : 'service-account')
 
     // Link de chamada FIXO do dono (profiles.call_link) — só quando a tarefa marcou "Adicionar chamada".
     let callLink: string | null = null
-    if (task.add_call) {
+    if (task.add_call && task.user_id) {
       const { data: prof } = await supabase.from('profiles').select('call_link').eq('id', task.user_id).single()
       callLink = (prof?.call_link as string | null) ?? null
     }
@@ -212,8 +243,7 @@ export async function syncTaskCalendar(taskId: string): Promise<CalSyncResult> {
       return { ok: true }
     }
 
-    // (B) COM due_date + evento existente: atualiza (patch preserva ajustes manuais no Google). Eventos
-    //     ANTIGOS (criados pela conta de serviço, em OUTRO calendário) podem 404 aqui → best-effort (loga).
+    // (B) COM due_date + evento existente: atualiza (patch preserva ajustes manuais no Google).
     if (task.google_event_id) {
       try {
         await updateEvent(ctx, task.google_event_id, task, callLink)
@@ -252,12 +282,10 @@ export async function syncTaskCalendar(taskId: string): Promise<CalSyncResult> {
   }
 }
 
-// Apaga o evento de uma tarefa que está sendo excluída (a linha some logo em seguida). Roda como o DONO
-// (userId do usuário logado, que é o dono da tarefa). Retorna o resultado REAL pra o client avisar se o
-// Google falhar (sem reverter a exclusão da tarefa). Não conectou → no-op silencioso.
+// Apaga o evento de uma tarefa que está sendo excluída (a linha some logo em seguida). Mesmo dual-path:
+// OAuth do dono se conectado, senão conta de serviço. Não conectado/sem service account → no-op silencioso.
 export async function deleteTaskEvent(userId: string | null | undefined, googleEventId: string): Promise<CalSyncResult> {
-  if (!userId) return { ok: true }
-  const ctx = await getUserCalendar(userId)
+  const ctx = await resolveCtx(userId)
   if (!ctx) return { ok: true }
   try {
     await deleteEvent(ctx, googleEventId)

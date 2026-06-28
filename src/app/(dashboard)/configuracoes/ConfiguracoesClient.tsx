@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import Image from 'next/image'
 import {
   Sun, Moon, Monitor, Home, Briefcase, ListChecks, Projector, Users,
@@ -325,12 +326,13 @@ function DadosSection() {
 }
 
 // ─── SISTEMA › Integrações (status real do Supabase; demais = TODO) ───
-function IntegStatus({ nome, detalhe, status }: { nome: string; detalhe: string; status: 'ok' | 'err' | 'check' | 'todo' }) {
+function IntegStatus({ nome, detalhe, status }: { nome: string; detalhe: string; status: 'ok' | 'err' | 'check' | 'todo' | 'config' }) {
   const map = {
-    ok:    { dot: 'bg-lime',        txt: 'text-lime-fg',     label: 'Conectado' },
-    err:   { dot: 'bg-red-500',     txt: 'text-red-400',     label: 'Erro' },
-    check: { dot: 'bg-bento-muted', txt: 'text-bento-muted', label: 'Verificando...' },
-    todo:  { dot: 'bg-bento-muted', txt: 'text-bento-muted', label: 'Em breve' },
+    ok:     { dot: 'bg-lime',        txt: 'text-lime-fg',     label: 'Conectado' },
+    err:    { dot: 'bg-red-500',     txt: 'text-red-400',     label: 'Erro' },
+    check:  { dot: 'bg-bento-muted', txt: 'text-bento-muted', label: 'Verificando...' },
+    todo:   { dot: 'bg-bento-muted', txt: 'text-bento-muted', label: 'Em breve' },
+    config: { dot: 'bg-lime',        txt: 'text-lime-fg',     label: 'Configurada' },
   }[status]
   return (
     <div className="flex items-center gap-3 py-3 first:pt-0 last:pb-0">
@@ -344,64 +346,93 @@ function IntegStatus({ nome, detalhe, status }: { nome: string; detalhe: string;
   )
 }
 
-// Conectar a CONTA GOOGLE do usuário (OAuth) p/ o sync da Agenda criar Google Meet real por tarefa.
-// Status via /api/google/oauth/status; conectar abre /start (redireciona pro Google); desconectar = POST.
-function GoogleAgendaCard() {
-  const [st, setSt] = useState<{ s: 'check' | 'on' | 'off'; email: string | null }>({ s: 'check', email: null })
+// Cartão Bento das "Conexões": borda sutil + inset shadow discreto.
+const connCardCls = 'bg-bento-bg border border-bento-border rounded-bento p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]'
+
+// Conectar a CONTA GOOGLE do usuário (OAuth) → o sync da Agenda cria Google Meet real por tarefa. O status
+// (connected/email) vem do SERVIDOR (page.tsx, via service role — token nunca no client). Conectar abre
+// /api/google/oauth/initiate; desconectar = POST + router.refresh() (re-lê o status no servidor).
+function GoogleAgendaCard({ google }: { google: { connected: boolean; email: string | null } }) {
+  const router = useRouter()
   const [busy, setBusy] = useState(false)
   const [note, setNote] = useState<{ t: 'ok' | 'err'; m: string } | null>(null)
 
-  const load = useCallback(() => {
-    fetch('/api/google/oauth/status')
-      .then(r => r.json())
-      .then(d => setSt({ s: d?.connected ? 'on' : 'off', email: d?.email ?? null }))
-      .catch(() => setSt({ s: 'off', email: null }))
-  }, [])
-
   useEffect(() => {
-    // Retorno do OAuth (?google=ok|erro): mostra aviso e limpa a URL.
+    // Retorno do OAuth (?google=connected|unconfigured|error): mostra aviso e limpa a URL.
     try {
       const q = new URLSearchParams(window.location.search).get('google')
-      if (q === 'ok') setNote({ t: 'ok', m: 'Google Agenda conectado.' })
-      else if (q === 'erro') setNote({ t: 'err', m: 'Não foi possível conectar. Tente de novo.' })
+      if (q === 'connected') setNote({ t: 'ok', m: 'Google Agenda conectado.' })
+      else if (q === 'unconfigured') setNote({ t: 'err', m: 'OAuth do Google não configurado no servidor.' })
+      else if (q === 'error') setNote({ t: 'err', m: 'Não foi possível conectar. Tente de novo.' })
       if (q) window.history.replaceState(null, '', window.location.pathname)
     } catch { /* ignore */ }
-    load()
-  }, [load])
+  }, [])
 
   const disconnect = async () => {
     setBusy(true)
     try { await fetch('/api/google/oauth/disconnect', { method: 'POST' }) }
-    finally { setBusy(false); setNote(null); load() }
+    finally { setBusy(false); setNote(null); router.refresh() }
   }
 
-  const detalhe = st.s === 'check' ? 'Verificando...'
-    : st.s === 'on' ? `Conectado${st.email ? ` como ${st.email}` : ''}`
-    : 'Não conectado — conecte p/ criar eventos com Google Meet por tarefa.'
-
   return (
-    <div className="mt-4 pt-4 border-t border-bento-border/60">
+    <div className={connCardCls}>
       <div className="flex items-start gap-3">
-        <CalendarDays className="w-4 h-4 text-bento-muted flex-none mt-0.5" />
-        <div className="min-w-0 flex-1">
-          <p className="text-sm font-medium text-bento-text">Google Agenda</p>
-          <p className="font-tech text-[11px] text-bento-muted">{detalhe}</p>
-        </div>
-        <span className={cn('text-xs font-semibold', st.s === 'on' ? 'text-lime-fg' : 'text-bento-muted')}>
-          {st.s === 'on' ? 'Conectado' : st.s === 'check' ? '...' : 'Desconectado'}
+        <span className="w-9 h-9 rounded-xl bg-bento-panel border border-bento-border flex items-center justify-center flex-none">
+          <CalendarDays className="w-4 h-4 text-bento-dim" />
         </span>
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2">
+            <h3 className="font-display font-bold text-bento-text text-sm">Google Agenda</h3>
+            {google.connected && (
+              <span className="font-tech text-[10px] px-1.5 py-0.5 rounded bg-lime/15 text-lime-fg border border-lime/30">Conectado</span>
+            )}
+          </div>
+          {google.connected ? (
+            <div className="mt-1 space-y-0.5">
+              {google.email && <p className="font-tech text-[11px] text-bento-dim truncate">{google.email}</p>}
+              <p className="font-tech text-[11px] text-lime-fg">✓ Meet ativo</p>
+            </div>
+          ) : (
+            <p className="text-[13px] text-bento-muted mt-1 leading-snug">
+              Suas tarefas viram eventos no seu Google Agenda — com horário, duração, fuso e link de Meet por reunião.
+            </p>
+          )}
+        </div>
       </div>
       <div className="mt-3 flex flex-wrap gap-2">
-        {st.s === 'on'
+        {google.connected
           ? <button onClick={disconnect} disabled={busy} className={actionBtnCls}>{busy ? 'Desconectando...' : 'Desconectar'}</button>
-          : <a href="/api/google/oauth/start" className={actionBtnCls}><ExternalLink className="w-4 h-4" />Conectar Google Agenda</a>}
+          : <a href="/api/google/oauth/initiate" className="bento-btn inline-flex items-center justify-center px-4 py-2 rounded-btn text-sm font-semibold min-h-[44px]">Conectar</a>}
       </div>
       {note && <p className={cn('font-tech text-[11px] mt-2', note.t === 'ok' ? 'text-lime-fg' : 'text-red-400')}>{note.m}</p>}
     </div>
   )
 }
 
-function IntegracoesSection() {
+// WhatsApp — em breve (desabilitado).
+function WhatsAppCard() {
+  return (
+    <div className={cn(connCardCls, 'opacity-70')}>
+      <div className="flex items-start gap-3">
+        <span className="w-9 h-9 rounded-xl bg-bento-panel border border-bento-border flex items-center justify-center flex-none">
+          <Plug className="w-4 h-4 text-bento-muted" />
+        </span>
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2">
+            <h3 className="font-display font-bold text-bento-text text-sm">WhatsApp</h3>
+            <span className="font-tech text-[10px] px-1.5 py-0.5 rounded bg-bento-panel text-bento-muted border border-bento-border">Em breve</span>
+          </div>
+          <p className="text-[13px] text-bento-muted mt-1 leading-snug">Notificações e mensagens direto do sistema.</p>
+        </div>
+      </div>
+      <div className="mt-3">
+        <button disabled className="cursor-not-allowed opacity-50 inline-flex items-center justify-center gap-2 bg-bento-panel border border-bento-border text-bento-muted px-4 py-2 rounded-btn text-sm min-h-[44px]">Conectar</button>
+      </div>
+    </div>
+  )
+}
+
+function IntegracoesSection({ google }: { google: { connected: boolean; email: string | null } }) {
   const supabase = createClient()
   const [supaOk, setSupaOk] = useState<'ok' | 'err' | 'check'>('check')
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL ?? ''
@@ -411,12 +442,22 @@ function IntegracoesSection() {
   const host = (() => { try { return new URL(url).host } catch { return url || '—' } })()
   return (
     <Panel label="Integrações">
-      <div className="divide-y divide-bento-border/60">
-        <IntegStatus nome="Supabase" detalhe={host} status={supaOk} />
-        <IntegStatus nome="Anthropic (IA)" detalhe="Chave configurada no servidor (env)" status="todo" />
-        <IntegStatus nome="WhatsApp" detalhe="Ainda não conectado" status="todo" />
+      <div className="space-y-5">
+        {/* Conexões: o que o usuário liga/desliga. */}
+        <div className="space-y-3">
+          <p className="font-tech text-[10px] uppercase tracking-[0.12em] text-bento-muted">Conexões</p>
+          <GoogleAgendaCard google={google} />
+          <WhatsAppCard />
+        </div>
+        {/* Sistema · somente leitura: status de infra (sem ação). */}
+        <div className="space-y-2">
+          <p className="font-tech text-[10px] uppercase tracking-[0.12em] text-bento-muted">Sistema · somente leitura</p>
+          <div className="divide-y divide-bento-border/60">
+            <IntegStatus nome="Supabase" detalhe={host} status={supaOk} />
+            <IntegStatus nome="Anthropic (IA)" detalhe="Chave configurada no servidor (env)" status="config" />
+          </div>
+        </div>
       </div>
-      <GoogleAgendaCard />
     </Panel>
   )
 }
@@ -846,9 +887,9 @@ const MOBILE_GROUPS: { title: string; items: NavItem[] }[] = [
 ]
 
 // ─── Main ───────────────────────────────────────────────────────────────────────
-interface Props { userId: string }
+interface Props { userId: string; google: { connected: boolean; email: string | null } }
 
-export function ConfiguracoesClient({ userId }: Props) {
+export function ConfiguracoesClient({ userId, google }: Props) {
   const [active, setActive] = useState('tema')
   const [mobileOpen, setMobileOpen] = useState(false)   // mobile (<1024): false = lista; true = painel tela cheia
   const [sub, setSub] = useState<string | null>(null)   // sub-tela dedicada (ex.: 'fases', 'mapa') — não sanfona
@@ -870,7 +911,7 @@ export function ConfiguracoesClient({ userId }: Props) {
       case 'conta': return <ContaSection />
       case 'aparencia': return <AparenciaSection />
       case 'dados': return <DadosSection />
-      case 'integracoes': return <IntegracoesSection />
+      case 'integracoes': return <IntegracoesSection google={google} />
       case 'planos': return <PlanosSection />
       default: return null
     }
