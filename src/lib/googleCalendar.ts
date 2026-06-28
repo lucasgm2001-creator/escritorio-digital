@@ -107,66 +107,76 @@ function buildEventBody(task: TaskRow, callLink?: string | null): calendar_v3.Sc
   return { ...base, start: { date: task.due_date }, end: { date: addDays(task.due_date, 1) } }
 }
 
+// Anexa (ou remove, com null) o Google Meet num evento JÁ existente — SEMPRE best-effort: patch ISOLADO só
+// do conferenceData + conferenceDataVersion:1, e QUALQUER erro é ENGOLIDO. Conta de serviço normalmente não
+// pode criar Meet em calendário pessoal → 400 "Invalid conference type value"; isso NÃO pode derrubar o
+// evento (que já foi criado/atualizado antes). Por isso a conference vai sempre numa chamada à parte.
+async function tryConference(
+  ctx: { calendar: calendar_v3.Calendar; calendarId: string },
+  eventId: string,
+  conferenceData: calendar_v3.Schema$ConferenceData | null,
+): Promise<void> {
+  try {
+    await ctx.calendar.events.patch({
+      calendarId: ctx.calendarId,
+      eventId,
+      requestBody: { conferenceData } as unknown as calendar_v3.Schema$Event,
+      conferenceDataVersion: 1,
+    })
+    console.log('[gcal] meet OK · event', eventId, conferenceData ? '(+meet)' : '(meet removido)')
+  } catch (e) {
+    console.warn('[gcal] meet best-effort FALHOU (evento MANTIDO) · event', eventId, ':', errMsg(e))
+  }
+}
+
 export async function createEvent(task: TaskRow, callLink?: string | null): Promise<string | null> {
   const ctx = getCalendarClient(); if (!ctx) return null
   const requestBody = buildEventBody(task, callLink); if (!requestBody) return null
-  // Meet REAL quando "Adicionar chamada": createRequest é ASSÍNCRONO e SÓ roda se a chamada à API levar
-  // conferenceDataVersion:1 — sem esse parâmetro o Meet NUNCA é criado (causa nº1 do "não cria link").
-  let conferenceDataVersion: number | undefined
-  if (task.add_call) {
-    requestBody.conferenceData = meetConference(randomUUID())
-    conferenceDataVersion = 1
-  }
+  // 1) O EVENTO é criado SEMPRE, SEM conferenceData — uma falha de Meet jamais derruba o evento.
+  let eventId: string | null
   try {
-    const res = await ctx.calendar.events.insert({ calendarId: ctx.calendarId, requestBody, conferenceDataVersion })
-    console.log('[gcal] event OK id:', res.data.id, task.add_call ? '(+meet)' : '')
-    return res.data.id ?? null
+    const res = await ctx.calendar.events.insert({ calendarId: ctx.calendarId, requestBody })
+    eventId = res.data.id ?? null
+    console.log('[gcal] event OK id:', eventId)
   } catch (e) {
     console.error('[gcal] ERROR create:', errMsg(e))
     throw e   // re-lança: best-effort segue no chamador (comportamento idêntico ao de antes)
   }
+  // 2) Meet REAL, best-effort: patch isolado só do conferenceData (createRequest hangoutsMeet + version:1).
+  if (eventId && task.add_call) await tryConference(ctx, eventId, meetConference(randomUUID()))
+  return eventId
 }
 
 export async function updateEvent(googleEventId: string, task: TaskRow, callLink?: string | null): Promise<void> {
   const ctx = getCalendarClient(); if (!ctx) return
   const requestBody = buildEventBody(task, callLink); if (!requestBody) return
 
-  // Meet no PATCH sem DUPLICAR: lê o evento atual pra saber se já tem chamada e reconcilia:
-  //  • quer chamada e ainda não tem → cria (createRequest + version:1).
-  //  • quer chamada e já tem        → NÃO envia conferenceData (preserva o Meet existente, sem recriar).
-  //  • não quer e tem               → remove (conferenceData:null + version:1).
-  // Se o get falhar (best-effort): querendo chamada, usa requestId ESTÁVEL por evento (idempotente — cria
-  // 1x, ignorado depois → nunca duplica); não querendo, não mexe em conferenceData (evita remover por engano).
-  let conferenceDataVersion: number | undefined
+  // 1) O EVENTO (título, notas, start/end, fuso, duração) é atualizado SEMPRE, SEM conferenceData — assim
+  //    uma falha de Meet (conta de serviço → 400) NUNCA derruba a atualização do evento.
+  try {
+    // PATCH (não update/PUT): atualiza só os campos enviados e PRESERVA o resto do evento —
+    // convidados, lembretes, cor e recorrência ajustados manualmente no Google Agenda não são apagados.
+    await ctx.calendar.events.patch({ calendarId: ctx.calendarId, eventId: googleEventId, requestBody })
+    console.log('[gcal] event OK id:', googleEventId, '(patched)')
+  } catch (e) {
+    console.error('[gcal] ERROR update:', errMsg(e))
+    throw e
+  }
+
+  // 2) Meet best-effort (patch ISOLADO via tryConference, nunca propaga). Reconcilia SEM duplicar:
+  //  • quer chamada e ainda não tem → cria;  já tem → preserva (não mexe);  não quer e tem → remove.
+  //  • se o get falhar e quer chamada → requestId ESTÁVEL por evento (idempotente: cria 1x, não duplica).
   try {
     const { data: ev } = await ctx.calendar.events.get({
       calendarId: ctx.calendarId, eventId: googleEventId, fields: 'hangoutLink,conferenceData',
     })
     const hasMeet = !!(ev.hangoutLink || ev.conferenceData?.conferenceId || (ev.conferenceData?.entryPoints?.length ?? 0) > 0)
-    if (task.add_call && !hasMeet) {
-      requestBody.conferenceData = meetConference(randomUUID())
-      conferenceDataVersion = 1
-    } else if (!task.add_call && hasMeet) {
-      // Remover o Meet exige JSON null; o tipo gerado não declara `| null`, então o cast é só pro TS.
-      ;(requestBody as { conferenceData: calendar_v3.Schema$ConferenceData | null }).conferenceData = null
-      conferenceDataVersion = 1
-    }
+    if (task.add_call && !hasMeet) await tryConference(ctx, googleEventId, meetConference(randomUUID()))
+    else if (!task.add_call && hasMeet) await tryConference(ctx, googleEventId, null)
+    // quer chamada e já tem → não mexe (preserva o Meet existente)
   } catch (e) {
-    console.error('[gcal] get p/ checar Meet falhou (segue best-effort):', errMsg(e))
-    if (task.add_call) {
-      requestBody.conferenceData = meetConference(`meet-${googleEventId}`)
-      conferenceDataVersion = 1
-    }
-  }
-
-  try {
-    // PATCH (não update/PUT): atualiza só os campos enviados e PRESERVA o resto do evento —
-    // convidados, lembretes, cor e recorrência ajustados manualmente no Google Agenda não são apagados.
-    await ctx.calendar.events.patch({ calendarId: ctx.calendarId, eventId: googleEventId, requestBody, conferenceDataVersion })
-    console.log('[gcal] event OK id:', googleEventId, '(patched)')
-  } catch (e) {
-    console.error('[gcal] ERROR update:', errMsg(e))
-    throw e
+    console.warn('[gcal] get p/ checar Meet falhou (segue best-effort):', errMsg(e))
+    if (task.add_call) await tryConference(ctx, googleEventId, meetConference(`meet-${googleEventId}`))
   }
 }
 
