@@ -1,5 +1,6 @@
 import 'server-only'
-import { google } from 'googleapis'
+import { google, calendar_v3 } from 'googleapis'
+import { randomUUID } from 'node:crypto'
 import { createServiceClient } from '@/lib/supabase/service'
 
 // Sincroniza tarefas (tabela `tasks`) com o Google Agenda via CONTA DE SERVIÇO.
@@ -73,10 +74,16 @@ function addMinutes(date: string, time: string, mins: number): { date: string; t
   return { date: extraDays ? addDays(date, extraDays) : date, time: `${hh}:${mm}` }
 }
 
-// Tarefa → corpo do evento. due_date vazio → null (não vira evento).
-// callLink: se add_call e o usuário tem profiles.call_link, acrescenta UMA linha LIMPA na descrição —
-// nada de conferenceData/Meet automático (que injeta o bloco padrão do Google).
-function buildEventBody(task: TaskRow, callLink?: string | null) {
+// conferenceData pra criar um Google Meet REAL no evento. requestId é idempotente do lado do Google
+// (mesmo id ⇒ pedido repetido é ignorado). type 'hangoutsMeet' → link meet.google.com/... no evento.
+function meetConference(requestId: string): calendar_v3.Schema$ConferenceData {
+  return { createRequest: { requestId, conferenceSolutionKey: { type: 'hangoutsMeet' } } }
+}
+
+// Tarefa → corpo do evento (summary/description/start/end). due_date vazio → null (não vira evento).
+// callLink: se add_call e o usuário tem profiles.call_link, acrescenta UMA linha na descrição (link fixo
+// pessoal). O Google Meet por-evento é anexado em createEvent/updateEvent (conferenceData + version:1).
+function buildEventBody(task: TaskRow, callLink?: string | null): calendar_v3.Schema$Event | null {
   if (!task.due_date) return null
   const desc: string[] = []
   if (task.notes?.trim()) desc.push(task.notes.trim())
@@ -103,9 +110,16 @@ function buildEventBody(task: TaskRow, callLink?: string | null) {
 export async function createEvent(task: TaskRow, callLink?: string | null): Promise<string | null> {
   const ctx = getCalendarClient(); if (!ctx) return null
   const requestBody = buildEventBody(task, callLink); if (!requestBody) return null
+  // Meet REAL quando "Adicionar chamada": createRequest é ASSÍNCRONO e SÓ roda se a chamada à API levar
+  // conferenceDataVersion:1 — sem esse parâmetro o Meet NUNCA é criado (causa nº1 do "não cria link").
+  let conferenceDataVersion: number | undefined
+  if (task.add_call) {
+    requestBody.conferenceData = meetConference(randomUUID())
+    conferenceDataVersion = 1
+  }
   try {
-    const res = await ctx.calendar.events.insert({ calendarId: ctx.calendarId, requestBody })
-    console.log('[gcal] event OK id:', res.data.id)
+    const res = await ctx.calendar.events.insert({ calendarId: ctx.calendarId, requestBody, conferenceDataVersion })
+    console.log('[gcal] event OK id:', res.data.id, task.add_call ? '(+meet)' : '')
     return res.data.id ?? null
   } catch (e) {
     console.error('[gcal] ERROR create:', errMsg(e))
@@ -116,10 +130,39 @@ export async function createEvent(task: TaskRow, callLink?: string | null): Prom
 export async function updateEvent(googleEventId: string, task: TaskRow, callLink?: string | null): Promise<void> {
   const ctx = getCalendarClient(); if (!ctx) return
   const requestBody = buildEventBody(task, callLink); if (!requestBody) return
+
+  // Meet no PATCH sem DUPLICAR: lê o evento atual pra saber se já tem chamada e reconcilia:
+  //  • quer chamada e ainda não tem → cria (createRequest + version:1).
+  //  • quer chamada e já tem        → NÃO envia conferenceData (preserva o Meet existente, sem recriar).
+  //  • não quer e tem               → remove (conferenceData:null + version:1).
+  // Se o get falhar (best-effort): querendo chamada, usa requestId ESTÁVEL por evento (idempotente — cria
+  // 1x, ignorado depois → nunca duplica); não querendo, não mexe em conferenceData (evita remover por engano).
+  let conferenceDataVersion: number | undefined
+  try {
+    const { data: ev } = await ctx.calendar.events.get({
+      calendarId: ctx.calendarId, eventId: googleEventId, fields: 'hangoutLink,conferenceData',
+    })
+    const hasMeet = !!(ev.hangoutLink || ev.conferenceData?.conferenceId || (ev.conferenceData?.entryPoints?.length ?? 0) > 0)
+    if (task.add_call && !hasMeet) {
+      requestBody.conferenceData = meetConference(randomUUID())
+      conferenceDataVersion = 1
+    } else if (!task.add_call && hasMeet) {
+      // Remover o Meet exige JSON null; o tipo gerado não declara `| null`, então o cast é só pro TS.
+      ;(requestBody as { conferenceData: calendar_v3.Schema$ConferenceData | null }).conferenceData = null
+      conferenceDataVersion = 1
+    }
+  } catch (e) {
+    console.error('[gcal] get p/ checar Meet falhou (segue best-effort):', errMsg(e))
+    if (task.add_call) {
+      requestBody.conferenceData = meetConference(`meet-${googleEventId}`)
+      conferenceDataVersion = 1
+    }
+  }
+
   try {
     // PATCH (não update/PUT): atualiza só os campos enviados e PRESERVA o resto do evento —
     // convidados, lembretes, cor e recorrência ajustados manualmente no Google Agenda não são apagados.
-    await ctx.calendar.events.patch({ calendarId: ctx.calendarId, eventId: googleEventId, requestBody })
+    await ctx.calendar.events.patch({ calendarId: ctx.calendarId, eventId: googleEventId, requestBody, conferenceDataVersion })
     console.log('[gcal] event OK id:', googleEventId, '(patched)')
   } catch (e) {
     console.error('[gcal] ERROR update:', errMsg(e))
