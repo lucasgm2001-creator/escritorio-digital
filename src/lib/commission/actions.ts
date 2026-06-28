@@ -127,12 +127,20 @@ export async function payClientWeek(
     client_id: clientId, numero_semana: numero, valor_usd: valorUsd, paid_on: paidOn, cotacao_usd_brl: rate, plano_id: planoId,
   })
   let dup = false
+  let derivRate = rate
   if (error) {
-    if (error.code === '23505') dup = true
+    if (error.code === '23505') {
+      dup = true
+      // M3: a receita JÁ existe com uma cotação CONGELADA. A comissão da MESMA semana tem que usar a MESMA
+      // cotação da receita (não o `rate` novo) p/ o BRL bater nas duas pontas. USD não muda; nada gravado recalcula.
+      const { data: existing } = await supabase.from('client_payments')
+        .select('cotacao_usd_brl').eq('client_id', clientId).eq('numero_semana', numero).maybeSingle()
+      if (existing?.cotacao_usd_brl != null) derivRate = Number(existing.cotacao_usd_brl)
+    }
     else return { ok: false, reason: 'db', message: error.message }
   }
 
-  const commission = await deriveCommission(supabase, clientId, numero, paidOn, rate)
+  const commission = await deriveCommission(supabase, clientId, numero, paidOn, derivRate)
   if (dup) return { ok: false, reason: 'dup', commission, valorUsd }
   return { ok: true, valorUsd, commission }
 }
@@ -179,20 +187,17 @@ export async function payDueWeeks(
   return { marked, reason: marked.length ? 'ok' : 'nada_vencido' }
 }
 
-// ESTORNO auditável: ANULA a receita (flag em client_payments, SEM delete) e REMOVE a comissão
-// derivada da semana (DELETE da weekly_payment → calc.ts fica intacto: a linha simplesmente some).
-// Requer as colunas anulado/anulado_em/anulado_motivo em client_payments (Lucas adiciona no banco).
+// ESTORNO auditável e ATÔMICO (M1): chama a função Postgres void_client_week (SECURITY DEFINER) que, numa
+// ÚNICA transação, ANULA a receita (flags anulado/anulado_em/anulado_motivo em client_payments, SEM delete) e
+// REMOVE a comissão derivada da semana (DELETE da weekly_payment do deal mais recente). Mesma semântica/colunas
+// de antes, agora sem janela de inconsistência (crash no meio reverte tudo). calc.ts intacto (a linha some).
 export async function voidClientWeek(
   supabase: SupaClient, clientId: string, numero: number, motivo?: string | null,
 ): Promise<{ ok: boolean; message?: string }> {
-  const { error } = await supabase.from('client_payments')
-    .update({ anulado: true, anulado_em: new Date().toISOString(), anulado_motivo: motivo ?? null })
-    .eq('client_id', clientId).eq('numero_semana', numero)
+  const { error } = await supabase.rpc('void_client_week', {
+    p_client_id: clientId, p_numero_semana: numero, p_motivo: motivo ?? null,
+  })
   if (error) return { ok: false, message: error.message }
-  // Remove a comissão da MESMA semana (deal do cliente). numero>4 não tem comissão → no-op.
-  const { data: deals } = await supabase.from('deals').select('id').eq('client_id', clientId).order('data_fechamento', { ascending: false }).limit(1)
-  const deal = deals?.[0]
-  if (deal) await supabase.from('weekly_payments').delete().eq('deal_id', deal.id).eq('numero_semana', numero)
   return { ok: true }
 }
 

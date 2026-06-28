@@ -6,6 +6,8 @@ import { createClient } from '@/lib/supabase/client'
 import { cn } from '@/lib/utils'
 import { usd } from '@/lib/format'
 import { weeklyCommissionUsd, hasCommissionPct, LEGACY_VPS_USD, DEFAULT_TETO_SEMANAS } from '@/lib/commission/planCommission'
+import { Portal } from '@/components/ui/Portal'
+import { useDialog } from '@/components/ui/useDialog'
 
 interface PlanRow { id: string; nome: string; valor_semanal: number; comissao_percentual: number | null }
 
@@ -40,23 +42,22 @@ export function WonPlanModal({ leadName, onConfirm, onCancel }: {
     return () => { alive = false }
   }, [supabase, leadName])
 
-  useEffect(() => {
-    const h = (e: KeyboardEvent) => { if (e.key === 'Escape') onCancel() }
-    window.addEventListener('keydown', h)
-    return () => window.removeEventListener('keydown', h)
-  }, [onCancel])
+  // Bloco 4 (a11y/UX): ESC fecha, foco preso + retornado ao abridor, scroll-lock — via useDialog
+  // (substitui o listener de ESC manual). SÓ semântica/foco; nada da lógica de fechamento mudou.
+  const { ref, dialogProps } = useDialog(onCancel)
 
   const confirm = () => { if (busy) return; setBusy(true); onConfirm(selected) }
 
   return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-end sm:items-center justify-center z-[60] p-0 sm:p-4"
+    <Portal>
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-end sm:items-center justify-center z-[300] p-0 sm:p-4"
       onClick={onCancel}>
-      <div className="bento-fx rounded-t-frame sm:rounded-frame shadow-card-hover w-full sm:max-w-lg max-h-[92vh] flex flex-col animate-slide-up"
+      <div ref={ref} {...dialogProps} aria-labelledby="won-plan-title" className="bento-fx rounded-t-frame sm:rounded-frame shadow-card-hover w-full sm:max-w-lg max-h-[92vh] flex flex-col animate-slide-up"
         onClick={e => e.stopPropagation()}>
         <div className="flex items-center gap-2 p-5 border-b border-bento-border">
           <Trophy className="w-5 h-5 text-lime-fg shrink-0" />
           <div className="min-w-0">
-            <h2 className="font-display font-bold text-bento-text text-base truncate">Fechar venda — {leadName}</h2>
+            <h2 id="won-plan-title" className="font-display font-bold text-bento-text text-base truncate">Fechar venda — {leadName}</h2>
             <p className="text-xs text-bento-muted mt-0.5">Escolha o plano. A comissão da venda segue o % do plano.</p>
           </div>
         </div>
@@ -104,5 +105,6 @@ export function WonPlanModal({ leadName, onConfirm, onCancel }: {
         </div>
       </div>
     </div>
+    </Portal>
   )
 }
