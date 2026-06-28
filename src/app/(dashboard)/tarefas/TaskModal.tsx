@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo, useEffect, useRef } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { cn } from '@/lib/utils'
 import { useToast } from '@/components/ui/toast'
@@ -91,7 +91,6 @@ export function TaskModal({ onClose, onSaved, currentUser, linkOptions, task, pr
   const [timezone, setTimezone]   = useState<string>(task?.timezone ?? 'America/Sao_Paulo')
 
   const supabase = createClient()
-  const overlayRef = useRef<HTMLDivElement>(null)
 
   // Trava o scroll do fundo enquanto o modal está aberto (o conteúdo rola só por dentro) — no mobile
   // o gesto não arrasta a página nem a barra de baixo. Restaura ao fechar.
@@ -99,29 +98,6 @@ export function TaskModal({ onClose, onSaved, currentUser, linkOptions, task, pr
     const prev = document.body.style.overflow
     document.body.style.overflow = 'hidden'
     return () => { document.body.style.overflow = prev }
-  }, [])
-
-  // A folha SEGUE o viewport VISÍVEL (visualViewport): quando o teclado abre, a área visível encolhe →
-  // ajustamos o overlay pra cobrir só o visível (height + top do visualViewport). Como o painel é
-  // items-end e max-h relativo ao overlay, o rodapé "Criar tarefa" sobe pra CIMA do teclado (nunca atrás).
-  // No desktop o visualViewport == janela inteira → vira no-op (o modal centrado fica igual).
-  useEffect(() => {
-    const vv = window.visualViewport
-    const el = overlayRef.current
-    if (!vv || !el) return
-    const sync = () => {
-      el.style.height = `${vv.height}px`
-      el.style.top = `${vv.offsetTop}px`
-      el.style.bottom = 'auto'
-    }
-    sync()
-    vv.addEventListener('resize', sync)
-    vv.addEventListener('scroll', sync)
-    return () => {
-      vv.removeEventListener('resize', sync)
-      vv.removeEventListener('scroll', sync)
-      el.style.height = ''; el.style.top = ''; el.style.bottom = ''
-    }
   }, [])
 
   // Vendedores p/ o campo Responsável (extensível). Nova tarefa nasce com o 1º ativo (Lucas).
@@ -194,19 +170,27 @@ export function TaskModal({ onClose, onSaved, currentUser, linkOptions, task, pr
   }
 
   return (
-    <div ref={overlayRef} className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-end sm:items-center justify-center z-50 p-0 sm:p-4">
-      {/* Mobile: altura relativa ao overlay (que segue o visualViewport) → encolhe com o teclado, rodapé
-          sempre acima dele. Desktop (sm): max-h-[92dvh] de sempre. */}
-      <div className="bento-fx rounded-t-frame sm:rounded-frame shadow-card-hover w-full sm:max-w-lg max-h-[92%] sm:max-h-[92dvh] flex flex-col animate-slide-up">
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex sm:items-center sm:justify-center sm:p-4">
+      {/* MOBILE: TELA CHEIA (form vira o painel, h-[100dvh], SEM sheet/items-end/visualViewport). O teclado
+          encolhe o dvh (interactive-widget=resizes-content) → topo e rodapé seguem visíveis. DESKTOP (sm):
+          dialog centralizado (auto, max-h-92dvh) — inalterado. */}
+      <form onSubmit={handleSubmit}
+        className="bento-fx flex flex-col w-full h-[100dvh] sm:h-auto sm:max-w-lg sm:max-h-[92dvh] sm:rounded-frame shadow-card-hover animate-slide-up">
 
-        {/* Header — X desce respeitando o safe-area (não fica atrás do notch/barra de status). */}
-        <div className="flex items-center justify-between px-5 pb-5 pt-[max(1.25rem,env(safe-area-inset-top))] border-b border-bento-border shrink-0">
-          <div className="flex items-center gap-2">
-            <h2 className="font-display font-bold text-bento-text text-base">
+        {/* TOPO FIXO — ação principal SEMPRE visível (independe do teclado). Mobile: [Cancelar][título][Criar];
+            Desktop: [título ........ X]. safe-area-top evita o notch. */}
+        <div className="shrink-0 flex items-center gap-2 px-3 sm:px-5 pt-[max(0.75rem,env(safe-area-inset-top))] pb-3 sm:pt-5 sm:pb-5 border-b border-bento-border">
+          {/* Cancelar — só mobile (no desktop o X faz isso) */}
+          <button type="button" onClick={onClose}
+            className="sm:hidden shrink-0 -ml-1 px-2 text-sm text-bento-muted hover:text-bento-text min-h-[40px]">
+            Cancelar
+          </button>
+          <div className="flex-1 min-w-0 flex items-center justify-center sm:justify-start gap-2">
+            <h2 className="font-display font-bold text-bento-text text-base truncate">
               {editing ? 'Editar tarefa' : 'Nova tarefa'}
             </h2>
             {aiFilled && !editing && (
-              <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded bg-lime/15 text-lime-fg">
+              <span className="hidden sm:inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded bg-lime/15 text-lime-fg">
                 <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
                 </svg>
@@ -214,17 +198,23 @@ export function TaskModal({ onClose, onSaved, currentUser, linkOptions, task, pr
               </span>
             )}
           </div>
-          <button onClick={onClose} className="text-bento-muted hover:text-bento-text">
+          {/* Criar — só mobile (garantia no topo, sempre acima do teclado); no desktop a ação fica no rodapé */}
+          <button type="submit" disabled={saving || !title.trim()}
+            className="sm:hidden shrink-0 bento-btn px-4 rounded-btn text-sm font-semibold disabled:opacity-50 min-h-[40px]">
+            {saving ? 'Salvando…' : editing ? 'Salvar' : 'Criar'}
+          </button>
+          {/* X — só desktop */}
+          <button type="button" onClick={onClose} className="hidden sm:block shrink-0 text-bento-muted hover:text-bento-text">
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
             </svg>
           </button>
         </div>
 
-        {/* Form: corpo com ALTURA do conteúdo; min-h-0 deixa rolar SÓ quando passa do teto (max-h-92dvh).
-            Sem flex-1 (que, num painel de altura auto, colapsaria o corpo e forçaria barra à toa). */}
-        <form onSubmit={handleSubmit} className="flex flex-col min-h-0">
-          <div className="p-5 space-y-4 sm:space-y-3 overflow-y-auto overscroll-contain min-h-0">
+        {/* CORPO rolável — flex-1 (mobile) preenche a tela cheia + min-h-0 (ESSENCIAL p/ rolar dentro do flex);
+            desktop volta ao auto (sm:flex-initial) e rola só ao passar do max-h-92dvh. Campos em fluxo normal:
+            ao focar, o navegador sobe o campo acima do teclado sozinho. */}
+        <div className="flex-1 sm:flex-initial min-h-0 overflow-y-auto overscroll-contain p-5 space-y-4 sm:space-y-3">
           <Field label="Tarefa *">
             <input
               autoFocus
@@ -366,21 +356,20 @@ export function TaskModal({ onClose, onSaved, currentUser, linkOptions, task, pr
             )}
           </Field>
 
-          </div>
+        </div>
 
-          {/* Rodapé FIXO — não rola; botão salvar sempre visível, respeitando a safe-area inferior. */}
-          <div className="shrink-0 flex gap-3 px-5 py-4 border-t border-bento-border bg-bento-panel pb-[max(1rem,env(safe-area-inset-bottom))]">
-            <button type="button" onClick={onClose}
-              className="flex-1 border border-bento-border text-bento-dim py-2.5 rounded-btn text-sm hover:border-lime hover:text-bento-text transition-colors min-h-[44px]">
-              Cancelar
-            </button>
-            <button type="submit" disabled={saving || !title.trim()}
-              className="bento-btn flex-1 py-2.5 rounded-btn text-sm font-semibold disabled:opacity-50 min-h-[44px]">
-              {saving ? 'Salvando...' : editing ? 'Salvar' : 'Criar tarefa'}
-            </button>
-          </div>
-        </form>
-      </div>
+        {/* RODAPÉ — Criar também aqui (ergonomia); o do topo é a garantia. Respeita a safe-area inferior. */}
+        <div className="shrink-0 flex gap-3 px-5 py-4 border-t border-bento-border bg-bento-panel pb-[max(1rem,env(safe-area-inset-bottom))]">
+          <button type="button" onClick={onClose}
+            className="flex-1 border border-bento-border text-bento-dim py-2.5 rounded-btn text-sm hover:border-lime hover:text-bento-text transition-colors min-h-[44px]">
+            Cancelar
+          </button>
+          <button type="submit" disabled={saving || !title.trim()}
+            className="bento-btn flex-1 py-2.5 rounded-btn text-sm font-semibold disabled:opacity-50 min-h-[44px]">
+            {saving ? 'Salvando...' : editing ? 'Salvar' : 'Criar tarefa'}
+          </button>
+        </div>
+      </form>
     </div>
   )
 }
