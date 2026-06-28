@@ -18,9 +18,10 @@ export async function POST(req: Request) {
 
     const body = await req.json().catch(() => ({} as Record<string, unknown>))
 
-    // Excluir: a linha some no cliente; apagamos o evento pelo id que veio do estado.
+    // Excluir: a linha some no cliente; apagamos o evento pelo id que veio do estado, como o DONO (OAuth do
+    // usuário logado, que é dono da tarefa) — só apaga eventos do próprio calendário (anti-IDOR de brinde).
     if (body?.deleteEventId) {
-      const r = await deleteTaskEvent(String(body.deleteEventId))
+      const r = await deleteTaskEvent(user.id, String(body.deleteEventId))
       return NextResponse.json(r)
     }
     // Criar/Editar: lê a tarefa fresca e reconcilia (cria/atualiza/remove o evento + grava o id).

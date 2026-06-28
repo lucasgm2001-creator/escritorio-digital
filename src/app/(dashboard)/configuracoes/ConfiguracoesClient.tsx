@@ -5,7 +5,7 @@ import Image from 'next/image'
 import {
   Sun, Moon, Monitor, Home, Briefcase, ListChecks, Projector, Users,
   Palette, Accessibility, Image as ImageIcon, User, LayoutGrid, Database, Plug, Info,
-  Download, RefreshCw, ExternalLink, BadgePercent, Workflow, ChevronRight, ChevronLeft,
+  Download, RefreshCw, ExternalLink, BadgePercent, Workflow, ChevronRight, ChevronLeft, CalendarDays,
   type LucideIcon,
 } from 'lucide-react'
 import { Panel } from '@/components/bento/Panel'
@@ -344,6 +344,63 @@ function IntegStatus({ nome, detalhe, status }: { nome: string; detalhe: string;
   )
 }
 
+// Conectar a CONTA GOOGLE do usuário (OAuth) p/ o sync da Agenda criar Google Meet real por tarefa.
+// Status via /api/google/oauth/status; conectar abre /start (redireciona pro Google); desconectar = POST.
+function GoogleAgendaCard() {
+  const [st, setSt] = useState<{ s: 'check' | 'on' | 'off'; email: string | null }>({ s: 'check', email: null })
+  const [busy, setBusy] = useState(false)
+  const [note, setNote] = useState<{ t: 'ok' | 'err'; m: string } | null>(null)
+
+  const load = useCallback(() => {
+    fetch('/api/google/oauth/status')
+      .then(r => r.json())
+      .then(d => setSt({ s: d?.connected ? 'on' : 'off', email: d?.email ?? null }))
+      .catch(() => setSt({ s: 'off', email: null }))
+  }, [])
+
+  useEffect(() => {
+    // Retorno do OAuth (?google=ok|erro): mostra aviso e limpa a URL.
+    try {
+      const q = new URLSearchParams(window.location.search).get('google')
+      if (q === 'ok') setNote({ t: 'ok', m: 'Google Agenda conectado.' })
+      else if (q === 'erro') setNote({ t: 'err', m: 'Não foi possível conectar. Tente de novo.' })
+      if (q) window.history.replaceState(null, '', window.location.pathname)
+    } catch { /* ignore */ }
+    load()
+  }, [load])
+
+  const disconnect = async () => {
+    setBusy(true)
+    try { await fetch('/api/google/oauth/disconnect', { method: 'POST' }) }
+    finally { setBusy(false); setNote(null); load() }
+  }
+
+  const detalhe = st.s === 'check' ? 'Verificando...'
+    : st.s === 'on' ? `Conectado${st.email ? ` como ${st.email}` : ''}`
+    : 'Não conectado — conecte p/ criar eventos com Google Meet por tarefa.'
+
+  return (
+    <div className="mt-4 pt-4 border-t border-bento-border/60">
+      <div className="flex items-start gap-3">
+        <CalendarDays className="w-4 h-4 text-bento-muted flex-none mt-0.5" />
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-medium text-bento-text">Google Agenda</p>
+          <p className="font-tech text-[11px] text-bento-muted">{detalhe}</p>
+        </div>
+        <span className={cn('text-xs font-semibold', st.s === 'on' ? 'text-lime-fg' : 'text-bento-muted')}>
+          {st.s === 'on' ? 'Conectado' : st.s === 'check' ? '...' : 'Desconectado'}
+        </span>
+      </div>
+      <div className="mt-3 flex flex-wrap gap-2">
+        {st.s === 'on'
+          ? <button onClick={disconnect} disabled={busy} className={actionBtnCls}>{busy ? 'Desconectando...' : 'Desconectar'}</button>
+          : <a href="/api/google/oauth/start" className={actionBtnCls}><ExternalLink className="w-4 h-4" />Conectar Google Agenda</a>}
+      </div>
+      {note && <p className={cn('font-tech text-[11px] mt-2', note.t === 'ok' ? 'text-lime-fg' : 'text-red-400')}>{note.m}</p>}
+    </div>
+  )
+}
+
 function IntegracoesSection() {
   const supabase = createClient()
   const [supaOk, setSupaOk] = useState<'ok' | 'err' | 'check'>('check')
@@ -359,6 +416,7 @@ function IntegracoesSection() {
         <IntegStatus nome="Anthropic (IA)" detalhe="Chave configurada no servidor (env)" status="todo" />
         <IntegStatus nome="WhatsApp" detalhe="Ainda não conectado" status="todo" />
       </div>
+      <GoogleAgendaCard />
     </Panel>
   )
 }
