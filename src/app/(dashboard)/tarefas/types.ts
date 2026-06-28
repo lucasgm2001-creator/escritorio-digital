@@ -21,6 +21,7 @@ export interface Task {
   is_meeting?: boolean                // modo Reunião (SÓ organização/calendário — NÃO mexe em comissão)
   duration_min?: number | null        // duração do evento em minutos (reunião)
   timezone?: string | null            // fuso IANA do evento (reunião)
+  meet_link?: string | null           // URL do Google Meet do evento (preenchida pelo sync OAuth, best-effort)
   created_at: string
   updated_at: string
 }

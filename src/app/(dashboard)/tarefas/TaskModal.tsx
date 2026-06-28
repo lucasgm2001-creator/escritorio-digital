@@ -65,6 +65,38 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
   )
 }
 
+// Caixinha de copiar o link do Google Meet (estilo bloco de código). Só em edição, quando a tarefa já tem
+// meet_link. ESTÁTICA: ao copiar troca p/ "Copiado!" (check verde-limão) por ~1,5s e volta. Acessível.
+function MeetLinkBox({ url }: { url: string }) {
+  const [copied, setCopied] = useState(false)
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(url)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 1500)
+    } catch { /* clipboard indisponível */ }
+  }
+  return (
+    <div className="flex items-center gap-2 bg-bento-bg border border-bento-border rounded-btn px-3 py-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
+      <div className="min-w-0 flex-1">
+        <p className="font-display text-[10px] text-bento-muted leading-none mb-1">Link da videochamada:</p>
+        <p title={url} className="font-tech text-xs text-bento-text truncate">{url}</p>
+      </div>
+      <button type="button" onClick={copy} aria-label="Copiar link da videochamada"
+        className={cn('flex items-center gap-1 flex-none rounded-md px-2 py-1.5 text-xs font-medium', copied ? 'text-lime-fg' : 'text-bento-muted hover:text-bento-text')}>
+        {copied ? (
+          <>
+            <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>
+            Copiado!
+          </>
+        ) : (
+          <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="9" y="9" width="11" height="11" rx="2" /><path d="M5 15V5a2 2 0 0 1 2-2h10" /></svg>
+        )}
+      </button>
+    </div>
+  )
+}
+
 export function TaskModal({ onClose, onSaved, currentUser, linkOptions, task, prefill, aiFilled }: Props) {
   const { toast } = useToast()
   const editing = !!task
@@ -277,6 +309,9 @@ export function TaskModal({ onClose, onSaved, currentUser, linkOptions, task, pr
               <p className="font-tech text-[11px] text-amber-400/90 mt-1.5">Configure seu link em Configurações → Conta.</p>
             )}
           </Field>
+
+          {/* Link do Google Meet do evento — só em edição, quando o sync já preencheu meet_link. */}
+          {task?.meet_link && <MeetLinkBox url={task.meet_link} />}
 
           <Field label="Prioridade">
             <div className="flex gap-1.5">
