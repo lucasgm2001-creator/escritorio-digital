@@ -8,6 +8,7 @@ import { FUSO_OPTIONS } from '../comercial/types'
 import { US_STATES, sanitizeAreaCode } from '@/lib/usStates'
 import { cn } from '@/lib/utils'
 import { Portal } from '@/components/ui/Portal'
+import { useDialog } from '@/components/ui/useDialog'
 import { DossieTab } from './DossieTab'
 import type { Client } from './ClientesClient'
 
@@ -94,12 +95,13 @@ export function ClienteModal({ client, onClose, onSaved, initialTab }: {
     if (ok) { onSaved({ ...client, ...patch } as Client); onClose() }
   }
 
+  const { ref, dialogProps } = useDialog(onClose)
   return (
     <Portal>
-    <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-end sm:items-center justify-center z-[300] p-0 sm:p-4">
-      <div className="bento-fx rounded-t-frame sm:rounded-frame shadow-card-hover w-full sm:max-w-md max-h-[92dvh] overflow-y-auto overflow-x-hidden animate-slide-up">
+    <div onClick={onClose} className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-end sm:items-center justify-center z-[300] p-0 sm:p-4">
+      <div ref={ref} {...dialogProps} aria-labelledby="cliente-modal-title" onClick={e => e.stopPropagation()} className="bento-fx rounded-t-frame sm:rounded-frame shadow-card-hover w-full sm:max-w-md max-h-[92dvh] overflow-y-auto overflow-x-hidden animate-slide-up">
         <div className="flex items-center justify-between px-5 pt-5 pb-3">
-          <h2 className="font-display font-bold text-bento-text truncate">{client.name}</h2>
+          <h2 id="cliente-modal-title" className="font-display font-bold text-bento-text truncate">{client.name}</h2>
           <button onClick={onClose} aria-label="Fechar" className="text-bento-muted hover:text-bento-text transition-colors shrink-0">
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
           </button>

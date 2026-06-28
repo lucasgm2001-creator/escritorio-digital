@@ -7,6 +7,7 @@ import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { cn } from '@/lib/utils'
 import { TaskModal, type TaskPrefill } from './TaskModal'
+import { copyText } from '@/lib/clipboard'
 import { ymd } from '@/lib/format'
 import type { Task, LinkOption, ParsedTask } from './types'
 import { useToast } from '@/components/ui/toast'
@@ -165,12 +166,14 @@ export function TarefasClient({ initialTasks, linkOptions, currentUser }: Props)
       .then(({ data }) => setCallLink((data?.call_link as string | null) ?? ''))
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
-  const copyCall = (taskId: string) => {
+  const copyCall = async (taskId: string) => {
     if (!callLink) return
-    navigator.clipboard?.writeText(callLink).then(() => {
+    if (await copyText(callLink)) {
       setCopiedId(taskId)
       setTimeout(() => setCopiedId(id => (id === taskId ? null : id)), 1500)
-    }).catch(() => {})
+    } else {
+      toast({ type: 'error', message: 'Não consegui copiar o link.' })
+    }
   }
 
   // Vendedores p/ o filtro "Responsável" (extensível; hoje só Lucas).

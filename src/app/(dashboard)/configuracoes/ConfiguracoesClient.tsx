@@ -339,7 +339,7 @@ function IntegStatus({ nome, detalhe, status }: { nome: string; detalhe: string;
       <span className={cn('w-2 h-2 rounded-full flex-none', map.dot)} />
       <div className="min-w-0 flex-1">
         <p className="text-sm font-medium text-bento-text">{nome}</p>
-        <p className="font-tech text-[11px] text-bento-muted truncate">{detalhe}</p>
+        <p className="font-tech text-[11px] text-bento-dim truncate">{detalhe}</p>
       </div>
       <span className={cn('text-xs font-semibold', map.txt)}>{map.label}</span>
     </div>
@@ -370,8 +370,12 @@ function GoogleAgendaCard({ google }: { google: { connected: boolean; email: str
 
   const disconnect = async () => {
     setBusy(true)
-    try { await fetch('/api/google/oauth/disconnect', { method: 'POST' }) }
-    finally { setBusy(false); setNote(null); router.refresh() }
+    try {
+      const r = await fetch('/api/google/oauth/disconnect', { method: 'POST' })
+      setNote(r.ok ? { t: 'ok', m: 'Google Agenda desconectado.' } : { t: 'err', m: 'Não consegui desconectar.' })
+    } catch {
+      setNote({ t: 'err', m: 'Não consegui desconectar.' })
+    } finally { setBusy(false); router.refresh() }
   }
 
   return (

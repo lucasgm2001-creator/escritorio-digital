@@ -2,6 +2,8 @@
 
 import { useState, useMemo, useEffect } from 'react'
 import { Portal } from '@/components/ui/Portal'
+import { useDialog } from '@/components/ui/useDialog'
+import { copyText } from '@/lib/clipboard'
 import { createClient } from '@/lib/supabase/client'
 import { cn } from '@/lib/utils'
 import { useToast } from '@/components/ui/toast'
@@ -68,18 +70,17 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 // Caixinha de copiar o link do Google Meet (estilo bloco de código). Só em edição, quando a tarefa já tem
 // meet_link. ESTÁTICA: ao copiar troca p/ "Copiado!" (check verde-limão) por ~1,5s e volta. Acessível.
 function MeetLinkBox({ url }: { url: string }) {
+  const { toast } = useToast()
   const [copied, setCopied] = useState(false)
   const copy = async () => {
-    try {
-      await navigator.clipboard.writeText(url)
-      setCopied(true)
-      setTimeout(() => setCopied(false), 1500)
-    } catch { /* clipboard indisponível */ }
+    const ok = await copyText(url)   // fallback p/ HTTP (IP na LAN); só mostra "Copiado!" em sucesso real
+    if (ok) { setCopied(true); setTimeout(() => setCopied(false), 1500) }
+    else toast({ type: 'error', message: 'Não consegui copiar o link.' })
   }
   return (
     <div className="flex items-center gap-2 bg-bento-bg border border-bento-border rounded-btn px-3 py-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
       <div className="min-w-0 flex-1">
-        <p className="font-display text-[10px] text-bento-muted leading-none mb-1">Link da videochamada:</p>
+        <p className="font-display text-[10px] text-bento-dim leading-none mb-1">Link da videochamada:</p>
         <p title={url} className="font-tech text-xs text-bento-text truncate">{url}</p>
       </div>
       <button type="button" onClick={copy} aria-label="Copiar link da videochamada"
@@ -124,13 +125,8 @@ export function TaskModal({ onClose, onSaved, currentUser, linkOptions, task, pr
 
   const supabase = createClient()
 
-  // Trava o scroll do fundo enquanto o modal está aberto (o conteúdo rola só por dentro) — no mobile
-  // o gesto não arrasta a página nem a barra de baixo. Restaura ao fechar.
-  useEffect(() => {
-    const prev = document.body.style.overflow
-    document.body.style.overflow = 'hidden'
-    return () => { document.body.style.overflow = prev }
-  }, [])
+  // A8/M12: ESC fecha, foco preso dentro + retornado ao abridor, e o scroll do body trava enquanto aberto.
+  const { ref, dialogProps } = useDialog<HTMLFormElement>(onClose)
 
   // Vendedores p/ o campo Responsável (extensível). Nova tarefa nasce com o 1º ativo (Lucas).
   useEffect(() => {
@@ -204,7 +200,7 @@ export function TaskModal({ onClose, onSaved, currentUser, linkOptions, task, pr
       {/* MOBILE: TELA CHEIA (form vira o painel, h-[100dvh], SEM sheet/items-end/visualViewport). O teclado
           encolhe o dvh (interactive-widget=resizes-content) → topo e rodapé seguem visíveis. DESKTOP (sm):
           dialog centralizado (auto, max-h-92dvh) — inalterado. */}
-      <form onSubmit={handleSubmit}
+      <form onSubmit={handleSubmit} ref={ref} {...dialogProps} aria-labelledby="task-modal-title"
         className="bento-fx flex flex-col w-full h-[100dvh] sm:h-auto sm:max-w-lg sm:max-h-[92dvh] sm:rounded-frame shadow-card-hover animate-slide-up">
 
         {/* TOPO FIXO — ação principal SEMPRE visível (independe do teclado). Mobile: [Cancelar][título][Criar];
@@ -216,7 +212,7 @@ export function TaskModal({ onClose, onSaved, currentUser, linkOptions, task, pr
             Cancelar
           </button>
           <div className="flex-1 min-w-0 flex items-center justify-center sm:justify-start gap-2">
-            <h2 className="font-display font-bold text-bento-text text-base truncate">
+            <h2 id="task-modal-title" className="font-display font-bold text-bento-text text-base truncate">
               {editing ? 'Editar tarefa' : 'Nova tarefa'}
             </h2>
             {aiFilled && !editing && (

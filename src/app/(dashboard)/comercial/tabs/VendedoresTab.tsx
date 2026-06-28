@@ -11,6 +11,7 @@ import type { SalaryPeriod, Meeting, WeeklyPayment, FxConfig } from '@/lib/commi
 import { usd, brl } from '@/lib/format'
 import { useCommissionLock, CommissionPinPad, ChangePinPad } from '@/components/commission/CommissionLock'
 import { Portal } from '@/components/ui/Portal'
+import { useDialog } from '@/components/ui/useDialog'
 import { Lock, KeyRound } from 'lucide-react'
 
 interface SellerRow {
@@ -260,11 +261,12 @@ function SellerProfile({ seller, onClose, onUpdated, onDeleted }: {
     setSavingDados(false); setEditingDados(false)
   }
 
+  const { ref, dialogProps } = useDialog(onClose)
   return (
     <Portal>
     <div className="fixed inset-0 z-[300] flex">
       <div className="flex-1 bg-black/40" onClick={onClose} />
-      <div className="w-full max-w-md bg-bento-panel border-l border-bento-border flex flex-col shadow-card-hover animate-slide-up">
+      <div ref={ref} {...dialogProps} aria-labelledby="seller-profile-title" className="w-full max-w-md bg-bento-panel border-l border-bento-border flex flex-col shadow-card-hover animate-slide-up">
         {/* Header */}
         <div className="flex items-start justify-between gap-3 p-5 border-b border-bento-border shrink-0">
           <div className="flex items-center gap-3 min-w-0">
@@ -280,7 +282,7 @@ function SellerProfile({ seller, onClose, onUpdated, onDeleted }: {
               <input ref={photoRef} type="file" accept="image/*" className="hidden" onChange={handlePhoto} />
             </div>
             <div className="min-w-0">
-              <h2 className="font-bold text-bento-text truncate">{current.name}</h2>
+              <h2 id="seller-profile-title" className="font-bold text-bento-text truncate">{current.name}</h2>
               <p className="text-xs text-bento-muted truncate">{current.cargo ?? current.email ?? '—'}</p>
             </div>
           </div>

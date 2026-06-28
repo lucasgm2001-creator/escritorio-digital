@@ -10,6 +10,7 @@ import { ymd } from '@/lib/format'
 import { wonSlug, type FunnelStage } from '@/lib/funnelStages'
 import type { Client } from '../clientes/ClientesClient'
 import { Portal } from '@/components/ui/Portal'
+import { useDialog } from '@/components/ui/useDialog'
 
 interface Seller { id: string; name: string }
 
@@ -241,14 +242,15 @@ export function LeadModal({ onClose, onCreated, currentUser, stages, clients }: 
     onClose()
   }
 
+  const { ref, dialogProps } = useDialog(onClose)
   return (
     <Portal>
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-end sm:items-center justify-center z-[300] p-0 sm:p-4">
-      <div className="bento-fx rounded-t-frame sm:rounded-frame shadow-card-hover w-full sm:max-w-2xl max-h-[92dvh] flex flex-col animate-slide-up">
+    <div onClick={onClose} className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-end sm:items-center justify-center z-[300] p-0 sm:p-4">
+      <div ref={ref} {...dialogProps} aria-labelledby="lead-modal-title" onClick={e => e.stopPropagation()} className="bento-fx rounded-t-frame sm:rounded-frame shadow-card-hover w-full sm:max-w-2xl max-h-[92dvh] flex flex-col animate-slide-up">
 
         {/* Header */}
         <div className="flex items-center justify-between p-5 border-b border-bento-border shrink-0">
-          <h2 className="font-display font-bold text-bento-text text-base">Novo Lead</h2>
+          <h2 id="lead-modal-title" className="font-display font-bold text-bento-text text-base">Novo Lead</h2>
           <div className="flex items-center gap-2">
             {!isClient && (
             <button

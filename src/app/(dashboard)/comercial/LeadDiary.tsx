@@ -13,6 +13,7 @@ import { usdCompact } from '@/lib/format'
 import { waNumber } from '@/lib/phone'
 import { LeadTasks } from './LeadTasks'
 import { Portal } from '@/components/ui/Portal'
+import { copyText } from '@/lib/clipboard'
 import { Sparkles, MessageCircle, MessageSquare, Copy, ChevronDown } from 'lucide-react'
 
 // Saudação pré-preenchida do WhatsApp (leads são US → inglês). Editável aqui.
@@ -239,8 +240,8 @@ export function LeadDiary({ lead, onClose, onUpdated, onMoveStage, onDeleted, cu
   const copyPhone = async () => {
     const p = currentLead.phone
     if (!p) return
-    try { await navigator.clipboard.writeText(p); toast({ type: 'success', message: 'Telefone copiado.' }) }
-    catch { toast({ type: 'error', message: 'Não foi possível copiar.' }) }
+    if (await copyText(p)) toast({ type: 'success', message: 'Telefone copiado.' })
+    else toast({ type: 'error', message: 'Não foi possível copiar.' })
   }
 
   // Edita a "data de chegada" (received_at) — dado de lead/relatório, não dinheiro. Otimista + rollback.

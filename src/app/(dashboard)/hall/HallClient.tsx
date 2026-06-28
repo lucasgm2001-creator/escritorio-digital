@@ -12,6 +12,7 @@ import { NewsSection } from './NewsSection'
 import { CollapsibleSection } from '@/components/mobile/CollapsibleSection'
 import { X, Clock, CalendarDays, Activity as ActivityIcon, Newspaper } from 'lucide-react'
 import { Portal } from '@/components/ui/Portal'
+import { useDialog } from '@/components/ui/useDialog'
 import type { Activity, Notice } from '@/types'
 import type { Task, LinkOption } from '../tarefas/types'
 import type { Lead } from '../comercial/types'
@@ -139,13 +140,14 @@ function HistoryModal({ kind, onClose }: {
 
   const title = kind === 'activities' ? 'Atividade Recente' : 'Mural de Avisos'
 
+  const { ref, dialogProps } = useDialog(onClose)
   return (
     <Portal>
     <div className="fixed inset-0 z-[300] flex items-stretch sm:items-center justify-center p-0 sm:p-4 animate-fade-in">
       <div className="absolute inset-0 bg-black/50" onClick={onClose} />
-      <div className="relative w-full h-full sm:h-auto sm:max-w-lg sm:max-h-[82vh] bg-bento-panel border border-bento-border rounded-none sm:rounded-bento shadow-card-hover flex flex-col overflow-hidden">
+      <div ref={ref} {...dialogProps} aria-labelledby="history-modal-title" className="relative w-full h-full sm:h-auto sm:max-w-lg sm:max-h-[82vh] bg-bento-panel border border-bento-border rounded-none sm:rounded-bento shadow-card-hover flex flex-col overflow-hidden">
         <div className="flex items-center justify-between gap-3 p-4 border-b border-bento-border shrink-0">
-          <h3 className="font-display font-bold text-bento-text">{title} — Histórico</h3>
+          <h3 id="history-modal-title" className="font-display font-bold text-bento-text">{title} — Histórico</h3>
           <button onClick={onClose} aria-label="Fechar" className="p-1.5 rounded-lg text-bento-muted hover:text-bento-text hover:bg-bento-bg transition-colors"><X className="w-4 h-4" /></button>
         </div>
         <div className="flex-1 overflow-y-auto p-4">
