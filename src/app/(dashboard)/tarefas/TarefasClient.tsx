@@ -1,8 +1,7 @@
 'use client'
 
-import { useState, useMemo, useEffect, useRef } from 'react'
+import { useState, useMemo, useEffect, type Dispatch, type SetStateAction, type MutableRefObject } from 'react'
 import { useRouter } from 'next/navigation'
-import { useRealtimeRows } from '@/lib/hooks/useRealtimeRows'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { cn } from '@/lib/utils'
@@ -41,7 +40,10 @@ function matchContact(name: string, options: LinkOption[]): LinkOption | null {
 }
 
 interface Props {
-  initialTasks: Task[]
+  // M6: estado vivo compartilhado (vem do useTasksState no HallClient) — Tarefas/Mural/Agenda usam a MESMA fonte.
+  tasks: Task[]
+  setTasks: Dispatch<SetStateAction<Task[]>>
+  deletedIds: MutableRefObject<Set<string>>
   linkOptions: LinkOption[]
   currentUser: { id: string; name: string }
 }
@@ -100,38 +102,9 @@ function sortPending(a: Task, b: Task): number {
   return a.created_at < b.created_at ? -1 : 1
 }
 
-export function TarefasClient({ initialTasks, linkOptions, currentUser }: Props) {
-  const [tasks, setTasks] = useState<Task[]>(initialTasks)
-  // Ids deletados otimisticamente que o servidor (refresh defasado) ainda pode trazer de volta.
-  // Enquanto o id estiver aqui, a tarefa é filtrada do initialTasks pra NÃO "piscar de volta".
-  const deletedIds = useRef<Set<string>>(new Set())
-  // Reflete dados frescos do servidor após router.refresh(), MAS respeita as deleções otimistas pendentes
-  // (não re-insere uma tarefa que acabamos de excluir). Quando o server já não traz mais o id, esquecemos.
-  useEffect(() => {
-    // A5: merge POR CAMPO. O sync do Google grava google_event_id/meet_link DEPOIS deste refresh; se a linha
-    // do server vier SEM eles mas o local já tiver (via realtime), PRESERVA — senão a corrida apagaria o id e
-    // o evento ficaria órfão (próxima edição/exclusão não acharia). O realtime depois traz o oficial (merge por id).
-    setTasks(prev => {
-      const local = new Map(prev.map(t => [t.id, t]))
-      return initialTasks
-        .filter(t => !deletedIds.current.has(t.id))
-        .map(t => {
-          const cur = local.get(t.id)
-          if (!cur) return t
-          return {
-            ...t,
-            google_event_id: t.google_event_id ?? cur.google_event_id ?? null,
-            meet_link: t.meet_link ?? cur.meet_link ?? null,
-          }
-        })
-    })
-    if (deletedIds.current.size) {
-      const present = new Set(initialTasks.map(t => t.id))
-      deletedIds.current.forEach(id => { if (!present.has(id)) deletedIds.current.delete(id) })
-    }
-  }, [initialTasks])
-  // Tempo real: criar/editar/concluir/excluir tarefa reflete ao vivo (merge por id).
-  useRealtimeRows<Task>('tasks', setTasks)
+export function TarefasClient({ tasks, setTasks, deletedIds, linkOptions, currentUser }: Props) {
+  // M6: tasks/setTasks/deletedIds vêm por props (useTasksState no HallClient). O estado, o merge-por-campo
+  // (A5) e o realtime vivem no hook — aqui só consumimos e mutamos (otimista) a MESMA fonte do Mural/Agenda.
   const view = 'tarefas' as const   // Relatório virou item próprio do menu do Hall (ao lado de Tarefas)
   const { toast } = useToast()
   const [modalOpen, setModalOpen] = useState(false)

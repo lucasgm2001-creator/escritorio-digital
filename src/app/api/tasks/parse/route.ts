@@ -88,8 +88,8 @@ export async function POST(req: Request) {
       contact_name: String(parsed.contact_name ?? '').trim(),
     }
     return NextResponse.json({ task })
-  } catch {
-    console.error('[tasks/parse] failed')
+  } catch (e) {
+    console.error('[tasks/parse] failed:', e instanceof Error ? e.message : String(e))
     return NextResponse.json({ task: null }, { status: 500 })
   }
 }

@@ -32,8 +32,13 @@ const MAP = usMap as unknown as {
 
 interface StateAgg { st: string; x: number; y: number; region: Region; leads: string[]; newLeads: string[]; clients: string[] }
 
+// Campos REALMENTE necessários (o mapa usa status/state/area_code/name; os consumidores leem created_at/origem).
+// Evita forçar Lead/Client COMPLETOS a partir de selects parciais (B5).
+export type MapLead = Pick<Lead, 'id' | 'name' | 'status' | 'state' | 'area_code' | 'created_at' | 'origem'>
+export type MapClient = Pick<Client, 'id' | 'name' | 'status' | 'state' | 'area_code'>
+
 export function MapaTab({ leads, clients, showLeads = true, showClients = true, showFusos = true, embedded = false }: {
-  leads: Lead[]; clients: Client[]
+  leads: MapLead[]; clients: MapClient[]
   showLeads?: boolean; showClients?: boolean; showFusos?: boolean
   embedded?: boolean   // dentro do Hall/prévia: esconde a barra de topo e ajusta o fit ao container
 }) {

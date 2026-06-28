@@ -15,9 +15,9 @@ import { Portal } from '@/components/ui/Portal'
 import { useDialog } from '@/components/ui/useDialog'
 import type { Activity, Notice } from '@/types'
 import type { Task, LinkOption } from '../tarefas/types'
-import type { Lead } from '../comercial/types'
-import type { Client } from '../clientes/ClientesClient'
+import type { MapLead, MapClient } from '../comercial/tabs/MapaTab'
 import { TarefasClient } from '../tarefas/TarefasClient'
+import { useTasksState } from '../tarefas/useTasksState'
 import { RelatorioComercial } from '../tarefas/RelatorioComercial'
 import { ErrorBoundary } from '@/components/system/ErrorBoundary'
 import { Calendar } from './Calendar'
@@ -78,7 +78,8 @@ const NOTICE_PILL: Record<string, string> = {
 }
 
 function computeGreeting(): string {
-  const h = new Date().getHours()
+  // Fuso canônico do app (Brasília) — não depende do fuso do navegador (B6).
+  const h = Number(new Date().toLocaleString('en-US', { timeZone: 'America/Sao_Paulo', hour: '2-digit', hour12: false })) % 24
   if (h < 12) return 'Bom dia'
   if (h < 18) return 'Boa tarde'
   return 'Boa noite'
@@ -203,6 +204,8 @@ function HistoryModal({ kind, onClose }: {
 // ─── Main HallClient ──────────────────────────────────────────────────────────
 
 export function HallClient({ initialActivities, initialTasks, linkOptions, userName, userId }: Props) {
+  // M6: estado de tarefas VIVO e ÚNICO — Tarefas + Mural + Agenda leem a MESMA fonte (realtime + merge A5).
+  const { tasks, setTasks, deletedIds } = useTasksState(initialTasks)
   const [activeTab, setActiveTab]     = useState<Tab>('activities')
   const [activities, setActivities]   = useState<Activity[]>(initialActivities)
   // Reflete dados frescos do servidor após router.refresh() (revalidação ao focar a aba).
@@ -214,8 +217,8 @@ export function HallClient({ initialActivities, initialTasks, linkOptions, userN
   const [focusEvent, setFocusEvent]   = useState<CalendarEvent | null>(null)
   const [activitiesExpanded, setActivitiesExpanded] = useState(false)
   // Mapa + métricas (leads/clientes do banco) e config da Visão Geral (por usuário).
-  const [mapLeads, setMapLeads]   = useState<Lead[]>([])
-  const [mapClients, setMapClients] = useState<Client[]>([])
+  const [mapLeads, setMapLeads]   = useState<MapLead[]>([])
+  const [mapClients, setMapClients] = useState<MapClient[]>([])
   const [hallCfg, setHallCfg]     = useState<HallSettings>(DEFAULT_HALL_SETTINGS)
   const router = useRouter()
 
@@ -249,8 +252,8 @@ export function HallClient({ initialActivities, initialTasks, linkOptions, userN
     if (!force && nowMs - lastMapFetch.current < 30_000) return
     lastMapFetch.current = nowMs
     const supabase = createClient()
-    supabase.from('leads').select('id, name, status, state, area_code, created_at, origem').then(({ data }) => { if (data) setMapLeads(data as unknown as Lead[]) })
-    supabase.from('clients').select('id, name, status, state, area_code').then(({ data }) => { if (data) setMapClients(data as unknown as Client[]) })
+    supabase.from('leads').select('id, name, status, state, area_code, created_at, origem').then(({ data }) => { if (data) setMapLeads(data as MapLead[]) })
+    supabase.from('clients').select('id, name, status, state, area_code').then(({ data }) => { if (data) setMapClients(data as MapClient[]) })
   }, [])
 
   useEffect(() => {
@@ -276,12 +279,12 @@ export function HallClient({ initialActivities, initialTasks, linkOptions, userN
     return () => { dataChannel.unsubscribe().then(() => supabase.removeChannel(dataChannel)) }
   }, [userId])
 
-  // ── Mural ↔ Agenda: MESMA fonte (initialTasks, idêntica à do Calendar) ──────────
+  // ── Mural ↔ Agenda: MESMA fonte (tasks vivo do useTasksState, idêntica à do Calendar) ──────────
   // Toda tarefa com data que aparece na Agenda aparece aqui também. Ordem: atrasadas →
   // próximas (por data) → concluídas (apagadas). Mantém os eventos de HOJE e os avisos.
   // Tarefas/eventos de HOJE (data civil de Brasília) — alimentam a coluna "Tarefas de hoje" (com hora).
   const hojeStr = dayBR(new Date())
-  const tarefasHoje = initialTasks
+  const tarefasHoje = tasks
     .filter(t => t.due_date === hojeStr && !t.done)
     .sort((a, b) => (a.due_time || '99:99').localeCompare(b.due_time || '99:99'))
   const eventosHoje = calEvents.filter(e => e.date === hojeStr).sort((a, b) => (a.start_time || '99:99').localeCompare(b.start_time || '99:99'))
@@ -368,7 +371,7 @@ export function HallClient({ initialActivities, initialTasks, linkOptions, userN
             {/* (a) AGENDA SEMANAL — topo, largura cheia. No mobile rola na horizontal (dentro do Calendar). */}
             {hallCfg.blocks.agenda && (
               <CollapsibleSection title="Agenda" icon={CalendarDays} defaultOpen>
-                <Calendar userId={userId} events={calEvents} tasks={initialTasks} onEventsChange={setCalEvents} focusEvent={focusEvent} onFocusHandled={() => setFocusEvent(null)} />
+                <Calendar userId={userId} events={calEvents} tasks={tasks} onEventsChange={setCalEvents} focusEvent={focusEvent} onFocusHandled={() => setFocusEvent(null)} />
               </CollapsibleSection>
             )}
 
@@ -487,7 +490,7 @@ export function HallClient({ initialActivities, initialTasks, linkOptions, userN
         )}
 
         {activeTab === 'tarefas' && (
-          <TarefasClient initialTasks={initialTasks} linkOptions={linkOptions} currentUser={{ id: userId, name: userName }} />
+          <TarefasClient tasks={tasks} setTasks={setTasks} deletedIds={deletedIds} linkOptions={linkOptions} currentUser={{ id: userId, name: userName }} />
         )}
 
         {activeTab === 'relatorio' && (

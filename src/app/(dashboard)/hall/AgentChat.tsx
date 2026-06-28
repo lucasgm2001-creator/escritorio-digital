@@ -258,7 +258,7 @@ export function AgentChat({ userId, userName }: { userId: string; userName: stri
     try {
       const now = new Date()
       const today = ymd(now)
-      const todayLabel = now.toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' })
+      const todayLabel = now.toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo', weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' })
 
       const res = await fetch('/api/agent/chat', {
         method: 'POST',

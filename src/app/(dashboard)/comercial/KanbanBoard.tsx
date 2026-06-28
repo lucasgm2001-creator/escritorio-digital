@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useCallback, useEffect, useMemo } from 'react'
+import { useState, useCallback, useEffect, useMemo, useRef } from 'react'
 import {
   DndContext, DragOverlay, PointerSensor, useSensor, useSensors,
   type DragStartEvent, type DragEndEvent,
@@ -134,17 +134,28 @@ export function KanbanBoard({ initialLeads, initialStages, initialClients, curre
   }
 
   // Deep-link vindo do Hall: /comercial?lead=<id> abre o lead no funil.
+  const tabHandled = useRef(false)
+  const leadHandled = useRef(false)
   useEffect(() => {
     const params = new URLSearchParams(window.location.search)
-    const tabParam = params.get('tab')
-    if (tabParam && ['funil', 'contatos', 'clientes', 'metricas', 'vendedores'].includes(tabParam)) setTab(tabParam as Tab)
-    const leadId = params.get('lead')
-    if (leadId) {
-      const lead = leads.find(l => l.id === leadId)
-      if (lead) { setTab('funil'); setSelectedLead(lead) }
+    // tab: aplica UMA vez (no mount), independente dos leads.
+    if (!tabHandled.current) {
+      tabHandled.current = true
+      const tabParam = params.get('tab')
+      if (tabParam && ['funil', 'contatos', 'clientes', 'metricas', 'vendedores'].includes(tabParam)) setTab(tabParam as Tab)
+    }
+    // lead: precisa da LISTA carregada. M16: depende de `leads` → abre assim que o id existir (uma vez só).
+    if (!leadHandled.current) {
+      const leadId = params.get('lead')
+      if (!leadId) { leadHandled.current = true }
+      else {
+        const lead = leads.find(l => l.id === leadId)
+        if (lead) { leadHandled.current = true; setTab('funil'); setSelectedLead(lead) }
+        // não achou ainda → mantém leadHandled=false e re-tenta quando `leads` mudar
+      }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [leads])
 
   const TABS: { key: Tab; label: string }[] = [
     { key: 'funil',        label: 'Funil' },

@@ -58,8 +58,8 @@ export async function POST(req: Request) {
     })
 
     return NextResponse.json({ summary: summary.trim() })
-  } catch {
-    console.error('[tasks/summary] failed')
+  } catch (e) {
+    console.error('[tasks/summary] failed:', e instanceof Error ? e.message : String(e))
     return NextResponse.json({ error: 'Falha ao gerar resumo.' }, { status: 500 })
   }
 }

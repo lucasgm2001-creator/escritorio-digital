@@ -24,8 +24,7 @@ import { getHallSettings, setHallSettings, DEFAULT_HALL_SETTINGS, type HallSetti
 import { funnelConversionLabel } from '@/lib/funnelMetrics'
 import { ErrorBoundary } from '@/components/system/ErrorBoundary'
 import dynamic from 'next/dynamic'
-import type { Lead } from '../comercial/types'
-import type { Client } from '../clientes/ClientesClient'
+import type { MapLead, MapClient } from '../comercial/tabs/MapaTab'
 const MapaTabDyn = dynamic(() => import('../comercial/tabs/MapaTab').then(m => ({ default: m.MapaTab })), { ssr: false })
 
 // classes compartilhadas
@@ -678,13 +677,13 @@ function HallSwitchRow({ label, on, onToggle }: { label: string; on: boolean; on
 
 function HallSettingsSection({ userId }: { userId: string }) {
   const [cfg, setCfg] = useState<HallSettings>(DEFAULT_HALL_SETTINGS)
-  const [leads, setLeads] = useState<Lead[]>([])
-  const [clients, setClients] = useState<Client[]>([])
+  const [leads, setLeads] = useState<MapLead[]>([])
+  const [clients, setClients] = useState<MapClient[]>([])
   useEffect(() => { setCfg(getHallSettings(userId)) }, [userId])
   useEffect(() => {
     const supabase = createClient()
-    supabase.from('leads').select('id, name, status, state, area_code, created_at, origem').then(({ data }) => { if (data) setLeads(data as unknown as Lead[]) })
-    supabase.from('clients').select('id, name, status, state, area_code').then(({ data }) => { if (data) setClients(data as unknown as Client[]) })
+    supabase.from('leads').select('id, name, status, state, area_code, created_at, origem').then(({ data }) => { if (data) setLeads(data as MapLead[]) })
+    supabase.from('clients').select('id, name, status, state, area_code').then(({ data }) => { if (data) setClients(data as MapClient[]) })
   }, [])
   const apply = (next: HallSettings) => { setCfg(next); setHallSettings(userId, next) }
   const tB = (k: keyof HallSettings['blocks']) => apply({ ...cfg, blocks: { ...cfg.blocks, [k]: !cfg.blocks[k] } })
