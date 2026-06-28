@@ -22,12 +22,24 @@ export async function GET(req: Request) {
   const supabase = createServiceClient()
   const today = spToday()
 
-  // Cotação efetiva = MESMA regra do /api/fx (sem forçar fetch): travada+manual → manual;
-  // senão a referência automática armazenada → manual → 5.40. Só snapshot p/ BRL (não muda o USD).
-  const { data: fx } = await supabase.from('fx_config').select('cotacao_manual, cotacao_travada, cotacao_referencia').eq('id', 1).maybeSingle()
+  // Cotação efetiva = MESMA regra do /api/fx (sem forçar fetch): travada+manual → manual; senão a
+  // referência automática armazenada → manual. Só snapshot p/ BRL (não muda o USD).
+  const { data: fx, error: fxError } = await supabase.from('fx_config').select('cotacao_manual, cotacao_travada, cotacao_referencia').eq('id', 1).maybeSingle()
   const manual = fx?.cotacao_manual != null ? Number(fx.cotacao_manual) : null
   const referencia = fx?.cotacao_referencia != null ? Number(fx.cotacao_referencia) : null
-  const rate = (fx?.cotacao_travada && manual != null) ? manual : (referencia ?? manual ?? 5.40)
+  // SEM o fallback hardcoded 5.40: o rate só vale se vier do banco.
+  const rate = (fx?.cotacao_travada && manual != null) ? manual : (referencia ?? manual ?? null)
+
+  // GUARD A4: se a leitura de fx_config FALHOU ou não há cotação real no banco, ABORTA sem gravar nada —
+  // nunca congelar BRL com câmbio chutado. É SEGURO: payDueWeeks faz catch-up no próximo ciclo com a
+  // cotação certa, então nenhuma semana se perde (só atrasa um ciclo). O USD não é afetado por isto.
+  if (fxError || rate == null || !(rate > 0)) {
+    const reason = fxError
+      ? `erro lendo fx_config: ${fxError.message}`
+      : 'sem cotação válida em fx_config (cotacao_manual/cotacao_referencia ausentes)'
+    console.error('[cron/auto-weeks] ABORTADO sem gravar —', reason)
+    return NextResponse.json({ ok: false, aborted: true, reason, today }, { status: 503 })
+  }
 
   // Clientes ATIVOS com dia de pagamento definido. dia null → pular; end_date passou → pular.
   const { data: clients, error } = await supabase.from('clients')
