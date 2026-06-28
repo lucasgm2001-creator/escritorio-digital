@@ -94,17 +94,21 @@ function meetConference(requestId: string): calendar_v3.Schema$ConferenceData {
   return { createRequest: { requestId, conferenceSolutionKey: { type: 'hangoutsMeet' } } }
 }
 
+// Descrição do evento: notas do usuário + (opcional) "Lead: X" + (opcional) a URL PURA do Meet, em bloco
+// próprio e SEM rótulo/frase nenhuma. O Meet só existe depois do tryConference (createRequest é assíncrono),
+// então a URL é anexada via patch best-effort em createEvent/updateEvent — aqui ela só entra quando já conhecida.
+function buildDescription(task: TaskRow, meetUrl?: string | null): string | undefined {
+  const parts: string[] = []
+  if (task.notes?.trim()) parts.push(task.notes.trim())
+  if (task.linked_name?.trim()) parts.push(`Lead: ${task.linked_name.trim()}`)
+  if (meetUrl?.trim()) parts.push(meetUrl.trim())   // URL PURA, em linha própria, sem rótulo
+  return parts.join('\n\n') || undefined
+}
+
 // Tarefa → corpo do evento (summary/description/start/end). due_date vazio → null (não vira evento).
-// callLink: se add_call e o usuário tem profiles.call_link, acrescenta UMA linha na descrição (link fixo
-// pessoal). O Google Meet por-evento é anexado em createEvent/updateEvent (só no caminho OAuth).
-function buildEventBody(task: TaskRow, callLink?: string | null): calendar_v3.Schema$Event | null {
+function buildEventBody(task: TaskRow): calendar_v3.Schema$Event | null {
   if (!task.due_date) return null
-  const desc: string[] = []
-  if (task.notes?.trim()) desc.push(task.notes.trim())
-  if (task.linked_name?.trim()) desc.push(`Lead: ${task.linked_name.trim()}`)
-  let description = desc.join('\n\n')
-  if (callLink?.trim()) description = (description ? `${description}\n` : '') + `Link da videochamada: ${callLink.trim()}`
-  const base = { summary: task.title?.trim() || 'Tarefa', description: description || undefined }
+  const base = { summary: task.title?.trim() || 'Tarefa', description: buildDescription(task) }
 
   if (task.due_time) {
     const t = task.due_time.slice(0, 5)
@@ -156,8 +160,23 @@ async function tryConference(ctx: CalCtx, eventId: string, conferenceData: calen
   }
 }
 
-async function createEvent(ctx: CalCtx, task: TaskRow, callLink?: string | null): Promise<{ eventId: string | null; meetLink: string | null }> {
-  const requestBody = buildEventBody(task, callLink); if (!requestBody) return { eventId: null, meetLink: null }
+// Best-effort: põe a URL PURA do Meet na descrição (notas + URL, sem rótulo). Chamado no MESMO ponto em que
+// a URL é capturada; falha NUNCA derruba nada (só loga). Só no caminho OAuth (Meet real).
+async function patchDescriptionWithMeet(ctx: CalCtx, eventId: string, task: TaskRow, meetUrl: string): Promise<void> {
+  try {
+    await ctx.calendar.events.patch({
+      calendarId: ctx.calendarId,
+      eventId,
+      requestBody: { description: buildDescription(task, meetUrl) ?? meetUrl },
+    })
+    console.log('[gcal] descrição + meet url (pura) · event', eventId)
+  } catch (e) {
+    console.warn('[gcal] patch da descrição (meet url) falhou (segue):', errMsg(e))
+  }
+}
+
+async function createEvent(ctx: CalCtx, task: TaskRow): Promise<{ eventId: string | null; meetLink: string | null }> {
+  const requestBody = buildEventBody(task); if (!requestBody) return { eventId: null, meetLink: null }
   // 1) O EVENTO é criado SEMPRE, SEM conferenceData — uma falha de Meet jamais derruba o evento.
   let eventId: string | null
   try {
@@ -168,16 +187,19 @@ async function createEvent(ctx: CalCtx, task: TaskRow, callLink?: string | null)
     console.error('[gcal] ERROR create:', errMsg(e))
     throw e
   }
-  // 2) Meet REAL — SÓ no caminho OAuth (a conta de serviço não pode criar Meet). Best-effort; devolve a URL.
+  // 2) Meet REAL — SÓ no caminho OAuth. Best-effort; devolve a URL e a põe (pura) na descrição.
   let meetLink: string | null = null
-  if (ctx.meet && eventId && task.add_call) meetLink = await tryConference(ctx, eventId, meetConference(randomUUID()))
+  if (ctx.meet && eventId && task.add_call) {
+    meetLink = await tryConference(ctx, eventId, meetConference(randomUUID()))
+    if (meetLink) await patchDescriptionWithMeet(ctx, eventId, task, meetLink)
+  }
   return { eventId, meetLink }
 }
 
 // Retorna: a URL do Meet (string) / null (sem Meet ou removido) / undefined (não mexer no meet_link — caminho
 // service account, que não gerencia conferência).
-async function updateEvent(ctx: CalCtx, googleEventId: string, task: TaskRow, callLink?: string | null): Promise<string | null | undefined> {
-  const requestBody = buildEventBody(task, callLink); if (!requestBody) return undefined
+async function updateEvent(ctx: CalCtx, googleEventId: string, task: TaskRow): Promise<string | null | undefined> {
+  const requestBody = buildEventBody(task); if (!requestBody) return undefined
 
   // 1) O EVENTO (título, notas, start/end, fuso, duração) é atualizado SEMPRE, SEM conferenceData.
   try {
@@ -199,13 +221,25 @@ async function updateEvent(ctx: CalCtx, googleEventId: string, task: TaskRow, ca
       calendarId: ctx.calendarId, eventId: googleEventId, fields: 'hangoutLink,conferenceData',
     })
     const hasMeet = !!(ev.hangoutLink || ev.conferenceData?.conferenceId || (ev.conferenceData?.entryPoints?.length ?? 0) > 0)
-    if (task.add_call && !hasMeet) return await tryConference(ctx, googleEventId, meetConference(randomUUID()))
-    if (task.add_call && hasMeet) return meetUrlOf(ev)                                      // preserva → url atual
-    if (!task.add_call && hasMeet) { await tryConference(ctx, googleEventId, null); return null }   // remove
+    if (task.add_call && !hasMeet) {                       // cria o Meet e põe a URL pura na descrição
+      const url = await tryConference(ctx, googleEventId, meetConference(randomUUID()))
+      if (url) await patchDescriptionWithMeet(ctx, googleEventId, task, url)
+      return url
+    }
+    if (task.add_call && hasMeet) {                        // preserva → lê a url e a RE-ANEXA (o patch principal a removeu)
+      const url = meetUrlOf(ev)
+      if (url) await patchDescriptionWithMeet(ctx, googleEventId, task, url)
+      return url
+    }
+    if (!task.add_call && hasMeet) { await tryConference(ctx, googleEventId, null); return null }   // remove → descrição já sem URL
     return null                                                                            // !add_call && sem Meet
   } catch (e) {
     console.warn('[gcal] get p/ checar Meet falhou (segue best-effort):', errMsg(e))
-    if (task.add_call) return await tryConference(ctx, googleEventId, meetConference(`meet-${googleEventId}`))
+    if (task.add_call) {
+      const url = await tryConference(ctx, googleEventId, meetConference(`meet-${googleEventId}`))
+      if (url) await patchDescriptionWithMeet(ctx, googleEventId, task, url)
+      return url
+    }
     return null
   }
 }
@@ -258,13 +292,6 @@ export async function syncTaskCalendar(taskId: string): Promise<CalSyncResult> {
     if (!ctx) return { ok: true }
     console.log('[gcal] path:', ctx.meet ? 'oauth(+meet)' : 'service-account')
 
-    // Link de chamada FIXO do dono (profiles.call_link) — só quando a tarefa marcou "Adicionar chamada".
-    let callLink: string | null = null
-    if (task.add_call && task.user_id) {
-      const { data: prof } = await supabase.from('profiles').select('call_link').eq('id', task.user_id).single()
-      callLink = (prof?.call_link as string | null) ?? null
-    }
-
     // (A) SEM due_date: remove o evento (se houver). Só zera o id DEPOIS do delete confirmado — se o delete
     //     falhar, MANTÉM o id (trilha pra limpar depois) e sinaliza, em vez de perder a referência.
     if (!task.due_date) {
@@ -284,7 +311,7 @@ export async function syncTaskCalendar(taskId: string): Promise<CalSyncResult> {
     if (task.google_event_id) {
       let meetLink: string | null | undefined
       try {
-        meetLink = await updateEvent(ctx, task.google_event_id, task, callLink)
+        meetLink = await updateEvent(ctx, task.google_event_id, task)
       } catch (e) {
         console.error('[gcal] update FALHOU · task', taskId, '· event', task.google_event_id, ':', errMsg(e))
         return { ok: false, step: 'update', reason: errMsg(e) }
@@ -296,7 +323,7 @@ export async function syncTaskCalendar(taskId: string): Promise<CalSyncResult> {
     // (C) COM due_date + sem evento: cria e grava o id.
     let created: { eventId: string | null; meetLink: string | null }
     try {
-      created = await createEvent(ctx, task, callLink)
+      created = await createEvent(ctx, task)
     } catch (e) {
       console.error('[gcal] create FALHOU · task', taskId, ':', errMsg(e))
       return { ok: false, step: 'create', reason: errMsg(e) }
