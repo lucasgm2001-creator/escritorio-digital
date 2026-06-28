@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useMemo, useEffect } from 'react'
+import { createPortal } from 'react-dom'
 import { createClient } from '@/lib/supabase/client'
 import { cn } from '@/lib/utils'
 import { useToast } from '@/components/ui/toast'
@@ -89,8 +90,12 @@ export function TaskModal({ onClose, onSaved, currentUser, linkOptions, task, pr
   // Duração/Fuso do evento (toda tarefa com data vai pro Google Agenda). NÃO há mais "modo reunião".
   const [durationMin, setDurationMin] = useState<number>(task?.duration_min ?? 30)
   const [timezone, setTimezone]   = useState<string>(task?.timezone ?? 'America/Sao_Paulo')
+  const [mounted, setMounted]     = useState(false)   // portal só no client (guard de SSR)
 
   const supabase = createClient()
+
+  // Portal só depois de montar no client (Next SSR: document não existe no server) — evita mismatch.
+  useEffect(() => setMounted(true), [])
 
   // Trava o scroll do fundo enquanto o modal está aberto (o conteúdo rola só por dentro) — no mobile
   // o gesto não arrasta a página nem a barra de baixo. Restaura ao fechar.
@@ -169,8 +174,14 @@ export function TaskModal({ onClose, onSaved, currentUser, linkOptions, task, pr
       .catch(warn)
   }
 
-  return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex sm:items-center sm:justify-center sm:p-4">
+  if (!mounted) return null
+
+  // PORTAL pro document.body: o overlay vira filho DIRETO do body (contexto de empilhamento RAIZ), então
+  // o fixed inset-0 cobre TUDO no mobile — sem ficar preso por contexto de empilhamento de algum ancestral
+  // do Hall (regra @media (pointer:coarse) / position:fixed dentro de container que rola no iOS). z-[300]
+  // fica ACIMA do FAB (z-[200]) → nada (menu do topo / BottomNav / FAB) pinta por cima do modal.
+  return createPortal(
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[300] flex sm:items-center sm:justify-center sm:p-4">
       {/* MOBILE: TELA CHEIA (form vira o painel, h-[100dvh], SEM sheet/items-end/visualViewport). O teclado
           encolhe o dvh (interactive-widget=resizes-content) → topo e rodapé seguem visíveis. DESKTOP (sm):
           dialog centralizado (auto, max-h-92dvh) — inalterado. */}
@@ -370,6 +381,7 @@ export function TaskModal({ onClose, onSaved, currentUser, linkOptions, task, pr
           </button>
         </div>
       </form>
-    </div>
+    </div>,
+    document.body,
   )
 }
