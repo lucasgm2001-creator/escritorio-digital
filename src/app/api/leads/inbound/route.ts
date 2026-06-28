@@ -184,13 +184,16 @@ export async function POST(req: Request) {
 
     const supabase = createServiceClient()
 
-    // 12) Dedup: já existe lead com o MESMO email OU o MESMO phone? (o que vier)
+    // 12) Dedup: já existe lead com o MESMO email OU o MESMO phone? (o que vier). Se a checagem FALHAR
+    //     (erro de query), NÃO inserir às cegas — aborta com 500, senão arriscaria duplicar.
     if (email) {
-      const { data } = await supabase.from('leads').select('id').eq('email', email).limit(1)
+      const { data, error } = await supabase.from('leads').select('id').eq('email', email).limit(1)
+      if (error) return NextResponse.json({ ok: false, error: 'falha ao verificar duplicidade (email)' }, { status: 500 })
       if (data && data.length) return NextResponse.json({ ok: true, duplicate: true })
     }
     if (phone) {
-      const { data } = await supabase.from('leads').select('id').eq('phone', phone).limit(1)
+      const { data, error } = await supabase.from('leads').select('id').eq('phone', phone).limit(1)
+      if (error) return NextResponse.json({ ok: false, error: 'falha ao verificar duplicidade (phone)' }, { status: 500 })
       if (data && data.length) return NextResponse.json({ ok: true, duplicate: true })
     }
 

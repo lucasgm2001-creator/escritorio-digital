@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createHash, timingSafeEqual } from 'crypto'
-import { createClient } from '@/lib/supabase/server'
+import { createServiceClient } from '@/lib/supabase/service'
 import { getSuperAgent } from '@/lib/agents/SuperAgent'
 
 /**
@@ -9,9 +9,8 @@ import { getSuperAgent } from '@/lib/agents/SuperAgent'
  * "Authorization: Bearer <CRON_SECRET>"; mantemos POST p/ chamadas manuais/externas.
  *
  * ⚠️ DESLIGADO por padrão: não há vercel.json com `crons` (ver vercel.cron.example.json).
- * Antes de ativar: (1) setar CRON_SECRET no ambiente da Vercel; (2) trocar o client
- * abaixo por um com SERVICE_ROLE — sem sessão de usuário, o RLS bloqueia as queries/
- * inserts deste cron.
+ * Antes de ativar: setar CRON_SECRET no ambiente da Vercel e adicionar a entrada em vercel.json.
+ * O client já usa SERVICE_ROLE (cron não tem sessão; sem isso o RLS bloquearia as queries/inserts).
  */
 
 export const runtime = 'nodejs'
@@ -38,9 +37,8 @@ function authorized(req: Request): boolean {
 }
 
 async function runScheduler() {
-  // ⚠️ Sem sessão (é cron) este client não está autenticado → o RLS bloqueia
-  // leituras/inserts. Pra ativar de verdade, usar um client com SERVICE_ROLE.
-  const supabase = createClient()
+  // Cron não tem sessão → SERVICE_ROLE (fura RLS). Server-side only; a chave nunca vai ao browser.
+  const supabase = createServiceClient()
   const agent = getSuperAgent(supabase)
 
   const now = new Date()

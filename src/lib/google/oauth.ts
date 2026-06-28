@@ -23,9 +23,13 @@ export function googleOAuthConfigured(): boolean {
 
 // ── State assinado (CSRF) ──────────────────────────────────────────────────────
 // state = payload(base64url JSON {u:userId, n:nonce, t:ts}) + '.' + HMAC. O callback RECUPERA o user_id
-// daqui (sem confiar no browser) e rejeita state forjado/vencido. Assinado com o client_secret (server-only).
+// daqui (sem confiar no browser) e rejeita state forjado/vencido. Assinado com OAUTH_STATE_SECRET (server-only).
 function stateSecret(): string {
-  return process.env.GOOGLE_OAUTH_CLIENT_SECRET || process.env.SUPABASE_SERVICE_ROLE_KEY || 'dev-only'
+  const s = process.env.OAUTH_STATE_SECRET
+  if (s) return s
+  // Em produção NUNCA cair em fallback (seria forjável); falha alto. Em dev usa um default só p/ não travar local.
+  if (process.env.NODE_ENV === 'production') throw new Error('OAUTH_STATE_SECRET ausente')
+  return 'dev-only-state-secret'
 }
 export function signState(userId: string): string {
   const payload = Buffer.from(JSON.stringify({ u: userId, n: randomBytes(8).toString('hex'), t: Date.now() })).toString('base64url')

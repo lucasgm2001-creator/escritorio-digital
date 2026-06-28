@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { createHash, timingSafeEqual } from 'crypto'
 import { requireAuth } from '@/lib/supabase/require-auth'
 import { createServiceClient } from '@/lib/supabase/service'
 import { payDueWeeks } from '@/lib/commission/actions'
@@ -12,10 +13,15 @@ export const maxDuration = 60
 // data da semana), via payClientWeek (receita + comissão derivada). NUNCA marca futura. NÃO muda
 // calc.ts/payWeek (US$25/teto/etc.) — só decide QUANDO/QUAL semana e a DATA.
 
+// Comparação em tempo constante (sha256 → buffers de mesmo tamanho; não vaza comprimento).
+function secretsMatch(a: string, b: string): boolean {
+  return timingSafeEqual(createHash('sha256').update(a).digest(), createHash('sha256').update(b).digest())
+}
+
 function authorizedByToken(req: Request): boolean {
   const secret = process.env.CRON_SECRET
   const provided = req.headers.get('x-cron-secret')
-  return !!secret && !!provided && provided === secret
+  return !!secret && !!provided && secretsMatch(provided, secret)
 }
 
 type SupaService = ReturnType<typeof createServiceClient>

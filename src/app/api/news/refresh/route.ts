@@ -1,6 +1,7 @@
 import { generateText } from 'ai'
 import { anthropic } from '@ai-sdk/anthropic'
 import { NextResponse } from 'next/server'
+import { createHash, timingSafeEqual } from 'crypto'
 import { requireAuth } from '@/lib/supabase/require-auth'
 import { createServiceClient } from '@/lib/supabase/service'
 
@@ -15,11 +16,16 @@ const MAX_AGE_DAYS = 10   // descarta no insert o que for mais antigo que isso
 const PURGE_AGE_DAYS = 30 // apaga do banco o que passar disso
 const AI_TIMEOUT_MS = 40_000 // guard: aborta a IA ANTES do limite estrutural de 60s da função (margem p/ retornar 504 controlado)
 
+// Comparação em tempo constante (sha256 → buffers de mesmo tamanho; não vaza comprimento).
+function secretsMatch(a: string, b: string): boolean {
+  return timingSafeEqual(createHash('sha256').update(a).digest(), createHash('sha256').update(b).digest())
+}
+
 // Agendador: header x-cron-secret === CRON_SECRET. (Fallback do Hall usa requireAuth.)
 function authorizedByToken(req: Request): boolean {
   const secret = process.env.CRON_SECRET
   const provided = req.headers.get('x-cron-secret')
-  return !!secret && !!provided && provided === secret
+  return !!secret && !!provided && secretsMatch(provided, secret)
 }
 
 type NewsItem = {
