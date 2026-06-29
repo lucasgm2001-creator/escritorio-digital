@@ -19,7 +19,7 @@ import { loadA11y, saveA11y, applyA11y, DEFAULT_A11Y, type A11ySettings, type Fo
 import { loadDensity, saveDensity, applyDensity, type Density } from '@/lib/uiPrefs'
 import { weeklyCommissionUsd, hasCommissionPct, DEFAULT_TETO_SEMANAS, LEGACY_VPS_USD } from '@/lib/commission/planCommission'
 import { FasesTab } from '../comercial/tabs/FasesTab'
-import { getMapSkin, getMapSep, getMapGrouping, setMapSkin, setMapSep, setMapGrouping, type MapSkin, type MapGrouping } from '@/lib/mapSettings'
+import { useMapPrefs, saveMapPrefs, type MapPrefs } from '@/lib/mapPrefs'
 import { getHallSettings, setHallSettings, DEFAULT_HALL_SETTINGS, type HallSettings } from '@/lib/hallSettings'
 import { funnelConversionLabel } from '@/lib/funnelMetrics'
 import { ErrorBoundary } from '@/components/system/ErrorBoundary'
@@ -509,40 +509,48 @@ function AndarSection({ keyId, label, onOpenSub }: { keyId: string; label: strin
 
 // ─── Comercial · Mapa (estilo + separação + agrupamento; persiste em localStorage). Conteúdo FLAT
 //     (sem acordeão) — renderizado numa tela própria de Configurações. ──────────
+// Config do LeadMap (Vista/Modo/Tema/inclinação) — escreve em localStorage 'mapPrefs' via saveMapPrefs;
+// o mapa (Hall) lê e reage na hora. Bento (NÃO o vidro do mapa). Fonte ÚNICA da renderização do mapa.
 function MapSettingsContent() {
-  const [skin, setSkinState] = useState<MapSkin>('blue')
-  const [sep, setSepState] = useState<number>(4)
-  const [grouping, setGroupingState] = useState<MapGrouping>('cidade')
-  useEffect(() => { setSkinState(getMapSkin()); setSepState(getMapSep()); setGroupingState(getMapGrouping()) }, [])
-  const pickSkin = (s: MapSkin) => { setSkinState(s); setMapSkin(s) }
-  const pickSep = (n: number) => { setSepState(n); setMapSep(n) }
-  const pickGrouping = (g: MapGrouping) => { setGroupingState(g); setMapGrouping(g) }
+  const prefs = useMapPrefs()
+  const set = (patch: Partial<MapPrefs>) => saveMapPrefs({ ...prefs, ...patch })
   const seg = 'flex bg-bento-bg border border-bento-border rounded-btn p-1 gap-1'
-  const btn = (on: boolean) => cn('px-3 py-1.5 rounded-[8px] text-xs font-medium transition-colors', on ? 'bg-lime text-lime-ink' : 'text-bento-muted hover:text-bento-text')
+  const btn = (on: boolean) => cn('px-3 py-1.5 rounded-[8px] text-xs font-medium', on ? 'bg-lime text-lime-ink' : 'text-bento-muted hover:text-bento-text')
   return (
     <Panel label="Mapa">
       <div className="space-y-3">
+        {/* Vista: 2D / 3D + inclinação (slider só no 3D). */}
         <div className="flex items-center justify-between gap-3 flex-wrap">
-          <div><p className="text-sm text-bento-text">Estilo do mapa</p><p className="font-tech text-[11px] text-bento-muted">Aparência do terreno</p></div>
+          <div><p className="text-sm text-bento-text">Vista</p><p className="font-tech text-[11px] text-bento-dim">2D plano ou 3D inclinado</p></div>
+          <div className="flex items-center gap-3 flex-wrap">
+            <div className={seg}>
+              {([['3d', '3D'], ['2d', '2D']] as [MapPrefs['view'], string][]).map(([v, l]) => (
+                <button key={v} onClick={() => set({ view: v })} className={btn(prefs.view === v)}>{l}</button>
+              ))}
+            </div>
+            <div className="flex items-center gap-2">
+              <input type="range" min={0} max={45} value={prefs.tilt} disabled={prefs.view !== '3d'}
+                onChange={e => set({ tilt: Number(e.target.value) })}
+                className="w-28 accent-lime disabled:opacity-40 cursor-pointer disabled:cursor-not-allowed" aria-label="Inclinação do mapa" />
+              <span className="font-tech text-[11px] text-bento-dim w-8 tabular-nums">{prefs.tilt}°</span>
+            </div>
+          </div>
+        </div>
+        {/* Modo. */}
+        <div className="flex items-center justify-between gap-3 flex-wrap">
+          <div><p className="text-sm text-bento-text">Modo</p><p className="font-tech text-[11px] text-bento-dim">Pontos individuais, bolhas por estado ou calor</p></div>
           <div className={seg}>
-            {([['blue', 'Blueprint'], ['holo', 'Holograma'], ['relevo', 'Relevo']] as [MapSkin, string][]).map(([v, l]) => (
-              <button key={v} onClick={() => pickSkin(v)} className={btn(skin === v)}>{l}</button>
+            {([['individual', 'Individual'], ['estado', 'Por estado'], ['calor', 'Calor']] as [MapPrefs['mode'], string][]).map(([v, l]) => (
+              <button key={v} onClick={() => set({ mode: v })} className={btn(prefs.mode === v)}>{l}</button>
             ))}
           </div>
         </div>
+        {/* Tema. */}
         <div className="flex items-center justify-between gap-3 flex-wrap">
-          <div><p className="text-sm text-bento-text">Separação das placas</p><p className="font-tech text-[11px] text-bento-muted">Espaço entre as 3 regiões</p></div>
+          <div><p className="text-sm text-bento-text">Tema</p><p className="font-tech text-[11px] text-bento-dim">Cor de acento do mapa</p></div>
           <div className={seg}>
-            {([[4, 'Justo'], [16, 'Espaçoso']] as [number, string][]).map(([v, l]) => (
-              <button key={v} onClick={() => pickSep(v)} className={btn(sep === v)}>{l}</button>
-            ))}
-          </div>
-        </div>
-        <div className="flex items-center justify-between gap-3 flex-wrap">
-          <div><p className="text-sm text-bento-text">Leads no mapa</p><p className="font-tech text-[11px] text-bento-muted">Por cidade (1 ponto/lead) ou agrupados por estado</p></div>
-          <div className={seg}>
-            {([['cidade', 'Por cidade'], ['estado', 'Por estado']] as [MapGrouping, string][]).map(([v, l]) => (
-              <button key={v} onClick={() => pickGrouping(v)} className={btn(grouping === v)}>{l}</button>
+            {([['ciber', 'Cíber'], ['lima', 'Lima'], ['ambar', 'Âmbar']] as [MapPrefs['theme'], string][]).map(([v, l]) => (
+              <button key={v} onClick={() => set({ theme: v })} className={btn(prefs.theme === v)}>{l}</button>
             ))}
           </div>
         </div>

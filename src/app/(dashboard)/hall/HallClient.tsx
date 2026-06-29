@@ -26,8 +26,11 @@ import { dayBR } from './dateBR'
 import dynamic from 'next/dynamic'
 import { getHallSettings, DEFAULT_HALL_SETTINGS, HALL_SETTINGS_EVENT, type HallSettings } from '@/lib/hallSettings'
 import { funnelConversionLabel } from '@/lib/funnelMetrics'
-// Mapa pesado (geografia us-map.json) — só no client, sob demanda.
-const MapaTab = dynamic(() => import('../comercial/tabs/MapaTab').then(m => ({ default: m.MapaTab })), { ssr: false })
+import { useMapPrefs } from '@/lib/mapPrefs'
+import { toLeadMarkers } from '@/lib/leadMarkers'
+// LeadMap (mapa de leads 3D/vidro, geografia us-atlas) — só no client, sob demanda. A config (Vista/Modo/
+// Tema/inclinação) vem de Configurações > Mapa (localStorage 'mapPrefs'); a barra de controle saiu do mapa.
+const LeadMap = dynamic(() => import('@/components/map/LeadMap'), { ssr: false })
 
 type Tab = 'activities' | 'mapa' | 'tarefas' | 'relatorio' | 'agent'
 
@@ -219,6 +222,10 @@ export function HallClient({ initialActivities, initialTasks, linkOptions, userN
   // Mapa + métricas (leads/clientes do banco) e config da Visão Geral (por usuário).
   const [mapLeads, setMapLeads]   = useState<MapLead[]>([])
   const [mapClients, setMapClients] = useState<MapClient[]>([])
+  // Mapa: config (Vista/Modo/Tema/inclinação) vem de Configurações > Mapa (mapPrefs, reativo) + dados REAIS
+  // (leads/clients) convertidos em markers do LeadMap. Config salva = fonte ÚNICA da renderização.
+  const mapPrefs = useMapPrefs()
+  const mapMarkers = useMemo(() => toLeadMarkers(mapLeads, mapClients), [mapLeads, mapClients])
   const [hallCfg, setHallCfg]     = useState<HallSettings>(DEFAULT_HALL_SETTINGS)
   const router = useRouter()
 
@@ -482,7 +489,7 @@ export function HallClient({ initialActivities, initialTasks, linkOptions, userN
             <Panel className="max-lg:p-1" headerClassName="max-lg:hidden" label="Mapa de Clientes e Leads">
               <div className="w-full max-w-[960px] mx-auto">
                 <ErrorBoundary>
-                  <MapaTab embedded leads={mapLeads} clients={mapClients} showLeads={hallCfg.map.leads} showClients={hallCfg.map.clients} showFusos={hallCfg.map.fusos} />
+                  <LeadMap markers={mapMarkers} showControls={false} showHeader={true} view={mapPrefs.view} tilt={mapPrefs.tilt} mode={mapPrefs.mode} theme={mapPrefs.theme} />
                 </ErrorBoundary>
               </div>
             </Panel>
