@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Home, Briefcase, Presentation, Settings, type LucideIcon } from 'lucide-react'
+import { Home, Briefcase, Building2, Presentation, Settings, type LucideIcon } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 /**
@@ -18,6 +18,7 @@ interface NavItem { href: string; label: string; Icon: LucideIcon }
 const ITEMS: NavItem[] = [
   { href: '/hall',          label: 'Hall',      Icon: Home },
   { href: '/comercial',     label: 'Comercial', Icon: Briefcase },
+  { href: '/clientes',      label: 'Clientes',  Icon: Building2 },
   { href: '/studio',        label: 'Studio',    Icon: Presentation },
   { href: '/configuracoes', label: 'Config',    Icon: Settings },
 ]

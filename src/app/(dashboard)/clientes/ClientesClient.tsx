@@ -8,7 +8,8 @@ import { Portal } from '@/components/ui/Portal'
 import { useDialog } from '@/components/ui/useDialog'
 import { createClient } from '@/lib/supabase/client'
 import { useSave } from '@/lib/useSave'
-import { formatCurrency, formatDate } from '@/lib/utils'
+import { formatCurrency } from '@/lib/utils'
+import { formatDateBR } from '@/lib/date'
 import { TimeAgo } from '@/components/system/TimeAgo'
 import { useToast } from '@/components/ui/toast'
 import { FUSO_OPTIONS } from '../comercial/types'
@@ -131,7 +132,7 @@ function ClientRow({
         </span>
         {client.start_date && (
           <span className="text-xs text-bento-muted shrink-0 hidden md:block">
-            {inactive ? 'encerrado' : `desde ${formatDate(client.start_date)}`}
+            {inactive ? 'encerrado' : `desde ${formatDateBR(client.start_date)}`}
           </span>
         )}
         {/* Actions */}
@@ -265,7 +266,7 @@ function ClientRow({
             <div className="space-y-1 mb-3">
               {pays.map(p => (
                 <div key={p.id} className="flex items-center justify-between gap-2 text-xs">
-                  <span className="font-tech text-bento-dim tabular-nums">S{p.numero_semana} · {formatDate(p.paid_on)}</span>
+                  <span className="font-tech text-bento-dim tabular-nums">S{p.numero_semana} · {formatDateBR(p.paid_on)}</span>
                   <span className="flex items-center gap-2">
                     <span className={`font-tech tabular-nums ${p.anulado ? 'line-through text-bento-muted' : 'text-bento-text'}`}>{formatCurrency(Number(p.valor_usd), 'en-US', 'USD')}</span>
                     {p.anulado

@@ -48,6 +48,7 @@ const icons = {
 const NAV_ITEMS: NavItem[] = [
   { href: '/hall',           label: 'Hall',           icon: icons.hall,       group: 'main' },
   { href: '/comercial',      label: 'Comercial',      icon: icons.comercial,  group: 'main' },
+  { href: '/clientes',       label: 'Clientes',       icon: icons.clientes,   group: 'main' },
   { href: '/studio',         label: 'Studio de Apresentação', icon: icons.studio, group: 'main' },
   { href: '/configuracoes',  label: 'Configurações',  icon: icons.config,     group: 'system' },
 ]

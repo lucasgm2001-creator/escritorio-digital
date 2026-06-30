@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import Image from 'next/image'
 import {
   Sun, Moon, Monitor, Home, Briefcase, ListChecks, Projector, Users,
-  Palette, Accessibility, Image as ImageIcon, User, LayoutGrid, Database, Plug, Info, Map,
+  Palette, Accessibility, Image as ImageIcon, User, LayoutGrid, Database, Plug, Info, Map, Boxes,
   Download, RefreshCw, ExternalLink, BadgePercent, Workflow, ChevronRight, ChevronLeft, ChevronDown, CalendarDays,
   type LucideIcon,
 } from 'lucide-react'
@@ -23,6 +23,7 @@ import { useMapPrefs, saveMapPrefs, type MapPrefs } from '@/lib/mapPrefs'
 import { getHallSettings, setHallSettings, DEFAULT_HALL_SETTINGS, type HallSettings } from '@/lib/hallSettings'
 import { funnelConversionLabel } from '@/lib/funnelMetrics'
 import type { MapLead, MapClient } from '../comercial/mapTypes'
+import { HubClientesSettings } from '../clientes/HubClientesSettings'
 
 // classes compartilhadas
 const inputCls = 'w-full bg-bento-bg border border-bento-border rounded-btn px-3 py-2 text-sm text-bento-text placeholder:text-bento-muted focus:outline-none focus:border-lime min-h-[44px]'
@@ -781,6 +782,7 @@ const ANDARES: NavItem[] = [
 const SISTEMA: NavItem[] = [
   { key: 'tema', label: 'Tema', Icon: Palette },
   { key: 'mapa', label: 'Mapa', Icon: Map },
+  { key: 'hub-clientes', label: 'Hub de Clientes', Icon: Boxes },
   { key: 'acessibilidade', label: 'Acessibilidade', Icon: Accessibility },
   { key: 'logo', label: 'Logo do sistema', Icon: ImageIcon },
   { key: 'conta', label: 'Conta', Icon: User },
@@ -904,6 +906,7 @@ export function ConfiguracoesClient({ userId, google }: Props) {
     switch (key) {
       case 'tema': return <ThemeSection />
       case 'mapa': return <MapSettingsContent />
+      case 'hub-clientes': return <HubClientesSettings />
       case 'acessibilidade': return <AccessibilitySection />
       case 'logo': return <Panel label="Logo do sistema"><LogoUploadSection userId={userId} /></Panel>
       case 'sobre': return <AboutSection />
