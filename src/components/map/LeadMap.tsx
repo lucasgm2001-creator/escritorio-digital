@@ -214,6 +214,7 @@ export default function LeadMap({
   const [themeKey, setThemeKey] = useState<ThemeKey>(themeProp);
   const [hover, setHover] = useState<{ abbr: string; x: number; y: number } | null>(null);
   const [panelUf, setPanelUf] = useState<string | null>(null);   // estado do painel de clique (registros do estado)
+  const [isLight, setIsLight] = useState(false);                 // tema claro (html.light) → painel/mapa em superfície clara
 
   // Config salva é a FONTE ÚNICA: quando as props mudam (Configurações > Mapa salvou), o mapa reflete.
   // Com showControls=false não há toggles internos; estes effects garantem o sync mesmo assim.
@@ -225,7 +226,28 @@ export default function LeadMap({
   const panelRef = useRef<HTMLDivElement>(null);
   const [w, setW] = useState(900);
   const H = height;
-  const th = THEMES[themeKey];
+
+  // LIGHT MODE: o componente foi desenhado dark (vidro). No claro troca SÓ as cores ESTRUTURAIS (painel +
+  // estados/contorno/labels/textos) por uma superfície clara legível; o ACENTO do tema (heat/linhas de fuso/
+  // hover) e as cores de marcador (lilás/azul/verde) ficam — contrastam nos dois. Dark = original, intocado.
+  const baseTh = THEMES[themeKey];
+  const th = isLight ? {
+    ...baseTh,
+    stateStroke: 'rgba(71,85,105,0.40)',     // contorno dos estados em cinza médio (visível no claro)
+    nationEdge: 'rgba(71,85,105,0.55)',
+    zoneFill: { PT: '#E8EDF3', MT: '#E5EAF1', CT: '#EAEEF4', ET: '#E7ECF2', HT: '#E5EAF1' },  // estado sem dado = cinza claro
+    labelColor: 'rgba(51,65,85,0.72)',       // labels de fuso escuros
+    baseDark: '#E8EDF3',                      // base do "calor": estado com dado vai pro acento, sem dado fica claro
+  } : baseTh;
+  const panelBg = isLight ? 'linear-gradient(180deg,#FFFFFF,#F4F7FA)' : 'linear-gradient(180deg,rgba(255,255,255,0.045),rgba(255,255,255,0.012))';
+  const panelBorder = isLight ? '1px solid rgba(15,23,42,0.12)' : '1px solid rgba(255,255,255,0.09)';
+  const panelShadow = isLight ? '0 1px 2px rgba(15,23,42,0.05), 0 12px 32px -18px rgba(15,23,42,0.22)' : '0 30px 80px -30px rgba(0,0,0,0.8), inset 0 1px 0 rgba(255,255,255,0.08)';
+  const baseText = isLight ? '#0F172A' : '#E8ECF4';
+  const dimText = isLight ? 'rgba(51,65,85,0.72)' : 'rgba(190,205,230,0.6)';
+  const faintText = isLight ? 'rgba(71,85,105,0.7)' : 'rgba(150,185,225,0.55)';
+  const chipBg = isLight ? 'rgba(15,23,42,0.04)' : 'rgba(255,255,255,0.05)';
+  const chipBorder = isLight ? 'rgba(15,23,42,0.1)' : 'rgba(255,255,255,0.1)';
+  const nationShadowFill = isLight ? '#DCE3EB' : '#04060d';
 
   // VISIBILIDADE por tipo (Configurações > Mapa). Esconder = some de verdade em TODOS os modos; as contagens
   // (hover/estado/calor) só somam markers visíveis.
@@ -261,6 +283,17 @@ export default function LeadMap({
     return () => window.removeEventListener('keydown', onKey);
   }, [panelUf]);
 
+  // Detecta o tema (html.light) e reage à troca (Configurações > Tema) — sem tocar no dark.
+  useEffect(() => {
+    if (typeof document === 'undefined') return;
+    const el = document.documentElement;
+    const read = () => setIsLight(el.classList.contains('light'));
+    read();
+    const obs = new MutationObserver(read);
+    obs.observe(el, { attributes: true, attributeFilter: ['class'] });
+    return () => obs.disconnect();
+  }, []);
+
   const counts = useMemo(() => {
     const m: Record<string, StateCount> = {};
     visMarkers.forEach((k) => {
@@ -286,7 +319,7 @@ export default function LeadMap({
   const clocks = FUSOS.map((f) => {
     const time = new Intl.DateTimeFormat('pt-BR', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: f.tz }).format(now);
     const h = parseInt(new Intl.DateTimeFormat('en-US', { hour: '2-digit', hour12: false, timeZone: f.tz }).format(now), 10);
-    return { ...f, time, color: h >= 8 && h < 18 ? '#fff' : 'rgba(225,232,244,0.7)' };
+    return { ...f, time, color: isLight ? '#0F172A' : (h >= 8 && h < 18 ? '#fff' : 'rgba(225,232,244,0.7)') };
   });
 
   const onPathMove = (abbr: string) => (e: React.MouseEvent) => {
@@ -318,11 +351,11 @@ export default function LeadMap({
       style={{
         ...(th.vars as React.CSSProperties),
         position: 'relative', width: '100%', maxWidth: 1080,
-        border: '1px solid rgba(255,255,255,0.09)', borderRadius: 22,
-        background: 'linear-gradient(180deg,rgba(255,255,255,0.045),rgba(255,255,255,0.012))',
-        boxShadow: '0 30px 80px -30px rgba(0,0,0,0.8), inset 0 1px 0 rgba(255,255,255,0.08)',
-        backdropFilter: 'blur(22px)', WebkitBackdropFilter: 'blur(22px)', overflow: 'hidden',
-        color: '#E8ECF4', fontFamily: "'Space Grotesk', -apple-system, system-ui, sans-serif",
+        border: panelBorder, borderRadius: 22,
+        background: panelBg,
+        boxShadow: panelShadow,
+        backdropFilter: isLight ? 'none' : 'blur(22px)', WebkitBackdropFilter: isLight ? 'none' : 'blur(22px)', overflow: 'hidden',
+        color: baseText, fontFamily: "'Space Grotesk', -apple-system, system-ui, sans-serif",
       }}
     >
       <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 1, background: 'linear-gradient(90deg,transparent,var(--line),transparent)' }} />
@@ -330,14 +363,14 @@ export default function LeadMap({
       {showHeader && (
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 20, flexWrap: 'wrap', padding: '22px 24px 4px' }}>
           <div>
-            <div style={{ fontFamily: MONO, fontSize: 10, letterSpacing: '0.18em', textTransform: 'uppercase', color: 'rgba(150,185,225,0.55)', marginBottom: 7 }}>Lead Map · EUA</div>
+            <div style={{ fontFamily: MONO, fontSize: 10, letterSpacing: '0.18em', textTransform: 'uppercase', color: faintText, marginBottom: 7 }}>Lead Map · EUA</div>
             <div style={{ fontSize: 23, fontWeight: 600, letterSpacing: '-0.01em', lineHeight: 1 }}>Mapa de Leads</div>
-            <div style={{ fontSize: 12.5, color: 'rgba(190,205,230,0.6)', marginTop: 5 }}>Distribuição por fuso horário</div>
+            <div style={{ fontSize: 12.5, color: dimText, marginTop: 5 }}>Distribuição por fuso horário</div>
           </div>
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
             {clocks.map((z) => (
-              <div key={z.abbr} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, padding: '7px 11px', borderRadius: 11, background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', backdropFilter: 'blur(8px)' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontFamily: MONO, fontSize: 9, letterSpacing: '0.12em', color: 'rgba(160,190,225,0.7)' }}>
+              <div key={z.abbr} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, padding: '7px 11px', borderRadius: 11, background: chipBg, border: `1px solid ${chipBorder}`, backdropFilter: 'blur(8px)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontFamily: MONO, fontSize: 9, letterSpacing: '0.12em', color: faintText }}>
                   <span style={{ width: 5, height: 5, borderRadius: '50%', background: z.dot }} />{z.abbr}
                 </div>
                 <div style={{ fontFamily: MONO, fontSize: 14, color: z.color, lineHeight: 1 }}>{z.time}</div>
@@ -401,7 +434,7 @@ export default function LeadMap({
                     <filter id="lm-heatblur" x="-120%" y="-120%" width="340%" height="340%"><feGaussianBlur stdDeviation="11" /></filter>
                   </defs>
 
-                  <path d={built.path(built.nation) || ''} transform="translate(0,15)" fill="#04060d" opacity={0.85} />
+                  <path d={built.path(built.nation) || ''} transform="translate(0,15)" fill={nationShadowFill} opacity={0.85} />
 
                   {built.states.features.map((f: any, i: number) => {
                     const abbr = NAME_TO_ABBR[f.properties.name];
@@ -537,7 +570,7 @@ export default function LeadMap({
       </div>
 
       <div style={{ display: 'flex', alignItems: 'center', gap: 16, padding: '14px 24px 20px', flexWrap: 'wrap' }}>
-        <div style={{ display: 'inline-flex', alignItems: 'center', gap: 16, padding: '9px 15px', borderRadius: 13, background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', backdropFilter: 'blur(10px)', fontFamily: MONO, fontSize: 11.5, color: 'rgba(210,222,240,0.85)' }}>
+        <div style={{ display: 'inline-flex', alignItems: 'center', gap: 16, padding: '9px 15px', borderRadius: 13, background: chipBg, border: `1px solid ${chipBorder}`, backdropFilter: 'blur(10px)', fontFamily: MONO, fontSize: 11.5, color: dimText }}>
           {([['novo', 'Novo lead'], ['lead', 'Leads'], ['cliente', 'Clientes']] as [LeadType, string][]).map(([t, label]) => (
             <span key={t} style={{ display: 'inline-flex', alignItems: 'center', gap: 7 }}>
               <span style={{ width: 10, height: 10, borderRadius: '50%', background: COLORS[t], boxShadow: `0 0 8px ${COLORS[t]}` }} />{label}
@@ -545,11 +578,11 @@ export default function LeadMap({
           ))}
         </div>
         {mode === 'calor' && (
-          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, fontFamily: MONO, fontSize: 10.5, color: 'rgba(180,200,225,0.6)' }}>
-            menos<span style={{ width: 64, height: 8, borderRadius: 4, background: 'linear-gradient(90deg,rgba(255,255,255,0.07),var(--accent))' }} />mais
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, fontFamily: MONO, fontSize: 10.5, color: faintText }}>
+            menos<span style={{ width: 64, height: 8, borderRadius: 4, background: `linear-gradient(90deg,${isLight ? 'rgba(15,23,42,0.08)' : 'rgba(255,255,255,0.07)'},var(--accent))` }} />mais
           </span>
         )}
-        <span style={{ marginLeft: 'auto', display: 'inline-flex', alignItems: 'center', gap: 7, fontFamily: MONO, fontSize: 10.5, color: 'rgba(150,185,225,0.55)' }}>
+        <span style={{ marginLeft: 'auto', display: 'inline-flex', alignItems: 'center', gap: 7, fontFamily: MONO, fontSize: 10.5, color: faintText }}>
           <span style={{ width: 16, height: 0, borderTop: '1.5px solid var(--accent)', boxShadow: '0 0 6px var(--accent)' }} />linha de fuso horário
         </span>
       </div>
