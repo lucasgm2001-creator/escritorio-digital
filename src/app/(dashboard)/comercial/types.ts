@@ -30,6 +30,8 @@ export interface Lead {
   state?: string | null       // estado (EUA), sigla de 2 letras — Mapa de Clientes
   area_code?: string | null   // DDD (area code) — Mapa de Clientes
   raw_payload?: Record<string, unknown> | null   // payload BRUTO do formulário/Magnetic (inbound) — nada se perde
+  created_manually?: boolean   // criado à mão (form "Novo Lead") — habilita edição completa no detalhe
+  contact_code?: string | null // código curto "C-0032" gerado pelo TRIGGER quando created_manually=true (app não gera)
 }
 
 // Fuso horário (EUA) — valor interno → label exibido. Compartilhado (Contatos + formulários de lead/cliente).

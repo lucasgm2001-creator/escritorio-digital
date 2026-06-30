@@ -159,6 +159,7 @@ export function LeadModal({ onClose, onCreated, currentUser, stages, clients }: 
       assigned_to: currentUser.id,
       assigned_name: currentUser.name,    // Lucas
       score: 500,
+      created_manually: true,             // criado à mão → trigger gera contact_code (C-XXXX). NÃO setar o código aqui.
       status: stageSlug,                  // fase escolhida (default Venda Concluída)
     }).select().single()
 
@@ -215,6 +216,7 @@ export function LeadModal({ onClose, onCreated, currentUser, stages, clients }: 
       assigned_to: form.assigned_to === currentUser.id ? currentUser.id : null,
       assigned_name: form.assigned_name || currentUser.name || null,
       score: 500,
+      created_manually: true,   // criado à mão → trigger gera contact_code (C-XXXX). NÃO setar o código aqui.
       status: 'novo',
     }).select().single()
 

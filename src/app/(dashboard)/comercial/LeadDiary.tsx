@@ -88,6 +88,19 @@ const InfoRow = memo(function InfoRow({ label, value }: { label: string; value?:
   )
 })
 
+// Edição de lead MANUAL (created_manually): opções válidas + estilo dos campos do formulário inline.
+const ORIGEM_OPTS = [
+  { v: 'instagram', l: 'Instagram' }, { v: 'google', l: 'Google' }, { v: 'indicacao', l: 'Indicação' },
+  { v: 'tiktok', l: 'TikTok' }, { v: 'site', l: 'Site' }, { v: 'cliente_existente', l: 'Cliente existente' }, { v: 'outro', l: 'Outro' },
+]
+const PRIORIDADE_OPTS = [
+  { v: 'baixa', l: 'Baixa' }, { v: 'media', l: 'Média' }, { v: 'alta', l: 'Alta' }, { v: 'urgente', l: 'Urgente' },
+]
+const EDIT_INP = 'mt-0.5 w-full bg-bento-bg border border-bento-border rounded-btn px-2.5 py-1.5 text-sm text-bento-text focus:outline-none focus:border-lime'
+function EditField({ label, children }: { label: string; children: React.ReactNode }) {
+  return <label className="block"><span className="text-[11px] text-muted-foreground">{label}</span>{children}</label>
+}
+
 // Chaves do raw_payload que JÁ aparecem como campo dedicado → não repetir em "Mais informações".
 const PAYLOAD_SKIP = new Set([
   'name', 'full_name', 'first_name', 'last_name', 'email', 'phone',
@@ -157,6 +170,20 @@ export function LeadDiary({ lead, onClose, onUpdated, onMoveStage, onDeleted, cu
   const [briefingLoading, setBriefingLoading] = useState(false)
   const [valueDraft, setValueDraft] = useState(String(lead.value || ''))
   const [confirmingRestore, setConfirmingRestore] = useState(false)   // lixeira → restaurar p/ Novo Lead
+
+  // EDIÇÃO de lead MANUAL (created_manually): a seção "Dados do lead" vira formulário e grava num ÚNICO update
+  // de colunas de cadastro. Status e responsável continuam nos seletores dedicados (respeitam o won-flow) — não
+  // entram aqui. Plain update → NÃO chama runWonFlow/registerMeeting/payWeek.
+  const createdManually = currentLead.created_manually === true
+  const [editing, setEditing] = useState(false)
+  const [savingEdit, setSavingEdit] = useState(false)
+  const emptyDraft = () => ({
+    name: currentLead.name ?? '', company: currentLead.company ?? '', email: currentLead.email ?? '',
+    phone: currentLead.phone ?? '', nicho: currentLead.nicho ?? '', value: currentLead.value ? String(currentLead.value) : '',
+    notes: currentLead.notes ?? '', origem: String(currentLead.origem ?? ''), prioridade: String(currentLead.prioridade ?? 'media'),
+    next_contact: (currentLead.next_contact ?? '').slice(0, 10), city: currentLead.city ?? '', state: currentLead.state ?? '', area_code: currentLead.area_code ?? '',
+  })
+  const [draft, setDraft] = useState(emptyDraft)
 
   const supabase = createClient()
   const { toast } = useToast()
@@ -316,6 +343,36 @@ export function LeadDiary({ lead, onClose, onUpdated, onMoveStage, onDeleted, cu
     }
   }
 
+  // Salva a edição completa do lead MANUAL (um update; name obrigatório). NÃO mexe em status/assigned (seletores
+  // próprios) nem em dinheiro. Otimista: aplica no estado local + onUpdated após sucesso.
+  const saveEdit = async () => {
+    const name = draft.name.trim()
+    if (!name) { toast({ type: 'error', message: 'O nome é obrigatório.' }); return }
+    setSavingEdit(true)
+    const v = parseFloat(draft.value)
+    const patch = {
+      name,
+      company: draft.company.trim() || null,
+      email: draft.email.trim() || null,
+      phone: draft.phone.trim() || null,
+      nicho: draft.nicho.trim() || null,
+      value: Number.isFinite(v) && v > 0 ? v : 0,
+      notes: draft.notes.trim() || null,
+      origem: (draft.origem || null) as Lead['origem'],
+      prioridade: (draft.prioridade || 'media') as Lead['prioridade'],
+      next_contact: draft.next_contact || null,
+      city: draft.city.trim() || null,
+      state: draft.state.trim().toUpperCase() || null,
+      area_code: draft.area_code.trim() || null,
+    }
+    const { error } = await supabase.from('leads').update(patch).eq('id', lead.id)
+    setSavingEdit(false)
+    if (error) { toast({ type: 'error', message: `Não foi possível salvar: ${error.message}` }); return }
+    const updated = { ...currentLead, ...patch } as Lead   // patch usa null p/ limpar; Lead aceita (campos opcionais)
+    setCurrentLead(updated); onUpdated(updated); setEditing(false)
+    toast({ type: 'success', message: 'Lead atualizado.' })
+  }
+
   const handleDelete = async () => {
     setDeleting(true)
     const { error } = await supabase.from('leads').delete().eq('id', lead.id)
@@ -449,7 +506,12 @@ export function LeadDiary({ lead, onClose, onUpdated, onMoveStage, onDeleted, cu
         <div onTouchStart={onHeaderTouchStart} onTouchEnd={onHeaderTouchEnd}
           className="shrink-0 flex items-start justify-between px-5 pb-5 pt-[max(1.25rem,env(safe-area-inset-top))] border-b border-border">
           <div>
-            <h2 className="font-bold text-foreground text-base">{currentLead.name}</h2>
+            <div className="flex items-center gap-2 flex-wrap">
+              <h2 className="font-bold text-foreground text-base">{currentLead.name}</h2>
+              {currentLead.contact_code && (
+                <span className="font-mono text-[10px] text-bento-muted bg-bento-bg border border-bento-border rounded px-1.5 py-0.5 flex-none" title="Código do contato">{currentLead.contact_code}</span>
+              )}
+            </div>
             {currentLead.company && <p className="text-sm text-muted-foreground">{currentLead.company}</p>}
           </div>
           <button onClick={onClose} aria-label="Fechar" className="text-muted-foreground hover:text-foreground mt-0.5 p-1 -m-1">
@@ -462,17 +524,66 @@ export function LeadDiary({ lead, onClose, onUpdated, onMoveStage, onDeleted, cu
         {/* UM scroll só: todo o perfil rola como UMA coluna (sem caixas internas prendendo no toque). */}
         <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden pb-safe">
 
-        {/* Informações do lead (cadastro/formulário) — somente leitura; campo vazio = "—". */}
+        {/* Dados do lead. MANUAL (created_manually) → "Editar" abre formulário inline (um update). Senão, somente
+            leitura ("—" se vazio). Status e responsável têm seletores próprios mais abaixo (respeitam o won-flow). */}
         <div className="px-5 py-3 border-b border-border space-y-1.5">
-          <InfoRow label="Empresa" value={currentLead.company} />
-          <InfoRow label="E-mail" value={currentLead.email} />
-          <InfoRow label="Telefone" value={currentLead.phone} />
-          <InfoRow label="Nicho" value={currentLead.nicho} />
-          <InfoRow label="Cidade" value={currentLead.city} />
-          <InfoRow label="Estado" value={currentLead.state} />
-          <InfoRow label="DDD" value={currentLead.area_code} />
-          <InfoRow label="Origem" value={currentLead.origem} />
-          <InfoRow label="Mensagem" value={currentLead.notes} />
+          <div className="flex items-center justify-between">
+            <span className="text-xs text-muted-foreground">Dados do lead</span>
+            {createdManually && !editing && (
+              <button type="button" onClick={() => { setDraft(emptyDraft()); setEditing(true) }} className="font-tech text-xs text-lime-fg hover:text-lime">Editar</button>
+            )}
+          </div>
+          {editing ? (
+            <div className="mt-1 space-y-2">
+              <EditField label="Nome *"><input value={draft.name} onChange={e => setDraft(d => ({ ...d, name: e.target.value }))} className={EDIT_INP} /></EditField>
+              <EditField label="Empresa"><input value={draft.company} onChange={e => setDraft(d => ({ ...d, company: e.target.value }))} className={EDIT_INP} /></EditField>
+              <div className="grid grid-cols-2 gap-2">
+                <EditField label="E-mail"><input type="email" value={draft.email} onChange={e => setDraft(d => ({ ...d, email: e.target.value }))} className={EDIT_INP} /></EditField>
+                <EditField label="Telefone"><input value={draft.phone} onChange={e => setDraft(d => ({ ...d, phone: e.target.value }))} className={EDIT_INP} /></EditField>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <EditField label="Nicho"><input value={draft.nicho} onChange={e => setDraft(d => ({ ...d, nicho: e.target.value }))} className={EDIT_INP} /></EditField>
+                <EditField label="Valor (US$)"><input type="number" min="0" inputMode="decimal" value={draft.value} onChange={e => setDraft(d => ({ ...d, value: e.target.value }))} className={EDIT_INP} /></EditField>
+              </div>
+              <div className="grid grid-cols-3 gap-2">
+                <EditField label="Cidade"><input value={draft.city} onChange={e => setDraft(d => ({ ...d, city: e.target.value }))} className={EDIT_INP} /></EditField>
+                <EditField label="Estado"><input maxLength={2} value={draft.state} onChange={e => setDraft(d => ({ ...d, state: e.target.value }))} className={EDIT_INP} /></EditField>
+                <EditField label="DDD"><input value={draft.area_code} onChange={e => setDraft(d => ({ ...d, area_code: e.target.value }))} className={EDIT_INP} /></EditField>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <EditField label="Origem">
+                  <select value={draft.origem} onChange={e => setDraft(d => ({ ...d, origem: e.target.value }))} className={EDIT_INP}>
+                    <option value="">—</option>
+                    {ORIGEM_OPTS.map(o => <option key={o.v} value={o.v}>{o.l}</option>)}
+                  </select>
+                </EditField>
+                <EditField label="Prioridade">
+                  <select value={draft.prioridade} onChange={e => setDraft(d => ({ ...d, prioridade: e.target.value }))} className={EDIT_INP}>
+                    {PRIORIDADE_OPTS.map(o => <option key={o.v} value={o.v}>{o.l}</option>)}
+                  </select>
+                </EditField>
+              </div>
+              <EditField label="Próximo contato"><input type="date" value={draft.next_contact} onChange={e => setDraft(d => ({ ...d, next_contact: e.target.value }))} className={EDIT_INP} /></EditField>
+              <EditField label="Mensagem / notas"><textarea rows={2} value={draft.notes} onChange={e => setDraft(d => ({ ...d, notes: e.target.value }))} className={cn(EDIT_INP, 'resize-none')} /></EditField>
+              <div className="flex gap-2 pt-1">
+                <button type="button" onClick={saveEdit} disabled={savingEdit || !draft.name.trim()} className="bento-btn flex-1 py-2 rounded-btn text-sm font-semibold disabled:opacity-50 min-h-[44px]">{savingEdit ? 'Salvando…' : 'Salvar'}</button>
+                <button type="button" onClick={() => setEditing(false)} disabled={savingEdit} className="flex-1 border border-bento-border text-bento-dim py-2 rounded-btn text-sm hover:border-lime transition-colors min-h-[44px]">Cancelar</button>
+              </div>
+              <p className="font-tech text-[10px] text-bento-muted/70">Status e responsável são editados nos seletores abaixo.</p>
+            </div>
+          ) : (
+            <div className="space-y-1.5">
+              <InfoRow label="Empresa" value={currentLead.company} />
+              <InfoRow label="E-mail" value={currentLead.email} />
+              <InfoRow label="Telefone" value={currentLead.phone} />
+              <InfoRow label="Nicho" value={currentLead.nicho} />
+              <InfoRow label="Cidade" value={currentLead.city} />
+              <InfoRow label="Estado" value={currentLead.state} />
+              <InfoRow label="DDD" value={currentLead.area_code} />
+              <InfoRow label="Origem" value={currentLead.origem} />
+              <InfoRow label="Mensagem" value={currentLead.notes} />
+            </div>
+          )}
         </div>
 
         {/* Contato rápido — WhatsApp / SMS / Copiar (só com telefone utilizável). */}
