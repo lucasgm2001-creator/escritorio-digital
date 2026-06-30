@@ -6,12 +6,13 @@ import { createClient } from '@/lib/supabase/client'
 import { useToast } from '@/components/ui/toast'
 import { cn, formatCurrency } from '@/lib/utils'
 import { formatDateBR } from '@/lib/date'
-import { planLabel, healthOf, type Client, type ClientIntegration } from './types'
+import { planLabel, healthOf, type Client, type Nicho, type ClientIntegration } from './types'
 
 const FUSO_LABEL: Record<string, string> = { leste: 'Leste', central: 'Central', montanha: 'Montanha', pacifico: 'Pacífico' }
 
-export function ClienteDetalhe({ client, integration, onBack, onUpdated }: {
+export function ClienteDetalhe({ client, nichos, integration, onBack, onUpdated }: {
   client: Client
+  nichos: Nicho[]
   integration?: ClientIntegration
   onBack: () => void
   onUpdated: (c: Client) => void
@@ -21,6 +22,29 @@ export function ClienteDetalhe({ client, integration, onBack, onUpdated }: {
   const [deact, setDeact] = useState(false)
   const [reason, setReason] = useState('')
   const [busy, setBusy] = useState(false)
+  const [nicho, setNicho] = useState<string | null>(client.nicho ?? null)
+  const [savingNicho, setSavingNicho] = useState(false)
+
+  // Prateleiras ATIVAS (por posicao). Se a atual não estiver entre elas, vira opção extra p/ não sumir do select.
+  const activeNichos = nichos.filter(n => n.ativo).sort((a, b) => a.posicao - b.posicao)
+  const currentMissing = !!nicho && !activeNichos.some(n => n.nome === nicho)
+
+  // Troca de prateleira: otimista + UPDATE clients.nicho (+ updated_at). onUpdated reflete no Hub na hora
+  // (estado/realtime do ClientesFloor). Erro → reverte o select + toast.
+  const changeNicho = async (value: string) => {
+    const next = value === '' ? null : value
+    const prev = nicho
+    if (next === (client.nicho ?? null)) { setNicho(next); return }
+    setNicho(next)
+    setSavingNicho(true)
+    const { data, error } = await supabase.from('clients')
+      .update({ nicho: next, updated_at: new Date().toISOString() })
+      .eq('id', client.id).select('*').single()
+    setSavingNicho(false)
+    if (error || !data) { setNicho(prev); toast({ type: 'error', message: `Não foi possível mudar a prateleira: ${error?.message ?? 'erro'}` }); return }
+    onUpdated(data as Client)
+    toast({ type: 'success', message: next ? `Movido para "${next}".` : 'Movido para "Sem prateleira".' })
+  }
 
   const health = healthOf(client.status)
   const waOn = !!integration?.ativo
@@ -65,7 +89,6 @@ export function ClienteDetalhe({ client, integration, onBack, onUpdated }: {
       <Panel title="Ficha">
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-5 gap-y-3">
           <Field label="Responsável" value={client.assigned_name || '—'} />
-          <Field label="Nicho" value={client.nicho || '—'} />
           <Field label="Cidade" value={cidade || '—'} />
           <Field label="Cliente desde" value={formatDateBR(client.start_date)} mono />
           <Field label="E-mail" value={client.email || '—'} />
@@ -79,7 +102,15 @@ export function ClienteDetalhe({ client, integration, onBack, onUpdated }: {
       <Panel title="Conta & integração">
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-5 gap-y-3">
           <Field label="Plano" value={`${planLabel(client.plan_weekly)} · ${formatCurrency(client.plan_weekly || 0, 'en-US', 'USD')}/sem`} />
-          <Field label="Prateleira" value={client.nicho || 'Sem prateleira'} />
+          <div>
+            <p className="font-tech text-[10px] uppercase tracking-wide text-bento-muted mb-1">Nicho / Prateleira</p>
+            <select value={nicho ?? ''} onChange={e => changeNicho(e.target.value)} disabled={savingNicho}
+              className="w-full bg-bento-bg border border-bento-border rounded-btn px-3 py-2 text-sm text-bento-text focus:outline-none focus:border-lime disabled:opacity-60">
+              <option value="">Sem prateleira</option>
+              {activeNichos.map(n => <option key={n.id} value={n.nome}>{n.nome}</option>)}
+              {currentMissing && <option value={nicho ?? ''}>{nicho} (inativa)</option>}
+            </select>
+          </div>
           <Field label="Landing pages" value={String(pages.length)} mono />
           <div>
             <p className="font-tech text-[10px] uppercase tracking-wide text-bento-muted mb-1">WhatsApp</p>

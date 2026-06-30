@@ -31,7 +31,9 @@ export function ClientesFloor({ initialClients, initialNichos, initialIntegratio
     return (
       <div className="h-full overflow-y-auto bg-bento-bg font-body">
         <ClienteDetalhe
+          key={detail.id}
           client={detail}
+          nichos={nichos}
           integration={integrations.find(i => i.client_id === detail.id)}
           onBack={() => setDetailId(null)}
           onUpdated={onClientUpdated}
