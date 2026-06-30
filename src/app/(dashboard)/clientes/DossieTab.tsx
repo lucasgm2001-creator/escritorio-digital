@@ -5,7 +5,7 @@ import { createClient } from '@/lib/supabase/client'
 import { useToast } from '@/components/ui/toast'
 import { cn } from '@/lib/utils'
 import { ChevronDown, ExternalLink, FolderOpen, Pencil, Plus } from 'lucide-react'
-import type { Client } from './ClientesClient'
+import type { Client } from './types'
 
 // Dossiê do cliente (read-only do conteúdo): só GUARDA e ABRE links/notas do Drive — não sobe arquivo.
 // Pasta raiz → coluna `drive_folder_url` (text). Seções → coluna `dossie` (jsonb), uma {url,notas} por

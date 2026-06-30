@@ -1,5 +1,5 @@
 import type { Lead } from './types'
-import type { Client } from '../clientes/ClientesClient'
+import type { Client } from '../clientes/types'
 
 // Tipos enxutos consumidos pelo mapa (Hall → LeadMap) e pelas métricas de Configurações.
 // Antes viviam em tabs/MapaTab.tsx (mapa antigo, removido) — movidos pra cá p/ não depender daquele componente.

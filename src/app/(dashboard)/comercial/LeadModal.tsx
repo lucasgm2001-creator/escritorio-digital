@@ -8,7 +8,7 @@ import { logStageEvent } from '@/lib/stageEvents'
 import { useToast } from '@/components/ui/toast'
 import { ymd } from '@/lib/format'
 import { wonSlug, type FunnelStage } from '@/lib/funnelStages'
-import type { Client } from '../clientes/ClientesClient'
+import type { Client } from '../clientes/types'
 import { Portal } from '@/components/ui/Portal'
 import { useDialog } from '@/components/ui/useDialog'
 

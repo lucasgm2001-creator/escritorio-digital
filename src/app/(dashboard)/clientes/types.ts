@@ -1,5 +1,29 @@
-// Tipos do andar "Clientes". Client reaproveita o tipo já existente (mesma tabela `clients`).
-export type { Client } from './ClientesClient'
+// Tipos do andar "Clientes" (tabela `clients`). Client mora AQUI (módulo compartilhado) — antes vinha do
+// ClientesClient.tsx (removido). Importado pelo andar, pelo Comercial (mapTypes/LeadModal/Contatos) e por
+// ClienteModal/DossieTab.
+export interface Client {
+  id: string
+  name: string
+  company?: string
+  email?: string
+  phone?: string
+  plan_weekly: number
+  plano_id?: string | null
+  dia_pagamento_semana?: number | null   // dia-da-semana de cobrança (0=Dom..6=Sáb), MESMA convenção do cron/payDueWeeks
+  status: 'ativo' | 'inativo' | 'prospect'
+  start_date?: string
+  end_date?: string
+  assigned_name?: string
+  nicho?: string
+  fuso?: 'leste' | 'central' | 'montanha' | 'pacifico' | null
+  city?: string | null        // cidade (EUA) — Mapa de Clientes
+  state?: string | null       // estado (EUA), sigla de 2 letras — Mapa de Clientes
+  area_code?: string | null   // DDD (area code) — Mapa de Clientes
+  jobs?: string[]
+  created_at: string
+  drive_folder_url?: string | null
+  dossie?: Record<string, { url?: string; notas?: string }> | null
+}
 
 // Prateleira (nicho) — tabela `nichos`. A prateleira de um cliente = clients.nicho == nichos.nome.
 export interface Nicho {

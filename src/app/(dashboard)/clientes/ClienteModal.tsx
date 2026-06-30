@@ -10,7 +10,7 @@ import { cn } from '@/lib/utils'
 import { Portal } from '@/components/ui/Portal'
 import { useDialog } from '@/components/ui/useDialog'
 import { DossieTab } from './DossieTab'
-import type { Client } from './ClientesClient'
+import type { Client } from './types'
 
 interface Plan { id: string; nome: string; valor_semanal: number }
 // Dia de pagamento da semana — 0=Dom..6=Sáb, MESMA convenção que o cron/payDueWeeks lê (getUTCDay civil).

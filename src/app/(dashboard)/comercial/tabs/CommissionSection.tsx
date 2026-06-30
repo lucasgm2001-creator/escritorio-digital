@@ -21,6 +21,7 @@ import { payWeek, payWeekMessage, registerMeeting, ensureClient } from '@/lib/co
 import { markMilestones } from '@/lib/leadMilestones'
 import type { SalaryPeriod, Meeting, WeeklyPayment, FxConfig, Deal, DealStatus } from '@/lib/commission/types'
 import { usd, brl } from '@/lib/format'
+import { ClientPaymentsPanel } from './ClientPaymentsPanel'
 
 const inputCls = 'w-full bg-bento-bg border border-bento-border rounded-btn px-3 py-2 text-sm text-bento-text placeholder:text-bento-muted focus:outline-none focus:border-lime'
 const inputSm = 'bg-bento-bg border border-bento-border rounded-btn px-2 py-1 text-[11px] text-bento-text focus:outline-none focus:border-lime'
@@ -758,6 +759,19 @@ export function CommissionSection({ sellerId, sellerName }: { sellerId: string; 
     return <div className="flex items-center justify-center py-10 text-bento-muted text-sm gap-2"><span className="w-4 h-4 border-2 border-bento-muted/20 border-t-lime rounded-full animate-spin" />Carregando comissão...</div>
   }
 
+  // Clientes DESTE vendedor (das vendas) → {id,name}, p/ o painel de receber/estornar por semana (client_payments).
+  const sellerClients = (() => {
+    const seen = new Set<string>()
+    const out: { id: string; name: string }[] = []
+    for (const d of deals) {
+      const nm = (d.clientName || '').trim()
+      if (!nm) continue
+      const c = clients.find(x => x.name.toLowerCase() === nm.toLowerCase())
+      if (c && !seen.has(c.id)) { seen.add(c.id); out.push(c) }
+    }
+    return out
+  })()
+
   return (
     <div className="space-y-5">
       {/* lista compartilhada de clientes p/ os campos de cliente */}
@@ -949,6 +963,9 @@ export function CommissionSection({ sellerId, sellerName }: { sellerId: string; 
           </div>
         )}
       </Collapsible>
+
+      {/* Receber/estornar por semana (receita = client_payments), POR CLIENTE — mesmas actions; atrás do PIN. */}
+      <ClientPaymentsPanel clients={sellerClients} />
 
       {/* ── REUNIÕES (do mês em foco) ─────────────────────────────────── */}
       <Collapsible icon={<Handshake className="w-4 h-4 text-lime-fg" />} title={<>Reuniões de <span className="capitalize">{monthName(refDate.year, refDate.month)}</span></>}
