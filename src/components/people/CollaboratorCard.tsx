@@ -1,21 +1,11 @@
 import Link from 'next/link'
-import type { CollaboratorCardVM, CollaboratorStatus } from '@/lib/people/types'
+import type { CollaboratorCardVM } from '@/lib/people/types'
 import { cn } from '@/lib/utils'
-
-const STATUS: Record<CollaboratorStatus, { label: string; cls: string }> = {
-  ativo:     { label: 'Ativo',     cls: 'bg-lime/15 text-lime-fg border-lime/30' },
-  inativo:   { label: 'Inativo',   cls: 'bg-bento-panel/60 text-bento-dim border-bento-border' },
-  convidado: { label: 'Convidado', cls: 'bg-amber-900/20 text-amber-400 border-amber-800/40' },
-  afastado:  { label: 'Afastado',  cls: 'bg-bento-panel/60 text-bento-muted border-bento-border' },
-}
-
-function initials(name: string): string {
-  return name.trim().split(/\s+/).slice(0, 2).map(word => word[0]?.toUpperCase() ?? '').join('')
-}
+import { COLLABORATOR_STATUS, initials } from '@/lib/people/presentation'
 
 // Card do colaborador — leva ao detalhe (Master → Detail).
 export function CollaboratorCard({ collaborator, example }: { collaborator: CollaboratorCardVM; example?: boolean }) {
-  const status = STATUS[collaborator.status]
+  const status = COLLABORATOR_STATUS[collaborator.status]
   const subtitle = [collaborator.roleName, collaborator.departmentName].filter(Boolean).join(' · ') || '—'
 
   return (

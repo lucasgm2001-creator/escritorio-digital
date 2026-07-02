@@ -2,25 +2,15 @@ import Link from 'next/link'
 import { ChevronLeft, Briefcase, FolderOpen, Wallet, Users, UserPlus, ShieldCheck } from 'lucide-react'
 import { Panel } from '@/components/bento/Panel'
 import { CompensationFlow } from '@/components/admin/CompensationFlow'
-import type { CollaboratorDetailVM, CollaboratorStatus } from '@/lib/people/types'
+import type { CollaboratorDetailVM } from '@/lib/people/types'
 import { cn } from '@/lib/utils'
+import { COLLABORATOR_STATUS, initials } from '@/lib/people/presentation'
 import { InfoTile } from './InfoTile'
-
-const STATUS: Record<CollaboratorStatus, { label: string; cls: string }> = {
-  ativo:     { label: 'Ativo',     cls: 'bg-lime/15 text-lime-fg border-lime/30' },
-  inativo:   { label: 'Inativo',   cls: 'bg-bento-panel/60 text-bento-dim border-bento-border' },
-  convidado: { label: 'Convidado', cls: 'bg-amber-900/20 text-amber-400 border-amber-800/40' },
-  afastado:  { label: 'Afastado',  cls: 'bg-bento-panel/60 text-bento-muted border-bento-border' },
-}
-
-function initials(name: string): string {
-  return name.trim().split(/\s+/).slice(0, 2).map(word => word[0]?.toUpperCase() ?? '').join('')
-}
 
 // Detalhe do colaborador — o "centro da gestão de pessoas" (Master → Detail). Prepara VISUALMENTE
 // foto, cargo, departamento, template, gestor, equipe, status, permissões e remuneração. Sem cálculo.
 export function CollaboratorDetail({ collaborator, teamName }: { collaborator: CollaboratorDetailVM; teamName: string | null }) {
-  const status = STATUS[collaborator.status]
+  const status = COLLABORATOR_STATUS[collaborator.status]
   const subtitle = [collaborator.roleName, collaborator.departmentName].filter(Boolean).join(' · ') || '—'
 
   return (
