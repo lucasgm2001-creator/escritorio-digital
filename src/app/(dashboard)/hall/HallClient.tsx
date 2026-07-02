@@ -171,6 +171,16 @@ function HistoryModal({ onClose }: { onClose: () => void }) {
 
 // ─── Main HallClient ──────────────────────────────────────────────────────────
 
+// Divisor de secao discreto: rotulo pequeno + fio fino (sem caixa/borda pesada). Usado na Visao Geral.
+function SectionLabel({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="flex items-center gap-3 pt-1">
+      <span className="font-tech text-[11px] uppercase tracking-[0.15em] text-bento-muted shrink-0">{children}</span>
+      <span className="h-px flex-1 bg-bento-border/50" aria-hidden />
+    </div>
+  )
+}
+
 export function HallClient({ initialActivities, initialTasks, linkOptions, userName, userId }: Props) {
   // M6: estado de tarefas VIVO e ÚNICO — Tarefas + Mural + Agenda leem a MESMA fonte (realtime + merge A5).
   const { tasks, setTasks, deletedIds } = useTasksState(initialTasks)
@@ -260,6 +270,8 @@ export function HallClient({ initialActivities, initialTasks, linkOptions, userN
     .filter(t => t.due_date === hojeStr && !t.done)
     .sort((a, b) => (a.due_time || '99:99').localeCompare(b.due_time || '99:99'))
   const eventosHoje = calEvents.filter(e => e.date === hojeStr).sort((a, b) => (a.start_time || '99:99').localeCompare(b.start_time || '99:99'))
+  // Resumo do cabecalho executivo — contagem de dados JA carregados (sem query/metrica nova).
+  const reunioesHoje = eventosHoje.filter(e => e.type === 'reuniao').length
 
   // Métricas da Visão Geral — do banco (leads/clientes). Conversão coerente com o funil.
   const clientesAtivos = mapClients.filter(c => c.status === 'ativo').length
@@ -334,8 +346,17 @@ export function HallClient({ initialActivities, initialTasks, linkOptions, userN
 
         {activeTab === 'activities' && (
           <>
-            {/* KPIs executivos (dados REAIS de leads/clientes) no topo da Visão Geral. 2 colunas no
-                celular, 4 no desktop. Gate por usuário via hallCfg.metrics (Configurações > Hall). */}
+            {/* Cabecalho executivo — resumo do dia (dados JA carregados; sem query/metrica nova). */}
+            <p className="text-sm text-bento-muted leading-relaxed">
+              Hoje você possui{' '}
+              <strong className="font-semibold text-bento-text">{tarefasHoje.length} {tarefasHoje.length === 1 ? 'tarefa' : 'tarefas'}</strong>,{' '}
+              <strong className="font-semibold text-bento-text">{reunioesHoje} {reunioesHoje === 1 ? 'reunião' : 'reuniões'}</strong>
+              {' e '}
+              <strong className="font-semibold text-bento-text">{activities.length} {activities.length === 1 ? 'atividade recente' : 'atividades recentes'}</strong>.
+            </p>
+
+            {/* ── Empresa ── KPIs executivos reais (leads/clientes). Gate por hallCfg.metrics. */}
+            {METRICS.some(m => hallCfg.metrics[m.key]) && <SectionLabel>Empresa</SectionLabel>}
             {METRICS.some(m => hallCfg.metrics[m.key]) && (
               <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
                 {METRICS.filter(m => hallCfg.metrics[m.key]).map(m => (
@@ -347,8 +368,8 @@ export function HallClient({ initialActivities, initialTasks, linkOptions, userN
               </div>
             )}
 
-            {/* Ação do dia — Tarefas de hoje (esq) · Atividade recente (dir). No mobile empilha.
-                Logo abaixo dos KPIs: "o que fazer agora" + "o que aconteceu". */}
+            {/* ── Hoje ── Tarefas de hoje (esq) · Atividade recente (dir) + Agenda. No mobile empilha. */}
+            {(hallCfg.blocks.tarefas || hallCfg.blocks.atividade || hallCfg.blocks.agenda) && <SectionLabel>Hoje</SectionLabel>}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 items-start">
               {hallCfg.blocks.tarefas && (
                 <CollapsibleSection title="Tarefas de hoje" icon={CalendarDays} defaultOpen>
@@ -417,8 +438,8 @@ export function HallClient({ initialActivities, initialTasks, linkOptions, userN
               </CollapsibleSection>
             )}
 
-            {/* NOTÍCIAS — último, largura cheia. TODO(feed): a FONTE das notícias é a definir; hoje usa o
-                feed real da tabela `news` (NewsSection). Trocar por outro provedor quando definido. */}
+            {/* ── Informações ── Notícias (secundário). */}
+            {hallCfg.blocks.noticias && <SectionLabel>Informações</SectionLabel>}
             {hallCfg.blocks.noticias && (
               <CollapsibleSection title="Notícias do Setor" icon={Newspaper}>
                 <NewsSection />
