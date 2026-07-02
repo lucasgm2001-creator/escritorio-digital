@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Image from 'next/image'
+import Link from 'next/link'
 import {
   Sun, Moon, Monitor, Home, Briefcase, ListChecks, Projector, Users,
   Palette, Accessibility, Image as ImageIcon, User, LayoutGrid, Database, Plug, Info, Map, Boxes,
@@ -865,7 +866,15 @@ export function ConfiguracoesClient({ userId, google, teamSettings }: Props) {
       return <AndarSection keyId={key} label={label} onOpenSub={setSub} />
     }
     switch (key) {
-      case 'equipe': return teamSettings ? <TeamSettingsSection {...teamSettings} /> : null
+      case 'equipe': return teamSettings ? (
+        <div className="space-y-3">
+          <Link href="/admin/equipe" className="flex items-center justify-between gap-2 bento-fx p-3 hover:border-lime/40 transition-colors">
+            <span className="text-sm text-bento-text">A gestão de equipe também vive na <span className="text-lime-fg font-medium">Administração</span>.</span>
+            <span className="text-xs font-tech text-lime-fg shrink-0 flex items-center gap-1"><ExternalLink className="w-3.5 h-3.5" /> Abrir</span>
+          </Link>
+          <TeamSettingsSection {...teamSettings} />
+        </div>
+      ) : null
       case 'tema': return <ThemeSection />
       case 'mapa': return <MapSettingsContent />
       case 'hub-clientes': return <HubClientesSettings />
