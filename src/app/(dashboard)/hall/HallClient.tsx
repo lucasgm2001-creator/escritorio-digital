@@ -337,7 +337,7 @@ export function HallClient({ initialActivities, initialTasks, linkOptions, userN
         {TABS.map(tab => {
           const isActive = activeTab === tab.id
           return (
-            <button key={tab.id} aria-selected={isActive} onClick={() => setActiveTab(tab.id)}
+            <button key={tab.id} aria-pressed={isActive} onClick={() => setActiveTab(tab.id)}
               className={cn('relative flex-1 min-w-0 flex items-center justify-center gap-1.5 px-1 sm:px-3 py-3 text-[11px] sm:text-sm font-medium whitespace-nowrap transition-colors',
                 isActive ? 'text-lime-fg' : 'text-bento-muted hover:text-bento-text')}>
               <span className="hidden sm:inline-flex shrink-0">{tab.icon}</span>

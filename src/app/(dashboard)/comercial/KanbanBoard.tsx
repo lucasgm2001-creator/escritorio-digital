@@ -202,7 +202,7 @@ export function KanbanBoard({ initialLeads, initialStages, initialClients, curre
     }
     for (const n of res.notes) showToast(n.message, n.type)
     return true
-  }, [supabase, currentUser.name, initialStages])
+  }, [supabase, currentUser.name, currentUser.id, initialStages])
 
   // Choke point de TODO movimento (drag, tap, diário). Ao FECHAR (is_won) pelo funil, intercepta
   // e pede o PLANO antes de criar a venda (Fase 2A). Demais fases movem direto. (Agente = caminho à parte.)
