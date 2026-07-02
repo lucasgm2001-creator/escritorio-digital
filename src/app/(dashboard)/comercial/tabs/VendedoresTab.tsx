@@ -9,6 +9,7 @@ import { CommissionSection } from './CommissionSection'
 import { monthlySummary } from '@/lib/commission/calc'
 import type { SalaryPeriod, Meeting, WeeklyPayment, FxConfig } from '@/lib/commission/types'
 import { usd, brl } from '@/lib/format'
+import { MetricCard } from '@/components/ui/MetricCard'
 import { useCommissionLock, CommissionPinPad, ChangePinPad } from '@/components/commission/CommissionLock'
 import { Portal } from '@/components/ui/Portal'
 import { useDialog } from '@/components/ui/useDialog'
@@ -294,30 +295,13 @@ function SellerProfile({ seller, onClose, onUpdated, onDeleted }: {
 
         {/* KPIs do mês — do módulo real de comissão (batem com o Resumo) */}
         <div className="grid grid-cols-2 gap-x-2 gap-y-3 px-5 py-4 border-b border-bento-border shrink-0">
-          <div>
-            <p className="text-[10px] text-bento-muted">Comissão do mês</p>
-            <p className="text-sm font-bold text-lime-fg tabular-nums">{usd(mc.comissaoAtual)}</p>
-            {pct == null
-              ? <p className={cn('text-[9px] tabular-nums', mc.comissaoAtual > 0 ? 'text-lime-fg' : 'text-bento-muted')}>{mc.comissaoAtual > 0 ? 'novo' : '—'}</p>
-              : <p className={cn('text-[9px] tabular-nums', pct >= 0 ? 'text-lime-fg' : 'text-red-400')}>{pct >= 0 ? '+' : ''}{pct.toFixed(0)}% vs mês ant.</p>}
-          </div>
-          <div>
-            <p className="text-[10px] text-bento-muted">Total a receber</p>
-            <p className="text-sm font-bold text-bento-text tabular-nums">{usd(mc.totalAtual)}</p>
-            <p className="text-[9px] text-bento-muted tabular-nums">comissão + salário</p>
-          </div>
-          <div>
-            <p className="text-[10px] text-bento-muted">Vendas (mês)</p>
-            <p className="text-sm font-bold text-bento-text tabular-nums">{mc.vendasMes}</p>
-          </div>
-          <div>
-            <p className="text-[10px] text-bento-muted">Reuniões (mês)</p>
-            <p className="text-sm font-bold text-bento-text tabular-nums">{mc.reunioesMes}</p>
-          </div>
-          <div>
-            <p className="text-[10px] text-bento-muted">Salário fixo</p>
-            <p className="text-sm font-bold text-bento-text tabular-nums">{usd(mc.salarioUsd)}</p>
-          </div>
+          <MetricCard size="sm" title="Comissão do mês" value={usd(mc.comissaoAtual)} tone="positive"
+            trend={pct != null ? { value: Math.round(pct), suffix: '%', label: 'vs mês ant.' } : undefined}
+            subtitle={pct == null ? (mc.comissaoAtual > 0 ? 'novo' : '—') : undefined} />
+          <MetricCard size="sm" title="Total a receber" value={usd(mc.totalAtual)} subtitle="comissão + salário" />
+          <MetricCard size="sm" title="Vendas (mês)" value={mc.vendasMes} />
+          <MetricCard size="sm" title="Reuniões (mês)" value={mc.reunioesMes} />
+          <MetricCard size="sm" title="Salário fixo" value={usd(mc.salarioUsd)} />
         </div>
 
         {/* Section tabs */}
