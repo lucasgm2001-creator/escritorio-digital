@@ -11,21 +11,24 @@ import { DraggableTabs } from '@/components/DraggableTabs'
 import { KanbanColumn } from './KanbanColumn'
 import { PhaseSelectorMobile } from './PhaseSelectorMobile'
 import { LeadCard } from './LeadCard'
-import { LeadModal } from './LeadModal'
 import dynamic from 'next/dynamic'
-// Modal pesado (detalhe do lead) — carrega sob demanda (client-only). Comportamento idêntico.
-const LeadDiary = dynamic(() => import('./LeadDiary').then(m => ({ default: m.LeadDiary })), { ssr: false })
+// Fallback discreto enquanto o chunk da aba carrega (DS-005).
+function TabLoading() { return <div className="h-full flex items-center justify-center text-sm text-bento-muted">Carregando…</div> }
+// Abas não-default e modais: carregam sob demanda (client-only). Não pintam no 1º paint (aba padrão =
+// 'funil') → saem do bundle inicial da rota SEM mudar a UI. Modais abrem via Portal (sem fallback, igual LeadDiary).
+const LeadDiary     = dynamic(() => import('./LeadDiary').then(m => ({ default: m.LeadDiary })),             { ssr: false })
+const LeadModal     = dynamic(() => import('./LeadModal').then(m => ({ default: m.LeadModal })),             { ssr: false })
+const WonPlanModal  = dynamic(() => import('./WonPlanModal').then(m => ({ default: m.WonPlanModal })),       { ssr: false })
+const MetricasTab   = dynamic(() => import('./tabs/MetricasTab').then(m => ({ default: m.MetricasTab })),     { ssr: false, loading: TabLoading })
+const ContatosTab   = dynamic(() => import('./tabs/ContatosTab').then(m => ({ default: m.ContatosTab })),     { ssr: false, loading: TabLoading })
+const VendedoresTab = dynamic(() => import('./tabs/VendedoresTab').then(m => ({ default: m.VendedoresTab })), { ssr: false, loading: TabLoading })
 import { moveLead } from './leadActions'
 import { markMilestones } from '@/lib/leadMilestones'
 import { useRealtimeRows } from '@/lib/hooks/useRealtimeRows'
 import { usdCompact as fmtUSDc } from '@/lib/format'
-import { MetricasTab } from './tabs/MetricasTab'
-import { VendedoresTab } from './tabs/VendedoresTab'
-import { ContatosTab } from './tabs/ContatosTab'
 import type { Client as ClienteRow } from '../clientes/types'
 import type { Lead, LeadStatus } from './types'
 import { columnsFromStages, wonSlug, type FunnelStage } from '@/lib/funnelStages'
-import { WonPlanModal } from './WonPlanModal'
 import { PeriodChips } from './PeriodChips'
 import { rangeFor, inPeriodByActivity, type Range } from '@/lib/period'
 import { funnelConversionLabel } from '@/lib/funnelMetrics'
