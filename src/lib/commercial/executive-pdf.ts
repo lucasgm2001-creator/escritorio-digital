@@ -22,26 +22,52 @@ export async function buildExecutivePdf(input: {
   const { jsPDF } = await import('jspdf')
   const autoTable = (await import('jspdf-autotable')).default
   const doc = new jsPDF()
-  let y = 18
+  const generatedAt = new Date().toLocaleDateString('pt-BR')
 
   const afterTable = (fallback: number): number =>
     (doc as unknown as { lastAutoTable?: { finalY: number } }).lastAutoTable?.finalY ?? fallback
-  const ensure = (needed: number) => { if (y + needed > 285) { doc.addPage(); y = 18 } }
+
+  // ---- Capa (página de diretoria) ----
+  doc.setFillColor(GREEN[0], GREEN[1], GREEN[2]); doc.rect(0, 0, 210, 5, 'F')
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(13); doc.setTextColor(GREEN[0], GREEN[1], GREEN[2])
+  doc.text('Escritório Digital', L, 42)
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(32); doc.setTextColor(DARK[0], DARK[1], DARK[2])
+  doc.text('Relatório', L, 92); doc.text('Executivo Comercial', L, 106)
+  doc.setDrawColor(GREEN[0], GREEN[1], GREEN[2]); doc.setLineWidth(1); doc.line(L, 116, L + 64, 116)
+  doc.setFont('helvetica', 'normal'); doc.setFontSize(11); doc.setTextColor(GREY[0], GREY[1], GREY[2])
+  doc.text(`Período · ${rp.period.label}`, L, 132)
+  doc.text(`Workspace · ${workspace ?? '—'}`, L, 140)
+  doc.text(`Gerado em ${generatedAt}${user ? ` · ${user}` : ''}`, L, 148)
+
+  // Destaques na capa (só formatação dos KPIs já calculados).
+  const highlights: [string, string][] = [
+    ['Conversão', pct(d.conversionRate)], ['Receita realizada', usd(d.revenueRealized)],
+    ['Pipeline', usd(d.pipelineValue)], ['Fechamentos', String(d.closes)],
+  ]
+  let hx = L
+  const hw = 44
+  for (const [label, val] of highlights) {
+    doc.setDrawColor(222, 222, 222); doc.setLineWidth(0.3); doc.setFillColor(248, 249, 244)
+    doc.roundedRect(hx, 170, hw, 26, 2, 2, 'FD')
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(13); doc.setTextColor(DARK[0], DARK[1], DARK[2])
+    doc.text(val, hx + 4, 182, { maxWidth: hw - 8 })
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(7); doc.setTextColor(GREY[0], GREY[1], GREY[2])
+    doc.text(label.toUpperCase(), hx + 4, 190)
+    hx += hw + 3
+  }
+
+  // ---- Conteúdo começa na página 2 (a capa fica limpa) ----
+  doc.addPage()
+  let y = 22
+
+  const ensure = (needed: number) => { if (y + needed > 278) { doc.addPage(); y = 22 } }
   const heading = (title: string) => {
     ensure(16)
     doc.setFont('helvetica', 'bold'); doc.setFontSize(11); doc.setTextColor(DARK[0], DARK[1], DARK[2])
-    doc.text(title, L, y); y += 5
+    doc.text(title, L, y)
+    doc.setDrawColor(GREEN[0], GREEN[1], GREEN[2]); doc.setLineWidth(0.4); doc.line(L, y + 1.5, L + 16, y + 1.5)
+    y += 6
   }
-
-  // ---- Cabeçalho ----
-  doc.setFont('helvetica', 'bold'); doc.setFontSize(16); doc.setTextColor(GREEN[0], GREEN[1], GREEN[2]); doc.text('Escritório Digital', L, y)
-  doc.setFont('helvetica', 'normal'); doc.setFontSize(9); doc.setTextColor(GREY[0], GREY[1], GREY[2])
-  doc.text('Relatório Executivo Comercial', L, y + 6)
-  doc.text(workspace ?? '—', R, y, { align: 'right' })
-  doc.text(`Período: ${rp.period.label}`, R, y + 5, { align: 'right' })
-  doc.text(`Gerado em ${new Date().toLocaleDateString('pt-BR')}${user ? ` · ${user}` : ''}`, R, y + 10, { align: 'right' })
-  y += 16
-  doc.setDrawColor(GREEN[0], GREEN[1], GREEN[2]); doc.setLineWidth(0.5); doc.line(L, y, R, y); y += 8
 
   // ---- Resumo executivo ----
   heading('Resumo executivo')
@@ -104,7 +130,7 @@ export async function buildExecutivePdf(input: {
   })
   y = afterTable(y) + 4
   doc.setFont('helvetica', 'normal'); doc.setFontSize(8.5); doc.setTextColor(GREY[0], GREY[1], GREY[2])
-  ensure(8); doc.text(`Leads parados (> 7 dias): ${rp.stuckLeads}`, L, y); y += 8
+  ensure(8); doc.text(`Leads parados / críticos (> 7 dias): ${rp.stuckLeads}`, L, y); y += 8
 
   // ---- Gráficos (primitivos seguros: rect/line/circle; máximos protegidos contra divisão por zero) ----
   heading('Gráficos')
@@ -185,6 +211,21 @@ export async function buildExecutivePdf(input: {
   doc.setFont('helvetica', 'normal'); doc.setFontSize(9); doc.setTextColor(GREY[0], GREY[1], GREY[2])
   if (rp.insights.length === 0) { ensure(6); doc.text('Sem alertas no período.', L, y); y += 6 }
   else for (const ins of rp.insights) { ensure(7); doc.text(`• ${ins.message}`, L, y, { maxWidth: R - L }); y += 7 }
+
+  // ---- Cabeçalho + rodapé corridos com numeração (páginas de conteúdo; capa fica limpa) ----
+  const pages = doc.getNumberOfPages()
+  for (let p = 2; p <= pages; p++) {
+    doc.setPage(p)
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(8); doc.setTextColor(GREEN[0], GREEN[1], GREEN[2])
+    doc.text('Escritório Digital', L, 12)
+    doc.setFont('helvetica', 'normal'); doc.setTextColor(GREY[0], GREY[1], GREY[2])
+    doc.text('Relatório Executivo Comercial', R, 12, { align: 'right' })
+    doc.setDrawColor(226, 226, 226); doc.setLineWidth(0.3); doc.line(L, 15, R, 15)
+    doc.line(L, 288, R, 288)
+    doc.setFontSize(7.5); doc.setTextColor(GREY[0], GREY[1], GREY[2])
+    doc.text(`${rp.period.label}${workspace ? ` · ${workspace}` : ''}`, L, 293)
+    doc.text(`Página ${p - 1} de ${pages - 1}`, R, 293, { align: 'right' })
+  }
 
   doc.save(`relatorio-executivo-${rp.period.label.replace(/[^0-9a-zA-Z]+/g, '-').toLowerCase()}.pdf`)
 }
