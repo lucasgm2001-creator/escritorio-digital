@@ -1,10 +1,10 @@
 'use client'
 
 import Link from 'next/link'
-import Image from 'next/image'
 import { usePathname } from 'next/navigation'
 import { cn } from '@/lib/utils'
 import { Presentation } from 'lucide-react'
+import { BrandMark } from '@/components/brand/BrandMark'
 
 interface NavItem {
   href: string
@@ -75,27 +75,18 @@ export function Sidebar({ open, onToggle, mobileClose }: SidebarProps) {
         isMobileDrawer ? 'w-56' : open ? 'w-56' : 'w-[60px]'
       )}
     >
-      {/* Marca do app — logo REAL DR Growth (azul, fundo transparente), a MESMA do cabeçalho mobile.
-          Expandida = selo completo (logo-full); recolhida (rail estreito) = monograma "DR" (logo-mark).
-          Sem bg/caixa/borda/rounded atrás: a imagem transparente senta limpa no fundo (claro e escuro). */}
+      {/* Marca do app — símbolo oficial "O Módulo Ativo" + wordmark "Escritório Digital".
+          Expandida = símbolo + nome; recolhida (rail estreito) = só o símbolo, centralizado. */}
       <div className="flex items-center h-14 px-3 border-b border-sidebar-border/10 overflow-hidden gap-2.5">
-        {(open || isMobileDrawer) ? (
-          <Image
-            src="/logo-full.png"
-            alt="DR Growth — Escritório Digital"
-            width={1417}
-            height={384}
-            priority
-            className="h-8 w-auto max-w-full object-contain object-left shrink-0"
-          />
-        ) : (
-          <Image
-            src="/logo-mark.png"
-            alt="DR Growth"
-            width={378}
-            height={250}
-            className="w-7 h-7 object-contain shrink-0 mx-auto"
-          />
+        <BrandMark
+          size={30}
+          decorative={open || isMobileDrawer}
+          className={cn('shrink-0', !(open || isMobileDrawer) && 'mx-auto')}
+        />
+        {(open || isMobileDrawer) && (
+          <span className="font-display font-bold text-sidebar-foreground text-[15px] tracking-tight truncate">
+            Escritório Digital
+          </span>
         )}
         {isMobileDrawer && (
           <button onClick={mobileClose}

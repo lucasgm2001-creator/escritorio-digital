@@ -26,8 +26,8 @@ export default async function DashboardLayout({ children }: { children: React.Re
   // pro /onboarding (criar/entrar em equipe). Quem JÁ tem equipe segue direto, sem nunca ver o onboarding.
   if (context.memberships.length === 0) redirect('/onboarding')
 
-  // profile (name + avatar numa query só, cacheada por request). A marca do app é estática
-  // (public/logo-full.png na Sidebar/cabeçalho) — não depende mais do logo do Storage.
+  // profile (name + avatar numa query só, cacheada por request). A marca do app é o símbolo oficial
+  // (componente BrandMark na Sidebar/cabeçalho) — não depende do logo do Storage.
   const avatarUrl = context.profile?.avatar_url ?? null
 
   return (

@@ -5,15 +5,15 @@ export default function manifest(): MetadataRoute.Manifest {
   return {
     name: 'Escritório Digital',
     short_name: 'Escritório',
-    description: 'Sistema interno DR Growth',
+    description: 'O sistema operacional da sua empresa.',
     start_url: '/',
     display: 'standalone',
     orientation: 'portrait',
-    background_color: '#0D140F',
-    theme_color: '#0D140F',
+    background_color: '#111315',
+    theme_color: '#111315',
     icons: [
-      { src: '/icon-192.png', sizes: '192x192', type: 'image/png' },
-      { src: '/icon-512.png', sizes: '512x512', type: 'image/png' },
+      { src: '/icon-192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
+      { src: '/icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any' },
       { src: '/icon-512-maskable.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
     ],
   }

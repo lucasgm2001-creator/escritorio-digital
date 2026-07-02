@@ -26,16 +26,16 @@ const jetbrainsMono = JetBrains_Mono({ subsets: ['latin'], variable: '--font-tec
 const inter = Inter({ subsets: ['latin'], variable: '--font-body', display: 'swap' })
 
 export const metadata: Metadata = {
-  title: 'Escritório Digital — DR Growth',
-  description: 'Sistema interno DR Growth',
+  title: 'Escritório Digital',
+  description: 'O sistema operacional da sua empresa.',
   applicationName: 'Escritório Digital',
-  // PWA / iOS: abre em tela cheia (standalone) ao adicionar à tela inicial.
-  appleWebApp: { capable: true, title: 'Escritório Digital', statusBarStyle: 'black-translucent' },
-  icons: { icon: '/icon-192.png', apple: '/apple-touch-icon.png' },
+  // PWA / iOS: abre em tela cheia (standalone) ao adicionar à tela inicial. Título curto na home = "Escritório".
+  appleWebApp: { capable: true, title: 'Escritório', statusBarStyle: 'black-translucent' },
+  // Ícones: favicon via app/icon.svg e apple-touch via app/apple-icon.tsx (convenções do App Router, linkam sozinhos).
 }
 
 export const viewport: Viewport = {
-  themeColor: '#0D140F',   // combina com o fundo escuro do tema
+  themeColor: '#111315',   // tile/fundo do app — identidade oficial Escritório Digital
   viewportFit: 'cover',    // expõe env(safe-area-inset-*) no iOS (respiro da barra inferior no mobile)
   // App-shell: sem pinch-zoom (a pinça mexia header/menus). iOS Safari ignora isto → ver <NoPinchZoom/>.
   width: 'device-width',

@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Image from 'next/image'
 import { signOut } from '@/lib/supabase/auth-actions'
+import { BrandMark } from '@/components/brand/BrandMark'
 
 interface TopbarProps {
   title: string
@@ -83,16 +84,12 @@ export function Topbar({ onMenuToggle, userName = 'Usuário', userInitial = 'U',
         </svg>
       </button>
 
-      {/* Marca do app no cabeçalho MOBILE (logo real DR Growth). Desktop usa a Sidebar; aqui some (lg:hidden).
-          O hambúrguer é hidden lg:flex, então no mobile a logo ocupa a esquerda sem empurrar nada. */}
-      <Image
-        src="/logo-full.png"
-        alt="DR Growth — Escritório Digital"
-        width={1417}
-        height={384}
-        priority
-        className="h-8 w-auto max-w-[44vw] object-contain object-left shrink-0 lg:hidden"
-      />
+      {/* Marca do app no cabeçalho MOBILE — símbolo oficial + wordmark. Desktop usa a Sidebar (lg:hidden).
+          O hambúrguer é hidden lg:flex, então no mobile a marca ocupa a esquerda sem empurrar nada. */}
+      <div className="flex items-center gap-2 shrink-0 lg:hidden">
+        <BrandMark size={28} decorative className="shrink-0" />
+        <span className="font-display font-bold text-foreground text-[15px] tracking-tight">Escritório Digital</span>
+      </div>
 
       {/* Título da seção REMOVIDO daqui — cada página já tem seu próprio título de conteúdo (evita
           nome duplicado). O Topbar mantém só relógios + avatar; a seção ativa fica na Sidebar. */}

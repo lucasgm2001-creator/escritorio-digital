@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { signIn, signUp } from '@/lib/supabase/auth-actions'
+import { BrandMark } from '@/components/brand/BrandMark'
 
 function EyeIcon({ show }: { show: boolean }) {
   return show ? (
@@ -56,16 +57,11 @@ export default function LoginPage() {
   return (
     <main className="h-[100dvh] overflow-y-auto bg-gradient-to-br from-[#080D0A] via-[#0D140F] to-[#111A14] flex items-center justify-center p-4 py-[max(1rem,env(safe-area-inset-top))]">
       <div className="w-full max-w-md">
-        {/* Logo */}
+        {/* Logo — símbolo oficial + nome do produto + tagline conceitual */}
         <div className="text-center mb-12">
-          <div className="inline-flex items-center justify-center w-20 h-20 rounded-2xl bg-white/10 backdrop-blur mb-6">
-            <svg className="w-10 h-10 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
-            </svg>
-          </div>
-          <h1 className="text-3xl font-bold text-white mb-1">DR Growth</h1>
-          <p className="text-lime-fg">Escritório Digital</p>
+          <BrandMark size={72} decorative className="mx-auto mb-6" />
+          <h1 className="text-3xl font-bold text-white mb-1">Escritório Digital</h1>
+          <p className="text-lime-fg">O sistema operacional da sua empresa.</p>
         </div>
 
         {/* Form */}
@@ -169,7 +165,7 @@ export default function LoginPage() {
 
         {/* Footer */}
         <p className="text-center text-white/40 text-xs mt-8">
-          © 2025 DR Growth • Sistema Interno
+          © 2025 Escritório Digital
         </p>
       </div>
     </main>

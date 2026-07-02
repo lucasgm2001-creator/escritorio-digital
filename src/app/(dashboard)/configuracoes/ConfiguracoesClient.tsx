@@ -166,7 +166,7 @@ function AboutSection() {
     <Panel label="Sobre">
       <div className="space-y-1">
         <p className="text-sm font-medium text-bento-text">Escritório Digital v2</p>
-        <p className="font-tech text-xs text-bento-muted">DR Growth · {new Date().getFullYear()}</p>
+        <p className="font-tech text-xs text-bento-muted">por DR Growth · {new Date().getFullYear()}</p>
         <p className="font-tech text-xs text-bento-muted">Idioma: Português (Brasil)</p>
       </div>
     </Panel>
