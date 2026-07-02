@@ -10,7 +10,7 @@ import { monthlySummary } from '@/lib/commission/calc'
 import type { SalaryPeriod, Meeting, WeeklyPayment, FxConfig } from '@/lib/commission/types'
 import { usd, brl } from '@/lib/format'
 import { MetricCard } from '@/components/ui/MetricCard'
-import { useCommissionLock, CommissionPinPad, ChangePinPad } from '@/components/commission/CommissionLock'
+import { CommissionPinPad, ChangePinPad } from '@/components/commission/CommissionLock'
 import { Portal } from '@/components/ui/Portal'
 import { useDialog } from '@/components/ui/useDialog'
 import { Lock, KeyRound } from 'lucide-react'
@@ -464,11 +464,10 @@ export function VendedoresTab() {
   const [fetchError, setFetchError] = useState<string | null>(null)
   const [addOpen, setAddOpen] = useState(false)
   const [selected, setSelected] = useState<SellerRow | null>(null)
-  // Desbloqueio por vendedor (contexto em memória) + PIN/troca de PIN.
-  const { isUnlocked } = useCommissionLock()
+  // O desbloqueio é temporário: só abre o perfil atual após PIN e trava ao fechar/voltar.
   const [pinSeller, setPinSeller] = useState<SellerRow | null>(null)
   const [changePinOpen, setChangePinOpen] = useState(false)
-  const openSeller = (s: SellerRow) => { if (isUnlocked(s.id)) setSelected(s); else setPinSeller(s) }
+  const openSeller = (s: SellerRow) => setPinSeller(s)
 
   const emptyForm = { name: '', email: '', telefone: '', cargo: '', monthly_goal: '' }
   const [form, setForm] = useState(emptyForm)

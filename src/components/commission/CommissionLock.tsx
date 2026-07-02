@@ -1,26 +1,12 @@
 'use client'
 
-import { createContext, useContext, useState, type ReactNode } from 'react'
+import { useState, type ReactNode } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { cn } from '@/lib/utils'
 import { Lock, Delete, X } from 'lucide-react'
 
-// ── Desbloqueio da COMISSÃO POR VENDEDOR — EM MEMÓRIA (React). Reload => tudo trancado. ──
-// Conjunto de seller_ids desbloqueados. Sem localStorage/sessionStorage. O PIN NUNCA é
-// comparado/guardado/exibido aqui — só via RPC (verify_seller_box / set_my_commission_pin).
-type Ctx = { unlocked: Set<string>; unlockSeller: (id: string) => void; isUnlocked: (id: string) => boolean }
-const CommissionLockContext = createContext<Ctx | null>(null)
-
 export function CommissionLockProvider({ children }: { children: ReactNode }) {
-  const [unlocked, setUnlocked] = useState<Set<string>>(new Set())
-  const unlockSeller = (id: string) => setUnlocked(prev => { const n = new Set(prev); n.add(id); return n })
-  const isUnlocked = (id: string) => unlocked.has(id)
-  return <CommissionLockContext.Provider value={{ unlocked, unlockSeller, isUnlocked }}>{children}</CommissionLockContext.Provider>
-}
-
-export function useCommissionLock(): Ctx {
-  const c = useContext(CommissionLockContext)
-  return c ?? { unlocked: new Set(), unlockSeller: () => {}, isUnlocked: () => false }
+  return <>{children}</>
 }
 
 // ── Bolinhas (4 dígitos) ──
@@ -94,7 +80,6 @@ function PadShell({ title, sub, digits, shake, err, msg, onDigit, onDelete, busy
 export function CommissionPinPad({ sellerId, sellerName, onUnlock, onClose }: {
   sellerId: string; sellerName?: string; onUnlock?: () => void; onClose?: () => void
 }) {
-  const { unlockSeller } = useCommissionLock()
   const supabase = createClient()
   const [digits, setDigits] = useState('')
   const [err, setErr] = useState('')
@@ -109,7 +94,7 @@ export function CommissionPinPad({ sellerId, sellerName, onUnlock, onClose }: {
     try {
       const { data, error } = await supabase.rpc('verify_seller_box', { target_seller_id: sellerId, pin })
       if (error || data !== true) fail('Código incorreto')
-      else { unlockSeller(sellerId); onUnlock?.() }
+      else onUnlock?.()
     } catch { fail('Erro ao verificar. Tente de novo.') } finally { setBusy(false) }
   }
   const onDigit = (d: string) => {
