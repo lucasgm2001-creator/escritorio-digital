@@ -1,7 +1,7 @@
 import Link from 'next/link'
-import { Sparkles } from 'lucide-react'
 import { AdminStat } from '@/components/admin/AdminStat'
 import { Panel } from '@/components/bento/Panel'
+import { AiInsightsPanel } from '@/components/ai/AiInsightsPanel'
 import { TrafficPlatformGrid } from './TrafficPlatformGrid'
 
 // Dashboard executivo de Tráfego — PLACEHOLDERS (sem integração/API/dados). Reusa AdminStat + Panel.
@@ -82,16 +82,7 @@ export function TrafficDashboard({ clientName }: { clientName?: string }) {
 
       {/* Inteligência + Alertas */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <Panel label="Inteligência (IA)">
-          <div className="space-y-1.5">
-            {IA_ITEMS.map(item => (
-              <div key={item} className="flex items-center gap-2 text-[13px] text-bento-muted">
-                <Sparkles className="w-3.5 h-3.5 text-bento-dim shrink-0" /> {item}
-              </div>
-            ))}
-          </div>
-          <p className="text-[11px] text-bento-dim mt-2">Via AI Engine (AI-001).</p>
-        </Panel>
+        <AiInsightsPanel items={IA_ITEMS} />
         <Panel label="Alertas">
           <p className="text-[13px] text-bento-muted leading-relaxed">
             Alertas de campanha (orçamento, queda de ROAS, sem entrega) aparecerão aqui quando as contas de anúncio

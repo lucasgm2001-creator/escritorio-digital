@@ -16,6 +16,7 @@ import { LeadObservationComposer } from './LeadObservationComposer'
 import { LeadNotes } from './LeadNotes'
 import { LeadAttachments } from './LeadAttachments'
 import { LeadComments } from './LeadComments'
+import { AiInsightsPanel } from '@/components/ai/AiInsightsPanel'
 
 const TEMP_LABEL = { quente: '🔥 Quente', morno: '🌤 Morno', frio: '❄️ Frio' } as const
 
@@ -177,16 +178,7 @@ export function LeadHub({ vm, embedded = false }: { vm: LeadHubVM; embedded?: bo
             <p className="text-[11px] text-bento-dim mt-2">Sugestões visuais — viram automação no AUTOMATION-001.</p>
           </Panel>
 
-          <Panel label="Inteligência (IA)">
-            <div className="space-y-1.5">
-              {AI_ITEMS.map(item => (
-                <div key={item} className="flex items-center gap-2 text-[13px] text-bento-muted">
-                  <Sparkles className="w-3.5 h-3.5 text-bento-dim shrink-0" /> {item}
-                </div>
-              ))}
-            </div>
-            <p className="text-[11px] text-bento-dim mt-2">Via AI Engine (AI-001).</p>
-          </Panel>
+          <AiInsightsPanel items={AI_ITEMS} />
 
           <Panel label="Arquivos"><LeadAttachments /></Panel>
           <Panel label="Comentários"><LeadComments /></Panel>
