@@ -95,20 +95,41 @@ export async function getTeamMembers(teamId: string): Promise<TeamMember[]> {
 
   const { data, error } = await supabase
     .from('team_members')
-    .select('id, team_id, user_id, role, permissions, created_at, profile:profiles(id, name, avatar_url)')
+    .select('id, team_id, user_id, role, permissions, created_at')
     .eq('team_id', teamId)
     .order('created_at', { ascending: true })
 
   if (error) throw error
 
-  return ((data ?? []) as TeamMemberRow[]).map(row => ({
+  const rows = (data ?? []) as Omit<TeamMemberRow, 'profile'>[]
+
+  // `profiles` nao tem FK direta com `team_members` (ambos referenciam auth.users), entao o embed
+  // `profile:profiles(...)` do PostgREST falha (PGRST200). Buscamos os perfis a parte e juntamos
+  // por user_id no codigo — mesmo formato de retorno, sem depender de relacionamento no schema.
+  const userIds = Array.from(new Set(rows.map(row => row.user_id)))
+  const profileById = new Map<string, NonNullable<TeamMember['profile']>>()
+
+  if (userIds.length > 0) {
+    const { data: profiles, error: profilesError } = await supabase
+      .from('profiles')
+      .select('id, name, avatar_url')
+      .in('id', userIds)
+
+    if (profilesError) throw profilesError
+
+    for (const profile of (profiles ?? []) as NonNullable<TeamMember['profile']>[]) {
+      profileById.set(profile.id, profile)
+    }
+  }
+
+  return rows.map(row => ({
     id: row.id,
     team_id: row.team_id,
     user_id: row.user_id,
     role: toTeamRole(row.role),
     permissions: toPermissions(row.permissions),
     created_at: row.created_at,
-    profile: singleRelation(row.profile),
+    profile: profileById.get(row.user_id) ?? null,
   }))
 }
 
