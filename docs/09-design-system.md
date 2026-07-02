@@ -13,6 +13,16 @@
 4. **Mobile-first.** Alvo de toque ≥44px por padrão; nada `< text-xs` em informação; safe-area quando fixo.
 5. **Aparência consistente = tokens `bento`.** Usar `bento-fx / bento-btn / bento-border / lime / rounded-btn|bento|frame` e as safe-area helpers. **Não** construir sobre os tokens shadcn de `ui/card.tsx` (legado).
 6. **Só UI.** DS não toca regra de negócio, banco, integrações, cálculo, Services ou Repositories.
+7. **Componentes invisíveis (DS-005).** O usuário percebe a **tarefa**, nunca o componente. Sensação-alvo: **rápido, limpo, confiável, profissional**. O componente existe para reduzir atrito — não para chamar atenção.
+
+### DS-005 — Componentes invisíveis (regras concretas)
+
+- **Animação:** só a funcional (feedback de toque, transição de estado), curta (~150ms) e sutil; nada decorativo ou contínuo.
+- **Cor:** neutro por padrão; o acento (`lime`) é reservado ao essencial (ativo / primário / positivo). Sem paleta competindo por atenção.
+- **Sem enfeite:** nada de sombras, gradientes, brilhos ou bordas gratuitos; a hierarquia vem da tipografia e do espaço, não de decoração.
+- **Estados discretos:** loading / empty / error calmos e informativos, nunca chamativos.
+- **Consistência > novidade:** o mesmo padrão em toda tela; o usuário não "descobre" um componente diferente a cada lugar.
+- **Teste rápido:** se o componente chama atenção para si em vez de para a tarefa, está errado.
 
 ## Casa oficial e estrutura
 
