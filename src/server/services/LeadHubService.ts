@@ -8,6 +8,7 @@ import { categoryForInteractionType } from '@/lib/commercial/lead-categories'
 import { getLeadById } from '@/server/repositories/LeadRepository'
 import * as Timeline from '@/server/repositories/LeadTimelineRepository'
 import { getStages } from '@/lib/funnelStages.server'
+import { noopEventPublisher } from '@/core/events/publisher'
 import type { RequestContext } from '@/server/context/request-context'
 
 // Regra de negócio do Hub do Lead (ARCH-001). Isolamento (TEAM-001): confere a posse do lead ANTES de
@@ -197,6 +198,17 @@ export async function addLeadObservation(context: RequestContext, leadId: string
 
   const row = await Timeline.addObservation({
     leadId, note: clean, createdBy: context.user.id, createdByName: context.profile?.name ?? null,
+  })
+
+  // PONTO DE INTEGRAÇÃO — Event Bus (PLATFORM-003). Publisher é no-op nesta fase (EVENTS-001 liga o real);
+  // quem publica não muda quando o Outbox existir. Alimentará Dashboard/Automação/IA/Notificações.
+  await noopEventPublisher.publish({
+    id: crypto.randomUUID(),
+    type: 'lead.observation.created',
+    scope: { workspaceId: null, teamId },
+    payload: { leadId, interactionId: row.id },
+    occurredAt: new Date().toISOString(),
+    actorUserId: context.user.id,
   })
 
   return {
