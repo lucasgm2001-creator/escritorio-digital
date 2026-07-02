@@ -6,7 +6,7 @@ import { createClient } from '@/lib/supabase/server'
 // (Dashboard, Relatório, Forecast) nasce daqui — nenhuma tela ou PDF consulta/duplica. (Nota de escala:
 // hoje lê linhas cruas e agrega no Service; ao crescer, migrar para agregações SQL sem mudar as camadas.)
 
-export type MLead = { id: string; status: string | null; value: number | null; received_at: string | null; created_at: string | null; stage_changed_at: string | null }
+export type MLead = { id: string; status: string | null; value: number | null; received_at: string | null; created_at: string | null; stage_changed_at: string | null; score: number | null; origem: string | null }
 export type MStage = { lead_id: string | null; from_stage: string | null; to_stage: string; changed_at: string }
 export type MMeeting = { id: string; valor_usd: number | null; created_at: string | null }
 export type MDeal = { id: string; lead_id: string | null; valor_total_usd: number | null; status: string | null; data_fechamento: string | null; created_at: string | null }
@@ -23,7 +23,7 @@ export type CommercialRaw = {
 export async function getCommercialRaw(teamId: string): Promise<CommercialRaw> {
   const supabase = createClient()
   const [leads, stageEvents, meetings, deals, clients] = await Promise.all([
-    supabase.from('leads').select('id, status, value, received_at, created_at, stage_changed_at').eq('team_id', teamId),
+    supabase.from('leads').select('id, status, value, received_at, created_at, stage_changed_at, score, origem').eq('team_id', teamId),
     supabase.from('stage_events').select('lead_id, from_stage, to_stage, changed_at').eq('team_id', teamId),
     supabase.from('meetings').select('id, valor_usd, created_at').eq('team_id', teamId),
     supabase.from('deals').select('id, lead_id, valor_total_usd, status, data_fechamento, created_at').eq('team_id', teamId),
@@ -40,5 +40,34 @@ export async function getCommercialRaw(teamId: string): Promise<CommercialRaw> {
     meetings: (meetings.data ?? []) as MMeeting[],
     deals: (deals.data ?? []) as MDeal[],
     clients: (clients.data ?? []) as MClient[],
+  }
+}
+
+// ── Fontes ADICIONAIS da aba Métricas (marcos do ciclo + receita/vendedor). Escopadas por RLS (a MESMA
+//    leitura que a UI fazia antes); em erro degradam para vazio (a aba mostrava 0, nunca quebrava). ──
+export type MMilestone = { lead_id: string; marco: string; achieved_on: string }
+
+export async function getLeadMilestonesForMetrics(): Promise<MMilestone[]> {
+  const supabase = createClient()
+  const { data, error } = await supabase
+    .from('lead_milestones')
+    .select('lead_id, marco, achieved_on')
+    .in('marco', ['reuniao', 'fechou'])
+  if (error) return []
+  return (data ?? []) as MMilestone[]
+}
+
+export type MPayment = { client_id: string; valor_usd: number; paid_on: string; anulado?: boolean }
+export type MClientSeller = { id: string; assigned_name: string | null }
+
+export async function getClientRevenueForMetrics(): Promise<{ payments: MPayment[]; clients: MClientSeller[] }> {
+  const supabase = createClient()
+  const [pRes, cRes] = await Promise.all([
+    supabase.from('client_payments').select('client_id, valor_usd, paid_on, anulado'),
+    supabase.from('clients').select('id, assigned_name'),
+  ])
+  return {
+    payments: (pRes.data ?? []) as MPayment[],
+    clients: (cRes.data ?? []) as MClientSeller[],
   }
 }

@@ -32,3 +32,28 @@ export type CommercialDashboardVM = {
   revenueRealized: number
   revenueLost: number
 }
+
+// View-model da aba Métricas (CRM-RC-002). Tudo calculado no CommercialMetricsService — a UI só apresenta.
+// convRate/convReuniao em taxa 0..1 (a UI formata). Valores em USD (moeda base atual).
+export type CommercialMetricsTabVM = {
+  periodLabel: string
+  kpis: {
+    recebidos: number
+    fechados: number
+    convRate: number      // 0..1
+    pipeline: number
+    avgTicket: number
+    closedValue: number
+  }
+  convReuniao: number     // 0..1
+  reuniaoBase: number
+  fechouBase: number
+  funnel: { key: string; count: number; value: number }[]       // ordem de ALL_COLUMNS (estado atual)
+  maxCount: number
+  stageValues: { key: string; count: number; value: number }[]  // subset com count > 0
+  maxStageValue: number
+  bySeller: { name: string; value: number; count: number }[]    // ordenado por valor desc
+  maxSellerValue: number
+  snapshot: { total: number; ativos: number; fechados: number }
+  temperature: { hot: number; warm: number; cold: number }
+}

@@ -363,7 +363,7 @@ export function KanbanBoard({ initialLeads, initialStages, initialClients, curre
         )}
 
         {tab === 'contatos'     && <ContatosTab leads={leads} clients={clients} onOpenLead={setSelectedLead} onClientUpdated={c => setClients(prev => prev.map(x => x.id === c.id ? c : x))} />}
-        {tab === 'metricas'     && <MetricasTab leads={leads} />}
+        {tab === 'metricas'     && <MetricasTab />}
         {tab === 'vendedores'   && canManageTeam && <VendedoresTab />}
       </div>
 
