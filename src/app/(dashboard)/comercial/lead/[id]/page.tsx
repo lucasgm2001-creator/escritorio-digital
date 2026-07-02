@@ -9,5 +9,5 @@ export default async function LeadHubPage({ params }: { params: { id: string } }
   const vm = context ? await getLeadHub(context, params.id) : null
   if (!vm) notFound()
 
-  return <LeadHub vm={vm} />
+  return <LeadHub vm={vm} embedded />
 }

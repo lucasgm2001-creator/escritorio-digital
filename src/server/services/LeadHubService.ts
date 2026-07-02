@@ -2,10 +2,10 @@ import 'server-only'
 
 import type {
   LeadExecutive, LeadHealth, LeadHubVM, LeadJourneyStep, LeadPipelineStep, LeadStats,
-  LeadTemperature, LeadTimelineItem, LeadTimelineOrigin,
+  LeadTemperature, LeadTimelineItem, LeadTimelineOrigin, MasterLead,
 } from '@/lib/commercial/lead-hub-types'
 import { categoryForInteractionType } from '@/lib/commercial/lead-categories'
-import { getLeadById } from '@/server/repositories/LeadRepository'
+import { getLeadById, getLeadsByTeam } from '@/server/repositories/LeadRepository'
 import * as Timeline from '@/server/repositories/LeadTimelineRepository'
 import { getStages } from '@/lib/funnelStages.server'
 import { noopEventPublisher } from '@/core/events/publisher'
@@ -30,6 +30,27 @@ const daysBetween = (a: string | null, b: string | null): number | null =>
   a && b ? Math.max(0, Math.floor((t(b) - t(a)) / DAY)) : null
 const maxDate = (list: (string | null)[]): string | null =>
   list.filter(Boolean).sort((a, b) => t(b) - t(a))[0] ?? null
+
+// Lista LEVE de leads para o master (Master → Detail). Escopo por equipe (TEAM-001), ordem por score
+// (mesma do funil). Só leitura + resolução do nome da fase — nenhum cálculo de negócio na UI.
+export async function listLeadsForMaster(context: RequestContext): Promise<MasterLead[]> {
+  const teamId = context.activeTeamId
+  if (!teamId) return []
+  const [rows, stages] = await Promise.all([getLeadsByTeam(teamId), getStages()])
+  const stageName = (slug: string | null): string => (slug ? stages.find(s => s.slug === slug)?.nome ?? slug : '—')
+  return rows.map(row => {
+    const lead = row as unknown as LeadRow
+    return {
+      id: lead.id,
+      name: lead.name ?? 'Sem nome',
+      company: lead.company ?? null,
+      stageSlug: lead.status ?? null,
+      stageName: stageName(lead.status ?? null),
+      score: lead.score ?? null,
+      value: lead.value ?? null,
+    }
+  })
+}
 
 export async function getLeadHub(context: RequestContext, leadId: string): Promise<LeadHubVM | null> {
   const teamId = context.activeTeamId

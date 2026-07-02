@@ -36,7 +36,7 @@ const AI_ITEMS = ['Resumo do lead', 'Últimas objeções', 'Resumo das reuniões
 
 // Hub do Lead — CRM profissional (CRM-ULTIMATE-001). Saúde + executivo + jornada no topo (entender em
 // 30s); depois contexto | história | painel lateral. Tudo veio do LeadHubService (ARCH-001).
-export function LeadHub({ vm }: { vm: LeadHubVM }) {
+export function LeadHub({ vm, embedded = false }: { vm: LeadHubVM; embedded?: boolean }) {
   const band = leadHealthBand(vm)
 
   const resumo = [
@@ -63,9 +63,11 @@ export function LeadHub({ vm }: { vm: LeadHubVM }) {
 
   return (
     <div className="space-y-5 md:space-y-6">
-      <Link href="/comercial" className="inline-flex items-center gap-1 text-sm text-bento-muted min-h-[44px] md:min-h-0">
-        <ChevronLeft className="w-4 h-4" /> Comercial
-      </Link>
+      {!embedded && (
+        <Link href="/comercial" className="inline-flex items-center gap-1 text-sm text-bento-muted min-h-[44px] md:min-h-0">
+          <ChevronLeft className="w-4 h-4" /> Comercial
+        </Link>
+      )}
 
       <header className="flex items-start gap-3 flex-wrap">
         <div className="w-12 h-12 rounded-2xl bg-lime/10 border border-lime/20 flex items-center justify-center shrink-0 font-display font-bold text-lg text-lime-fg">

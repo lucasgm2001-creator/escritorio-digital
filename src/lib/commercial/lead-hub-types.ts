@@ -100,3 +100,14 @@ export type LeadHubVM = {
   pipeline: LeadPipelineStep[]
   files: LeadFileRef[]
 }
+
+// Item LEVE do master (lista Master → Detail). Só o necessário para a lista; o detalhe vem do LeadHubVM.
+export type MasterLead = {
+  id: string
+  name: string
+  company: string | null
+  stageSlug: string | null
+  stageName: string
+  score: number | null
+  value: number | null
+}
