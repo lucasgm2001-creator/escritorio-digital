@@ -56,7 +56,7 @@ EmptyState → ErrorState → DrawerHeader → SectionHeader → SegmentedTabs �
 ## Metrics
 | Nome | Status | Localização | Usado hoje | Reuso futuro | Responsabilidade | Obs |
 |---|---|---|---|---|---|---|
-| **MetricCard** | **Oficial** | `components/ui/MetricCard.tsx` | nenhum ainda (novo) | Hall/Comercial/Financeiro/Clientes/Vendedores | KPI label+valor | DS-006; API já estável |
+| **MetricCard** | **Oficial** | `components/ui/MetricCard.tsx` | Hall (KPIs da Visão Geral, DS-013) | Comercial/Financeiro/Clientes/Vendedores | KPI label+valor | DS-006 + DS-015: `size(sm\|md\|lg)`, `tone(default\|positive\|negative\|muted\|emerald\|blue\|lime)`, subtitle/icon/trend/href/onClick (md+default = uso do Hall, inalterado) |
 | **StatusBadge** | Em construção | `ui/metrics/StatusBadge.tsx` | "StatusPill" 5× (VendedoresTab:610, CommissionSection:146/940/1028, FasesTab:464) | status vendedor/venda/fase | badge de status | tons lime/slate/amber/red |
 | **TrendBadge** | Em construção | `ui/metrics/TrendBadge.tsx` | delta "+X%" `text-[9px]` (VendedoresTab:300) | KPIs c/ variação | variação c/ cor por sinal | usado por MetricCard.trend |
 

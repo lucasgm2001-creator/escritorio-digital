@@ -7,7 +7,8 @@ import { cn } from '@/lib/utils'
 // aparece quando o dado e positivo/enfatico (tone). Serve Hall, Comercial, Financeiro, Clientes, Vendedores.
 // Layout puro: quem posiciona (grid/linha) e a tela; aqui e so 1 card. Nao migra call-sites.
 
-export type MetricTone = 'default' | 'positive' | 'negative' | 'muted'
+export type MetricTone = 'default' | 'positive' | 'negative' | 'muted' | 'emerald' | 'blue' | 'lime'
+export type MetricSize = 'sm' | 'md' | 'lg'
 
 export type MetricTrend = {
   /** variacao numerica; o sinal define a cor (>=0 positivo, <0 negativo) */
@@ -25,6 +26,7 @@ export interface MetricCardProps {
   icon?: ReactNode
   trend?: MetricTrend
   tone?: MetricTone
+  size?: MetricSize
   /** navegacao (Link do Next) — torna o card inteiro tocavel */
   href?: string
   /** acao (botao) — torna o card inteiro tocavel */
@@ -37,17 +39,25 @@ const TONE_VALUE: Record<MetricTone, string> = {
   positive: 'text-lime-fg',
   negative: 'text-red-400',
   muted: 'text-bento-muted',
+  emerald: 'text-emerald-400',
+  blue: 'text-blue-400',
+  lime: 'text-lime-fg',
 }
 
+// Escala de tamanho. md = tamanho ATUAL (Hall) — nao mudar para nao quebrar o uso existente.
+const SIZE_CARD: Record<MetricSize, string> = { sm: 'px-3 py-2', md: 'px-3 py-2.5', lg: 'px-4 py-4' }
+const SIZE_TITLE: Record<MetricSize, string> = { sm: 'text-[10px]', md: 'text-[11px]', lg: 'text-xs' }
+const SIZE_VALUE: Record<MetricSize, string> = { sm: 'text-lg', md: 'text-2xl', lg: 'text-3xl' }
+
 export function MetricCard({
-  title, value, subtitle, icon, trend, tone = 'default', href, onClick, className,
+  title, value, subtitle, icon, trend, tone = 'default', size = 'md', href, onClick, className,
 }: MetricCardProps) {
   const interactive = !!href || !!onClick
 
   // Superficie base (bento). Interativo: alvo confortavel (min-h-[64px] cobre >44px), foco visivel e
   // realce SUTIL de borda no hover — sem scale/glow/animacao decorativa (DS-005).
   const cardCls = cn(
-    'bento-fx px-3 py-2.5 flex flex-col gap-1 text-left w-full',
+    'bento-fx flex flex-col gap-1 text-left w-full', SIZE_CARD[size],
     interactive && 'min-h-[64px] transition-colors hover:border-lime/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lime/40',
     className,
   )
@@ -55,11 +65,11 @@ export function MetricCard({
   const body = (
     <>
       <div className="flex items-center gap-2">
-        <span className="font-tech text-[11px] uppercase tracking-wide text-bento-muted truncate flex-1 min-w-0">{title}</span>
+        <span className={cn('font-tech uppercase tracking-wide text-bento-muted truncate flex-1 min-w-0', SIZE_TITLE[size])}>{title}</span>
         {icon && <span className="text-bento-muted shrink-0 [&_svg]:w-4 [&_svg]:h-4">{icon}</span>}
       </div>
 
-      <span className={cn('font-display text-2xl font-bold tabular-nums leading-none', TONE_VALUE[tone])}>{value}</span>
+      <span className={cn('font-display font-bold tabular-nums leading-none', SIZE_VALUE[size], TONE_VALUE[tone])}>{value}</span>
 
       {(subtitle || trend) && (
         <div className="flex items-center gap-1.5 mt-0.5">
