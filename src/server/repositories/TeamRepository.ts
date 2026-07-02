@@ -149,3 +149,16 @@ export async function createTeamInvite(
 
   return data as TeamInvite
 }
+
+export async function revokeTeamInvite(teamId: string, inviteId: string): Promise<void> {
+  const supabase = createClient()
+
+  const { error } = await supabase
+    .from('team_invites')
+    .delete()
+    .eq('id', inviteId)
+    .eq('team_id', teamId)
+    .is('used_at', null)
+
+  if (error) throw error
+}

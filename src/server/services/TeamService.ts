@@ -6,6 +6,7 @@ import {
   createTeamInvite,
   getTeamInvites,
   getTeamMembers,
+  revokeTeamInvite,
   type TeamInvite,
   type TeamMember,
 } from '@/server/repositories/TeamRepository'
@@ -49,4 +50,14 @@ export async function createInvite(context: RequestContext): Promise<TeamInvite>
   requirePermission(context, 'teams', 'manage')
 
   return createTeamInvite(activeTeamId, context.user.id)
+}
+
+export async function revokeInvite(
+  context: RequestContext,
+  inviteId: string,
+): Promise<void> {
+  const activeTeamId = requireActiveTeamId(context)
+  requirePermission(context, 'teams', 'manage')
+
+  await revokeTeamInvite(activeTeamId, inviteId)
 }

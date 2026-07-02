@@ -27,6 +27,7 @@ import { getHallSettings, setHallSettings, DEFAULT_HALL_SETTINGS, type HallSetti
 import { funnelConversionLabel } from '@/lib/funnelMetrics'
 import type { MapLead, MapClient } from '../comercial/mapTypes'
 import { HubClientesSettings } from '../clientes/HubClientesSettings'
+import { TeamSettingsSection, type TeamSettingsInvite, type TeamSettingsMember } from './TeamSettingsSection'
 
 // classes compartilhadas
 const inputCls = 'w-full bg-bento-bg border border-bento-border rounded-btn px-3 py-2 text-sm text-bento-text placeholder:text-bento-muted focus:outline-none focus:border-lime min-h-[44px]'
@@ -783,6 +784,7 @@ const ANDARES: NavItem[] = [
   { key: 'andar-clientes', label: 'Clientes', Icon: Users },
 ]
 const SISTEMA: NavItem[] = [
+  { key: 'equipe', label: 'Equipe e membros', Icon: Users },
   { key: 'tema', label: 'Tema', Icon: Palette },
   { key: 'mapa', label: 'Mapa', Icon: Map },
   { key: 'hub-clientes', label: 'Hub de Clientes', Icon: Boxes },
@@ -833,14 +835,22 @@ function PlanosSection() {
 }
 
 // ─── Main ───────────────────────────────────────────────────────────────────────
-interface Props { userId: string; google: { connected: boolean; email: string | null } }
+interface Props {
+  userId: string
+  google: { connected: boolean; email: string | null }
+  teamSettings: {
+    teamName: string | null
+    members: TeamSettingsMember[]
+    invites: TeamSettingsInvite[]
+  } | null
+}
 
 const GROUPS: { title: string; items: NavItem[] }[] = [
   { title: 'Andares', items: ANDARES },
   { title: 'Sistema', items: SISTEMA },
 ]
 
-export function ConfiguracoesClient({ userId, google }: Props) {
+export function ConfiguracoesClient({ userId, google, teamSettings }: Props) {
   // Accordion: NENHUMA seção aberta ao carregar; clicar no cabeçalho expande/recolhe (uma por vez).
   const [openKey, setOpenKey] = useState<string | null>(null)
   const [sub, setSub] = useState<string | null>(null)   // sub-tela (ex.: 'fases') dentro da seção aberta
@@ -855,6 +865,7 @@ export function ConfiguracoesClient({ userId, google }: Props) {
       return <AndarSection keyId={key} label={label} onOpenSub={setSub} />
     }
     switch (key) {
+      case 'equipe': return teamSettings ? <TeamSettingsSection {...teamSettings} /> : null
       case 'tema': return <ThemeSection />
       case 'mapa': return <MapSettingsContent />
       case 'hub-clientes': return <HubClientesSettings />
@@ -882,7 +893,7 @@ export function ConfiguracoesClient({ userId, google }: Props) {
           <div key={g.title}>
             <p className="font-tech text-[10px] uppercase tracking-[0.12em] text-bento-muted mb-1.5 px-1">{g.title}</p>
             <div className="space-y-2">
-              {g.items.map(it => {
+              {g.items.filter(it => it.key !== 'equipe' || teamSettings).map(it => {
                 const open = openKey === it.key
                 return (
                   <div key={it.key} className="bento-fx p-0 overflow-hidden">
