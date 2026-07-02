@@ -1,7 +1,8 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import { Search, ChevronDown, Check, Trash2, SlidersHorizontal } from 'lucide-react'
+import Link from 'next/link'
+import { Search, ChevronDown, Check, Trash2, SlidersHorizontal, ArrowRight } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { createClient } from '@/lib/supabase/client'
 import { useToast } from '@/components/ui/toast'
@@ -243,6 +244,14 @@ export function ContatosTab({ leads, clients, onOpenLead, onClientUpdated }: Pro
         </div>
         <div className="flex items-center gap-1 shrink-0">
           {r.chegada && <span className="font-tech text-[10px] text-bento-muted tabular-nums">{fmtChegada(r.chegada)}</span>}
+          {/* Abrir o Hub do lead (só leads). stopPropagation p/ não abrir o modal da linha. */}
+          {r.origem === 'lead' && (
+            <Link href={`/comercial/lead/${r.id}`} aria-label="Abrir perfil" title="Abrir perfil"
+              onClick={e => e.stopPropagation()}
+              className="p-1 rounded-md text-bento-muted/60 hover:text-lime-fg hover:bg-lime/10 transition-colors">
+              <ArrowRight className="w-3.5 h-3.5" />
+            </Link>
+          )}
           {/* Excluir de vez — SÓ leads. Cliente nunca é excluído (só desativado). */}
           {r.origem === 'lead' && (
             <button type="button" aria-label="Excluir de vez" title="Excluir de vez"

@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useCallback, useEffect, useMemo, useRef } from 'react'
+import Link from 'next/link'
 import {
   DndContext, DragOverlay, PointerSensor, useSensor, useSensors,
   type DragStartEvent, type DragEndEvent,
@@ -272,15 +273,26 @@ export function KanbanBoard({ initialLeads, initialStages, initialClients, curre
             <span className="font-tech text-xs text-bento-muted font-medium tabular-nums">{(tab === 'funil' ? filteredLeads : leads).length} leads</span>
           </div>
 
-          <button
-            onClick={() => setNewLeadOpen(true)}
-            className="bento-btn flex items-center justify-center gap-2 px-4 py-2 min-h-[44px] rounded-btn text-sm font-semibold w-full sm:w-auto"
-          >
-            <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-            </svg>
-            Novo Lead
-          </button>
+          <div className="flex items-center gap-2 w-full sm:w-auto">
+            <Link
+              href="/comercial/dashboard"
+              className="flex items-center justify-center gap-2 px-4 py-2 min-h-[44px] rounded-btn text-sm font-medium border border-bento-border text-bento-dim hover:border-lime hover:text-bento-text transition-colors flex-1 sm:flex-none"
+            >
+              <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6m4 6V9m4 10v-4M4 21h16" />
+              </svg>
+              Dashboard
+            </Link>
+            <button
+              onClick={() => setNewLeadOpen(true)}
+              className="bento-btn flex items-center justify-center gap-2 px-4 py-2 min-h-[44px] rounded-btn text-sm font-semibold flex-1 sm:flex-none"
+            >
+              <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+              </svg>
+              Novo Lead
+            </button>
+          </div>
         </div>
 
         {/* Tabs - Draggable */}
