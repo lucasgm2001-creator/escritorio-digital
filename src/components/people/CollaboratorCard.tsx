@@ -1,3 +1,4 @@
+import Link from 'next/link'
 import type { CollaboratorCardVM, CollaboratorStatus } from '@/lib/people/types'
 import { cn } from '@/lib/utils'
 
@@ -12,12 +13,16 @@ function initials(name: string): string {
   return name.trim().split(/\s+/).slice(0, 2).map(word => word[0]?.toUpperCase() ?? '').join('')
 }
 
+// Card do colaborador — leva ao detalhe (Master → Detail).
 export function CollaboratorCard({ collaborator, example }: { collaborator: CollaboratorCardVM; example?: boolean }) {
   const status = STATUS[collaborator.status]
   const subtitle = [collaborator.roleName, collaborator.departmentName].filter(Boolean).join(' · ') || '—'
 
   return (
-    <div className="bento-fx p-4 flex flex-col gap-3">
+    <Link
+      href={`/admin/colaboradores/${collaborator.id}`}
+      className="bento-fx p-4 flex flex-col gap-3 hover:border-lime/40 transition-colors"
+    >
       <div className="flex items-start gap-3">
         <div className="w-10 h-10 rounded-full bg-lime/10 border border-lime/20 flex items-center justify-center shrink-0 font-display font-bold text-sm text-lime-fg">
           {initials(collaborator.name)}
@@ -48,6 +53,6 @@ export function CollaboratorCard({ collaborator, example }: { collaborator: Coll
           <p className="text-bento-text truncate mt-0.5">{collaborator.managerName ?? '—'}</p>
         </div>
       </div>
-    </div>
+    </Link>
   )
 }

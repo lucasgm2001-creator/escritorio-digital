@@ -1,7 +1,7 @@
 import 'server-only'
 
 import type { RequestContext } from '@/server/context/request-context'
-import type { CollaboratorCardVM, DepartmentSummary, PeopleOverview, RoleSummary } from '@/lib/people/types'
+import type { CollaboratorCardVM, CollaboratorDetailVM, DepartmentSummary, PeopleOverview, RoleSummary } from '@/lib/people/types'
 import { listCollaborators, listDepartments, listRoles, listTemplates } from '@/server/repositories/PeopleRepository'
 
 // Service do domínio Pessoas (ARCH-001). Garante o escopo da equipe ativa (TEAM-001) e COMPÕE os
@@ -65,4 +65,23 @@ export async function listCollaboratorCards(context: RequestContext): Promise<Co
     templateName: scope.templates.find(template => template.id === collaborator.templateId)?.name ?? null,
     managerName: scope.collaborators.find(manager => manager.id === collaborator.managerId)?.name ?? null,
   }))
+}
+
+export async function getCollaboratorDetail(context: RequestContext, id: string): Promise<CollaboratorDetailVM | null> {
+  const scope = await loadScope(context)
+  if (!scope) return null
+  const collaborator = scope.collaborators.find(item => item.id === id)
+  if (!collaborator) return null
+  const role = scope.roles.find(item => item.id === collaborator.roleId) ?? null
+  return {
+    id: collaborator.id,
+    name: collaborator.name,
+    email: collaborator.email,
+    status: collaborator.status,
+    departmentName: scope.departments.find(department => department.id === collaborator.departmentId)?.name ?? null,
+    roleName: role?.name ?? null,
+    roleDescription: role?.description ?? null,
+    templateName: scope.templates.find(template => template.id === collaborator.templateId)?.name ?? null,
+    managerName: scope.collaborators.find(manager => manager.id === collaborator.managerId)?.name ?? null,
+  }
 }

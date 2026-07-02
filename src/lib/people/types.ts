@@ -79,3 +79,16 @@ export type CollaboratorCardVM = {
   templateName: string | null
   managerName: string | null
 }
+
+// Detalhe do colaborador (Master → Detail). Resolve tudo o que a tela de detalhe mostra.
+export type CollaboratorDetailVM = {
+  id: string
+  name: string
+  email: string | null
+  status: CollaboratorStatus
+  departmentName: string | null
+  roleName: string | null
+  roleDescription: string | null
+  templateName: string | null
+  managerName: string | null
+}
