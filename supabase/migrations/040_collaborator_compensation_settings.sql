@@ -22,8 +22,8 @@
 --
 -- Comportamento atual espelhado na config inicial do Lucas:
 --   salario fixo        = seller_salaries vigente (USD 200 desde 2026-07-01)
---   comissao contrato   = fixo USD 25 por semana  (deals.valor_por_semana_usd)
---   comissao reuniao    = fixo USD 15             (meetings.valor_usd)
+--   comissao contrato   = 20% (percentage)        (plans.comissao_percentual; FIN-003)
+--   comissao reuniao    = DESABILITADA (FIN-002)  -- Lucas nao recebe mais; meetings segue p/ agenda/historico
 --   bonus de renovacao  = inexistente hoje        -> desabilitado
 --   comissao de upgrade = inexistente hoje        -> desabilitado
 --   regra de pagamento  = semanal conforme o cliente paga
@@ -103,8 +103,8 @@ select
   '7cf9b5d3-e42f-48d7-bfdf-575736e72827'::uuid,  -- team DR Growth M.
   'd129ace7-424b-4434-88af-baa3781cb568'::uuid,  -- Lucas (unico vendedor)
   true,  200,                 -- salario fixo vigente (seller_salaries 2026-07-01)
-  true,  'fixed', 25,         -- comissao contrato: USD 25 por semana
-  true,  'fixed', 15,         -- comissao reuniao: USD 15
+  true,  'percentage', 20,    -- comissao contrato: 20% do valor semanal do plano (plans.comissao_percentual)
+  false, 'fixed', 0,          -- comissao reuniao: DESABILITADA (FIN-002) — value ignorado
   false, 'fixed', 0,          -- bonus de renovacao: desabilitado
   false, 'fixed', 0, 'plan_difference',  -- comissao de upgrade: desabilitada
   'weekly_as_client_pays',    -- paga semanal conforme o cliente paga
