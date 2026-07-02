@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 import { createClient } from './server'
+import { getSiteUrl } from '@/lib/siteUrl'
 
 export async function signIn(email: string, password: string) {
   const supabase = createClient()
@@ -31,7 +32,13 @@ export async function signUp(name: string, email: string, password: string) {
   if (!nm || !em || !password) return { error: 'Preencha nome, e-mail e senha.' }
 
   const supabase = createClient()
-  const { data, error } = await supabase.auth.signUp({ email: em, password, options: { data: { name: nm } } })
+  // Confirmação de e-mail volta pro DOMÍNIO REAL (não localhost): o link aponta para /auth/callback,
+  // que troca o `code` por sessão. A base vem de NEXT_PUBLIC_SITE_URL (fallback = origem da requisição).
+  const { data, error } = await supabase.auth.signUp({
+    email: em,
+    password,
+    options: { data: { name: nm }, emailRedirectTo: `${getSiteUrl()}/auth/callback` },
+  })
   if (error) {
     const m = error.message.toLowerCase()
     if (m.includes('already') || m.includes('registered')) return { error: 'Este e-mail já tem conta. Faça login.' }

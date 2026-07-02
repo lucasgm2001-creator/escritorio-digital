@@ -1,7 +1,9 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 
-const PUBLIC_ROUTES = ['/login']
+// /auth/callback precisa ser PÚBLICO: o usuário chega deslogado (a sessão só é criada DENTRO do callback,
+// ao trocar o code por sessão). Sem isto, o middleware o mandaria pro /login antes da troca acontecer.
+const PUBLIC_ROUTES = ['/login', '/auth/callback']
 
 export async function middleware(request: NextRequest) {
   let response = NextResponse.next({ request })

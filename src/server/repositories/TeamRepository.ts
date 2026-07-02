@@ -138,6 +138,9 @@ export async function createTeamInvite(
       team_id: teamId,
       created_by: createdBy,
       token: crypto.randomUUID(),
+      // team_invites.expires_at é NOT NULL sem default no schema — sem isto o INSERT falha. Validade: 7 dias.
+      // role NÃO é enviado de propósito → aplica o default 'member' (convidado nunca entra como admin/owner).
+      expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
     })
     .select('id, team_id, token, created_by, used_by, expires_at, used_at, created_at')
     .single()
