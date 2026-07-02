@@ -334,6 +334,19 @@ export function HallClient({ initialActivities, initialTasks, linkOptions, userN
 
         {activeTab === 'activities' && (
           <>
+            {/* KPIs executivos (dados REAIS de leads/clientes) no topo da Visão Geral. 2 colunas no
+                celular, 4 no desktop. Gate por usuário via hallCfg.metrics (Configurações > Hall). */}
+            {METRICS.some(m => hallCfg.metrics[m.key]) && (
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+                {METRICS.filter(m => hallCfg.metrics[m.key]).map(m => (
+                  <div key={m.key} className="bento-fx px-3 py-2.5 flex flex-col gap-1">
+                    <span className="font-tech text-[11px] uppercase tracking-wide text-bento-muted truncate">{m.label}</span>
+                    <span className="font-display text-2xl font-bold text-bento-text tabular-nums leading-none">{m.value}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+
             {/* (a) AGENDA SEMANAL — topo, largura cheia. No mobile rola na horizontal (dentro do Calendar). */}
             {hallCfg.blocks.agenda && (
               <CollapsibleSection title="Agenda" icon={CalendarDays} defaultOpen>
@@ -414,17 +427,6 @@ export function HallClient({ initialActivities, initialTasks, linkOptions, userN
 
         {activeTab === 'mapa' && (
           <>
-            {/* 4 cards de métricas (do banco) — todos os habilitados, inclusive no mobile (2×2). */}
-            {METRICS.some(m => hallCfg.metrics[m.key]) && (
-              <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-                {METRICS.filter(m => hallCfg.metrics[m.key]).map(m => (
-                  <div key={m.key} className="bento-fx px-3 py-2.5 flex flex-col gap-1">
-                    <span className="font-tech text-[10px] uppercase tracking-wide text-bento-muted truncate">{m.label}</span>
-                    <span className="font-display text-2xl font-bold text-bento-text tabular-nums leading-none">{m.value}</span>
-                  </div>
-                ))}
-              </div>
-            )}
             {/* Mapa CHEIO — enche a LARGURA; a altura vem da proporção (height:auto do SVG). Sem altura
                 fixa (não letterboxa). Mobile: padding mínimo no card pra o mapa usar quase a tela toda. */}
             {/* Título ÚNICO: o header do LeadMap ("Mapa de Leads" + relógios). O Panel fica SEM label p/ não duplicar. */}
