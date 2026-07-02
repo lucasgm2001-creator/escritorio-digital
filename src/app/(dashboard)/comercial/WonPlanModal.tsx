@@ -5,11 +5,10 @@ import { Trophy, Check } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { cn } from '@/lib/utils'
 import { usd } from '@/lib/format'
-import { weeklyCommissionUsd, hasCommissionPct, LEGACY_VPS_USD, DEFAULT_TETO_SEMANAS } from '@/lib/commission/planCommission'
 import { Portal } from '@/components/ui/Portal'
 import { useDialog } from '@/components/ui/useDialog'
 
-interface PlanRow { id: string; nome: string; valor_semanal: number; comissao_percentual: number | null }
+interface PlanRow { id: string; nome: string; valor_semanal: number }
 
 // Modal de fechamento (Fase 2A): escolhe o plano da venda → a comissão segue o % do plano.
 // onConfirm(planoId | null): null = sem plano ativo (legado US$25/sem). onCancel: NÃO fecha a venda.
@@ -29,7 +28,7 @@ export function WonPlanModal({ leadName, onConfirm, onCancel }: {
     ;(async () => {
       // Planos ativos + plano ATUAL do cliente (se já existe, por nome) p/ pré-selecionar.
       const [{ data: pl }, { data: cli }] = await Promise.all([
-        supabase.from('plans').select('id, nome, valor_semanal, comissao_percentual').eq('ativo', true).order('ordem'),
+        supabase.from('plans').select('id, nome, valor_semanal').eq('ativo', true).order('ordem'),
         supabase.from('clients').select('plano_id').ilike('name', leadName).limit(1),
       ])
       if (!alive) return
@@ -58,7 +57,7 @@ export function WonPlanModal({ leadName, onConfirm, onCancel }: {
           <Trophy className="w-5 h-5 text-lime-fg shrink-0" />
           <div className="min-w-0">
             <h2 id="won-plan-title" className="font-display font-bold text-bento-text text-base truncate">Fechar venda — {leadName}</h2>
-            <p className="text-xs text-bento-muted mt-0.5">Escolha o plano. A comissão da venda segue o % do plano.</p>
+            <p className="text-xs text-bento-muted mt-0.5">Escolha o plano desta venda.</p>
           </div>
         </div>
 
@@ -66,11 +65,8 @@ export function WonPlanModal({ leadName, onConfirm, onCancel }: {
           {loading ? (
             <p className="text-sm text-bento-muted">Carregando planos...</p>
           ) : plans.length === 0 ? (
-            <p className="text-sm text-bento-muted">Nenhum plano ativo — a venda será lançada no legado ({usd(LEGACY_VPS_USD)}/semana).</p>
+            <p className="text-sm text-bento-muted">Nenhum plano ativo — a venda será lançada no plano legado.</p>
           ) : plans.map(p => {
-            const pct = p.comissao_percentual != null ? Number(p.comissao_percentual) : null
-            const temPct = hasCommissionPct(pct)
-            const vps = weeklyCommissionUsd(p.valor_semanal, temPct ? pct : null)
             const on = selected === p.id
             return (
               <button key={p.id} type="button" onClick={() => setSelected(p.id)}
@@ -83,11 +79,7 @@ export function WonPlanModal({ leadName, onConfirm, onCancel }: {
                     {on && <Check className="w-3 h-3 text-lime-ink" />}
                   </span>
                 </div>
-                <p className="font-tech text-[11px] text-bento-dim mt-1">
-                  {usd(p.valor_semanal)}/sem · {temPct
-                    ? <>comissão {pct}% = <span className="text-bento-text font-semibold">{usd(vps)}/sem</span> (× {DEFAULT_TETO_SEMANAS} = {usd(vps * DEFAULT_TETO_SEMANAS)})</>
-                    : <>sem % → legado <span className="text-bento-text font-semibold">{usd(LEGACY_VPS_USD)}/sem</span></>}
-                </p>
+                <p className="font-tech text-[11px] text-bento-dim mt-1">{usd(p.valor_semanal)}/sem</p>
               </button>
             )
           })}
