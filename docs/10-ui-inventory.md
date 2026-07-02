@@ -22,7 +22,7 @@ EmptyState → ErrorState → DrawerHeader → SectionHeader → SegmentedTabs �
 ## Actions
 | Nome | Status | Localização | Usado hoje | Reuso futuro | Responsabilidade | Obs |
 |---|---|---|---|---|---|---|
-| **Button** | Em construção | `ui/actions/Button.tsx` (planejado) | classe `.bento-btn` + JSX (~59×: ~36 primary, ~23 secondary) | todos os modais/forms/ações | ação primária/secundária/destrutiva | evoluir sobre `.bento-btn`; ver survey abaixo |
+| **Button** | **Oficial** | `components/ui/Button.tsx` | ainda nenhum (novo); alvo: ~59× `.bento-btn` (~36 primary, ~23 secondary) | todos os modais/forms/ações | ação primária/secundária/destrutiva | DS-011; API: `variant(primary\|secondary\|destructive\|ghost) size(md 44px\|sm) loading leftIcon rightIcon fullWidth asChild`; primary reusa `.bento-btn` |
 | **IconButton** | Em construção | `ui/actions/IconButton.tsx` | `p-1`/`p-1.5` (~23×, todos <44px) | editar/excluir/reordenar/limpar | botão só-ícone | corrige alvo 44px |
 | **CloseButton** | Em construção | `ui/actions/CloseButton.tsx` | X reimplementado (SVG cru vs `<X>`, 1 sem aria) | todo modal/drawer | fechar overlay | especialização de IconButton |
 | Fab | Em construção (fase 4) | — | não existe | ação flutuante | FAB | fora da fila DS-007 |
