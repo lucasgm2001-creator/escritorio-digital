@@ -33,10 +33,15 @@ export type ReportInsight = {
   message: string
 }
 
+// Ranking/gargalo por fase do funil.
+export type StageRanking = { stage: string; count: number; avgDays: number | null }
+
 export type CommercialReport = {
   period: ReportPeriod
   kpis: ReportKpis
   movements: PipelineMovement[]
   conversions: ConversionStep[]
+  funnel: StageRanking[]
+  stuckLeads: number
   insights: ReportInsight[]
 }

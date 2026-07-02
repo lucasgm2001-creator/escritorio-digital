@@ -12,3 +12,23 @@ export type DashboardMetrics = {
   financial: FinancialMetrics
   activity: ActivityMetrics
 }
+
+// Dashboard Executivo (PLATFORM-003): view-model completo dos KPIs comerciais. Nasce do
+// DashboardMetricsService (fonte única) — nenhuma tela calcula. Valores em USD (moeda base atual).
+export type CommercialDashboardVM = {
+  leadsActive: number
+  leadsNew: number
+  leadsStuck: number
+  avgDaysAsLead: number
+  avgDaysPerStage: number
+  meetings: number
+  noShows: number
+  proposals: number
+  closes: number
+  conversionRate: number    // 0..1
+  avgTicket: number
+  pipelineValue: number
+  revenueForecast: number
+  revenueRealized: number
+  revenueLost: number
+}
