@@ -1,0 +1,81 @@
+// Domínio de Pessoas (PEOPLE-001) — modelo oficial: Departamento → Cargo → Template → Colaborador.
+// Tipos PUROS (sem 'server-only'): compartilhados entre a camada de dados (server) e a UI.
+// Multi-tenant por padrão (TEAM-001): toda entidade pertence a uma equipe (teamId).
+// Preparado para COMPENSATION-001 / PERMISSION-001 / AUTOMATION-001 sem retrabalho.
+
+export type CollaboratorStatus = 'ativo' | 'inativo' | 'convidado' | 'afastado'
+
+// Departamento — a área da empresa. Topo da estrutura de pessoas.
+export type Department = {
+  id: string
+  teamId: string
+  name: string
+  description: string | null
+}
+
+// Cargo — a FUNÇÃO profissional. NÃO é permissão e NÃO é remuneração (fronteiras da Constituição).
+export type Role = {
+  id: string
+  teamId: string
+  departmentId: string | null
+  name: string
+  description: string | null
+  isCustom: boolean
+  // Sugestão de template. A remuneração REAL virá do template atribuído ao colaborador (COMPENSATION-001).
+  suggestedTemplateId: string | null
+}
+
+// Template — a "casca" que no futuro carregará remuneração, metas, benefícios, regras, automações e
+// indicadores. NADA disso é implementado agora — apenas a estrutura para plugar COMPENSATION-001.
+export type CompensationTemplate = {
+  id: string
+  teamId: string
+  name: string
+  roleId: string | null
+}
+
+// Colaborador — a pessoa. Muito além de "vendedor": qualquer papel de qualquer empresa.
+export type Collaborator = {
+  id: string
+  teamId: string
+  userId: string | null       // vínculo com acesso/login (TEAM-001) quando existir
+  name: string
+  email: string | null
+  departmentId: string | null
+  roleId: string | null
+  templateId: string | null   // atribuição de remuneração (COMPENSATION-001, futuro)
+  managerId: string | null    // gestor (auto-relação)
+  status: CollaboratorStatus
+  // Futuro: histórico, documentos, integrações.
+}
+
+// ---- View-models (compostos no Service; a UI recebe pronto, sem fazer joins) ----
+
+export type PeopleOverview = {
+  departments: number
+  roles: number
+  templates: number
+  collaborators: number
+}
+
+export type DepartmentSummary = Department & {
+  roleCount: number
+  collaboratorCount: number
+}
+
+export type RoleSummary = Role & {
+  departmentName: string | null
+  collaboratorCount: number
+  suggestedTemplateName: string | null
+}
+
+export type CollaboratorCardVM = {
+  id: string
+  name: string
+  email: string | null
+  status: CollaboratorStatus
+  departmentName: string | null
+  roleName: string | null
+  templateName: string | null
+  managerName: string | null
+}
