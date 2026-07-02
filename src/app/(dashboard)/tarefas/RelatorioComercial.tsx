@@ -5,6 +5,8 @@ import { createClient } from '@/lib/supabase/client'
 import { cn } from '@/lib/utils'
 import { Download } from 'lucide-react'
 import { rangeFor, type Mode, type Range } from '@/lib/period'
+import { getCommercialReportAction } from './report-actions'
+import type { ReportPeriod } from '@/core/reporting/types'
 
 // ── Relatório — Resumo. Fonte: lead_milestones (marcos FIXOS interagiu/reuniao/fechou) + leads.status
 //    + funnel_stages. Eixo = leads.received_at (chegada). Conta SÓ leads com incluir_no_relatorio=true
@@ -112,57 +114,19 @@ export function RelatorioComercial() {
     { t: 'Venda perdida', v: r.perdido },
   ]
 
-  // PDF limpo p/ o chefe: cabeçalho + 3 principais em destaque + 4 sub + lista agrupada + clientes.
+  // PDF EXECUTIVO: NÃO calcula nem consulta o banco aqui. Puxa os view-models prontos via Server Action
+  // (ReportingService + DashboardMetricsService, fonte única) e delega o desenho ao buildExecutivePdf.
   const gerarPdf = async () => {
     setPdfBusy(true)
+    setError(null)
     try {
-      const { jsPDF } = await import('jspdf')
-      const autoTable = (await import('jspdf-autotable')).default
-      const green: [number, number, number] = [101, 163, 13]
-      const dark: [number, number, number] = [25, 25, 25]
-      const doc = new jsPDF()
-
-      doc.setFont('helvetica', 'bold'); doc.setFontSize(16); doc.setTextColor(...green); doc.text('DR Growth', 14, 18)
-      doc.setFontSize(13); doc.setTextColor(...dark); doc.text('Relatório — Resumo', 14, 26)
-      doc.setFont('helvetica', 'normal'); doc.setFontSize(10); doc.setTextColor(110, 110, 110)
-      doc.text(`Período: ${range.label}`, 14, 33)
-      doc.text(`Gerado em ${new Date().toLocaleDateString('pt-BR')}`, 14, 38)
-      doc.setDrawColor(...green); doc.setLineWidth(0.5); doc.line(14, 42, 196, 42)
-
-      let x = 14; const y = 56
-      for (const k of principais) {
-        doc.setFont('helvetica', 'bold'); doc.setFontSize(26); doc.setTextColor(...green); doc.text(String(k.v), x, y)
-        doc.setFont('helvetica', 'normal'); doc.setFontSize(9); doc.setTextColor(90, 90, 90); doc.text(k.t, x, y + 7)
-        x += 62
-      }
-      x = 14; const y2 = y + 22
-      for (const k of sub) {
-        doc.setFont('helvetica', 'bold'); doc.setFontSize(15); doc.setTextColor(...dark); doc.text(String(k.v), x, y2)
-        doc.setFont('helvetica', 'normal'); doc.setFontSize(8); doc.setTextColor(110, 110, 110); doc.text(k.t, x, y2 + 5)
-        x += 47
-      }
-
-      const body: string[][] = []
-      for (const g of r.groups) for (const l of g.items) body.push([g.label, l.name, l.company || '—'])
-      autoTable(doc, {
-        startY: y2 + 14,
-        head: [['Desfecho', 'Lead', 'Empresa']],
-        body: body.length ? body : [['—', 'Sem leads no período', '']],
-        styles: { fontSize: 9, cellPadding: 2 },
-        headStyles: { fillColor: green, textColor: [20, 20, 20] },
-        alternateRowStyles: { fillColor: [245, 247, 240] },
-      })
-      const afterLeads = (doc as unknown as { lastAutoTable?: { finalY: number } }).lastAutoTable?.finalY ?? y2 + 14
-      doc.setFont('helvetica', 'bold'); doc.setFontSize(11); doc.setTextColor(...dark); doc.text('Clientes', 14, afterLeads + 10)
-      autoTable(doc, {
-        startY: afterLeads + 14,
-        head: [['Cliente', 'Empresa', 'Status']],
-        body: clients.length ? clients.map(c => [c.name, c.company || '—', c.status]) : [['—', 'Sem clientes', '']],
-        styles: { fontSize: 9, cellPadding: 2 },
-        headStyles: { fillColor: green, textColor: [20, 20, 20] },
-        alternateRowStyles: { fillColor: [245, 247, 240] },
-      })
-      doc.save(`relatorio-resumo-${range.label.replace(/[^0-9a-zA-Z]+/g, '-').toLowerCase()}.pdf`)
+      const period: ReportPeriod = { from: range.start.toISOString(), to: range.end.toISOString(), label: range.label }
+      const res = await getCommercialReportAction(period)
+      if (!res.ok) { setError(res.error); return }
+      const { buildExecutivePdf } = await import('@/lib/commercial/executive-pdf')
+      await buildExecutivePdf({ dashboard: res.dashboard, report: res.report, workspace: res.workspace, user: res.user })
+    } catch {
+      setError('Não foi possível gerar o PDF.')
     } finally {
       setPdfBusy(false)
     }

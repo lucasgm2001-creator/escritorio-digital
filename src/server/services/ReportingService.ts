@@ -10,7 +10,13 @@ import { getStages } from '@/lib/funnelStages.server'
 
 const DAY = 86_400_000
 const num = (v: number | null): number => Number(v ?? 0)
-const inPeriod = (iso: string | null, p: ReportPeriod): boolean => !!iso && iso >= p.from && iso <= p.to
+const inPeriod = (iso: string | null, p: ReportPeriod): boolean => {
+  if (!iso) return false
+  // Comparação NUMÉRICA (data pura → meio-dia local p/ não escorregar de dia por fuso). Cada movimentação
+  // é avaliada pela sua data; nada é substituído — reunião marcada continua contando mesmo virando no-show.
+  const ms = new Date(String(iso).length <= 10 ? `${iso}T12:00:00` : iso).getTime()
+  return ms >= new Date(p.from).getTime() && ms <= new Date(p.to).getTime()
+}
 const daysSince = (iso: string | null): number => (iso ? Math.max(0, Math.floor((Date.now() - new Date(iso).getTime()) / DAY)) : 0)
 const sum = (list: number[]): number => list.reduce((a, b) => a + b, 0)
 const rate = (a: number, b: number): number => (b > 0 ? a / b : 0)
