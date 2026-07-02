@@ -4,6 +4,7 @@ import { ToastProvider } from '@/components/ui/toast'
 import { capitalizeName } from '@/lib/utils'
 import { getRequestContext } from '@/server/context/request-context'
 import { CommissionLockProvider } from '@/components/commission/CommissionLock'
+import { RoleProvider } from '@/components/auth/RoleProvider'
 
 const PAGE_TITLES: Record<string, string> = {
   '/hall':           'Hall',
@@ -38,7 +39,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
       pageTitles={PAGE_TITLES}
       activeTeamName={context.activeTeamName}
     >
-      <ToastProvider><CommissionLockProvider>{children}</CommissionLockProvider></ToastProvider>
+      <ToastProvider><CommissionLockProvider><RoleProvider role={context.role}>{children}</RoleProvider></CommissionLockProvider></ToastProvider>
     </DashboardShell>
   )
 }

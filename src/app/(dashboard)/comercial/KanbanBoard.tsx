@@ -8,6 +8,7 @@ import {
 import { createClient } from '@/lib/supabase/client'
 import { cn } from '@/lib/utils'
 import { DraggableTabs } from '@/components/DraggableTabs'
+import { useCanManageTeam } from '@/components/auth/RoleProvider'
 import { KanbanColumn } from './KanbanColumn'
 import { PhaseSelectorMobile } from './PhaseSelectorMobile'
 import { LeadCard } from './LeadCard'
@@ -135,6 +136,9 @@ export function KanbanBoard({ initialLeads, initialStages, initialClients, curre
     setTimeout(() => setToast(null), 4000)
   }
 
+  // Papel na equipe: só owner/admin veem a aba "Equipe e Comissões" (config de remuneração) — COMMISSION-003.
+  const canManageTeam = useCanManageTeam()
+
   // Deep-link vindo do Hall: /comercial?lead=<id> abre o lead no funil.
   const tabHandled = useRef(false)
   const leadHandled = useRef(false)
@@ -144,7 +148,8 @@ export function KanbanBoard({ initialLeads, initialStages, initialClients, curre
     if (!tabHandled.current) {
       tabHandled.current = true
       const tabParam = params.get('tab')
-      if (tabParam && ['funil', 'contatos', 'metricas', 'vendedores'].includes(tabParam)) setTab(tabParam as Tab)
+      const allowedTabs = canManageTeam ? ['funil', 'contatos', 'metricas', 'vendedores'] : ['funil', 'contatos', 'metricas']
+      if (tabParam && allowedTabs.includes(tabParam)) setTab(tabParam as Tab)
     }
     // lead: precisa da LISTA carregada. M16: depende de `leads` → abre assim que o id existir (uma vez só).
     if (!leadHandled.current) {
@@ -163,7 +168,8 @@ export function KanbanBoard({ initialLeads, initialStages, initialClients, curre
     { key: 'funil',        label: 'Funil' },
     { key: 'contatos',     label: 'Contatos' },
     { key: 'metricas',     label: 'Métricas' },
-    { key: 'vendedores',   label: 'Equipe e Comissões' },
+    // "Equipe e Comissões" (remuneração) só p/ owner/admin (COMMISSION-003).
+    ...(canManageTeam ? [{ key: 'vendedores' as Tab, label: 'Equipe e Comissões' }] : []),
   ]
 
   const sensors = useSensors(
@@ -346,7 +352,7 @@ export function KanbanBoard({ initialLeads, initialStages, initialClients, curre
 
         {tab === 'contatos'     && <ContatosTab leads={leads} clients={clients} onOpenLead={setSelectedLead} onClientUpdated={c => setClients(prev => prev.map(x => x.id === c.id ? c : x))} />}
         {tab === 'metricas'     && <MetricasTab leads={leads} />}
-        {tab === 'vendedores'   && <VendedoresTab />}
+        {tab === 'vendedores'   && canManageTeam && <VendedoresTab />}
       </div>
 
       {/* Modals */}
