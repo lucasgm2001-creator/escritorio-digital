@@ -18,7 +18,11 @@ import { isDarkByTime, getDarkHours, DEFAULT_DARK_START, DEFAULT_DARK_END } from
 import { loadA11y, saveA11y, applyA11y, DEFAULT_A11Y, type A11ySettings, type FontScale } from '@/lib/a11y'
 import { loadDensity, saveDensity, applyDensity, type Density } from '@/lib/uiPrefs'
 import { weeklyCommissionUsd, hasCommissionPct, DEFAULT_TETO_SEMANAS, LEGACY_VPS_USD } from '@/lib/commission/planCommission'
-import { FasesTab } from '../comercial/tabs/FasesTab'
+import dynamic from 'next/dynamic'
+// FasesTab arrasta @dnd-kit/* (grande) e só aparece na sub-tela "Fases do funil" (2 cliques) — carrega
+// sob demanda (client-only) → sai do bundle inicial da rota SEM mudar a UI. Fallback discreto (DS-005).
+function FasesTabLoading() { return <div className="py-16 text-center text-sm text-bento-muted">Carregando…</div> }
+const FasesTab = dynamic(() => import('../comercial/tabs/FasesTab').then(m => ({ default: m.FasesTab })), { ssr: false, loading: FasesTabLoading })
 import { useMapPrefs, saveMapPrefs, type MapPrefs } from '@/lib/mapPrefs'
 import { getHallSettings, setHallSettings, DEFAULT_HALL_SETTINGS, type HallSettings } from '@/lib/hallSettings'
 import { funnelConversionLabel } from '@/lib/funnelMetrics'
