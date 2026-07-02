@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { cn } from '@/lib/utils'
-import { Presentation } from 'lucide-react'
+import { Presentation, ShieldCheck } from 'lucide-react'
 import { BrandMark } from '@/components/brand/BrandMark'
 
 interface NavItem {
@@ -43,6 +43,9 @@ const icons = {
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
     </svg>
   ),
+  admin: (
+    <ShieldCheck className="w-[18px] h-[18px] shrink-0" />
+  ),
 }
 
 const NAV_ITEMS: NavItem[] = [
@@ -50,6 +53,7 @@ const NAV_ITEMS: NavItem[] = [
   { href: '/comercial',      label: 'Comercial',      icon: icons.comercial,  group: 'main' },
   { href: '/clientes',       label: 'Clientes',       icon: icons.clientes,   group: 'main' },
   { href: '/studio',         label: 'Studio de Apresentação', icon: icons.studio, group: 'main' },
+  { href: '/admin',          label: 'Administração',  icon: icons.admin,      group: 'system' },
   { href: '/configuracoes',  label: 'Configurações',  icon: icons.config,     group: 'system' },
 ]
 
