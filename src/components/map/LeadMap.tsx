@@ -189,7 +189,10 @@ export default function LeadMap({
 
   const panelRef = useRef<HTMLDivElement>(null);
   const [w, setW] = useState(900);
-  const H = height;
+  // Altura PROPORCIONAL à largura (Albers ~0.6): enche a largura e elimina o espaço morto vertical no
+  // celular/iPad. Desktop mantém ~540 (teto = prop height). Nada de "desktop encolhido".
+  const H = Math.max(240, Math.min(height, Math.round(w * 0.6)));
+  const isMobile = w > 0 && w < 480;
 
   // LIGHT MODE: o componente foi desenhado dark (vidro). No claro troca SÓ as cores ESTRUTURAIS (painel +
   // estados/contorno/labels/textos) por uma superfície clara legível; o ACENTO do tema (heat/linhas de fuso/
@@ -276,7 +279,8 @@ export default function LeadMap({
     if (!topo) return null;
     const states = feature(topo, topo.objects.states) as any;
     const nation = feature(topo, topo.objects.nation) as any;
-    const proj = geoAlbersUsa().fitExtent([[24, 18], [w - 24, H - 30]], states);
+    const padX = w < 480 ? 10 : 24;
+    const proj = geoAlbersUsa().fitExtent([[padX, w < 480 ? 10 : 18], [w - padX, H - (w < 480 ? 16 : 30)]], states);
     const path = geoPath(proj);
     const tzMesh = mesh(topo, topo.objects.states, (a: any, b: any) =>
       a !== b && tzOfName(a.properties.name) !== tzOfName(b.properties.name)
@@ -290,7 +294,7 @@ export default function LeadMap({
     return { ...f, time, color: isLight ? '#0F172A' : (h >= 8 && h < 18 ? '#fff' : 'rgba(225,232,244,0.7)') };
   });
 
-  const onPathMove = (abbr: string) => (e: React.MouseEvent) => {
+  const onPathMove = (abbr: string) => (e: React.PointerEvent) => {
     const r = panelRef.current?.getBoundingClientRect();
     if (!r) return;
     const cx = e.clientX - r.left, cy = e.clientY - r.top;
@@ -329,10 +333,10 @@ export default function LeadMap({
       <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 1, background: 'linear-gradient(90deg,transparent,var(--line),transparent)' }} />
 
       {showHeader && (
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 20, flexWrap: 'wrap', padding: '22px 24px 4px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: isMobile ? 12 : 20, flexWrap: 'wrap', padding: isMobile ? '15px 15px 2px' : '22px 24px 4px' }}>
           <div>
             <div style={{ fontFamily: MONO, fontSize: 10, letterSpacing: '0.18em', textTransform: 'uppercase', color: faintText, marginBottom: 7 }}>Lead Map · EUA</div>
-            <div style={{ fontSize: 23, fontWeight: 600, letterSpacing: '-0.01em', lineHeight: 1 }}>Mapa de Leads</div>
+            <div style={{ fontSize: isMobile ? 19 : 23, fontWeight: 600, letterSpacing: '-0.01em', lineHeight: 1 }}>Mapa de Leads</div>
             <div style={{ fontSize: 12.5, color: dimText, marginTop: 5 }}>Distribuição por fuso horário</div>
           </div>
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
@@ -384,7 +388,7 @@ export default function LeadMap({
       )}
 
       <div style={{ position: 'relative', height: H, marginTop: 2 }}>
-        <div style={{ position: 'absolute', left: '50%', top: '62%', width: '62%', height: 200, transform: 'translate(-50%,-50%)', background: 'radial-gradient(ellipse at center,var(--glow),transparent 70%)', filter: 'blur(26px)', pointerEvents: 'none' }} />
+        <div style={{ position: 'absolute', left: '50%', top: '62%', width: '54%', height: 168, transform: 'translate(-50%,-50%)', background: 'radial-gradient(ellipse at center,var(--glow),transparent 70%)', filter: 'blur(32px)', pointerEvents: 'none' }} />
         <div style={{ position: 'absolute', inset: 0, perspective: '1600px', perspectiveOrigin: '50% 32%' }}>
           <div style={{ position: 'absolute', inset: 0, transform: view === '2d' ? 'none' : `rotateX(${angle}deg)`, transformOrigin: 'center 36%', transformStyle: 'preserve-3d' }}>
             {view === '3d' && (
@@ -392,7 +396,7 @@ export default function LeadMap({
             )}
             <div style={{ position: 'absolute', inset: 0 }}>
               {built ? (
-                <svg width={w} height={H} viewBox={`0 0 ${w} ${H}`} style={{ display: 'block', width: '100%', height: '100%', overflow: 'visible' }}>
+                <svg width={w} height={H} viewBox={`0 0 ${w} ${H}`} onPointerLeave={() => setHover(null)} style={{ display: 'block', width: '100%', height: '100%', overflow: 'visible' }}>
                   <defs>
                     <filter id="lm-mglow" x="-80%" y="-80%" width="260%" height="260%">
                       <feGaussianBlur stdDeviation="4" result="b" />
@@ -421,7 +425,7 @@ export default function LeadMap({
                       <path key={i} d={built.path(f) || ''} fill={fill}
                         stroke={isHover ? th.accent : th.stateStroke} strokeWidth={isHover ? 1.5 : 0.6}
                         style={{ cursor: 'pointer' }}
-                        onMouseMove={onPathMove(abbr)} onMouseLeave={() => setHover(null)}
+                        onPointerMove={onPathMove(abbr)} onPointerLeave={() => setHover(null)}
                         onClick={() => { if (abbr) setPanelUf(abbr); }} />
                     );
                   })}
@@ -438,8 +442,8 @@ export default function LeadMap({
 
                   {built.tzMesh && (
                     <>
-                      <path d={built.path(built.tzMesh as any) || ''} fill="none" stroke={th.tzWide} strokeWidth={3.5} strokeLinecap="round" filter="url(#lm-tzglow)" style={{ pointerEvents: 'none' }} />
-                      <path d={built.path(built.tzMesh as any) || ''} fill="none" stroke={th.tz} strokeWidth={1.1} strokeOpacity={0.6} style={{ pointerEvents: 'none' }} />
+                      <path d={built.path(built.tzMesh as any) || ''} fill="none" stroke={th.tzWide} strokeWidth={3} strokeLinecap="round" filter="url(#lm-tzglow)" style={{ pointerEvents: 'none' }} />
+                      <path d={built.path(built.tzMesh as any) || ''} fill="none" stroke={th.tz} strokeWidth={1} strokeOpacity={0.7} strokeLinecap="round" style={{ pointerEvents: 'none' }} />
                     </>
                   )}
                   {ZONE_LABELS.map((zl, i) => {
@@ -451,8 +455,8 @@ export default function LeadMap({
                     const p = built.proj([m.lon, m.lat]); if (!p) return null;
                     const col = COLORS[m.type];
                     return (
-                      <g key={`m${i}`} filter="url(#lm-mglow)" style={{ cursor: 'pointer' }} onClick={() => setPanelUf(m.uf)}>
-                        <circle cx={p[0]} cy={p[1]} r={9} fill={col} fillOpacity={0.18} />
+                      <g key={`m${i}`} filter="url(#lm-mglow)" style={{ pointerEvents: 'none' }}>
+                        <circle cx={p[0]} cy={p[1]} r={9} fill={col} fillOpacity={0.14} />
                         <circle cx={p[0]} cy={p[1]} r={5.4} fill={col} stroke="rgba(255,255,255,0.65)" strokeWidth={1.1} />
                         <circle cx={p[0] - 1.6} cy={p[1] - 1.7} r={1.5} fill="rgba(255,255,255,0.85)" />
                       </g>
@@ -467,9 +471,8 @@ export default function LeadMap({
                     const order = ([['lead', cnt.lead], ['cliente', cnt.cliente], ['novo', cnt.novo]] as [LeadType, number][]).sort((a, b) => b[1] - a[1]);
                     const col = COLORS[order[0][0]];
                     const r = 10 + Math.sqrt(cnt.total) * 6;
-                    const bAbbr = NAME_TO_ABBR[f.properties.name];
                     return (
-                      <g key={`b${i}`} filter="url(#lm-mglow)" style={{ cursor: 'pointer' }} onClick={() => { if (bAbbr) setPanelUf(bAbbr); }}>
+                      <g key={`b${i}`} filter="url(#lm-mglow)" style={{ pointerEvents: 'none' }}>
                         <circle cx={ce[0]} cy={ce[1]} r={r + 4} fill={col} fillOpacity={0.16} />
                         <circle cx={ce[0]} cy={ce[1]} r={r} fill={col} fillOpacity={0.92} stroke="rgba(255,255,255,0.7)" strokeWidth={1.2} />
                         <text x={ce[0]} y={ce[1]} dy="0.35em" textAnchor="middle" fontFamily={MONO} fontWeight={500} fontSize={cnt.total >= 4 ? 13 : 11} fill="#0a0f16">{cnt.total}</text>
@@ -542,7 +545,7 @@ export default function LeadMap({
         })()}
       </div>
 
-      <div style={{ display: 'flex', alignItems: 'center', gap: 16, padding: '14px 24px 20px', flexWrap: 'wrap' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? 10 : 16, padding: isMobile ? '12px 15px 16px' : '14px 24px 20px', flexWrap: 'wrap' }}>
         <div style={{ display: 'inline-flex', alignItems: 'center', gap: 16, padding: '9px 15px', borderRadius: 13, background: chipBg, border: `1px solid ${chipBorder}`, backdropFilter: 'blur(10px)', fontFamily: MONO, fontSize: 11.5, color: dimText }}>
           {([['novo', 'Novo lead'], ['lead', 'Leads'], ['cliente', 'Clientes']] as [LeadType, string][]).map(([t, label]) => (
             <span key={t} style={{ display: 'inline-flex', alignItems: 'center', gap: 7 }}>
