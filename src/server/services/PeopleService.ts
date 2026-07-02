@@ -3,6 +3,8 @@ import 'server-only'
 import type { RequestContext } from '@/server/context/request-context'
 import type { CollaboratorCardVM, CollaboratorDetailVM, DepartmentSummary, PeopleOverview, RoleSummary } from '@/lib/people/types'
 import { listCollaborators, listDepartments, listRoles, listTemplates } from '@/server/repositories/PeopleRepository'
+import * as Compensation from '@/server/services/CompensationEngineService'
+import type { CompensationAssignment, CompensationEvent, CompensationPreview, CompensationTemplateDefinition } from '@/core/compensation/types'
 
 // Service do domínio Pessoas (ARCH-001). Garante o escopo da equipe ativa (TEAM-001) e COMPÕE os
 // view-models a partir dos repositórios — a UI recebe pronto, sem fazer joins. É aqui que futuras
@@ -84,4 +86,21 @@ export async function getCollaboratorDetail(context: RequestContext, id: string)
     templateName: scope.templates.find(template => template.id === collaborator.templateId)?.name ?? null,
     managerName: scope.collaborators.find(manager => manager.id === collaborator.managerId)?.name ?? null,
   }
+}
+
+// ---- Integração com a Compensation Engine (COMPENSATION-004, PARTE 6). Só delega — nada calcula aqui. ----
+export async function getCollaboratorTemplate(context: RequestContext, collaboratorId: string): Promise<CompensationTemplateDefinition | null> {
+  return Compensation.getActiveTemplate(context, collaboratorId)
+}
+
+export async function getCollaboratorAssignment(context: RequestContext, collaboratorId: string): Promise<CompensationAssignment | null> {
+  return Compensation.getActiveAssignment(context, collaboratorId)
+}
+
+export async function getCollaboratorCompensationPreview(
+  context: RequestContext,
+  collaboratorId: string,
+  event: Omit<CompensationEvent, 'collaboratorId'>,
+): Promise<CompensationPreview | null> {
+  return Compensation.getPreview(context, collaboratorId, event)
 }
