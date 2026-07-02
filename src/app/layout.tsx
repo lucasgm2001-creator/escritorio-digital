@@ -31,7 +31,8 @@ export const metadata: Metadata = {
   applicationName: 'Escritório Digital',
   // PWA / iOS: abre em tela cheia (standalone) ao adicionar à tela inicial. Título curto na home = "Escritório".
   appleWebApp: { capable: true, title: 'Escritório', statusBarStyle: 'black-translucent' },
-  // Ícones: favicon via app/icon.svg e apple-touch via app/apple-icon.tsx (convenções do App Router, linkam sozinhos).
+  // iOS precisa do arquivo fisico em /public para máxima compatibilidade ao adicionar à tela inicial.
+  icons: { apple: '/apple-touch-icon.png' },
 }
 
 export const viewport: Viewport = {
