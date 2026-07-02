@@ -4,32 +4,35 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { ChevronLeft } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { ADMIN_GROUPS, ADMIN_SECTIONS } from '@/lib/admin/sections'
+import { DOMAIN_CONFIGS } from '@/lib/domain/registry'
+import type { DomainKey } from '@/lib/domain/nav'
 
-// Rail da Administração (desktop/iPad) e conteúdo do bottom sheet (mobile, via hideHeader + onNavigate).
-export function AdminNav({ className, activeTeamName, hideHeader, onNavigate }: {
+// Rail/lista de seções GENÉRICA (rail no desktop/iPad, conteúdo do bottom sheet no mobile).
+export function DomainNav({ configKey, subtitle, className, hideHeader, onNavigate }: {
+  configKey: DomainKey
+  subtitle?: string | null
   className?: string
-  activeTeamName?: string | null
   hideHeader?: boolean
   onNavigate?: () => void
 }) {
   const pathname = usePathname()
+  const config = DOMAIN_CONFIGS[configKey]
 
   return (
     <nav className={cn('flex-col bg-bento-bg', className)}>
       {!hideHeader && (
         <div className="h-14 px-4 flex flex-col justify-center border-b border-bento-border shrink-0">
-          <Link href="/hall" className="inline-flex w-fit items-center gap-1 text-[11px] text-bento-muted hover:text-bento-text transition-colors">
-            <ChevronLeft className="w-3.5 h-3.5" /> Hall
+          <Link href={config.backHref} className="inline-flex w-fit items-center gap-1 text-[11px] text-bento-muted hover:text-bento-text transition-colors">
+            <ChevronLeft className="w-3.5 h-3.5" /> {config.backLabel}
           </Link>
-          <span className="font-display font-semibold text-sm text-bento-text mt-0.5 leading-none">Administração</span>
-          {activeTeamName && <span className="font-tech text-[10px] text-bento-muted truncate mt-0.5">{activeTeamName}</span>}
+          <span className="font-display font-semibold text-sm text-bento-text mt-0.5 leading-none">{config.title}</span>
+          {subtitle && <span className="font-tech text-[10px] text-bento-muted truncate mt-0.5">{subtitle}</span>}
         </div>
       )}
 
       <div className="flex-1 min-h-0 overflow-y-auto py-3 px-2 space-y-4">
-        {ADMIN_GROUPS.map(group => {
-          const items = ADMIN_SECTIONS.filter(section => section.group === group.key)
+        {config.groups.map(group => {
+          const items = config.sections.filter(section => section.group === group.key)
           if (items.length === 0) return null
           return (
             <div key={group.key} className="space-y-0.5">

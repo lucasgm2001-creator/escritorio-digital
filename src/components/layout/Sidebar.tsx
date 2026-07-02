@@ -19,6 +19,11 @@ const icons = {
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
     </svg>
   ),
+  trafego: (
+    <svg className="w-[18px] h-[18px] shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M3 17l6-6 4 4 8-8m0 0h-5m5 0v5" />
+    </svg>
+  ),
   tarefas: (
     <svg className="w-[18px] h-[18px] shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M9 11l3 3L22 4M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11" />
@@ -50,6 +55,7 @@ const icons = {
 
 const NAV_ITEMS: NavItem[] = [
   { href: '/hall',           label: 'Hall',           icon: icons.hall,       group: 'main' },
+  { href: '/trafego',        label: 'Tráfego',        icon: icons.trafego,    group: 'main' },
   { href: '/comercial',      label: 'Comercial',      icon: icons.comercial,  group: 'main' },
   { href: '/clientes',       label: 'Clientes',       icon: icons.clientes,   group: 'main' },
   { href: '/studio',         label: 'Studio de Apresentação', icon: icons.studio, group: 'main' },
