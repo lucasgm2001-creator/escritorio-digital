@@ -57,9 +57,11 @@ interface SidebarProps {
   open: boolean
   onToggle: () => void
   mobileClose?: () => void
+  /** nome da equipe ativa (multi-workspace) — 2ª linha da marca. null/vazio = esconde a linha. */
+  activeTeamName?: string | null
 }
 
-export function Sidebar({ open, onToggle, mobileClose }: SidebarProps) {
+export function Sidebar({ open, onToggle, mobileClose, activeTeamName }: SidebarProps) {
   const pathname = usePathname()
   const isMobileDrawer = !!mobileClose
 
@@ -84,9 +86,15 @@ export function Sidebar({ open, onToggle, mobileClose }: SidebarProps) {
           className={cn('shrink-0', !(open || isMobileDrawer) && 'mx-auto')}
         />
         {(open || isMobileDrawer) && (
-          <span className="font-display font-bold text-sidebar-foreground text-[15px] tracking-tight truncate">
-            Escritório Digital
-          </span>
+          <div className="min-w-0 flex flex-col justify-center leading-tight">
+            <span className="font-display font-bold text-sidebar-foreground text-[15px] tracking-tight truncate">
+              Escritório Digital
+            </span>
+            {/* 2ª linha: equipe ativa (multi-workspace). Esconde se null/vazio — nunca mostra "Workspace". */}
+            {activeTeamName && (
+              <span className="font-tech text-[11px] text-sidebar-muted truncate">{activeTeamName}</span>
+            )}
+          </div>
         )}
         {isMobileDrawer && (
           <button onClick={mobileClose}

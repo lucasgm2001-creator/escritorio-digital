@@ -36,6 +36,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
       userId={context.user.id}
       avatarUrl={avatarUrl}
       pageTitles={PAGE_TITLES}
+      activeTeamName={context.activeTeamName}
     >
       <ToastProvider><CommissionLockProvider>{children}</CommissionLockProvider></ToastProvider>
     </DashboardShell>
