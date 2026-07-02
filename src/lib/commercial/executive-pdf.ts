@@ -104,7 +104,87 @@ export async function buildExecutivePdf(input: {
   })
   y = afterTable(y) + 4
   doc.setFont('helvetica', 'normal'); doc.setFontSize(8.5); doc.setTextColor(GREY[0], GREY[1], GREY[2])
-  ensure(8); doc.text(`Leads parados (> 7 dias): ${rp.stuckLeads}`, L, y); y += 6
+  ensure(8); doc.text(`Leads parados (> 7 dias): ${rp.stuckLeads}`, L, y); y += 8
+
+  // ---- Gráficos (primitivos seguros: rect/line/circle; máximos protegidos contra divisão por zero) ----
+  heading('Gráficos')
+  const subTitle = (txt: string) => { ensure(8); doc.setFont('helvetica', 'bold'); doc.setFontSize(9); doc.setTextColor(DARK[0], DARK[1], DARK[2]); doc.text(txt, L, y); y += 5 }
+  const maxOf = (arr: number[]): number => arr.reduce((m, v) => (v > m ? v : m), 1)
+
+  // Funil (barras decrescentes)
+  subTitle('Funil')
+  const funnel: [string, number][] = [['Leads', rp.kpis.totalLeads], ['Reuniões', d.meetings], ['Propostas', d.proposals], ['Fechamentos', d.closes]]
+  const funMax = maxOf(funnel.map(f => f[1]))
+  doc.setFont('helvetica', 'normal'); doc.setFontSize(8)
+  for (const [label, val] of funnel) {
+    ensure(9)
+    const w = Math.max(1, (val / funMax) * 120)
+    doc.setTextColor(GREY[0], GREY[1], GREY[2]); doc.text(label, L, y + 5)
+    doc.setFillColor(GREEN[0], GREEN[1], GREEN[2]); doc.rect(45, y, w, 6, 'F')
+    doc.setTextColor(DARK[0], DARK[1], DARK[2]); doc.text(String(val), 45 + w + 2, y + 5)
+    y += 9
+  }
+  y += 4
+
+  // Barras por etapa (entrada)
+  subTitle('Entrada por etapa')
+  const stageBars = rp.funnel.slice(0, 8)
+  const stageMax = maxOf(stageBars.map(s => s.count))
+  doc.setFont('helvetica', 'normal'); doc.setFontSize(8)
+  for (const s of stageBars) {
+    ensure(9)
+    const w = Math.max(1, (s.count / stageMax) * 110)
+    doc.setTextColor(GREY[0], GREY[1], GREY[2]); doc.text(s.stage.slice(0, 18), L, y + 5)
+    doc.setFillColor(GREEN[0], GREEN[1], GREEN[2]); doc.rect(55, y, w, 6, 'F')
+    doc.setTextColor(DARK[0], DARK[1], DARK[2]); doc.text(String(s.count), 55 + w + 2, y + 5)
+    y += 9
+  }
+  y += 4
+
+  // Resultado (proporção Ganhos / Perdidos / Em aberto)
+  subTitle('Resultado')
+  const won = d.closes, lost = rp.kpis.lost, open = d.leadsActive
+  const totalR = Math.max(1, won + lost + open)
+  const segs: [number, [number, number, number], string][] = [[won, GREEN, 'Ganhos'], [lost, [200, 60, 60], 'Perdidos'], [open, [150, 150, 150], 'Em aberto']]
+  ensure(16)
+  let segX = L
+  for (const [val, color] of segs) {
+    const w = (val / totalR) * 150
+    if (w > 0) { doc.setFillColor(color[0], color[1], color[2]); doc.rect(segX, y, w, 7, 'F'); segX += w }
+  }
+  y += 11
+  doc.setFont('helvetica', 'normal'); doc.setFontSize(8)
+  let legX = L
+  for (const [val, color, lbl] of segs) {
+    doc.setFillColor(color[0], color[1], color[2]); doc.rect(legX, y - 3, 3, 3, 'F')
+    doc.setTextColor(GREY[0], GREY[1], GREY[2]); doc.text(`${lbl}: ${val}`, legX + 5, y)
+    legX += 45
+  }
+  y += 8
+
+  // Linha temporal simples (progressão do funil)
+  subTitle('Progressão')
+  const pts = funnel.map(f => f[1])
+  const ptMax = maxOf(pts)
+  const cH = 22
+  ensure(cH + 12)
+  doc.setDrawColor(200, 200, 200); doc.setLineWidth(0.3); doc.line(L, y + cH, L + 160, y + cH)
+  let prevX = 0, prevY = 0
+  for (let i = 0; i < pts.length; i++) {
+    const px = L + (160 * i) / Math.max(1, pts.length - 1)
+    const py = y + cH - (pts[i] / ptMax) * cH
+    if (i > 0) { doc.setDrawColor(GREEN[0], GREEN[1], GREEN[2]); doc.setLineWidth(0.6); doc.line(prevX, prevY, px, py) }
+    doc.setFillColor(GREEN[0], GREEN[1], GREEN[2]); doc.circle(px, py, 1.3, 'F')
+    doc.setFontSize(7); doc.setTextColor(GREY[0], GREY[1], GREY[2]); doc.text(funnel[i][0].slice(0, 8), px - 5, y + cH + 4)
+    prevX = px; prevY = py
+  }
+  y += cH + 10
+
+  // ---- Insights (sem IA — regras automáticas do ReportingService) ----
+  heading('Insights')
+  doc.setFont('helvetica', 'normal'); doc.setFontSize(9); doc.setTextColor(GREY[0], GREY[1], GREY[2])
+  if (rp.insights.length === 0) { ensure(6); doc.text('Sem alertas no período.', L, y); y += 6 }
+  else for (const ins of rp.insights) { ensure(7); doc.text(`• ${ins.message}`, L, y, { maxWidth: R - L }); y += 7 }
 
   doc.save(`relatorio-executivo-${rp.period.label.replace(/[^0-9a-zA-Z]+/g, '-').toLowerCase()}.pdf`)
 }
