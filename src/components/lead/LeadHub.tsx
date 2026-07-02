@@ -1,12 +1,15 @@
 import Link from 'next/link'
 import {
   ChevronLeft, Building2, Phone, MessageSquare, ExternalLink, UserPlus, Wallet, CalendarDays,
-  Clock, FileText, Sparkles, MessageCircle,
+  Sparkles, FileText, MessageCircle,
 } from 'lucide-react'
 import { Panel } from '@/components/bento/Panel'
 import type { LeadHubVM } from '@/lib/commercial/lead-hub-types'
 import { LeadTimeline } from './LeadTimeline'
 import { LeadPipeline } from './LeadPipeline'
+import { LeadHealthPanel } from './LeadHealthPanel'
+import { LeadExecutivePanel } from './LeadExecutivePanel'
+import { LeadJourney } from './LeadJourney'
 import { LeadObservationComposer } from './LeadObservationComposer'
 
 function usd(value: number | null): string {
@@ -16,19 +19,12 @@ function fmtDate(iso: string | null): string {
   return iso ? new Date(iso).toLocaleDateString('pt-BR') : '—'
 }
 
-// Hub do Lead — o centro da operação comercial. Mobile: coluna única (app-like). iPad/Desktop: contexto
-// à esquerda + história à direita (lado a lado). Toda a lógica veio pronta do LeadHubService (ARCH-001).
+const NEXT_ACTIONS = ['Ligar amanhã', 'Enviar proposta', 'Esperar retorno', 'Enviar contrato', 'Reagendar reunião', 'Marcar follow-up']
+const AI_ITEMS = ['Resumo do lead', 'Últimas objeções', 'Resumo das reuniões', 'Próxima melhor ação', 'Sentimento do cliente', 'Resumo comercial']
+
+// Hub do Lead — CRM profissional (LEAD-002). Executivo + jornada no topo (entender em 30s); depois
+// contexto | história | painel lateral. Mobile: coluna única. Toda a lógica veio do LeadHubService.
 export function LeadHub({ vm }: { vm: LeadHubVM }) {
-  const stats = [
-    { label: 'Dias como lead', value: vm.stats.daysAsLead },
-    { label: 'Dias parado', value: vm.stats.daysStuck },
-    { label: 'Contatos', value: vm.stats.contacts },
-    { label: 'Reuniões', value: vm.stats.meetings },
-    { label: 'Propostas', value: vm.stats.proposals },
-    { label: 'Observações', value: vm.stats.observations },
-    { label: 'Movimentações', value: vm.stats.movements },
-    { label: 'Nicho', value: vm.nicho ?? '—' },
-  ]
   const info = [
     { icon: Building2, label: 'Empresa', value: vm.company ?? '—' },
     { icon: Phone, label: 'Telefone', value: vm.phone ?? '—' },
@@ -40,7 +36,7 @@ export function LeadHub({ vm }: { vm: LeadHubVM }) {
   ]
 
   return (
-    <div className="space-y-6 md:space-y-7">
+    <div className="space-y-5 md:space-y-6">
       <Link href="/comercial" className="inline-flex items-center gap-1 text-sm text-bento-muted min-h-[44px] md:min-h-0">
         <ChevronLeft className="w-4 h-4" /> Comercial
       </Link>
@@ -64,9 +60,14 @@ export function LeadHub({ vm }: { vm: LeadHubVM }) {
         </div>
       </header>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 lg:gap-5 items-start">
+      {/* Painel executivo + jornada — o "entenda em 30 segundos" */}
+      <LeadExecutivePanel executive={vm.executive} />
+      <Panel label="Jornada"><LeadJourney steps={vm.journey} /></Panel>
+
+      {/* Contexto | História | Painel lateral */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 items-start">
         {/* Contexto */}
-        <div className="lg:col-span-1 space-y-4">
+        <div className="md:col-span-1 lg:col-span-1 space-y-4">
           <Panel label="Resumo">
             <div className="space-y-2.5">
               {info.map(field => {
@@ -81,60 +82,51 @@ export function LeadHub({ vm }: { vm: LeadHubVM }) {
               })}
             </div>
           </Panel>
+          <Panel label="Lead Health"><LeadHealthPanel health={vm.health} /></Panel>
+        </div>
 
-          <div>
-            <p className="font-tech text-[10px] uppercase tracking-[0.12em] text-bento-muted mb-2">Estatísticas</p>
-            <div className="grid grid-cols-2 gap-2.5">
-              {stats.map(stat => (
-                <div key={stat.label} className="bento-fx p-3">
-                  <p className="font-display font-bold text-lg text-bento-text leading-none">{stat.value}</p>
-                  <p className="text-[11px] text-bento-muted mt-1.5 truncate">{stat.label}</p>
+        {/* História (centro) */}
+        <div className="md:col-span-1 lg:col-span-2 space-y-4">
+          <Panel label="Nova observação"><LeadObservationComposer leadId={vm.id} /></Panel>
+          <Panel label="Timeline"><LeadTimeline items={vm.timeline} /></Panel>
+        </div>
+
+        {/* Painel lateral */}
+        <div className="md:col-span-2 lg:col-span-1 space-y-4">
+          <Panel label="Histórico comercial"><LeadPipeline steps={vm.pipeline} /></Panel>
+
+          <Panel label="Próximas ações">
+            {vm.nextContact && <p className="text-[13px] text-bento-text mb-2">📅 Próximo contato: {fmtDate(vm.nextContact)}</p>}
+            <div className="flex flex-wrap gap-2">
+              {NEXT_ACTIONS.map(action => (
+                <span key={action} className="text-[12px] px-2.5 py-1 rounded-btn border border-bento-border text-bento-muted">{action}</span>
+              ))}
+            </div>
+            <p className="text-[11px] text-bento-dim mt-2">Vira automação no AUTOMATION-001.</p>
+          </Panel>
+
+          <Panel label="Inteligência (IA)">
+            <div className="space-y-1.5">
+              {AI_ITEMS.map(item => (
+                <div key={item} className="flex items-center gap-2 text-[13px] text-bento-muted">
+                  <Sparkles className="w-3.5 h-3.5 text-bento-dim shrink-0" /> {item}
                 </div>
               ))}
             </div>
-          </div>
-
-          <Panel label="Pipeline"><LeadPipeline steps={vm.pipeline} /></Panel>
-
-          <Panel label="Próxima ação">
-            <div className="flex items-start gap-2.5">
-              <Clock className="w-4 h-4 text-bento-dim mt-0.5 shrink-0" />
-              <p className="text-[13px] text-bento-muted leading-relaxed">
-                {vm.nextContact ? `Próximo contato em ${fmtDate(vm.nextContact)}.` : 'Sem próxima ação definida.'}{' '}
-                Virará automação no AUTOMATION-001.
-              </p>
-            </div>
+            <p className="text-[11px] text-bento-dim mt-2">Via AI Engine (AI-001).</p>
           </Panel>
 
           <Panel label="Arquivos">
             <div className="flex items-start gap-2.5">
               <FileText className="w-4 h-4 text-bento-dim mt-0.5 shrink-0" />
-              <p className="text-[13px] text-bento-muted leading-relaxed">
-                Estrutura pronta (PDF, imagem, contrato, proposta, documento). Upload chega em breve.
-              </p>
+              <p className="text-[13px] text-bento-muted leading-relaxed">Estrutura pronta (PDF, imagem, contrato, proposta, documento). Upload em breve.</p>
             </div>
           </Panel>
 
-          <Panel label="Resumo IA">
-            <div className="flex items-start gap-2.5">
-              <Sparkles className="w-4 h-4 text-bento-dim mt-0.5 shrink-0" />
-              <p className="text-[13px] text-bento-muted leading-relaxed">
-                Resumo do lead, objeções, próxima melhor ação e resumo das reuniões — via AI Engine (AI-001).
-              </p>
-            </div>
-          </Panel>
-        </div>
-
-        {/* História */}
-        <div className="lg:col-span-2 space-y-4">
-          <Panel label="Nova observação"><LeadObservationComposer leadId={vm.id} /></Panel>
-          <Panel label="Timeline"><LeadTimeline items={vm.timeline} /></Panel>
           <Panel label="Comentários">
             <div className="flex items-start gap-2.5">
               <MessageCircle className="w-4 h-4 text-bento-dim mt-0.5 shrink-0" />
-              <p className="text-[13px] text-bento-muted leading-relaxed">
-                Comentários internos por contexto (estilo Notion, sem chat) chegam na próxima etapa, sobre esta timeline.
-              </p>
+              <p className="text-[13px] text-bento-muted leading-relaxed">Comentários por contexto (estilo Notion) chegam com a migração aditiva de observações.</p>
             </div>
           </Panel>
         </div>
