@@ -14,6 +14,7 @@
 5. **Aparência consistente = tokens `bento`.** Usar `bento-fx / bento-btn / bento-border / lime / rounded-btn|bento|frame` e as safe-area helpers. **Não** construir sobre os tokens shadcn de `ui/card.tsx` (legado).
 6. **Só UI.** DS não toca regra de negócio, banco, integrações, cálculo, Services ou Repositories.
 7. **Componentes invisíveis (DS-005).** O usuário percebe a **tarefa**, nunca o componente. Sensação-alvo: **rápido, limpo, confiável, profissional**. O componente existe para reduzir atrito — não para chamar atenção.
+8. **Guiados pelo produto (DS-008).** Componentes existem para servir o Escritório Digital — **não** para ser uma biblioteca genérica de React. Nunca criar algo porque "é comum em Design Systems"; só por necessidade real do produto. Cada componente oficial custa manutenção → queremos o **menor DS possível**: poucos, excelentes, reutilizadíssimos. Prefiro 25 componentes excelentes a 80 medianos.
 
 ### DS-005 — Componentes invisíveis (regras concretas)
 
@@ -23,6 +24,19 @@
 - **Estados discretos:** loading / empty / error calmos e informativos, nunca chamativos.
 - **Consistência > novidade:** o mesmo padrão em toda tela; o usuário não "descobre" um componente diferente a cada lugar.
 - **Teste rápido:** se o componente chama atenção para si em vez de para a tarefa, está errado.
+
+### DS-008 — Gate antes de criar qualquer componente
+
+Responder (rápido) **antes** de criar cada componente. Se "Vale entrar no DS?" = **Não**, não criar.
+
+- **Problema resolvido:** que necessidade real do Escritório Digital ele atende?
+- **Uso atual:** em quais módulos é usado hoje (call-sites reais)?
+- **Uso futuro:** em quais módulos provavelmente será usado?
+- **Justificativa:** por que oficial e não JSX local?
+- **É mais simples evoluir um existente?** (se sim → evoluir, não criar)
+- **Vale entrar no DS? (Sim/Não)**
+
+Regra: só entra no DS o que é **guiado por necessidade do produto** e **reutilizado de fato**. Componente trivial (ex.: um divisor de 1px) ou redundante com um existente **não** vira componente oficial.
 
 ## Casa oficial e estrutura
 
