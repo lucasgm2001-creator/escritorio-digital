@@ -1,12 +1,15 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 
-// Callback de confirmação de e-mail (PKCE, @supabase/ssr): troca o `code` por uma sessão (grava os
-// cookies) e volta pro app. NÃO decide onboarding aqui — a guarda do layout do dashboard faz isso
-// (sem equipe → /onboarding; com equipe → dashboard). Erro → /login.
+// Callback de auth (PKCE, @supabase/ssr) — confirmação de e-mail E recuperação de senha:
+// troca o `code` por sessão (grava os cookies) e volta pro app. NÃO decide onboarding aqui — a guarda
+// do layout do dashboard faz isso. Suporta `next` (destino interno); erro/sem code → /login?error=auth.
 export async function GET(request: Request) {
   const { searchParams, origin } = new URL(request.url)
   const code = searchParams.get('code')
+  const nextParam = searchParams.get('next')
+  // Anti open-redirect: só caminhos internos ("/..."), nunca "//" nem URL absoluta.
+  const next = nextParam && nextParam.startsWith('/') && !nextParam.startsWith('//') ? nextParam : '/hall'
 
   if (code) {
     const supabase = createClient()
@@ -16,9 +19,9 @@ export async function GET(request: Request) {
       const forwardedHost = request.headers.get('x-forwarded-host')
       const isLocal = process.env.NODE_ENV === 'development'
       const base = isLocal || !forwardedHost ? origin : `https://${forwardedHost}`
-      return NextResponse.redirect(`${base}/hall`)
+      return NextResponse.redirect(`${base}${next}`)
     }
   }
 
-  return NextResponse.redirect(`${origin}/login`)
+  return NextResponse.redirect(`${origin}/login?error=auth`)
 }

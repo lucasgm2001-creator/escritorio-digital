@@ -1,9 +1,10 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 
-// /auth/callback precisa ser PÚBLICO: o usuário chega deslogado (a sessão só é criada DENTRO do callback,
-// ao trocar o code por sessão). Sem isto, o middleware o mandaria pro /login antes da troca acontecer.
-const PUBLIC_ROUTES = ['/login', '/auth/callback']
+// Rotas PÚBLICAS: o usuário chega deslogado. /auth/callback cria a sessão trocando o code; sem isto o
+// middleware o mandaria pro /login antes da troca. /forgot-password e /reset-password também são acessados
+// sem sessão prévia (recuperação de senha).
+const PUBLIC_ROUTES = ['/login', '/auth/callback', '/forgot-password', '/reset-password']
 
 export async function middleware(request: NextRequest) {
   let response = NextResponse.next({ request })

@@ -3,7 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 import { createClient } from './server'
-import { getSiteUrl } from '@/lib/siteUrl'
+import { getSiteURL } from '@/lib/site-url'
 
 export async function signIn(email: string, password: string) {
   const supabase = createClient()
@@ -37,7 +37,7 @@ export async function signUp(name: string, email: string, password: string) {
   const { data, error } = await supabase.auth.signUp({
     email: em,
     password,
-    options: { data: { name: nm }, emailRedirectTo: `${getSiteUrl()}/auth/callback` },
+    options: { data: { name: nm }, emailRedirectTo: `${getSiteURL()}/auth/callback` },
   })
   if (error) {
     const m = error.message.toLowerCase()
@@ -72,6 +72,30 @@ export async function signOut() {
 
   // Redireciona obrigatoriamente para /login
   redirect('/login')
+}
+
+// Recuperação de senha — envia o e-mail com link que volta pelo /auth/callback (troca o code por sessão
+// de recuperação) e segue pro /reset-password. Reusa o callback (sem lógica paralela). Não revela se o
+// e-mail existe (anti-enumeração): sempre retorna ok.
+export async function requestPasswordReset(email: string) {
+  const em = (email ?? '').trim().toLowerCase()
+  if (!em) return { error: 'Informe seu e-mail.' }
+  const supabase = createClient()
+  await supabase.auth.resetPasswordForEmail(em, {
+    redirectTo: `${getSiteURL()}/auth/callback?next=/reset-password`,
+  })
+  return { ok: true as const }
+}
+
+// Define a nova senha usando a sessão de recuperação já estabelecida pelo /auth/callback.
+export async function updatePassword(password: string) {
+  if (!password || password.length < 6) return { error: 'Senha fraca — use ao menos 6 caracteres.' }
+  const supabase = createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: 'Sessão de recuperação ausente ou expirada. Reenvie o e-mail de recuperação.' }
+  const { error } = await supabase.auth.updateUser({ password })
+  if (error) return { error: 'Não foi possível atualizar a senha. Tente novamente.' }
+  return { ok: true as const }
 }
 
 export async function getProfile() {
