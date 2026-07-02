@@ -5,6 +5,25 @@
 > inventário do que já existe, o que evoluir e o que criar, com API proposta por componente e ordem
 > de construção. **Nenhum componente é implementado aqui** — cada um vira um commit pequeno depois.
 
+## Status — Fundação CONCLUÍDA (DS-010)
+
+A fase de **definição** do Design System está **encerrada**. As regras estruturais (DS-003, DS-005, DS-007, DS-008, DS-009) são consideradas **suficientes**. A partir daqui:
+
+- **Não** criar novos princípios estruturais nem novos documentos de governança do DS.
+- Novos princípios só nascem se um **problema concreto** durante o desenvolvimento provar que a fundação é insuficiente.
+- O **produto** passa a ser o protagonista; o DS existe apenas para **apoiar** o desenvolvimento do Escritório Digital.
+- Componentes agora são **implementações** do DS (não princípios), na fila renumerada abaixo.
+
+### Fila de implementação (componentes = implementações, não regras)
+
+`DS-006` MetricCard ✅ → `DS-011` Button → `DS-012` IconButton → `DS-013` CloseButton → `DS-014` StatusBadge →
+`DS-015` TrendBadge → `DS-016` Spinner → `DS-017` LoadingState → `DS-018` EmptyState → `DS-019` ErrorState →
+`DS-020` DrawerHeader → `DS-021` SectionHeader → `DS-022` SegmentedTabs → `DS-023` SearchBar → `DS-024` FilterChip.
+
+Cada item: aplicar o **gate DS-008** + a **ordem DS-009** (reutilizar → evoluir → promover → criar) → 1 commit pequeno → atualizar [10-ui-inventory.md](10-ui-inventory.md). Triviais/redundantes (Tabs, Section, Divider, BentoCard, Fab) **não** entram sem necessidade real.
+
+---
+
 ## Princípios (inegociáveis)
 
 1. **Verificar antes de criar.** Sempre checar se já existe equivalente; se existir, **adotar**.
