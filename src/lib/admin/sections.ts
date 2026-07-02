@@ -1,14 +1,14 @@
 import type { LucideIcon } from 'lucide-react'
 import {
   Building2, Users, FolderOpen, Briefcase, Wallet, ShieldCheck,
-  Sparkles, ExternalLink, KeyRound, FileText, TrendingUp, Clock,
+  Sparkles, ExternalLink, KeyRound, FileText, TrendingUp, Clock, UserPlus,
 } from 'lucide-react'
 
 // Fonte única da estrutura da Administração (Constituição: informação única).
 // Isto é só o modelo de navegação/organização — nenhuma regra de negócio.
 
 export type AdminSectionKey =
-  | 'empresa' | 'equipe' | 'departamentos' | 'cargos' | 'remuneracao'
+  | 'empresa' | 'equipe' | 'departamentos' | 'cargos' | 'colaboradores' | 'remuneracao'
   | 'permissoes' | 'automacoes' | 'integracoes' | 'api' | 'auditoria'
   | 'billing' | 'logs'
 
@@ -43,7 +43,7 @@ export const ADMIN_SECTIONS: AdminSection[] = [
     planned: ['Identidade e marca do workspace', 'Fuso horário, moeda e localização', 'Dados cadastrais e fiscais', 'Preferências globais da empresa'],
   },
   {
-    key: 'equipe', label: 'Equipe', href: '/admin/equipe', group: 'organizacao', icon: Users,
+    key: 'equipe', label: 'Equipe', href: '/admin/equipe', group: 'organizacao', icon: UserPlus,
     tagline: 'Membros, convites e acesso ao workspace.',
     description: 'Quem faz parte do workspace e como entra. Convites por token, papéis e ativação — a porta de entrada multi-tenant do SaaS.',
     planned: ['Lista de membros e papéis', 'Convites por token (gerar, copiar, revogar)', 'Ativação e desligamento de membros', 'Transferência de propriedade'],
@@ -61,6 +61,12 @@ export const ADMIN_SECTIONS: AdminSection[] = [
     description: 'Cargos definem o papel profissional de uma pessoa, separado de como ela é remunerada. Um cargo se conecta a um template de remuneração e é reutilizável entre colaboradores.',
     planned: ['Catálogo de cargos por departamento', 'Vínculo cargo → template de remuneração', 'Colaboradores por cargo', 'Reuso do mesmo cargo em várias pessoas'],
     blueprint: 'people',
+  },
+  {
+    key: 'colaboradores', label: 'Colaboradores', href: '/admin/colaboradores', group: 'organizacao', icon: Users,
+    tagline: 'As pessoas da empresa — departamento, cargo, template e gestor.',
+    description: 'O domínio de Pessoas: colaboradores com departamento, cargo, template de remuneração, gestor, status e histórico. A base de permissões, remuneração e automações.',
+    planned: ['Cadastro completo de colaboradores', 'Vínculo departamento · cargo · template · gestor', 'Status, histórico e documentos', 'Base para permissões e remuneração'],
   },
   {
     key: 'remuneracao', label: 'Remuneração', href: '/admin/remuneracao', group: 'regras', icon: Wallet,
