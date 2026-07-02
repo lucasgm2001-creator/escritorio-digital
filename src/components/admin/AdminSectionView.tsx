@@ -4,9 +4,12 @@ import { ChevronLeft } from 'lucide-react'
 import { Panel } from '@/components/bento/Panel'
 import { getAdminSection, type AdminSectionKey } from '@/lib/admin/sections'
 import { ModelBlueprint } from './ModelBlueprint'
+import { CompensationFlow } from './CompensationFlow'
+import { AdminStat } from './AdminStat'
+import { AdminEmptyState } from './AdminEmptyState'
 
-// Base de todas as seções da Administração: cabeçalho + placeholder elegante ("Em breve") +
-// (quando aplicável) a estrutura OFICIAL. Nenhuma regra de negócio nesta fase.
+// Módulo administrativo profissional: cabeçalho + contexto ("como funciona") + indicadores +
+// estrutura oficial + o que viverá aqui + estado vazio elegante. Nenhuma regra de negócio nesta fase.
 export function AdminSectionView({ sectionKey }: { sectionKey: AdminSectionKey }) {
   const section = getAdminSection(sectionKey)
   if (!section) notFound()
@@ -14,7 +17,7 @@ export function AdminSectionView({ sectionKey }: { sectionKey: AdminSectionKey }
   const Icon = section.icon
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 md:space-y-7">
       {/* Voltar — só no celular (push). No iPad/Desktop a rail mantém a seleção. */}
       <Link href="/admin" className="md:hidden inline-flex items-center gap-1 text-sm text-bento-muted min-h-[44px]">
         <ChevronLeft className="w-4 h-4" /> Administração
@@ -35,11 +38,32 @@ export function AdminSectionView({ sectionKey }: { sectionKey: AdminSectionKey }
         </div>
       </header>
 
-      <p className="text-sm text-bento-dim leading-relaxed">{section.description}</p>
+      {section.context && (
+        <div className="rounded-bento border border-bento-border bg-bento-panel/30 p-4">
+          <p className="font-tech text-[10px] uppercase tracking-[0.12em] text-bento-muted mb-1.5">Como funciona</p>
+          <p className="text-[13px] text-bento-dim leading-relaxed">{section.context}</p>
+        </div>
+      )}
 
-      {section.blueprint && (
+      {section.metrics && section.metrics.length > 0 && (
+        <div>
+          <p className="font-tech text-[10px] uppercase tracking-[0.12em] text-bento-muted mb-2">Indicadores</p>
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
+            {section.metrics.map(label => (
+              <AdminStat key={label} label={label} value="—" hint="aguardando dados" />
+            ))}
+          </div>
+        </div>
+      )}
+
+      {section.blueprint === 'compensation' && (
+        <Panel label="Fluxo de remuneração">
+          <CompensationFlow />
+        </Panel>
+      )}
+      {section.blueprint === 'people' && (
         <Panel label="Estrutura oficial">
-          <ModelBlueprint kind={section.blueprint} />
+          <ModelBlueprint kind="people" />
         </Panel>
       )}
 
@@ -54,9 +78,12 @@ export function AdminSectionView({ sectionKey }: { sectionKey: AdminSectionKey }
         </ul>
       </Panel>
 
-      <p className="text-[11px] text-bento-dim">
-        Estrutura definida pela Constituição do Escritório Digital · sem regras de negócio nesta fase.
-      </p>
+      <AdminEmptyState
+        icon={Icon}
+        title={section.emptyTitle ?? 'Em construção'}
+        description={section.emptyHint ?? 'Este módulo está sendo preparado sobre a fundação da Administração.'}
+        hint="Estrutura definida pela Constituição do Escritório Digital."
+      />
     </div>
   )
 }
