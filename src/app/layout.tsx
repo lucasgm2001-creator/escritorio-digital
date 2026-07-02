@@ -53,6 +53,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     // hidratar (no-flash) — sem isso o React reclamaria da diferença de className.
     <html lang="pt-BR" suppressHydrationWarning>
       <head>
+        <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
         {/* Aplica o tema salvo antes do React hidratar — evita flash de tema errado */}
         <script dangerouslySetInnerHTML={{ __html: `
 (function(){try{
