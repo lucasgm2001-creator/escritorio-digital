@@ -347,14 +347,8 @@ export function HallClient({ initialActivities, initialTasks, linkOptions, userN
               </div>
             )}
 
-            {/* (a) AGENDA SEMANAL — topo, largura cheia. No mobile rola na horizontal (dentro do Calendar). */}
-            {hallCfg.blocks.agenda && (
-              <CollapsibleSection title="Agenda" icon={CalendarDays} defaultOpen>
-                <Calendar userId={userId} events={calEvents} tasks={tasks} onEventsChange={setCalEvents} focusEvent={focusEvent} onFocusHandled={() => setFocusEvent(null)} />
-              </CollapsibleSection>
-            )}
-
-            {/* (b) Tarefas de hoje (esq) · Atividade recente (dir). No mobile empilha. */}
+            {/* Ação do dia — Tarefas de hoje (esq) · Atividade recente (dir). No mobile empilha.
+                Logo abaixo dos KPIs: "o que fazer agora" + "o que aconteceu". */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 items-start">
               {hallCfg.blocks.tarefas && (
                 <CollapsibleSection title="Tarefas de hoje" icon={CalendarDays} defaultOpen>
@@ -415,7 +409,15 @@ export function HallClient({ initialActivities, initialTasks, linkOptions, userN
               )}
             </div>
 
-            {/* (c) NOTÍCIAS — largura cheia. TODO(feed): a FONTE das notícias é a definir; hoje usa o
+            {/* AGENDA — abaixo da ação do dia; colapsada por padrão (gestão pesada, não comando).
+                Continua completa (4 vistas + CRUD) ao expandir. Ordem: KPIs → ação → agenda → notícias. */}
+            {hallCfg.blocks.agenda && (
+              <CollapsibleSection title="Agenda" icon={CalendarDays}>
+                <Calendar userId={userId} events={calEvents} tasks={tasks} onEventsChange={setCalEvents} focusEvent={focusEvent} onFocusHandled={() => setFocusEvent(null)} />
+              </CollapsibleSection>
+            )}
+
+            {/* NOTÍCIAS — último, largura cheia. TODO(feed): a FONTE das notícias é a definir; hoje usa o
                 feed real da tabela `news` (NewsSection). Trocar por outro provedor quando definido. */}
             {hallCfg.blocks.noticias && (
               <CollapsibleSection title="Notícias do Setor" icon={Newspaper}>
