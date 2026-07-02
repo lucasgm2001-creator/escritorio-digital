@@ -1,15 +1,24 @@
-// Modelos do HUB DO LEAD (LEAD-001). Tipos puros (sem 'server-only'): compartilhados server↔UI.
-// O Hub é o centro da operação comercial — reúne perfil, timeline universal, estatísticas e pipeline.
+// Modelos do HUB DO LEAD (LEAD-001 + LEAD-002). Tipos puros (sem 'server-only'): compartilhados server↔UI.
+// O Hub é o centro da operação comercial — perfil, timeline universal, saúde, painel executivo e jornada.
 
 export type LeadTimelineType =
   | 'observacao' | 'fase' | 'reuniao' | 'no_show' | 'reagendamento'
   | 'proposta' | 'fechamento' | 'perda' | 'upgrade' | 'renovacao'
   | 'responsavel' | 'arquivo' | 'comentario' | 'atividade'
 
-// Um item da timeline: tipo, autor, quando, título e descrição. Ícone/cor são derivados do tipo na UI.
+// Categorias visuais (LEAD-002).
+export type LeadCategory =
+  | 'ligacao' | 'whatsapp' | 'email' | 'reuniao' | 'negociacao'
+  | 'problema' | 'informacao' | 'importante' | 'contrato' | 'estrategia'
+
+// Origem do registro: manual (pessoa), automação, sistema, IA (futuro).
+export type LeadTimelineOrigin = 'manual' | 'automacao' | 'sistema' | 'ia'
+
 export type LeadTimelineItem = {
   id: string
   type: LeadTimelineType
+  category: LeadCategory
+  origin: LeadTimelineOrigin
   author: string | null
   at: string | null       // ISO
   title: string
@@ -26,6 +35,34 @@ export type LeadStats = {
   movements: number
 }
 
+// Lead Health (LEAD-002): painel de saúde do lead.
+export type LeadHealth = {
+  daysStuck: number
+  daysInStage: number
+  lastContactAt: string | null
+  lastMeetingAt: string | null
+  lastProposalAt: string | null
+  movements: number
+  observations: number
+  meetings: number
+  proposals: number
+  contacts: number
+}
+
+// Painel Executivo (LEAD-002): indicadores rápidos. score é real; chance é placeholder (IA/forecast futuro).
+export type LeadTemperature = 'quente' | 'morno' | 'frio'
+export type LeadExecutive = {
+  score: number | null
+  chance: number | null
+  temperature: LeadTemperature
+  status: string | null
+  avgDaysPerStage: number | null
+  lastActivityAt: string | null
+}
+
+// Linha do tempo visual (LEAD-002): jornada Lead → Cliente.
+export type LeadJourneyStep = { key: string; label: string; done: boolean; at: string | null }
+
 export type LeadPipelineStep = {
   slug: string
   stage: string
@@ -35,7 +72,6 @@ export type LeadPipelineStep = {
   current: boolean
 }
 
-// Placeholders preparados para virar automação (Próxima ação) e upload (Arquivos) — sem implementar agora.
 export type LeadFileKind = 'pdf' | 'imagem' | 'contrato' | 'proposta' | 'documento'
 export type LeadFileRef = { id: string; name: string; kind: LeadFileKind }
 
@@ -57,7 +93,10 @@ export type LeadHubVM = {
   nextContact: string | null
   notes: string | null
   stats: LeadStats
+  health: LeadHealth
+  executive: LeadExecutive
+  journey: LeadJourneyStep[]
   timeline: LeadTimelineItem[]
   pipeline: LeadPipelineStep[]
-  files: LeadFileRef[]     // vazio nesta fase (estrutura pronta)
+  files: LeadFileRef[]
 }

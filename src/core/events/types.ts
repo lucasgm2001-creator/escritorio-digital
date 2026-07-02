@@ -6,6 +6,10 @@
 export type DomainEventType =
   | 'lead.created'
   | 'lead.stage_changed'
+  | 'lead.observation.created'
+  | 'lead.observation.updated'
+  | 'lead.observation.deleted'
+  | 'lead.timeline.generated'
   | 'sale.created'
   | 'payment.received'
   | 'upgrade.applied'
@@ -14,6 +18,9 @@ export type DomainEventType =
   | 'member.joined'
   | 'client.churned'
   | 'meeting.done'
+  | 'meeting.completed'
+  | 'proposal.sent'
+  | 'deal.closed'
   | 'task.completed'
 
 // Escopo multi-tenant (TEAM-001). workspaceId é reservado para o futuro (SaaS); hoje o tenant é a equipe.
