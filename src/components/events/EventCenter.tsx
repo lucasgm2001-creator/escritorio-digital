@@ -1,25 +1,15 @@
-import { Radio, ArrowRight } from 'lucide-react'
+import { ArrowRight } from 'lucide-react'
 import { WorkspaceHeader } from '@/components/ui/WorkspaceHeader'
 import { MetricCard } from '@/components/ui/MetricCard'
-import { Panel } from '@/components/bento/Panel'
-import { EmptyState } from '@/components/ui/EmptyState'
 import { cn } from '@/lib/utils'
 import { EVENT_CATALOG, EVENT_CATEGORIES, eventsByCategory } from '@/lib/events/catalog'
 import type { EventPriority } from '@/lib/events/types'
+import { EventRuntimePanel } from './EventRuntimePanel'
 
-// Event Center (EVENT-001, Part 5). Estado VISUAL apenas — nenhum publisher/subscriber, nenhum evento
-// publicado, nenhuma persistência. Reusa WorkspaceHeader/MetricCard/Panel/EmptyState (DS). Linguagem honesta.
+// Event Center (EVENT-001 + runtime EVENT-002). Catálogo ESTÁTICO + runtime EM MEMÓRIA (EventRuntimePanel).
+// Nenhuma persistência, nenhum módulo real reage. Reusa WorkspaceHeader/MetricCard/Panel/EmptyState (DS).
 const PRIORITY_TINT: Record<EventPriority, string> = {
   low: 'text-bento-dim', normal: 'text-bento-muted', high: 'text-amber-400', critical: 'text-red-400',
-}
-
-function StateRow({ label, status }: { label: string; status: string }) {
-  return (
-    <div className="flex items-center justify-between gap-3 py-2 border-b border-bento-border/60 last:border-0 text-[13px]">
-      <span className="text-bento-text">{label}</span>
-      <span className="font-tech text-[10px] uppercase tracking-wide text-bento-muted text-right">{status}</span>
-    </div>
-  )
 }
 
 export function EventCenter() {
@@ -30,27 +20,20 @@ export function EventCenter() {
       <WorkspaceHeader
         breadcrumb={['Administração', 'Eventos']}
         title="Event Bus"
-        subtitle="A espinha dorsal de eventos do Escritório Digital: como os módulos vão conversar sem se acoplar. Arquitetura preparada — nenhum publisher configurado, nenhum evento publicado."
+        subtitle="A espinha dorsal de eventos do Escritório Digital. Runtime em memória ativo (sem fila/persistência/banco) — publique um evento de teste abaixo; nenhum módulo real reage ainda."
       />
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5">
         <MetricCard title="Eventos no catálogo" value={totalEvents} size="sm" />
         <MetricCard title="Categorias" value={totalCategories} size="sm" />
-        <MetricCard title="Publishers ativos" value={0} size="sm" tone="muted" />
-        <MetricCard title="Eventos publicados" value="—" size="sm" tone="muted" />
+        <MetricCard title="Runtime" value="Em memória" size="sm" tone="muted" />
+        <MetricCard title="Persistência" value="Nenhuma" size="sm" tone="muted" />
       </div>
 
-      {/* Estado (Part 9 — honesto, sem "em breve"). */}
-      <Panel label="Estado do barramento">
-        <div className="space-y-0">
-          <StateRow label="Publisher" status="Nenhum publisher configurado" />
-          <StateRow label="Subscribers" status="Nenhum subscriber ativo" />
-          <StateRow label="Dispatcher" status="Arquitetura preparada" />
-          <StateRow label="Fila / worker" status="Não implementado" />
-        </div>
-      </Panel>
+      {/* Runtime ao vivo (EVENT-002) — subscribers registrados + últimos eventos + publicar teste. */}
+      <EventRuntimePanel />
 
-      {/* Catálogo por categoria (Parts 3/4). */}
+      {/* Catálogo por categoria (estático — Parts 3/4 do EVENT-001). */}
       <div className="space-y-4">
         {EVENT_CATEGORIES.map(cat => {
           const events = eventsByCategory(cat.key)
@@ -77,16 +60,6 @@ export function EventCenter() {
             </div>
           )
         })}
-      </div>
-
-      {/* Event Log (Part 6) — modelo vazio elegante. */}
-      <div>
-        <p className="font-tech text-[10px] uppercase tracking-[0.12em] text-bento-muted mb-2">Registro de eventos</p>
-        <EmptyState
-          icon={Radio}
-          title="Nenhum evento publicado"
-          description="Quando o dispatcher for ativado, cada evento aparece aqui: id, timestamp, origem, status (published · delivered · handled · failed · skipped), duração, payload hash, entidade, usuário, equipe e erro."
-        />
       </div>
     </div>
   )
