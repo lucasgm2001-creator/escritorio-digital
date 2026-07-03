@@ -7,6 +7,7 @@ import { ChevronDown, Check, Plus, User, UserCircle, Settings, LogOut, Building2
 import { cn } from '@/lib/utils'
 import { switchTeamAction, createTeamAction } from '@/app/(dashboard)/configuracoes/team-actions'
 import { signOut } from '@/lib/supabase/auth-actions'
+import { MAX_TEAMS_PER_USER } from '@/lib/teams/limits'
 
 export type SwitcherTeam = { id: string; name: string; role: 'owner' | 'admin' | 'member'; isActive: boolean }
 
@@ -89,7 +90,10 @@ export function WorkspaceSwitcher({ userName, userEmail, avatarUrl, teams }: {
 
             {/* Trocar equipe — todas as equipes, inline (Part 5). */}
             <div className="px-2 py-2 border-b border-bento-border">
-              <p className="px-2 pb-1 font-tech text-[10px] uppercase tracking-wide text-bento-dim">Suas equipes</p>
+              <div className="flex items-center justify-between px-2 pb-1">
+                <p className="font-tech text-[10px] uppercase tracking-wide text-bento-dim">Suas equipes</p>
+                <span className="font-tech text-[10px] text-bento-dim tabular-nums">{teams.length}/{MAX_TEAMS_PER_USER}</span>
+              </div>
               <div className="max-h-56 overflow-y-auto">
                 {teams.map(team => (
                   <button key={team.id} type="button" onClick={() => onSwitch(team)} disabled={pending}
