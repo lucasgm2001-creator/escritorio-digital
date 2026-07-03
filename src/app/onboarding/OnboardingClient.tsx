@@ -2,13 +2,14 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Users, Plus, LogIn } from 'lucide-react'
+import { Users, Plus, LogIn, LogOut } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
+import { signOut } from '@/lib/supabase/auth-actions'
 import { cn } from '@/lib/utils'
 
 // Porta de entrada multi-tenant: criar equipe (create_team) OU entrar por convite (redeem_invite).
 // Design Bento Compacto, estático (sem animação). NÃO seta team_id à mão — o trigger do banco carimba.
-export function OnboardingClient() {
+export function OnboardingClient({ userEmail }: { userEmail: string | null }) {
   const supabase = createClient()
   const router = useRouter()
   const [teamName, setTeamName] = useState('')
@@ -41,6 +42,20 @@ export function OnboardingClient() {
   return (
     <main className="min-h-[100dvh] bg-bento-bg flex items-center justify-center p-4 py-[max(1rem,env(safe-area-inset-top))] font-body">
       <div className="w-full max-w-3xl">
+        {/* Saída SEMPRE disponível (Part 13/2): mesmo sem equipe dá pra sair / trocar de conta. É um form
+            que POSTa direto pro server action signOut (limpa a sessão + o cookie de equipe e vai pro /login),
+            então funciona mesmo se o JS falhar — logout tem prioridade máxima, nunca fica preso. */}
+        <div className="flex items-center justify-between gap-3 mb-6">
+          <p className="text-[12px] text-bento-muted truncate min-w-0">
+            {userEmail ? <>Conectado como <span className="text-bento-text">{userEmail}</span></> : 'Conectado'}
+          </p>
+          <form action={signOut} className="shrink-0">
+            <button type="submit"
+              className="inline-flex items-center gap-1.5 px-3 min-h-[38px] rounded-btn text-xs font-medium border border-bento-border text-bento-dim hover:text-bento-text hover:border-bento-dim transition-colors">
+              <LogOut className="w-3.5 h-3.5" /> Sair / trocar de conta
+            </button>
+          </form>
+        </div>
         <div className="text-center mb-8">
           <div className="inline-flex items-center justify-center w-12 h-12 rounded-xl bg-lime/15 border border-lime/30 mb-4">
             <Users className="w-6 h-6 text-lime-fg" />
