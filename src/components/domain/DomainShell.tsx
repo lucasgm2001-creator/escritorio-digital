@@ -32,7 +32,7 @@ export function DomainShell({ configKey, config: configProp, subtitle, userName,
       <DomainNav
         config={config}
         subtitle={subtitle}
-        className="hidden md:flex w-64 xl:w-72 shrink-0 border-r border-bento-border overflow-hidden"
+        className="hidden md:flex w-64 xl:w-72 shrink-0 border-r border-bento-border overflow-hidden pt-[env(safe-area-inset-top)]"
       />
 
       <div className="flex-1 min-w-0 flex flex-col">
@@ -49,8 +49,9 @@ export function DomainShell({ configKey, config: configProp, subtitle, userName,
           </div>
         </div>
 
-        {/* Barra superior iPad/Desktop. */}
-        <div className="hidden md:flex items-center gap-3 h-14 px-5 border-b border-bento-border shrink-0">
+        {/* Barra superior iPad/Desktop. pt-safe (IPAD-002, Part 3): título nunca fica atrás da status bar
+            no iPad em PWA/standalone (0 no Safari/desktop, então sem mudança visual ali). */}
+        <div className="hidden md:flex items-center gap-3 min-h-[56px] px-5 pt-[env(safe-area-inset-top)] border-b border-bento-border shrink-0">
           <span className="font-display font-semibold text-sm text-bento-text">{config.title}</span>
           {subtitle && <span className="text-xs text-bento-muted truncate">· {subtitle}</span>}
           <button type="button" disabled aria-label="Buscar (em breve)"
