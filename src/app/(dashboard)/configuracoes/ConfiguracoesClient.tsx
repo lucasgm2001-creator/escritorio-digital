@@ -843,6 +843,11 @@ interface Props {
     teamName: string | null
     members: TeamSettingsMember[]
     invites: TeamSettingsInvite[]
+    canManage: boolean
+    currentUserId: string
+    currentRole: 'owner' | 'admin' | 'member'
+    activeTeamId: string
+    teams: { id: string; name: string; role: string }[]
   } | null
 }
 

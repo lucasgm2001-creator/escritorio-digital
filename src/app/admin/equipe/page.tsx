@@ -1,4 +1,5 @@
 import { UserPlus } from 'lucide-react'
+import { can } from '@/lib/permissions/can'
 import { getRequestContext } from '@/server/context/request-context'
 import { getActiveTeamMembers, getActiveTeamInvites } from '@/server/services/TeamService'
 import { PeopleHeader } from '@/components/people/PeopleHeader'
@@ -17,6 +18,11 @@ export default async function AdminEquipePage() {
       <PeopleHeader icon={UserPlus} title="Equipe" tagline="Membros e convites do workspace." badge="Funcional" />
       <TeamSettingsSection
         teamName={context?.activeTeamName ?? null}
+        canManage={context ? can(context, 'teams', 'manage') : false}
+        currentUserId={context?.user.id ?? ''}
+        currentRole={context?.membership?.role ?? 'member'}
+        activeTeamId={context?.activeTeamId ?? ''}
+        teams={(context?.memberships ?? []).map(m => ({ id: m.team_id, name: m.team?.name ?? 'Equipe', role: m.role }))}
         members={members.map(member => ({
           id: member.id,
           userId: member.user_id,

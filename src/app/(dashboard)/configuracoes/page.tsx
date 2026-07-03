@@ -10,12 +10,10 @@ export default async function ConfiguracoesPage() {
   if (!context) redirect('/login')
 
   const canManageTeam = can(context, 'teams', 'manage')
-  const [teamMembers, teamInvites] = canManageTeam
-    ? await Promise.all([
-      getActiveTeamMembers(context),
-      getActiveTeamInvites(context),
-    ])
-    : [[], []]
+  // Membros: qualquer usuário com equipe ativa (o RLS já limita o que um member enxerga) — permite trocar/sair.
+  // Convites: só quem administra (getActiveTeamInvites exige a permissão e lançaria para um member).
+  const teamMembers = context.activeTeamId ? await getActiveTeamMembers(context) : []
+  const teamInvites = canManageTeam ? await getActiveTeamInvites(context) : []
 
   // Status da conexão Google do usuário (service role — a tabela tem RLS sem policies). SÓ {connected, email}
   // cruza pro client: o refresh/access token NUNCA sai do servidor.
@@ -34,8 +32,13 @@ export default async function ConfiguracoesPage() {
     <ConfiguracoesClient
       userId={context.user.id}
       google={google}
-      teamSettings={canManageTeam ? {
+      teamSettings={context.activeTeamId ? {
         teamName: context.activeTeamName,
+        canManage: canManageTeam,
+        currentUserId: context.user.id,
+        currentRole: context.membership?.role ?? 'member',
+        activeTeamId: context.activeTeamId,
+        teams: context.memberships.map(m => ({ id: m.team_id, name: m.team?.name ?? 'Equipe', role: m.role })),
         members: teamMembers.map(member => ({
           id: member.id,
           userId: member.user_id,

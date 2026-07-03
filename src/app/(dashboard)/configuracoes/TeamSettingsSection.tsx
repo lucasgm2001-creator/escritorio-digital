@@ -5,6 +5,7 @@ import { Check, Copy, ShieldCheck, UserPlus, XCircle } from 'lucide-react'
 import { Panel } from '@/components/bento/Panel'
 import { cn } from '@/lib/utils'
 import { createTeamInviteAction, revokeTeamInviteAction } from './team-actions'
+import { TeamAccessControls, type TeamAccessTeam } from './TeamAccessControls'
 
 export type TeamSettingsMember = {
   id: string
@@ -26,6 +27,12 @@ type Props = {
   teamName: string | null
   members: TeamSettingsMember[]
   invites: TeamSettingsInvite[]
+  // TEAM-SECURITY-001 — acesso do próprio usuário (trocar/sair) + gate da gestão (owner/admin).
+  canManage?: boolean
+  currentUserId: string
+  currentRole: 'owner' | 'admin' | 'member'
+  activeTeamId: string
+  teams: TeamAccessTeam[]
 }
 
 const roleLabel: Record<TeamSettingsMember['role'], string> = {
@@ -108,7 +115,7 @@ function InviteRow({
   )
 }
 
-export function TeamSettingsSection({ teamName, members, invites: initialInvites }: Props) {
+export function TeamSettingsSection({ teamName, members, invites: initialInvites, canManage = true, currentUserId, currentRole, activeTeamId, teams }: Props) {
   const [invites, setInvites] = useState(initialInvites)
   const [latestInvite, setLatestInvite] = useState<TeamSettingsInvite | null>(null)
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
@@ -172,19 +179,32 @@ export function TeamSettingsSection({ teamName, members, invites: initialInvites
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <p className="text-sm font-semibold text-bento-text">{teamName ?? 'Equipe ativa'}</p>
-            <p className="text-xs text-bento-muted mt-0.5">{members.length} membro(s)</p>
+            {canManage && <p className="text-xs text-bento-muted mt-0.5">{members.length} membro(s)</p>}
           </div>
-          <button
-            type="button"
-            onClick={createInvite}
-            disabled={isPendingAction}
-            className="bento-btn flex items-center justify-center gap-2 px-4 py-2 rounded-btn text-sm font-semibold disabled:opacity-50 min-h-[44px]"
-          >
-            <UserPlus className="w-4 h-4" />
-            {isPendingAction && !busyInviteId ? 'Gerando...' : 'Convidar membro'}
-          </button>
+          {canManage && (
+            <button
+              type="button"
+              onClick={createInvite}
+              disabled={isPendingAction}
+              className="bento-btn flex items-center justify-center gap-2 px-4 py-2 rounded-btn text-sm font-semibold disabled:opacity-50 min-h-[44px]"
+            >
+              <UserPlus className="w-4 h-4" />
+              {isPendingAction && !busyInviteId ? 'Gerando...' : 'Convidar membro'}
+            </button>
+          )}
         </div>
 
+        {/* Acesso do próprio usuário: trocar equipe + sair (com sucessão). Disponível a QUALQUER membro. */}
+        <TeamAccessControls
+          teams={teams}
+          activeTeamId={activeTeamId}
+          currentUserId={currentUserId}
+          currentRole={currentRole}
+          members={members.map(m => ({ userId: m.userId, role: m.role, joinedAt: m.joinedAt, name: m.name }))}
+        />
+
+        {/* Gestão de membros e convites — só para quem administra a equipe (owner/admin). */}
+        {canManage && (<>
         {message && (
           <p className={cn(
             'text-xs rounded-btn border px-3 py-2',
@@ -258,6 +278,7 @@ export function TeamSettingsSection({ teamName, members, invites: initialInvites
             </div>
           </div>
         )}
+        </>)}
       </div>
     </Panel>
   )
