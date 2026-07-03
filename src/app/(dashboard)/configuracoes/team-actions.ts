@@ -4,6 +4,11 @@ import { cookies } from 'next/headers'
 import { createInvite, revokeInvite, leaveActiveTeam } from '@/server/services/TeamService'
 import { getRequestContext } from '@/server/context/request-context'
 import { ACTIVE_TEAM_COOKIE } from '@/lib/supabase/team'
+import { createServiceClient } from '@/lib/supabase/service'
+import { createClient } from '@/lib/supabase/server'
+
+// TEAM-SECURITY-002 — cada usuário participa de no máximo 4 equipes.
+const MAX_TEAMS = 4
 
 // Cookie da equipe ativa — lido server-side por getActiveTeam. httpOnly (não precisa no client), 1 ano.
 const TEAM_COOKIE_OPTS = {
@@ -97,4 +102,51 @@ export async function leaveTeamAction(): Promise<ActionResult<{ message: string;
     : 'Voce saiu da equipe.'
   const redirectTo = remaining.length > 0 ? '/hall' : '/onboarding'
   return { ok: true, data: { message, redirectTo } }
+}
+
+// ── TEAM-SECURITY-002 ────────────────────────────────────────────────────────────────────────────────
+
+// Resgatar convite estando JÁ em uma equipe (a causa do bloqueio do Gabriel era só a UI: o /onboarding
+// redireciona quem já tem equipe, então não havia onde colar o código; o RPC redeem_invite sempre suportou
+// múltiplas equipes). Aqui: pré-checa o convite via SERVICE ROLE (o RLS de team_invites é admin-only, o
+// convidado não o lê — só LEITURA, nada gravado), aplica o LIMITE DE 4 EQUIPES no servidor, e resgata pelo
+// client do USUÁRIO (redeem_invite usa auth.uid()). Idempotente e ADITIVO: não substitui/apaga a equipe
+// anterior nem troca a equipe ativa.
+export async function redeemInviteAction(token: string): Promise<ActionResult<{ teamId: string; message: string }>> {
+  const context = await getRequestContext()
+  if (!context) return { ok: false, error: 'Sessao expirada. Entre novamente.' }
+  const clean = token.trim()
+  if (!clean) return { ok: false, error: 'Informe o codigo do convite.' }
+
+  const svc = createServiceClient()
+  const { data: inv } = await svc
+    .from('team_invites')
+    .select('team_id, expires_at, used_at')
+    .eq('token', clean)
+    .maybeSingle()
+  if (!inv) return { ok: false, error: 'Convite invalido. Confira o codigo com quem convidou.' }
+  if (inv.used_at) return { ok: false, error: 'Este convite ja foi utilizado.' }
+  if (inv.expires_at && new Date(inv.expires_at as string).getTime() < Date.now()) {
+    return { ok: false, error: 'Este convite expirou. Peca um novo a quem convidou.' }
+  }
+
+  const teamId = inv.team_id as string
+  // Já é membro → apenas informa (Part 7). Não consome o convite, não duplica.
+  if (context.memberships.some(m => m.team_id === teamId)) {
+    return { ok: true, data: { teamId, message: 'Voce ja participa dessa equipe. Use o seletor para alterna-la.' } }
+  }
+  // Limite de 4 equipes (Part 2) — validado NO SERVIDOR.
+  if (context.memberships.length >= MAX_TEAMS) {
+    return { ok: false, error: 'Voce ja participa do limite de 4 equipes. Saia de uma equipe antes de entrar em outra.' }
+  }
+
+  // Resgate real: client do USUÁRIO (auth.uid() = o convidado). Insere a membership sem tocar nas demais.
+  const supabase = createClient()
+  const { error } = await supabase.rpc('redeem_invite', { p_token: clean })
+  if (error) return { ok: false, error: errorMessage(error) }
+
+  const { data: team } = await svc.from('teams').select('name').eq('id', teamId).maybeSingle()
+  const teamName = (team?.name as string | null) ?? 'equipe'
+  const count = context.memberships.length + 1
+  return { ok: true, data: { teamId, message: `Voce entrou na equipe ${teamName}. Agora participa de ${count} ${count === 1 ? 'equipe' : 'equipes'}.` } }
 }
