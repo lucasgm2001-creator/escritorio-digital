@@ -321,7 +321,7 @@ function DadosSection() {
           <button onClick={() => run('leads')} disabled={!!busy} className={actionBtnCls}><Download className="w-4 h-4" />{busy === 'leads' ? 'Exportando...' : 'Exportar leads (CSV)'}</button>
           <button onClick={() => run('tarefas')} disabled={!!busy} className={actionBtnCls}><Download className="w-4 h-4" />{busy === 'tarefas' ? 'Exportando...' : 'Exportar tarefas (CSV)'}</button>
         </div>
-        <p className="font-tech text-[11px] text-bento-muted/70 border-t border-bento-border/60 pt-3">Apagar conta / dados em massa: em breve (TODO).</p>
+        <p className="font-tech text-[11px] text-bento-muted/70 border-t border-bento-border/60 pt-3">Exclusão de conta e apagamento de dados em massa não estão disponíveis por aqui.</p>
       </div>
     </Panel>
   )
@@ -333,7 +333,7 @@ function IntegStatus({ nome, detalhe, status }: { nome: string; detalhe: string;
     ok:     { dot: 'bg-lime',        txt: 'text-lime-fg',     label: 'Conectado' },
     err:    { dot: 'bg-red-500',     txt: 'text-red-400',     label: 'Erro' },
     check:  { dot: 'bg-bento-muted', txt: 'text-bento-muted', label: 'Verificando...' },
-    todo:   { dot: 'bg-bento-muted', txt: 'text-bento-muted', label: 'Em breve' },
+    todo:   { dot: 'bg-bento-muted', txt: 'text-bento-muted', label: 'Indisponível' },
     config: { dot: 'bg-lime',        txt: 'text-lime-fg',     label: 'Configurada' },
   }[status]
   return (
@@ -415,7 +415,7 @@ function GoogleAgendaCard({ google }: { google: { connected: boolean; email: str
   )
 }
 
-// WhatsApp — em breve (desabilitado).
+// WhatsApp — indisponível (desabilitado).
 function WhatsAppCard() {
   return (
     <div className={cn(connCardCls, 'opacity-70')}>
@@ -426,7 +426,7 @@ function WhatsAppCard() {
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
             <h3 className="font-display font-bold text-bento-text text-sm">WhatsApp</h3>
-            <span className="font-tech text-[10px] px-1.5 py-0.5 rounded bg-bento-panel text-bento-muted border border-bento-border">Em breve</span>
+            <span className="font-tech text-[10px] px-1.5 py-0.5 rounded bg-bento-panel text-bento-muted border border-bento-border">Indisponível</span>
           </div>
           <p className="text-[13px] text-bento-muted mt-1 leading-snug">Notificações e mensagens direto do sistema.</p>
         </div>
@@ -503,7 +503,7 @@ function AndarSection({ keyId, label, onOpenSub }: { keyId: string; label: strin
             {/* Mapa saiu do Comercial — agora vira aba do Hall; toda a config de mapa está em Andares → Hall. */}
           </div>
         ) : (
-          <p className="font-tech text-[11px] text-bento-muted/70 border-t border-bento-border/60 pt-3">Preferências específicas deste andar: em breve (TODO).</p>
+          <p className="font-tech text-[11px] text-bento-muted/70 border-t border-bento-border/60 pt-3">Sem preferências específicas para este andar além das ações acima.</p>
         )}
       </div>
     </Panel>
