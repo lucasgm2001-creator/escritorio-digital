@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createHash, timingSafeEqual } from 'crypto'
-import { requireAuth } from '@/lib/supabase/require-auth'
+import { getRequestContext } from '@/server/context/request-context'
+import { assertClientOwnership } from '@/server/security/team-ownership'
 import { createServiceClient } from '@/lib/supabase/service'
 import { payDueWeeks } from '@/lib/commission/actions'
 import { resolveRate } from '@/lib/commission/calc'
@@ -39,22 +40,29 @@ export async function POST(req: Request) {
   let body: { clientId?: string } = {}
   try { body = await req.json() } catch { /* sem corpo = cron */ }
 
-  // Auth: token do agendador OU usuário logado (gatilho manual da tela).
-  if (!authorizedByToken(req)) {
-    const auth = await requireAuth()
-    if ('error' in auth) return auth.error
-  }
+  // Auth: token do agendador (cron, sem sessão) OU usuário logado (gatilho manual da tela).
+  const byToken = authorizedByToken(req)
+  const context = byToken ? null : await getRequestContext()
+  if (!byToken && !context) return NextResponse.json({ ok: false, reason: 'unauthorized' }, { status: 401 })
 
   const supabase = createServiceClient()
   const rate = await resolveServerRate(supabase)
 
   // Gatilho MANUAL (1 cliente) — marca SÓ o que venceu até hoje (date-gated, nunca futura).
+  // SEGURANÇA (P1-SERVICEROLE-001): numa sessão de usuário, confirma que o cliente é da EQUIPE ATIVA ANTES
+  // de gerar receita/comissão (service-role ignora a RLS). Via token, o chamador é o sistema (sem equipe).
   if (body.clientId) {
+    if (context) {
+      const owned = await assertClientOwnership(supabase, body.clientId, context.activeTeamId)
+      if (!owned.ok) return NextResponse.json({ ok: false, reason: owned.status === 403 ? 'forbidden' : 'no_client' }, { status: owned.status })
+    }
     const r = await payDueWeeks(supabase, body.clientId, rate)
     return NextResponse.json({ ok: true, mode: 'single', marked: r.marked, reason: r.reason })
   }
 
-  // CRON (todos): só roda se ligado explicitamente. Date-gating cobre qualquer dia que o cron rode.
+  // CRON (todos) — SÓ pelo token do agendador: processa TODAS as equipes, não é ação de um usuário.
+  if (!byToken) return NextResponse.json({ ok: false, reason: 'forbidden' }, { status: 403 })
+  // Só roda se ligado explicitamente. Date-gating cobre qualquer dia que o cron rode.
   if (process.env.COMMISSION_AUTO_ENABLED !== 'true') {
     return NextResponse.json({ ok: true, mode: 'all', disabled: true, note: 'COMMISSION_AUTO_ENABLED != "true"' })
   }
