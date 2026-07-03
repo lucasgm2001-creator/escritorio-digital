@@ -44,7 +44,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
       userEmail={context.user.email ?? null}
       teams={teams}
     >
-      <ToastProvider><CommissionLockProvider><RoleProvider role={context.role}>{children}</RoleProvider></CommissionLockProvider></ToastProvider>
+      <ToastProvider><CommissionLockProvider><RoleProvider role={context.role} activeTeamId={context.activeTeamId}>{children}</RoleProvider></CommissionLockProvider></ToastProvider>
     </DashboardShell>
   )
 }
