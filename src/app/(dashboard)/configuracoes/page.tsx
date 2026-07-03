@@ -44,7 +44,9 @@ export default async function ConfiguracoesPage() {
           userId: member.user_id,
           role: member.role,
           joinedAt: member.created_at,
-          name: member.profile?.name ?? member.user_id,
+          // Nome NUNCA é o user_id: perfil.name → perfil.email → fallback amigável (o UUID vira só detalhe técnico).
+          name: member.profile?.name || member.profile?.email || 'Usuário sem nome',
+          email: member.profile?.email ?? null,
         })),
         invites: teamInvites.map(invite => ({
           id: invite.id,

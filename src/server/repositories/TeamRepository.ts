@@ -1,6 +1,7 @@
 import 'server-only'
 
 import { createClient } from '@/lib/supabase/server'
+import { createServiceClient } from '@/lib/supabase/service'
 import type { TeamMembership, TeamRole, TeamSummary } from '@/lib/supabase/team'
 
 export type TeamMember = {
@@ -13,6 +14,7 @@ export type TeamMember = {
   profile: {
     id: string
     name: string | null
+    email: string | null
     avatar_url: string | null
   } | null
 }
@@ -103,16 +105,21 @@ export async function getTeamMembers(teamId: string): Promise<TeamMember[]> {
 
   const rows = (data ?? []) as Omit<TeamMemberRow, 'profile'>[]
 
-  // `profiles` nao tem FK direta com `team_members` (ambos referenciam auth.users), entao o embed
-  // `profile:profiles(...)` do PostgREST falha (PGRST200). Buscamos os perfis a parte e juntamos
-  // por user_id no codigo — mesmo formato de retorno, sem depender de relacionamento no schema.
+  // Duas queries (sem embed): `profiles` não tem FK direta com `team_members` — ambos referenciam
+  // auth.users — então o embed `profile:profiles(...)` do PostgREST falha (PGRST200). Além disso, a RLS
+  // de `profiles` só libera o PRÓPRIO perfil OU um admin GLOBAL (is_admin, profiles.role='admin'); o owner
+  // de uma equipe NÃO é admin global, então pelo client do usuário os demais membros voltavam vazios e o
+  // nome caía para o user_id (o "UUID no lugar do nome"). Lemos os perfis (name/email/avatar) dos user_ids
+  // JÁ confirmados nesta equipe via SERVICE ROLE — fonte correta, só leitura, sem alterar RLS. O acesso a
+  // esta tela continua restrito a owner/admin nos callers (getActiveTeamMembers).
   const userIds = Array.from(new Set(rows.map(row => row.user_id)))
   const profileById = new Map<string, NonNullable<TeamMember['profile']>>()
 
   if (userIds.length > 0) {
-    const { data: profiles, error: profilesError } = await supabase
+    const svc = createServiceClient()
+    const { data: profiles, error: profilesError } = await svc
       .from('profiles')
-      .select('id, name, avatar_url')
+      .select('id, name, email, avatar_url')
       .in('id', userIds)
 
     if (profilesError) throw profilesError

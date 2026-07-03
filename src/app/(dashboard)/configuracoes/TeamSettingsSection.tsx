@@ -13,6 +13,7 @@ export type TeamSettingsMember = {
   role: 'owner' | 'admin' | 'member'
   joinedAt: string | null
   name: string
+  email: string | null
 }
 
 export type TeamSettingsInvite = {
@@ -48,6 +49,14 @@ function formatDate(value: string | null): string {
     month: '2-digit',
     year: 'numeric',
   }).format(new Date(value))
+}
+
+// Iniciais para o avatar (nunca o user_id). "Ana Souza" → "AS", "gabriel" → "GA", vazio → "?".
+function initialsOf(name: string): string {
+  const parts = name.trim().split(/\s+/).filter(Boolean)
+  if (parts.length === 0) return '?'
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase()
+  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase()
 }
 
 function isExpired(invite: TeamSettingsInvite): boolean {
@@ -243,10 +252,19 @@ export function TeamSettingsSection({ teamName, members, invites: initialInvites
           <p className="font-tech text-[10px] uppercase tracking-wide text-bento-muted mb-2">Membros atuais</p>
           <div className="space-y-2">
             {members.map(member => (
-              <div key={member.id} className="bento-fx p-3 flex items-center justify-between gap-3">
-                <div className="min-w-0">
-                  <p className="text-sm font-medium text-bento-text truncate">{member.name}</p>
-                  <p className="text-[11px] text-bento-muted">Entrada: {formatDate(member.joinedAt)}</p>
+              <div key={member.id} className="bento-fx p-3 flex items-center gap-3">
+                <span aria-hidden className="grid place-items-center w-9 h-9 rounded-full bg-bento-bg border border-bento-border text-[11px] font-tech text-bento-dim shrink-0">
+                  {initialsOf(member.name)}
+                </span>
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-medium text-bento-text truncate">
+                    {member.name}
+                    {member.userId === currentUserId && <span className="text-[11px] font-normal text-bento-dim"> (você)</span>}
+                  </p>
+                  {member.email && <p className="text-[11px] text-bento-muted truncate">{member.email}</p>}
+                  <p className="text-[10px] text-bento-dim mt-0.5">
+                    Entrada: {formatDate(member.joinedAt)} · <span className="font-tech">#{member.userId.slice(0, 8)}</span>
+                  </p>
                 </div>
                 <span className="flex items-center gap-1.5 text-[11px] px-2 py-1 rounded-full border border-bento-border text-bento-dim flex-none">
                   <ShieldCheck className="w-3.5 h-3.5" />
