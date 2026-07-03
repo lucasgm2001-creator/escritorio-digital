@@ -92,14 +92,17 @@ function MuralAgendaRow({ ev, onClick }: { ev: CalendarEvent; onClick: () => voi
 
 // Linha de tarefa no Mural (compacta, 1 linha). O Mural mostra só tarefas de HOJE pendentes,
 // então o ponto lime = "do dia". Título trunca em 1 linha. Toca → aba Tarefas.
-function MuralTaskRow({ task, onClick }: { task: Task; onClick: () => void }) {
+function MuralTaskRow({ task, onClick, overdue = false }: { task: Task; onClick: () => void; overdue?: boolean }) {
   const hora = task.due_time ? task.due_time.slice(0, 5) : ''
   return (
     <button type="button" onClick={onClick}
-      className="w-full flex items-center gap-2 text-left rounded-bento border border-bento-border px-3 py-2 hover:border-lime/60 transition-colors">
-      <span className="w-1.5 h-1.5 rounded-full bg-lime flex-none" />
+      className={cn('w-full flex items-center gap-2 text-left rounded-bento border px-3 py-2 transition-colors',
+        overdue ? 'border-amber-500/40 hover:border-amber-500/70' : 'border-bento-border hover:border-lime/60')}>
+      <span className={cn('w-1.5 h-1.5 rounded-full flex-none', overdue ? 'bg-amber-400' : 'bg-lime')} />
       <span className="text-sm text-bento-text truncate flex-1 min-w-0">{task.title}</span>
-      {hora && <span className="font-tech text-[11px] text-bento-muted flex-none tabular-nums">{hora}</span>}
+      {overdue
+        ? <span className="font-tech text-[10px] uppercase tracking-wide text-amber-400 flex-none">Atrasada</span>
+        : hora && <span className="font-tech text-[11px] text-bento-muted flex-none tabular-nums">{hora}</span>}
     </button>
   )
 }
@@ -278,6 +281,10 @@ export function HallClient({ initialActivities, initialTasks, linkOptions, userN
   const tarefasHoje = tasks
     .filter(t => t.due_date === hojeStr && !t.done)
     .sort((a, b) => (a.due_time || '99:99').localeCompare(b.due_time || '99:99'))
+  // Atrasadas: pendentes com data ANTERIOR a hoje. Protagonista do "Hoje" — dados JÁ carregados (sem query nova).
+  const tarefasAtrasadas = tasks
+    .filter(t => !t.done && !!t.due_date && t.due_date < hojeStr)
+    .sort((a, b) => (a.due_date || '').localeCompare(b.due_date || ''))
   const eventosHoje = calEvents.filter(e => e.date === hojeStr).sort((a, b) => (a.start_time || '99:99').localeCompare(b.start_time || '99:99'))
   // Resumo do cabecalho executivo — contagem de dados JA carregados (sem query/metrica nova).
   const reunioesHoje = eventosHoje.filter(e => e.type === 'reuniao').length
@@ -355,17 +362,52 @@ export function HallClient({ initialActivities, initialTasks, linkOptions, userN
 
         {activeTab === 'activities' && (
           <>
-            {/* Cabecalho executivo — resumo do dia (dados JA carregados; sem query/metrica nova). */}
-            <p className="text-sm text-bento-muted leading-relaxed">
-              Hoje você possui{' '}
-              <strong className="font-semibold text-bento-text">{tarefasHoje.length} {tarefasHoje.length === 1 ? 'tarefa' : 'tarefas'}</strong>,{' '}
-              <strong className="font-semibold text-bento-text">{reunioesHoje} {reunioesHoje === 1 ? 'reunião' : 'reuniões'}</strong>
-              {' e '}
-              <strong className="font-semibold text-bento-text">{activities.length} {activities.length === 1 ? 'atividade recente' : 'atividades recentes'}</strong>.
+            {/* ══ HOJE ══ Protagonista: o que exige ação agora. Atrasadas em destaque (âmbar), depois hoje +
+                reuniões. Tudo de dados JÁ carregados (tasks/calEvents) — sem query nem métrica nova. */}
+            <SectionLabel>Hoje</SectionLabel>
+            <p className="text-sm leading-relaxed">
+              {tarefasAtrasadas.length > 0 ? (
+                <>
+                  <strong className="font-semibold text-amber-400">{tarefasAtrasadas.length} {tarefasAtrasadas.length === 1 ? 'tarefa atrasada' : 'tarefas atrasadas'}</strong>
+                  <span className="text-bento-muted">{' · '}{tarefasHoje.length} para hoje{' · '}{reunioesHoje} {reunioesHoje === 1 ? 'reunião' : 'reuniões'}</span>
+                </>
+              ) : (
+                <span className="text-bento-muted">
+                  Hoje: <strong className="font-semibold text-bento-text">{tarefasHoje.length} {tarefasHoje.length === 1 ? 'tarefa' : 'tarefas'}</strong>
+                  {' · '}<strong className="font-semibold text-bento-text">{reunioesHoje} {reunioesHoje === 1 ? 'reunião' : 'reuniões'}</strong>
+                  {tarefasHoje.length === 0 && reunioesHoje === 0 ? ' · agenda livre' : ''}
+                </span>
+              )}
             </p>
 
-            {/* ── Empresa ── KPIs executivos reais (leads/clientes). Gate por hallCfg.metrics. */}
-            {METRICS.some(m => hallCfg.metrics[m.key]) && <SectionLabel>Empresa</SectionLabel>}
+            {hallCfg.blocks.tarefas && (
+              <CollapsibleSection title="Tarefas de hoje" icon={CalendarDays} defaultOpen>
+                <Panel className="max-lg:p-3" headerClassName="max-lg:hidden" label="Tarefas de hoje">
+                  <div className="space-y-2">
+                    {/* Atrasadas primeiro — protagonista (âmbar). Cap 4; excedente abre a aba Tarefas. */}
+                    {tarefasAtrasadas.slice(0, 4).map(t => (
+                      <MuralTaskRow key={`late-${t.id}`} task={t} overdue onClick={() => router.push('/tarefas')} />
+                    ))}
+                    {tarefasAtrasadas.length > 4 && (
+                      <button type="button" onClick={() => router.push('/tarefas')}
+                        className="w-full text-left font-tech text-[11px] uppercase tracking-wide text-amber-400 hover:text-amber-300 transition-colors py-1">
+                        +{tarefasAtrasadas.length - 4} atrasadas — ver todas
+                      </button>
+                    )}
+                    {/* Hoje: reuniões + tarefas do dia */}
+                    {eventosHoje.length === 0 && tarefasHoje.length === 0
+                      ? (tarefasAtrasadas.length === 0 && <p className="text-sm text-bento-muted py-6 text-center">Nada para hoje.</p>)
+                      : <>
+                          {eventosHoje.map(ev => <MuralAgendaRow key={`ev-${ev.id}`} ev={ev} onClick={() => setFocusEvent(ev)} />)}
+                          {tarefasHoje.map(t => <MuralTaskRow key={`tk-${t.id}`} task={t} onClick={() => router.push('/tarefas')} />)}
+                        </>}
+                  </div>
+                </Panel>
+              </CollapsibleSection>
+            )}
+
+            {/* ══ PULSO DA EMPRESA ══ KPIs executivos reais (leads/clientes). Gate por hallCfg.metrics. */}
+            {METRICS.some(m => hallCfg.metrics[m.key]) && <SectionLabel>Pulso da empresa</SectionLabel>}
             {METRICS.some(m => hallCfg.metrics[m.key]) && (
               <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
                 {METRICS.filter(m => hallCfg.metrics[m.key]).map(m => (
@@ -374,26 +416,11 @@ export function HallClient({ initialActivities, initialTasks, linkOptions, userN
               </div>
             )}
 
-            {/* ── Hoje ── Tarefas de hoje (esq) · Atividade recente (dir) + Agenda. No mobile empilha. */}
-            {(hallCfg.blocks.tarefas || hallCfg.blocks.atividade || hallCfg.blocks.agenda) && <SectionLabel>Hoje</SectionLabel>}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 items-start">
-              {hallCfg.blocks.tarefas && (
-                <CollapsibleSection title="Tarefas de hoje" icon={CalendarDays} defaultOpen>
-                  <Panel className="h-full max-lg:p-3" headerClassName="max-lg:hidden" label="Tarefas de hoje">
-                    <div className="space-y-2">
-                      {eventosHoje.length === 0 && tarefasHoje.length === 0
-                        ? <p className="text-sm text-bento-muted py-6 text-center">Nada para hoje.</p>
-                        : <>
-                            {eventosHoje.map(ev => <MuralAgendaRow key={`ev-${ev.id}`} ev={ev} onClick={() => setFocusEvent(ev)} />)}
-                            {tarefasHoje.map(t => <MuralTaskRow key={`tk-${t.id}`} task={t} onClick={() => router.push('/tarefas')} />)}
-                          </>}
-                    </div>
-                  </Panel>
-                </CollapsibleSection>
-              )}
-              {hallCfg.blocks.atividade && (
+            {/* ══ ATIVIDADES RECENTES ══ movimentações reais (realtime). Secundário — colapsa no mobile. */}
+            {hallCfg.blocks.atividade && <SectionLabel>Atividades recentes</SectionLabel>}
+            {hallCfg.blocks.atividade && (
               <CollapsibleSection title="Atividades Recentes" icon={ActivityIcon}>
-                <Panel className="h-full max-lg:p-3" headerClassName="max-lg:hidden" label="Atividades Recentes" action={<LiveDot />}>
+                <Panel className="max-lg:p-3" headerClassName="max-lg:hidden" label="Atividades Recentes" action={<LiveDot />}>
                 <div className="space-y-0 divide-y divide-bento-border/60">
                   {activities.length === 0 ? (
                     <p className="text-sm text-bento-muted py-6 text-center">Nenhuma atividade ainda.</p>
@@ -433,11 +460,9 @@ export function HallClient({ initialActivities, initialTasks, linkOptions, userN
                 </button>
                 </Panel>
               </CollapsibleSection>
-              )}
-            </div>
+            )}
 
-            {/* AGENDA — abaixo da ação do dia; colapsada por padrão (gestão pesada, não comando).
-                Continua completa (4 vistas + CRUD) ao expandir. Ordem: KPIs → ação → agenda → notícias. */}
+            {/* ── Agenda (secundário) ── colapsada por padrão; completa (4 vistas + CRUD) ao expandir. */}
             {hallCfg.blocks.agenda && (
               <CollapsibleSection title="Agenda" icon={CalendarDays}>
                 <Calendar userId={userId} events={calEvents} tasks={tasks} onEventsChange={setCalEvents} focusEvent={focusEvent} onFocusHandled={() => setFocusEvent(null)} />
