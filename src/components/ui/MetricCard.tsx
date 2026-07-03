@@ -7,7 +7,8 @@ import { cn } from '@/lib/utils'
 // aparece quando o dado e positivo/enfatico (tone). Serve Hall, Comercial, Financeiro, Clientes, Vendedores.
 // Layout puro: quem posiciona (grid/linha) e a tela; aqui e so 1 card. Nao migra call-sites.
 
-export type MetricTone = 'default' | 'positive' | 'negative' | 'muted' | 'emerald' | 'blue' | 'lime'
+// Semânticas: default/muted = neutral · positive/lime/emerald = success · warning = amber · negative = danger · blue = info.
+export type MetricTone = 'default' | 'positive' | 'negative' | 'muted' | 'emerald' | 'blue' | 'lime' | 'warning'
 export type MetricSize = 'sm' | 'md' | 'lg'
 
 export type MetricTrend = {
@@ -42,6 +43,7 @@ const TONE_VALUE: Record<MetricTone, string> = {
   emerald: 'text-emerald-400',
   blue: 'text-blue-400',
   lime: 'text-lime-fg',
+  warning: 'text-amber-400',
 }
 
 // Escala de tamanho. md = tamanho ATUAL (Hall) — nao mudar para nao quebrar o uso existente.

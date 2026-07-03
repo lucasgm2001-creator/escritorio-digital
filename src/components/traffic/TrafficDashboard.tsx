@@ -1,11 +1,11 @@
 import Link from 'next/link'
-import { AdminStat } from '@/components/admin/AdminStat'
+import { MetricCard } from '@/components/ui/MetricCard'
 import { Panel } from '@/components/bento/Panel'
 import { AiInsightsPanel } from '@/components/ai/AiInsightsPanel'
 import { TrafficHeader } from './TrafficHeader'
 import { TrafficPlatformGrid } from './TrafficPlatformGrid'
 
-// Dashboard executivo de Tráfego — PLACEHOLDERS elegantes (sem integração/API/dados). Reusa AdminStat +
+// Dashboard executivo de Tráfego — PLACEHOLDERS elegantes (sem integração/API/dados). Reusa MetricCard +
 // Panel + AiInsightsPanel + TrafficPlatformGrid. Aceita clientName: o MESMO dashboard serve a aba do cliente.
 const STATUS = [
   { label: 'Contas conectadas', value: '0' },
@@ -41,7 +41,7 @@ export function TrafficDashboard({ clientName }: { clientName?: string }) {
 
       {/* Status operacional + integrações */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5">
-        {STATUS.map(item => <AdminStat key={item.label} label={item.label} value={item.value} />)}
+        {STATUS.map(item => <MetricCard key={item.label} title={item.label} value={item.value} size="sm" />)}
       </div>
 
       {/* Ações rápidas */}
@@ -60,7 +60,7 @@ export function TrafficDashboard({ clientName }: { clientName?: string }) {
       <div>
         <p className="font-tech text-[10px] uppercase tracking-[0.12em] text-bento-muted mb-2">Indicadores</p>
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5">
-          {KPIS.map(kpi => <AdminStat key={kpi} label={kpi} value="—" />)}
+          {KPIS.map(kpi => <MetricCard key={kpi} title={kpi} value="—" size="sm" />)}
         </div>
       </div>
 

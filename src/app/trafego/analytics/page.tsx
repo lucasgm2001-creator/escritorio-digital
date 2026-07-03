@@ -1,4 +1,4 @@
-import { AdminStat } from '@/components/admin/AdminStat'
+import { MetricCard } from '@/components/ui/MetricCard'
 import { Panel } from '@/components/bento/Panel'
 import { TrafficHeader } from '@/components/traffic/TrafficHeader'
 
@@ -11,7 +11,7 @@ export default function Page() {
       <TrafficHeader eyebrow="Tráfego" title="Analytics" subtitle="Audiência e comportamento (GA4) — usuários, sessões, origens e páginas." />
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5">
-        {KPIS.map(kpi => <AdminStat key={kpi} label={kpi} value="—" />)}
+        {KPIS.map(kpi => <MetricCard key={kpi} title={kpi} value="—" size="sm" />)}
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">

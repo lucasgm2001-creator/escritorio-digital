@@ -1,4 +1,4 @@
-import { AdminStat } from '@/components/admin/AdminStat'
+import { MetricCard } from '@/components/ui/MetricCard'
 import { Panel } from '@/components/bento/Panel'
 import { TrafficHeader } from '@/components/traffic/TrafficHeader'
 
@@ -10,7 +10,7 @@ export default function Page() {
       <TrafficHeader eyebrow="Tráfego" title="Conversões" subtitle="Pixel e eventos de conversão — padrão e customizados." />
 
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
-        {EVENTS.map(event => <AdminStat key={event} label={event} value="—" />)}
+        {EVENTS.map(event => <MetricCard key={event} title={event} value="—" size="sm" />)}
       </div>
 
       <Panel label="Pixel & Conversions API">

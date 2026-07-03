@@ -1,7 +1,7 @@
 import { CalendarDays } from 'lucide-react'
 import { getRequestContext } from '@/server/context/request-context'
 import { getClientAgenda, type ClientAgendaMeeting } from '@/server/services/ClientAgendaService'
-import { AdminStat } from '@/components/admin/AdminStat'
+import { MetricCard } from '@/components/ui/MetricCard'
 import { Panel } from '@/components/bento/Panel'
 import { formatDateBR } from '@/lib/date'
 
@@ -39,7 +39,7 @@ export default async function ClientAgendaPage({ params }: { params: { id: strin
       </header>
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5">
-        {stats.map(stat => <AdminStat key={stat.label} label={stat.label} value={stat.value} />)}
+        {stats.map(stat => <MetricCard key={stat.label} title={stat.label} value={stat.value} size="sm" />)}
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-start">

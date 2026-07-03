@@ -1,5 +1,5 @@
 import { Presentation, Search } from 'lucide-react'
-import { AdminStat } from '@/components/admin/AdminStat'
+import { MetricCard } from '@/components/ui/MetricCard'
 import { TrafficHeader } from '@/components/traffic/TrafficHeader'
 import { TrafficEmptyState } from '@/components/traffic/TrafficEmptyState'
 
@@ -12,7 +12,7 @@ export default function Page() {
       <TrafficHeader eyebrow="Tráfego" title="Campanhas" subtitle="Campanhas de todas as plataformas — status, objetivo, investimento e resultados." />
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5">
-        {KPIS.map(kpi => <AdminStat key={kpi} label={kpi} value="—" />)}
+        {KPIS.map(kpi => <MetricCard key={kpi} title={kpi} value="—" size="sm" />)}
       </div>
 
       <div className="flex flex-wrap items-center gap-2">
