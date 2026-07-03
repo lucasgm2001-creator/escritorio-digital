@@ -1,4 +1,5 @@
 import { FileText } from 'lucide-react'
+import { WorkspaceHeader } from '@/components/ui/WorkspaceHeader'
 
 // Relatórios do Cliente — catálogo (roadmap elegante). Consumirá o Reporting Engine (mesma fonte do PDF).
 const REPORTS = [
@@ -13,10 +14,11 @@ const REPORTS = [
 export default function ClientRelatoriosPage() {
   return (
     <div className="space-y-6">
-      <header className="space-y-1">
-        <h1 className="font-display font-bold text-xl text-bento-text">Relatórios</h1>
-        <p className="text-sm text-bento-muted">Relatórios do cliente — reusam o Reporting Engine (mesma fonte do PDF Executivo).</p>
-      </header>
+      <WorkspaceHeader
+        title="Relatórios"
+        subtitle="Relatórios do cliente — reusam o Reporting Engine (mesma fonte do PDF Executivo)."
+        size="compact"
+      />
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
         {REPORTS.map(report => (
           <div key={report.title} className="bento-fx p-4 flex items-start gap-3">

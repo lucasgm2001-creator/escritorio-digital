@@ -4,6 +4,7 @@ import { getClientAgenda, type ClientAgendaMeeting } from '@/server/services/Cli
 import { MetricCard } from '@/components/ui/MetricCard'
 import { Panel } from '@/components/bento/Panel'
 import { formatDateBR } from '@/lib/date'
+import { WorkspaceHeader } from '@/components/ui/WorkspaceHeader'
 
 // Agenda do Cliente — dados REAIS (reuniões do lead de origem) via ClientAgendaService (ARCH-001).
 function MeetingRow({ meeting }: { meeting: ClientAgendaMeeting }) {
@@ -33,10 +34,11 @@ export default async function ClientAgendaPage({ params }: { params: { id: strin
 
   return (
     <div className="space-y-6">
-      <header className="space-y-1">
-        <h1 className="font-display font-bold text-xl text-bento-text">Agenda</h1>
-        <p className="text-sm text-bento-muted">Reuniões do cliente (dados internos) — próximas e concluídas.</p>
-      </header>
+      <WorkspaceHeader
+        title="Agenda"
+        subtitle="Reuniões do cliente (dados internos) — próximas e concluídas."
+        size="compact"
+      />
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5">
         {stats.map(stat => <MetricCard key={stat.label} title={stat.label} value={stat.value} size="sm" />)}
