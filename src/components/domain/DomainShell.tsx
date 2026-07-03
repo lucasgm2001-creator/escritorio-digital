@@ -6,12 +6,14 @@ import Link from 'next/link'
 import { Search, Menu, ChevronLeft, X } from 'lucide-react'
 import { DomainNav } from './DomainNav'
 import { DOMAIN_CONFIGS } from '@/lib/domain/registry'
-import type { DomainKey } from '@/lib/domain/nav'
+import type { DomainConfig, DomainKey } from '@/lib/domain/nav'
 
-// Casca GENÉRICA de domínio (Administração, Tráfego, ...). Uma implementação para todos.
+// Casca GENÉRICA de domínio (Administração, Tráfego, Workspace do Cliente, ...). Uma implementação p/ todos.
 // Mobile: cabeçalho fixo (← back / seção / Seções) + bottom sheet. iPad/Desktop: rail + contexto.
-export function DomainShell({ configKey, subtitle, userName, role, children }: {
-  configKey: DomainKey
+// Aceita configKey (registro estático) OU um config resolvido (ex.: Cliente, com hrefs por id).
+export function DomainShell({ configKey, config: configProp, subtitle, userName, role, children }: {
+  configKey?: DomainKey
+  config?: DomainConfig
   subtitle: string | null
   userName: string
   role: string
@@ -19,7 +21,7 @@ export function DomainShell({ configKey, subtitle, userName, role, children }: {
 }) {
   const [sheetOpen, setSheetOpen] = useState(false)
   const pathname = usePathname()
-  const config = DOMAIN_CONFIGS[configKey]
+  const config = configProp ?? DOMAIN_CONFIGS[configKey!]
   const current = config.sections.find(section =>
     pathname === section.href || (section.href !== config.homePath && pathname.startsWith(section.href + '/')),
   )
@@ -28,7 +30,7 @@ export function DomainShell({ configKey, subtitle, userName, role, children }: {
   return (
     <div className="flex h-[100dvh] overflow-hidden bg-bento-bg text-bento-text">
       <DomainNav
-        configKey={configKey}
+        config={config}
         subtitle={subtitle}
         className="hidden md:flex w-64 xl:w-72 shrink-0 border-r border-bento-border overflow-hidden"
       />
@@ -92,7 +94,7 @@ export function DomainShell({ configKey, subtitle, userName, role, children }: {
                 <X className="w-5 h-5" />
               </button>
             </div>
-            <DomainNav configKey={configKey} subtitle={subtitle} className="flex flex-col overflow-hidden" hideHeader onNavigate={() => setSheetOpen(false)} />
+            <DomainNav config={config} subtitle={subtitle} className="flex flex-col overflow-hidden" hideHeader onNavigate={() => setSheetOpen(false)} />
           </div>
         </div>
       )}

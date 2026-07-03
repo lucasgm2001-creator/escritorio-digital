@@ -5,18 +5,21 @@ import { usePathname } from 'next/navigation'
 import { ChevronLeft } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { DOMAIN_CONFIGS } from '@/lib/domain/registry'
-import type { DomainKey } from '@/lib/domain/nav'
+import type { DomainConfig, DomainKey } from '@/lib/domain/nav'
 
 // Rail/lista de seções GENÉRICA (rail no desktop/iPad, conteúdo do bottom sheet no mobile).
-export function DomainNav({ configKey, subtitle, className, hideHeader, onNavigate }: {
-  configKey: DomainKey
+// Aceita configKey (admin/tráfego — registro estático) OU um config já resolvido (Workspace do Cliente,
+// cujos hrefs dependem do id e são montados no cliente).
+export function DomainNav({ configKey, config: configProp, subtitle, className, hideHeader, onNavigate }: {
+  configKey?: DomainKey
+  config?: DomainConfig
   subtitle?: string | null
   className?: string
   hideHeader?: boolean
   onNavigate?: () => void
 }) {
   const pathname = usePathname()
-  const config = DOMAIN_CONFIGS[configKey]
+  const config = configProp ?? DOMAIN_CONFIGS[configKey!]
 
   return (
     <nav className={cn('flex-col bg-bento-bg', className)}>
