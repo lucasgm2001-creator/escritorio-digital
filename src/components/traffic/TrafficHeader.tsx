@@ -1,10 +1,3 @@
-// Cabeçalho padrão das telas de Tráfego (reutilizável — global e dentro do cliente).
-export function TrafficHeader({ eyebrow, title, subtitle }: { eyebrow?: string; title: string; subtitle?: string }) {
-  return (
-    <header className="space-y-1">
-      {eyebrow && <p className="font-tech text-[11px] uppercase tracking-[0.14em] text-lime-fg">{eyebrow}</p>}
-      <h1 className="font-display font-bold text-2xl text-bento-text">{title}</h1>
-      {subtitle && <p className="text-sm text-bento-muted max-w-prose">{subtitle}</p>}
-    </header>
-  )
-}
+// Cabeçalho de Tráfego — aponta para o cabeçalho ÚNICO do sistema (EXPERIENCE-001). Uma só implementação;
+// as telas de Tráfego seguem usando `TrafficHeader`, agora sem variação própria.
+export { WorkspaceHeader as TrafficHeader } from '@/components/ui/WorkspaceHeader'
