@@ -65,12 +65,13 @@ type SectionId = 'atrasadas' | 'hoje' | 'amanha' | 'semana' | 'depois'
 // Computador (≥1280) segue com as SECTIONS (acordeão) abaixo.
 type MobileChip = 'hoje' | 'proximas' | 'atrasadas' | 'concluidas'
 
-const SECTIONS: { id: SectionId; label: string; danger?: boolean }[] = [
+const SECTIONS: { id: SectionId; label: string; danger?: boolean; muted?: boolean }[] = [
   { id: 'atrasadas', label: 'Atrasadas', danger: true },
   { id: 'hoje',      label: 'Hoje' },
   { id: 'amanha',    label: 'Amanhã' },
   { id: 'semana',    label: 'Esta semana' },
-  { id: 'depois',    label: 'Depois / sem data' },
+  // Modo foco (Part 5): "Depois / sem data" perde peso visual — não some, só protagoniza menos que Agora/Hoje.
+  { id: 'depois',    label: 'Depois / sem data', muted: true },
 ]
 
 const PRIO_ORDER: Record<string, number> = { urgente: 3, alta: 2, normal: 1 }
@@ -345,12 +346,12 @@ export function TarefasClient({ tasks, setTasks, deletedIds, linkOptions, curren
             onClick={() => toggleDone(t)}
             aria-label={t.done ? 'Desmarcar' : 'Marcar como feita'}
             className={cn(
-              'mt-0.5 w-[18px] h-[18px] rounded-md border flex items-center justify-center flex-none transition-colors',
+              'mt-0.5 w-[18px] h-[18px] rounded-md border flex items-center justify-center flex-none transition-all duration-200 active:scale-90',
               t.done ? 'bg-lime border-lime' : 'border-bento-border hover:border-lime',
             )}
           >
             {t.done && (
-              <svg className="w-3 h-3 text-lime-ink" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg className="w-3 h-3 text-lime-ink animate-fade-in" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
               </svg>
             )}
@@ -470,9 +471,9 @@ export function TarefasClient({ tasks, setTasks, deletedIds, linkOptions, curren
         {isToday && <span className="absolute top-0 inset-x-0 h-0.5 bg-lime" aria-hidden />}
         <div className="flex items-start gap-3">
           <button onClick={() => toggleDone(t)} aria-label={t.done ? 'Reabrir' : 'Concluir'}
-            className={cn('mt-0.5 w-[22px] h-[22px] rounded-md border flex items-center justify-center flex-none transition-colors',
+            className={cn('mt-0.5 w-[22px] h-[22px] rounded-md border flex items-center justify-center flex-none transition-all duration-200 active:scale-90',
               t.done ? 'bg-lime border-lime' : 'border-bento-border')}>
-            {t.done && <svg className="w-3.5 h-3.5 text-lime-ink" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>}
+            {t.done && <svg className="w-3.5 h-3.5 text-lime-ink animate-fade-in" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>}
           </button>
           <div role="button" tabIndex={0} onClick={() => openEdit(t)}
             onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openEdit(t) } }}
@@ -687,7 +688,7 @@ export function TarefasClient({ tasks, setTasks, deletedIds, linkOptions, curren
               const items = groups[sec.id]
               if (items.length === 0 && sec.id !== 'hoje') return null
               return (
-                <section key={sec.id}>
+                <section key={sec.id} className={cn(sec.muted && 'opacity-70')}>
                   <div className="flex items-center gap-2 mb-2 px-1">
                     <h2 className={cn('text-xs font-semibold uppercase tracking-wide',
                       sec.danger ? 'text-red-400' : 'text-bento-dim')}>
