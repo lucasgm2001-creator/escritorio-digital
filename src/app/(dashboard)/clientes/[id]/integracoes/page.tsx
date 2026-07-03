@@ -1,9 +1,16 @@
-import { notFound } from 'next/navigation'
-import { getClientSection } from '@/lib/client/sections'
-import { DomainSectionView } from '@/components/domain/DomainSectionView'
+import { integrationsByCategory } from '@/lib/integrations/catalog'
+import { IntegrationGrid } from '@/components/integrations/IntegrationGrid'
 
-export default function Page() {
-  const section = getClientSection('integracoes')
-  if (!section) notFound()
-  return <DomainSectionView section={section} />
+// Cliente › Integrações — mesmo componente de conexão, providers relevantes ao cliente (pagamentos, mídia,
+// analytics e mensagens). Sem integração real.
+export default function ClientIntegracoesPage() {
+  return (
+    <div className="space-y-5">
+      <header className="space-y-1">
+        <h1 className="font-display font-bold text-xl text-bento-text">Integrações</h1>
+        <p className="text-sm text-bento-muted">Conexões deste cliente. Nenhuma conta conectada — pronto para conectar quando autorizado.</p>
+      </header>
+      <IntegrationGrid providers={integrationsByCategory(['payments', 'ads', 'analytics', 'messaging'])} />
+    </div>
+  )
 }
