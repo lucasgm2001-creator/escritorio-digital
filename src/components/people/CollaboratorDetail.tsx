@@ -9,6 +9,7 @@ import {
 } from 'lucide-react'
 import { Panel } from '@/components/bento/Panel'
 import { EmptyState } from '@/components/ui/EmptyState'
+import { CompensationFlow } from '@/components/admin/CompensationFlow'
 import type { CollaboratorDetailVM } from '@/lib/people/types'
 import { cn } from '@/lib/utils'
 import { COLLABORATOR_STATUS, initials } from '@/lib/people/presentation'
@@ -132,6 +133,9 @@ export function CollaboratorDetail({ collaborator, teamName }: { collaborator: C
               <p className="text-[12px] text-bento-dim leading-relaxed">
                 {collaborator.templateName ? 'Utilizando template padrão do cargo.' : 'Requer configuração.'} O cálculo usa a Compensation Engine; histórico não é recalculado.
               </p>
+            </div>
+            <div className="mt-4 pt-4 border-t border-bento-border">
+              <CompensationFlow />
             </div>
           </Panel>
         )}
