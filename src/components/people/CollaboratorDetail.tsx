@@ -5,14 +5,14 @@ import Link from 'next/link'
 import type { LucideIcon } from 'lucide-react'
 import {
   ChevronLeft, LayoutGrid, Briefcase, FolderOpen, Wallet, Users, UserPlus, ShieldCheck,
-  Target, History, ScrollText, FileText, Star,
+  Target, History, ScrollText, FileText, Star, CalendarDays, Mail,
 } from 'lucide-react'
 import { Panel } from '@/components/bento/Panel'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { CompensationFlow } from '@/components/admin/CompensationFlow'
 import type { CollaboratorDetailVM } from '@/lib/people/types'
 import { cn } from '@/lib/utils'
-import { COLLABORATOR_STATUS, initials } from '@/lib/people/presentation'
+import { COLLABORATOR_STATUS, TEAM_ROLE_BADGE, formatJoinedAt, initials } from '@/lib/people/presentation'
 import { ROLE_CATALOG, ROLE_LEVEL_LABEL, COMP_MODEL_LABEL } from '@/lib/people/catalog'
 import { InfoTile } from './InfoTile'
 
@@ -37,7 +37,7 @@ const TABS: { key: TabKey; label: string; icon: LucideIcon }[] = [
 export function CollaboratorDetail({ collaborator, teamName }: { collaborator: CollaboratorDetailVM; teamName: string | null }) {
   const [tab, setTab] = useState<TabKey>('resumo')
   const status = COLLABORATOR_STATUS[collaborator.status]
-  const subtitle = [collaborator.roleName, collaborator.departmentName].filter(Boolean).join(' · ') || '—'
+  const role = TEAM_ROLE_BADGE[collaborator.teamRole]   // papel de acesso REAL (team_members)
   // Enriquecimento pelo catálogo profissional (best-effort por nome do cargo).
   const blueprint = ROLE_CATALOG.find(r => r.name === collaborator.roleName) ?? null
 
@@ -54,10 +54,11 @@ export function CollaboratorDetail({ collaborator, teamName }: { collaborator: C
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2 flex-wrap">
             <h1 className="font-display font-bold text-xl text-bento-text truncate">{collaborator.name}</h1>
+            <span className={cn('text-[10px] font-tech uppercase tracking-wide px-2 py-0.5 rounded-full border', role.cls)}>{role.label}</span>
             <span className={cn('text-[10px] font-tech uppercase tracking-wide px-2 py-0.5 rounded-full border', status.cls)}>{status.label}</span>
           </div>
-          <p className="text-sm text-bento-muted mt-1">{subtitle}</p>
-          {collaborator.email && <p className="text-[12px] text-bento-dim mt-0.5 truncate">{collaborator.email}</p>}
+          {collaborator.email && <p className="text-[13px] text-bento-muted mt-1 truncate">{collaborator.email}</p>}
+          {collaborator.joinedAt && <p className="text-[12px] text-bento-dim mt-0.5">Na equipe desde {formatJoinedAt(collaborator.joinedAt)}</p>}
         </div>
       </header>
 
@@ -81,12 +82,14 @@ export function CollaboratorDetail({ collaborator, teamName }: { collaborator: C
       <div className="pt-1">
         {tab === 'resumo' && (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
+            <InfoTile icon={ShieldCheck} label="Papel de acesso" value={role.label} />
             <InfoTile icon={Briefcase} label="Cargo" value={collaborator.roleName ?? 'Não configurado'} />
             <InfoTile icon={FolderOpen} label="Departamento" value={collaborator.departmentName ?? 'Não configurado'} />
             <InfoTile icon={Wallet} label="Template" value={collaborator.templateName ?? 'Sem remuneração definida'} />
             <InfoTile icon={UserPlus} label="Gestor" value={collaborator.managerName ?? 'Não configurado'} />
             <InfoTile icon={Users} label="Equipe" value={teamName ?? '—'} />
-            <InfoTile icon={ShieldCheck} label="Status" value={status.label} />
+            <InfoTile icon={CalendarDays} label="Entrada" value={formatJoinedAt(collaborator.joinedAt)} />
+            <InfoTile icon={Mail} label="Email" value={collaborator.email ?? 'Não configurado'} />
           </div>
         )}
 
@@ -108,7 +111,9 @@ export function CollaboratorDetail({ collaborator, teamName }: { collaborator: C
           <Panel label="Equipes & acesso">
             <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-3 text-sm">
               <div><dt className="text-[12px] text-bento-dim">Workspace ativo</dt><dd className="text-bento-text font-medium">{teamName ?? '—'}</dd></div>
-              <div><dt className="text-[12px] text-bento-dim">Papel de acesso</dt><dd className="text-bento-text font-medium">{blueprint ? blueprint.defaultTeamRole : 'Usando configuração padrão'}</dd></div>
+              <div><dt className="text-[12px] text-bento-dim">Papel de acesso</dt><dd className="text-bento-text font-medium">{role.label}</dd></div>
+              <div><dt className="text-[12px] text-bento-dim">Na equipe desde</dt><dd className="text-bento-text font-medium">{formatJoinedAt(collaborator.joinedAt)}</dd></div>
+              <div><dt className="text-[12px] text-bento-dim">Email</dt><dd className="text-bento-text font-medium">{collaborator.email ?? 'Não configurado'}</dd></div>
             </dl>
           </Panel>
         )}
@@ -118,9 +123,9 @@ export function CollaboratorDetail({ collaborator, teamName }: { collaborator: C
             <div className="space-y-2">
               <p className="text-[13px] text-bento-muted leading-relaxed">
                 As permissões <strong className="text-bento-text">efetivas</strong> derivam do papel de acesso
-                ({blueprint ? blueprint.defaultTeamRole : 'owner/admin/member'}) + overrides individuais, calculadas no servidor.
+                (<span className="text-bento-text">{role.label}</span>) + overrides individuais, calculadas no servidor.
               </p>
-              <p className="text-[12px] text-bento-dim">Sem override individual · Usando configuração padrão do cargo.</p>
+              <p className="text-[12px] text-bento-dim">Sem permissões personalizadas · Usando configuração padrão do papel.</p>
             </div>
           </Panel>
         )}

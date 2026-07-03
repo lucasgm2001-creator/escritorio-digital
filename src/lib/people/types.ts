@@ -69,13 +69,20 @@ export type RoleSummary = Role & {
   suggestedTemplateName: string | null
 }
 
+// Papel de ACESSO real na equipe (TEAM-001) — vem de team_members. Distinto de cargo/função (roleName).
+export type TeamAccessRole = 'owner' | 'admin' | 'member'
+
 export type CollaboratorCardVM = {
-  id: string
+  id: string                 // = userId (colaborador real = membro da equipe)
+  userId: string
   name: string
   email: string | null
+  avatarUrl: string | null
+  teamRole: TeamAccessRole   // owner/admin/member (real)
+  joinedAt: string | null    // entrada na equipe (real)
   status: CollaboratorStatus
-  departmentName: string | null
-  roleName: string | null
+  departmentName: string | null   // ainda não configurado no RH → honesto
+  roleName: string | null         // cargo/função → honesto até configurar
   templateName: string | null
   managerName: string | null
 }
@@ -83,8 +90,12 @@ export type CollaboratorCardVM = {
 // Detalhe do colaborador (Master → Detail). Resolve tudo o que a tela de detalhe mostra.
 export type CollaboratorDetailVM = {
   id: string
+  userId: string
   name: string
   email: string | null
+  avatarUrl: string | null
+  teamRole: TeamAccessRole
+  joinedAt: string | null
   status: CollaboratorStatus
   departmentName: string | null
   roleName: string | null

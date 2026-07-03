@@ -1,6 +1,6 @@
 import 'server-only'
 
-import type { Collaborator, CompensationTemplate, Department, Role } from '@/lib/people/types'
+import type { CompensationTemplate, Department, Role } from '@/lib/people/types'
 
 // Camada de dados do domínio Pessoas (ARCH-001). Nesta fase serve um CATÁLOGO/PRÉVIA em memória —
 // NÃO toca o banco. Quando o schema existir, só o corpo de cada método passa a consultar o Supabase
@@ -44,18 +44,8 @@ function seedTemplates(teamId: string): CompensationTemplate[] {
   ]
 }
 
-// Exemplos (rotulados como prévia na UI) — só para ensinar a anatomia do card de colaborador.
-function seedCollaborators(teamId: string): Collaborator[] {
-  const c = (
-    id: string, name: string, departmentId: string, roleId: string,
-    templateId: string | null, managerId: string | null, status: Collaborator['status'],
-  ): Collaborator => ({ id: `collab-${id}`, teamId, userId: null, name, email: null, departmentId, roleId, templateId, managerId, status })
-  return [
-    c('1', 'Ana Martins', 'dept-comercial', 'role-manager', null, null, 'ativo'),
-    c('2', 'Bruno Costa', 'dept-comercial', 'role-closer', 'tmpl-closer', 'collab-1', 'ativo'),
-    c('3', 'Carla Dias', 'dept-financeiro', 'role-analista', null, 'collab-1', 'convidado'),
-  ]
-}
+// PEOPLE-002: colaboradores fictícios REMOVIDOS — os colaboradores reais vêm de team_members + profiles
+// (PeopleService.getActiveTeamMembers). Departamentos/cargos/templates seguem como catálogo/estrutura.
 
 export async function listDepartments(teamId: string): Promise<Department[]> {
   return seedDepartments(teamId)
@@ -67,8 +57,4 @@ export async function listRoles(teamId: string): Promise<Role[]> {
 
 export async function listTemplates(teamId: string): Promise<CompensationTemplate[]> {
   return seedTemplates(teamId)
-}
-
-export async function listCollaborators(teamId: string): Promise<Collaborator[]> {
-  return seedCollaborators(teamId)
 }

@@ -5,6 +5,7 @@ import { Panel } from '@/components/bento/Panel'
 import { ModelBlueprint } from '@/components/admin/ModelBlueprint'
 import { PeopleHeader } from '@/components/people/PeopleHeader'
 import { CollaboratorCard } from '@/components/people/CollaboratorCard'
+import { EmptyState } from '@/components/ui/EmptyState'
 
 export default async function ColaboradoresPage() {
   const context = await getRequestContext()
@@ -18,7 +19,6 @@ export default async function ColaboradoresPage() {
         icon={Users}
         title="Colaboradores"
         tagline="As pessoas da empresa — muito além de vendedores."
-        badge="Prévia"
         stats={[
           { label: 'departamentos', value: overview.departments },
           { label: 'cargos', value: overview.roles },
@@ -26,23 +26,23 @@ export default async function ColaboradoresPage() {
         ]}
       />
 
-      <div className="rounded-frame border border-lime/20 bg-lime/5 p-4">
-        <p className="text-sm text-bento-text font-medium">Fundação do domínio de Pessoas</p>
-        <p className="text-[12px] text-bento-muted mt-1 leading-relaxed">
-          Estrutura de exemplo. A gestão real (departamento, cargo, template, gestor, status, histórico,
-          documentos e integrações) chega nas próximas fases, sobre esta mesma arquitetura.
-        </p>
-      </div>
+      {collaborators.length > 0 ? (
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
+          {collaborators.map(collaborator => (
+            <CollaboratorCard key={collaborator.id} collaborator={collaborator} />
+          ))}
+        </div>
+      ) : (
+        <EmptyState
+          icon={Users}
+          title="Nenhum colaborador nesta equipe"
+          description="Os membros do workspace aparecem aqui automaticamente. Convide pessoas pela Central de Equipe."
+        />
+      )}
 
       <Panel label="Estrutura oficial">
         <ModelBlueprint kind="people" />
       </Panel>
-
-      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
-        {collaborators.map(collaborator => (
-          <CollaboratorCard key={collaborator.id} collaborator={collaborator} example />
-        ))}
-      </div>
     </div>
   )
 }

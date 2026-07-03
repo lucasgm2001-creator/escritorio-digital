@@ -2,24 +2,38 @@ import 'server-only'
 
 import type { RequestContext } from '@/server/context/request-context'
 import type { CollaboratorCardVM, CollaboratorDetailVM, DepartmentSummary, PeopleOverview, RoleSummary } from '@/lib/people/types'
-import { listCollaborators, listDepartments, listRoles, listTemplates } from '@/server/repositories/PeopleRepository'
+import { listDepartments, listRoles, listTemplates } from '@/server/repositories/PeopleRepository'
+import { getActiveTeamMembers } from '@/server/services/TeamService'
+import type { TeamMember } from '@/server/repositories/TeamRepository'
 import * as Compensation from '@/server/services/CompensationEngineService'
 import type { CompensationAssignment, CompensationEvent, CompensationPreview, CompensationTemplateDefinition } from '@/core/compensation/types'
 
-// Service do domínio Pessoas (ARCH-001). Garante o escopo da equipe ativa (TEAM-001) e COMPÕE os
-// view-models a partir dos repositórios — a UI recebe pronto, sem fazer joins. É aqui que futuras
-// verificações de permissão (PERMISSION-001) e vínculos de remuneração (COMPENSATION-001) entram.
+// Service do domínio Pessoas (ARCH-001). PEOPLE-002: os COLABORADORES são REAIS — vêm de team_members +
+// profiles (via getActiveTeamMembers, 2 queries, sem N+1). Departamentos/cargos/templates seguem do catálogo
+// (estrutura). Cargo/depto/gestor/template do colaborador ainda não são persistidos no RH → honestos (null).
+
+// Colaborador REAL = membro da equipe. Nome: profile.name → email → fallback. Cargo/depto/etc. honestos.
+function displayName(m: TeamMember): string {
+  return m.profile?.name || m.profile?.email || 'Usuário sem nome'
+}
+function memberToCard(m: TeamMember): CollaboratorCardVM {
+  return {
+    id: m.user_id, userId: m.user_id, name: displayName(m), email: m.profile?.email ?? null,
+    avatarUrl: m.profile?.avatar_url ?? null, teamRole: m.role, joinedAt: m.created_at, status: 'ativo',
+    departmentName: null, roleName: null, templateName: null, managerName: null,
+  }
+}
 
 async function loadScope(context: RequestContext) {
   const teamId = context.activeTeamId
   if (!teamId) return null
-  const [departments, roles, templates, collaborators] = await Promise.all([
+  const [departments, roles, templates, members] = await Promise.all([
     listDepartments(teamId),
     listRoles(teamId),
     listTemplates(teamId),
-    listCollaborators(teamId),
+    getActiveTeamMembers(context),   // COLABORADORES REAIS (team_members + profiles)
   ])
-  return { departments, roles, templates, collaborators }
+  return { departments, roles, templates, members }
 }
 
 export async function getPeopleOverview(context: RequestContext): Promise<PeopleOverview> {
@@ -29,7 +43,7 @@ export async function getPeopleOverview(context: RequestContext): Promise<People
     departments: scope.departments.length,
     roles: scope.roles.length,
     templates: scope.templates.length,
-    collaborators: scope.collaborators.length,
+    collaborators: scope.members.length,
   }
 }
 
@@ -39,7 +53,8 @@ export async function listDepartmentSummaries(context: RequestContext): Promise<
   return scope.departments.map(department => ({
     ...department,
     roleCount: scope.roles.filter(role => role.departmentId === department.id).length,
-    collaboratorCount: scope.collaborators.filter(collaborator => collaborator.departmentId === department.id).length,
+    // Colaboradores reais ainda não têm departamento de RH atribuído (sem persistência) → honesto: 0.
+    collaboratorCount: 0,
   }))
 }
 
@@ -49,7 +64,7 @@ export async function listRoleSummaries(context: RequestContext): Promise<RoleSu
   return scope.roles.map(role => ({
     ...role,
     departmentName: scope.departments.find(department => department.id === role.departmentId)?.name ?? null,
-    collaboratorCount: scope.collaborators.filter(collaborator => collaborator.roleId === role.id).length,
+    collaboratorCount: 0,   // sem cargo de RH atribuído aos membros reais ainda → honesto
     suggestedTemplateName: scope.templates.find(template => template.id === role.suggestedTemplateId)?.name ?? null,
   }))
 }
@@ -57,35 +72,16 @@ export async function listRoleSummaries(context: RequestContext): Promise<RoleSu
 export async function listCollaboratorCards(context: RequestContext): Promise<CollaboratorCardVM[]> {
   const scope = await loadScope(context)
   if (!scope) return []
-  return scope.collaborators.map(collaborator => ({
-    id: collaborator.id,
-    name: collaborator.name,
-    email: collaborator.email,
-    status: collaborator.status,
-    departmentName: scope.departments.find(department => department.id === collaborator.departmentId)?.name ?? null,
-    roleName: scope.roles.find(role => role.id === collaborator.roleId)?.name ?? null,
-    templateName: scope.templates.find(template => template.id === collaborator.templateId)?.name ?? null,
-    managerName: scope.collaborators.find(manager => manager.id === collaborator.managerId)?.name ?? null,
-  }))
+  return scope.members.map(memberToCard)
 }
 
 export async function getCollaboratorDetail(context: RequestContext, id: string): Promise<CollaboratorDetailVM | null> {
   const scope = await loadScope(context)
   if (!scope) return null
-  const collaborator = scope.collaborators.find(item => item.id === id)
-  if (!collaborator) return null
-  const role = scope.roles.find(item => item.id === collaborator.roleId) ?? null
-  return {
-    id: collaborator.id,
-    name: collaborator.name,
-    email: collaborator.email,
-    status: collaborator.status,
-    departmentName: scope.departments.find(department => department.id === collaborator.departmentId)?.name ?? null,
-    roleName: role?.name ?? null,
-    roleDescription: role?.description ?? null,
-    templateName: scope.templates.find(template => template.id === collaborator.templateId)?.name ?? null,
-    managerName: scope.collaborators.find(manager => manager.id === collaborator.managerId)?.name ?? null,
-  }
+  const member = scope.members.find(m => m.user_id === id)
+  if (!member) return null
+  // Cargo/depto de RH ainda não persistidos → honestos (null); papel/entrada/foto/email são reais.
+  return { ...memberToCard(member), roleDescription: null }
 }
 
 // ---- Integração com a Compensation Engine (COMPENSATION-004, PARTE 6). Só delega — nada calcula aqui. ----
