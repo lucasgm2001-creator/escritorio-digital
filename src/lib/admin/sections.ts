@@ -1,7 +1,7 @@
 import type { LucideIcon } from 'lucide-react'
 import {
   Building2, Users, FolderOpen, Briefcase, Wallet, ShieldCheck,
-  Sparkles, ExternalLink, KeyRound, FileText, TrendingUp, Clock, UserPlus, Webhook,
+  Sparkles, ExternalLink, KeyRound, FileText, TrendingUp, Clock, UserPlus, Webhook, Radio,
 } from 'lucide-react'
 
 // Fonte única da estrutura da Administração (Constituição: informação única).
@@ -9,7 +9,7 @@ import {
 
 export type AdminSectionKey =
   | 'empresa' | 'equipe' | 'departamentos' | 'cargos' | 'colaboradores' | 'remuneracao'
-  | 'permissoes' | 'automacoes' | 'integracoes' | 'api' | 'inbound' | 'auditoria'
+  | 'permissoes' | 'automacoes' | 'integracoes' | 'api' | 'inbound' | 'eventos' | 'auditoria'
   | 'billing' | 'logs'
 
 export type AdminGroupKey = 'organizacao' | 'regras' | 'plataforma' | 'observabilidade'
@@ -141,6 +141,16 @@ export const ADMIN_SECTIONS: AdminSection[] = [
     metrics: ['Providers', 'Endpoints ativos', 'Entregas 24h'],
     emptyTitle: 'Webhooks de entrada preparados',
     emptyHint: 'Ative um provider com autorização, chave e mapeamento.',
+  },
+  {
+    key: 'eventos', label: 'Eventos', href: '/admin/eventos', group: 'plataforma', icon: Radio,
+    tagline: 'O barramento de eventos — como os módulos conversam.',
+    description: 'O Event Bus do Escritório Digital: catálogo de eventos de domínio (lead/tarefa/cliente/pagamento/integração...) que conecta Timeline, Dashboard, IA, Billing, Inbound e Notificações — sem acoplar os módulos. Arquitetura preparada; nenhum evento publicado.',
+    planned: ['Catálogo único de eventos de domínio', 'Publisher / Subscriber / Dispatcher', 'Event log com status e replay', 'Timeline e automações orientadas a evento'],
+    context: 'O barramento provider-agnostic. Cada módulo publica/assina eventos sem conhecer os outros — a fundação de automações e da Timeline unificada.',
+    metrics: ['Eventos no catálogo', 'Publishers', 'Eventos 24h'],
+    emptyTitle: 'Barramento de eventos preparado',
+    emptyHint: 'Catálogo pronto; nenhum publisher/subscriber ativo ainda.',
   },
   {
     key: 'auditoria', label: 'Auditoria', href: '/admin/auditoria', group: 'observabilidade', icon: FileText,
