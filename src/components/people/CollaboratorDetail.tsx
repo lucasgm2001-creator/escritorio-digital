@@ -1,21 +1,48 @@
+'use client'
+
+import { useState } from 'react'
 import Link from 'next/link'
-import { ChevronLeft, Briefcase, FolderOpen, Wallet, Users, UserPlus, ShieldCheck } from 'lucide-react'
+import type { LucideIcon } from 'lucide-react'
+import {
+  ChevronLeft, LayoutGrid, Briefcase, FolderOpen, Wallet, Users, UserPlus, ShieldCheck,
+  Target, History, ScrollText, FileText, Star,
+} from 'lucide-react'
 import { Panel } from '@/components/bento/Panel'
-import { CompensationFlow } from '@/components/admin/CompensationFlow'
+import { EmptyState } from '@/components/ui/EmptyState'
 import type { CollaboratorDetailVM } from '@/lib/people/types'
 import { cn } from '@/lib/utils'
 import { COLLABORATOR_STATUS, initials } from '@/lib/people/presentation'
+import { ROLE_CATALOG, ROLE_LEVEL_LABEL, COMP_MODEL_LABEL } from '@/lib/people/catalog'
 import { InfoTile } from './InfoTile'
 
-// Detalhe do colaborador — o "centro da gestão de pessoas" (Master → Detail). Prepara VISUALMENTE
-// foto, cargo, departamento, template, gestor, equipe, status, permissões e remuneração. Sem cálculo.
+// Perfil profissional do colaborador (PEOPLE-001, Part 5) — estilo RH, em abas. Reusa header/InfoTile/Panel/
+// EmptyState (DS). Enriquece com o catálogo de cargos (nível/remuneração padrão) quando o cargo casa por
+// nome. Estados HONESTOS (Part 11): "Não configurado", "Nenhuma meta", etc. — nunca "em breve". Sem cálculo,
+// sem persistência: mostra o que existe e o que ainda precisa de configuração.
+type TabKey = 'resumo' | 'cargo' | 'equipes' | 'permissoes' | 'remuneracao' | 'metas' | 'historico' | 'auditoria' | 'documentos' | 'avaliacoes'
+const TABS: { key: TabKey; label: string; icon: LucideIcon }[] = [
+  { key: 'resumo', label: 'Resumo', icon: LayoutGrid },
+  { key: 'cargo', label: 'Cargo', icon: Briefcase },
+  { key: 'equipes', label: 'Equipes', icon: Users },
+  { key: 'permissoes', label: 'Permissões', icon: ShieldCheck },
+  { key: 'remuneracao', label: 'Remuneração', icon: Wallet },
+  { key: 'metas', label: 'Metas', icon: Target },
+  { key: 'historico', label: 'Histórico', icon: History },
+  { key: 'auditoria', label: 'Auditoria', icon: ScrollText },
+  { key: 'documentos', label: 'Documentos', icon: FileText },
+  { key: 'avaliacoes', label: 'Avaliações', icon: Star },
+]
+
 export function CollaboratorDetail({ collaborator, teamName }: { collaborator: CollaboratorDetailVM; teamName: string | null }) {
+  const [tab, setTab] = useState<TabKey>('resumo')
   const status = COLLABORATOR_STATUS[collaborator.status]
   const subtitle = [collaborator.roleName, collaborator.departmentName].filter(Boolean).join(' · ') || '—'
+  // Enriquecimento pelo catálogo profissional (best-effort por nome do cargo).
+  const blueprint = ROLE_CATALOG.find(r => r.name === collaborator.roleName) ?? null
 
   return (
     <div className="space-y-6 md:space-y-7">
-      <Link href="/admin/colaboradores" className="md:hidden inline-flex items-center gap-1 text-sm text-bento-muted min-h-[44px]">
+      <Link href="/admin/colaboradores" className="inline-flex items-center gap-1 text-sm text-bento-muted min-h-[44px]">
         <ChevronLeft className="w-4 h-4" /> Colaboradores
       </Link>
 
@@ -27,52 +54,94 @@ export function CollaboratorDetail({ collaborator, teamName }: { collaborator: C
           <div className="flex items-center gap-2 flex-wrap">
             <h1 className="font-display font-bold text-xl text-bento-text truncate">{collaborator.name}</h1>
             <span className={cn('text-[10px] font-tech uppercase tracking-wide px-2 py-0.5 rounded-full border', status.cls)}>{status.label}</span>
-            <span className="text-[9px] font-tech uppercase tracking-wide text-bento-dim border border-bento-border rounded-full px-1.5 py-0.5">exemplo</span>
           </div>
           <p className="text-sm text-bento-muted mt-1">{subtitle}</p>
           {collaborator.email && <p className="text-[12px] text-bento-dim mt-0.5 truncate">{collaborator.email}</p>}
         </div>
       </header>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
-        <InfoTile icon={Briefcase} label="Cargo" value={collaborator.roleName ?? '—'} />
-        <InfoTile icon={FolderOpen} label="Departamento" value={collaborator.departmentName ?? '—'} />
-        <InfoTile icon={Wallet} label="Template" value={collaborator.templateName ?? '—'} />
-        <InfoTile icon={UserPlus} label="Gestor" value={collaborator.managerName ?? '—'} />
-        <InfoTile icon={Users} label="Equipe" value={teamName ?? '—'} />
-        <InfoTile icon={ShieldCheck} label="Status" value={status.label} />
+      {/* Abas — rolam no mobile, sem apertar (Part 10). */}
+      <div className="border-b border-bento-border -mx-1 px-1 overflow-x-auto">
+        <div className="flex items-center gap-1 min-w-max">
+          {TABS.map(t => {
+            const Icon = t.icon
+            const on = tab === t.key
+            return (
+              <button key={t.key} type="button" onClick={() => setTab(t.key)}
+                className={cn('inline-flex items-center gap-2 px-3.5 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors whitespace-nowrap',
+                  on ? 'border-lime text-lime-fg' : 'border-transparent text-bento-dim hover:text-bento-text')}>
+                <Icon className="w-4 h-4" /> {t.label}
+              </button>
+            )
+          })}
+        </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-        <Panel label="Permissões">
-          <div className="flex items-start gap-2.5">
-            <ShieldCheck className="w-4 h-4 text-bento-dim mt-0.5 shrink-0" />
-            <p className="text-[13px] text-bento-muted leading-relaxed">
-              Acesso definido pelo papel na equipe (Owner/Admin/Manager/Member). A configuração granular por
-              módulo chega no PERMISSION-001.
-            </p>
+      <div className="pt-1">
+        {tab === 'resumo' && (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
+            <InfoTile icon={Briefcase} label="Cargo" value={collaborator.roleName ?? 'Não configurado'} />
+            <InfoTile icon={FolderOpen} label="Departamento" value={collaborator.departmentName ?? 'Não configurado'} />
+            <InfoTile icon={Wallet} label="Template" value={collaborator.templateName ?? 'Sem remuneração definida'} />
+            <InfoTile icon={UserPlus} label="Gestor" value={collaborator.managerName ?? 'Não configurado'} />
+            <InfoTile icon={Users} label="Equipe" value={teamName ?? '—'} />
+            <InfoTile icon={ShieldCheck} label="Status" value={status.label} />
           </div>
-        </Panel>
-        <Panel label="Remuneração (resumo)">
-          <div className="flex items-start gap-2.5">
-            <Wallet className="w-4 h-4 text-bento-dim mt-0.5 shrink-0" />
-            <div className="min-w-0">
-              <p className="text-[13px] text-bento-text">
-                Template: <span className="text-bento-muted">{collaborator.templateName ?? 'sem template'}</span>
+        )}
+
+        {tab === 'cargo' && (
+          <Panel label="Cargo & função">
+            <div className="space-y-3">
+              <p className="text-sm font-semibold text-bento-text">{collaborator.roleName ?? 'Não configurado'}</p>
+              <p className="text-[13px] text-bento-muted leading-relaxed">{collaborator.roleDescription ?? 'Sem descrição de cargo.'}</p>
+              <dl className="grid grid-cols-2 sm:grid-cols-3 gap-x-4 gap-y-2 text-[12px] pt-1">
+                <div><dt className="text-bento-dim">Departamento</dt><dd className="text-bento-muted">{collaborator.departmentName ?? 'Não configurado'}</dd></div>
+                <div><dt className="text-bento-dim">Nível</dt><dd className="text-bento-muted">{blueprint ? ROLE_LEVEL_LABEL[blueprint.level] : 'Não configurado'}</dd></div>
+                <div><dt className="text-bento-dim">Remuneração padrão</dt><dd className="text-bento-muted">{blueprint ? COMP_MODEL_LABEL[blueprint.defaultComp] : 'Não configurado'}</dd></div>
+              </dl>
+            </div>
+          </Panel>
+        )}
+
+        {tab === 'equipes' && (
+          <Panel label="Equipes & acesso">
+            <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-3 text-sm">
+              <div><dt className="text-[12px] text-bento-dim">Workspace ativo</dt><dd className="text-bento-text font-medium">{teamName ?? '—'}</dd></div>
+              <div><dt className="text-[12px] text-bento-dim">Papel de acesso</dt><dd className="text-bento-text font-medium">{blueprint ? blueprint.defaultTeamRole : 'Usando configuração padrão'}</dd></div>
+            </dl>
+          </Panel>
+        )}
+
+        {tab === 'permissoes' && (
+          <Panel label="Permissões">
+            <div className="space-y-2">
+              <p className="text-[13px] text-bento-muted leading-relaxed">
+                As permissões <strong className="text-bento-text">efetivas</strong> derivam do papel de acesso
+                ({blueprint ? blueprint.defaultTeamRole : 'owner/admin/member'}) + overrides individuais, calculadas no servidor.
               </p>
-              <p className="text-[12px] text-bento-muted leading-relaxed mt-1">
-                Cálculo, limites e histórico chegam no COMPENSATION-001. Nada é calculado nesta fase.
+              <p className="text-[12px] text-bento-dim">Sem override individual · Usando configuração padrão do cargo.</p>
+            </div>
+          </Panel>
+        )}
+
+        {tab === 'remuneracao' && (
+          <Panel label="Remuneração">
+            <div className="space-y-2">
+              <p className="text-[13px] text-bento-text">Template: <span className="text-bento-muted">{collaborator.templateName ?? 'Sem remuneração definida'}</span></p>
+              <p className="text-[13px] text-bento-text">Modelo padrão do cargo: <span className="text-bento-muted">{blueprint ? COMP_MODEL_LABEL[blueprint.defaultComp] : 'Requer configuração'}</span></p>
+              <p className="text-[12px] text-bento-dim leading-relaxed">
+                {collaborator.templateName ? 'Utilizando template padrão do cargo.' : 'Requer configuração.'} O cálculo usa a Compensation Engine; histórico não é recalculado.
               </p>
             </div>
-          </div>
-        </Panel>
+          </Panel>
+        )}
+
+        {tab === 'metas' && <EmptyState icon={Target} title="Nenhuma meta definida" description="Metas por colaborador serão configuradas aqui." />}
+        {tab === 'historico' && <EmptyState icon={History} title="Sem histórico registrado" description="Mudanças de cargo, equipe e remuneração aparecerão aqui." />}
+        {tab === 'auditoria' && <EmptyState icon={ScrollText} title="Sem eventos de auditoria" description="Quem fez o quê e quando — contratos employee.* já preparados (Event Bus)." />}
+        {tab === 'documentos' && <EmptyState icon={FileText} title="Nenhum documento" description="Contratos e documentos do colaborador entrarão aqui." />}
+        {tab === 'avaliacoes' && <EmptyState icon={Star} title="Nenhuma avaliação" description="Avaliações de desempenho entrarão aqui." />}
       </div>
-
-      <Panel label="Como a remuneração funciona">
-        <CompensationFlow />
-      </Panel>
-
-      <p className="text-[11px] text-bento-dim">Colaborador de exemplo — a gestão real chega nas próximas fases.</p>
     </div>
   )
 }
