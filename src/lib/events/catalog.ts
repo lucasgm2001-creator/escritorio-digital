@@ -66,6 +66,11 @@ export const EVENT_CATALOG: EventDefinition[] = [
   { type: 'employee.salary.changed',      category: 'people', priority: 'high',   description: 'A remuneração de um colaborador foi alterada (vigência futura; histórico não recalcula).', source: 'Colaboradores', targets: ['Auditoria', 'Notificações', 'Timeline'] },
   { type: 'employee.goal.changed',        category: 'people', priority: 'normal', description: 'Uma meta de um colaborador foi definida/alterada.', source: 'Colaboradores', targets: ['Auditoria', 'Timeline'] },
   { type: 'employee.archived',            category: 'people', priority: 'normal', description: 'Um colaborador foi arquivado/desativado.', source: 'Colaboradores', targets: ['Auditoria', 'Notificações', 'Timeline'] },
+  // Permissões granulares por módulo (PEOPLE-002, Part 8; só contrato).
+  { type: 'employee.permission.changed',   category: 'people', priority: 'high', description: 'As permissões de um colaborador mudaram (visão geral).', source: 'Colaboradores', targets: ['Auditoria', 'Notificações', 'Timeline'] },
+  { type: 'employee.module.granted',       category: 'people', priority: 'high', description: 'Acesso a um módulo foi concedido a um colaborador.', source: 'Colaboradores', targets: ['Auditoria', 'Timeline'] },
+  { type: 'employee.module.revoked',       category: 'people', priority: 'high', description: 'Acesso a um módulo foi revogado de um colaborador.', source: 'Colaboradores', targets: ['Auditoria', 'Timeline'] },
+  { type: 'employee.module.level.changed', category: 'people', priority: 'high', description: 'O nível de acesso a um módulo mudou (sem acesso/leitura/editar/admin).', source: 'Colaboradores', targets: ['Auditoria', 'Timeline'] },
 ]
 
 export const EVENT_CATEGORIES: { key: EventCategory; label: string }[] = [
