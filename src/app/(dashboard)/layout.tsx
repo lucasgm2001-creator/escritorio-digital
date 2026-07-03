@@ -31,6 +31,14 @@ export default async function DashboardLayout({ children }: { children: React.Re
   // (componente BrandMark na Sidebar/cabeçalho) — não depende do logo do Storage.
   const avatarUrl = context.profile?.avatar_url ?? null
 
+  // Equipes do usuário para o Workspace Switcher (Part 5) — trocar/entrar sem abrir Configurações.
+  const teams = context.memberships.map(m => ({
+    id: m.team_id,
+    name: m.team?.name ?? 'Equipe',
+    role: m.role,
+    isActive: m.team_id === context.activeTeamId,
+  }))
+
   return (
     <DashboardShell
       userName={capitalizeName(context.profile?.name ?? context.user.email?.split('@')[0] ?? 'Usuário')}
@@ -38,6 +46,8 @@ export default async function DashboardLayout({ children }: { children: React.Re
       avatarUrl={avatarUrl}
       pageTitles={PAGE_TITLES}
       activeTeamName={context.activeTeamName}
+      userEmail={context.user.email ?? null}
+      teams={teams}
     >
       <ToastProvider><CommissionLockProvider><RoleProvider role={context.role}>{children}</RoleProvider></CommissionLockProvider></ToastProvider>
     </DashboardShell>

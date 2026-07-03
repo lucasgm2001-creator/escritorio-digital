@@ -157,6 +157,30 @@ export async function redeemInviteAction(token: string): Promise<ActionResult<{ 
   return { ok: true, data: { teamId, message: `Voce entrou na equipe ${teamName}. Agora participa de ${count} ${count === 1 ? 'equipe' : 'equipes'}.` } }
 }
 
+// ── TEAM-ADMIN-002: criar equipe pelo switcher ───────────────────────────────────────────────────────
+
+// Criar uma nova equipe direto do Workspace Switcher (Part 5). Reusa o RPC create_team (migration 041 — usa
+// auth.uid(), então client do USUÁRIO; insere teams + team_members owner). Respeita o limite central de
+// equipes e JÁ torna a nova equipe a ativa (cookie). Aditivo — não toca nas equipes existentes.
+export async function createTeamAction(name: string): Promise<ActionResult<{ teamId: string }>> {
+  const context = await getRequestContext()
+  if (!context) return { ok: false, error: 'Sessao expirada. Entre novamente.' }
+
+  const clean = (name ?? '').trim()
+  if (clean.length < 2) return { ok: false, error: 'Informe um nome de equipe com ao menos 2 caracteres.' }
+  if (hasReachedTeamLimit(context.memberships.length)) {
+    return { ok: false, error: `Voce ja participa do limite de ${MAX_TEAMS_PER_USER} equipes. Saia de uma antes de criar outra.` }
+  }
+
+  const supabase = createClient()
+  const { data, error } = await supabase.rpc('create_team', { p_name: clean })
+  if (error) return { ok: false, error: errorMessage(error) }
+
+  const teamId = data as string
+  cookies().set(ACTIVE_TEAM_COOKIE, teamId, TEAM_COOKIE_OPTS)   // já entra na equipe recém-criada
+  return { ok: true, data: { teamId } }
+}
+
 // ── TEAM-ADMIN-001: gestão de membros ────────────────────────────────────────────────────────────────
 
 // Traduz o motivo de recusa do servidor para a mensagem do usuário (Part 8). A autoridade é o SERVIDOR;

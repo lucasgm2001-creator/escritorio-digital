@@ -1,10 +1,8 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { useRouter } from 'next/navigation'
-import Image from 'next/image'
-import { signOut } from '@/lib/supabase/auth-actions'
 import { BrandMark } from '@/components/brand/BrandMark'
+import { WorkspaceSwitcher, type SwitcherTeam } from './WorkspaceSwitcher'
 
 interface TopbarProps {
   title: string
@@ -14,6 +12,8 @@ interface TopbarProps {
   userInitial?: string
   userId?: string
   avatarUrl?: string | null
+  userEmail?: string | null
+  teams?: SwitcherTeam[]
 }
 
 // O fuso IANA (America/...) já resolve o horário de verão dos EUA automaticamente.
@@ -41,37 +41,7 @@ function LiveClock({ timezone, label, short, primary }: { timezone: string; labe
   )
 }
 
-function UserAvatar({ avatarUrl, userInitial }: { avatarUrl?: string | null; userInitial: string }) {
-  if (avatarUrl) {
-    return (
-      <div className="w-7 h-7 rounded-lg overflow-hidden shadow-glow-sm shrink-0">
-        <Image src={avatarUrl} alt="Avatar" width={28} height={28} className="w-full h-full object-cover" />
-      </div>
-    )
-  }
-  return (
-    <div className="w-7 h-7 rounded-lg bg-lime flex items-center justify-center shrink-0">
-      <span className="text-xs font-bold text-lime-ink">{userInitial}</span>
-    </div>
-  )
-}
-
-export function Topbar({ onMenuToggle, userName = 'Usuário', userInitial = 'U', avatarUrl }: TopbarProps) {
-  const [dropdownOpen, setDropdownOpen] = useState(false)
-  const [isLoggingOut, setIsLoggingOut] = useState(false)
-  const router = useRouter()
-
-  const handleLogout = async () => {
-    setDropdownOpen(false)
-    setIsLoggingOut(true)
-    try {
-      await signOut()
-      window.location.href = '/login'
-    } catch {
-      setTimeout(() => { window.location.href = '/login' }, 100)
-    }
-  }
-
+export function Topbar({ onMenuToggle, userName = 'Usuário', avatarUrl, userEmail, teams = [] }: TopbarProps) {
   return (
     <header className="min-h-[56px] pt-safe border-b border-[#2d3748] bg-[#0d1117] flex items-center px-4 gap-4 shrink-0">
       <button
@@ -91,11 +61,9 @@ export function Topbar({ onMenuToggle, userName = 'Usuário', userInitial = 'U',
         <span className="font-display font-bold text-foreground text-[15px] tracking-tight">Escritório Digital</span>
       </div>
 
-      {/* Título da seção REMOVIDO daqui — cada página já tem seu próprio título de conteúdo (evita
-          nome duplicado). O Topbar mantém só relógios + avatar; a seção ativa fica na Sidebar. */}
+      {/* Título da seção REMOVIDO daqui — cada página já tem seu próprio título. Topbar mantém relógios +
+          Workspace Switcher (Part 5). */}
       <div className="ml-auto flex items-center gap-2 sm:gap-4 min-w-0">
-        {/* Fusos sempre visíveis (Brasília lime + EUA Leste/Montanha/Oeste). Mobile (<1024): UMA linha
-            com rótulos curtos; desktop (lg+): uma linha com rótulos completos, igual a hoje. */}
         <div className="flex items-center gap-2 lg:gap-3.5 border-r border-[#2d3748] pr-3 sm:pr-4 shrink-0">
           <LiveClock timezone="America/Sao_Paulo" label="Brasília" short="BSB" primary />
           <LiveClock timezone="America/New_York"    label="EUA Leste" short="NY" />
@@ -103,58 +71,7 @@ export function Topbar({ onMenuToggle, userName = 'Usuário', userInitial = 'U',
           <LiveClock timezone="America/Los_Angeles" label="EUA Oeste" short="LA" />
         </div>
 
-        {/* Avatar + dropdown */}
-        <div className="relative">
-          <button
-            onClick={() => setDropdownOpen(!dropdownOpen)}
-            className="flex items-center gap-2.5 p-1.5 rounded-lg hover:bg-[#1e2533] transition-colors min-h-[44px]"
-          >
-            <UserAvatar avatarUrl={avatarUrl} userInitial={userInitial} />
-            <div className="hidden md:block text-left">
-              <p className="text-sm font-medium text-foreground leading-none">{userName}</p>
-            </div>
-            <svg className="w-3.5 h-3.5 text-muted-foreground hidden md:block" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-            </svg>
-          </button>
-
-          {dropdownOpen && (
-            <>
-              <div className="fixed inset-0 z-10" onClick={() => setDropdownOpen(false)} />
-              <div className="absolute right-0 top-11 z-20 w-56 bg-[#1e2533] border border-[#2d3748] rounded-xl shadow-card-hover py-1 overflow-hidden animate-fade-in">
-                <div className="px-3 py-2.5 border-b border-[#2d3748]">
-                  <p className="text-sm font-semibold text-foreground">{userName}</p>
-                </div>
-
-                <button
-                  onClick={() => { setDropdownOpen(false); router.push('/perfil') }}
-                  className="w-full text-left px-3 py-2.5 text-sm text-foreground hover:bg-[#2d3748] transition-colors flex items-center gap-2.5 min-h-[44px]"
-                >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75}
-                      d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                  </svg>
-                  Meu Perfil
-                </button>
-                <button
-                  onClick={handleLogout}
-                  disabled={isLoggingOut}
-                  className="w-full text-left px-3 py-2.5 text-sm text-red-400 hover:bg-red-900/20 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2.5 min-h-[44px]"
-                >
-                  {isLoggingOut ? (
-                    <span className="w-4 h-4 border-2 border-red-400/30 border-t-red-400 rounded-full animate-spin" />
-                  ) : (
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75}
-                        d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-                    </svg>
-                  )}
-                  {isLoggingOut ? 'Saindo...' : 'Sair'}
-                </button>
-              </div>
-            </>
-          )}
-        </div>
+        <WorkspaceSwitcher userName={userName} userEmail={userEmail ?? null} avatarUrl={avatarUrl ?? null} teams={teams} />
       </div>
     </header>
   )

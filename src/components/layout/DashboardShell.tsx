@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { usePathname } from 'next/navigation'
 import { Sidebar } from './Sidebar'
 import { Topbar } from './Topbar'
+import type { SwitcherTeam } from './WorkspaceSwitcher'
 import { BottomNav } from '@/components/mobile/BottomNav'
 import { RevalidateOnFocus } from '@/components/system/RevalidateOnFocus'
 import { ThemeWatcher } from '@/components/system/ThemeWatcher'
@@ -15,9 +16,11 @@ interface DashboardShellProps {
   avatarUrl: string | null
   pageTitles: Record<string, string>
   activeTeamName: string | null
+  userEmail: string | null
+  teams: SwitcherTeam[]
 }
 
-export function DashboardShell({ children, userName, userId, avatarUrl, pageTitles, activeTeamName }: DashboardShellProps) {
+export function DashboardShell({ children, userName, userId, avatarUrl, pageTitles, activeTeamName, userEmail, teams }: DashboardShellProps) {
   const [sidebarOpen, setSidebarOpen] = useState(true)
   const [mobileOpen, setMobileOpen]   = useState(false)
   const [isMobile, setIsMobile]       = useState(false)
@@ -93,6 +96,8 @@ export function DashboardShell({ children, userName, userId, avatarUrl, pageTitl
           userInitial={userName[0]?.toUpperCase() ?? 'U'}
           userId={userId}
           avatarUrl={avatarUrl}
+          userEmail={userEmail}
+          teams={teams}
         />
         {/* ÚNICO container que rola na vertical (header e bottom-nav ficam fixos). */}
         <main className="flex-1 overflow-y-auto overscroll-contain touch-pan-y [-webkit-overflow-scrolling:touch]">
