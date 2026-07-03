@@ -285,6 +285,10 @@ export function HallClient({ initialActivities, initialTasks, linkOptions, userN
   const tarefasAtrasadas = tasks
     .filter(t => !t.done && !!t.due_date && t.due_date < hojeStr)
     .sort((a, b) => (a.due_date || '').localeCompare(b.due_date || ''))
+  // Resumo do topo da aba Tarefas — próximos 7 dias e concluídas. Dados JÁ carregados (sem query nova).
+  const semanaLimite = dayBR(new Date(Date.now() + 7 * 86400000))
+  const tarefasSemana = tasks.filter(t => !t.done && !!t.due_date && t.due_date >= hojeStr && t.due_date <= semanaLimite)
+  const tarefasConcluidas = tasks.filter(t => t.done)
   const eventosHoje = calEvents.filter(e => e.date === hojeStr).sort((a, b) => (a.start_time || '99:99').localeCompare(b.start_time || '99:99'))
   // Resumo do cabecalho executivo — contagem de dados JA carregados (sem query/metrica nova).
   const reunioesHoje = eventosHoje.filter(e => e.type === 'reuniao').length
@@ -502,7 +506,17 @@ export function HallClient({ initialActivities, initialTasks, linkOptions, userN
         )}
 
         {activeTab === 'tarefas' && (
-          <TarefasClient tasks={tasks} setTasks={setTasks} deletedIds={deletedIds} linkOptions={linkOptions} currentUser={{ id: userId, name: userName }} />
+          <div className="space-y-4">
+            {/* Resumo do topo — protagonista: Atrasadas (âmbar). Contagens de dados JÁ carregados (sem query
+                nova); a lista completa, filtros e "nova tarefa" seguem no TarefasClient abaixo, intacto. */}
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+              <MetricCard title="Atrasadas" value={tarefasAtrasadas.length} size="sm" tone={tarefasAtrasadas.length > 0 ? 'warning' : 'muted'} />
+              <MetricCard title="Hoje" value={tarefasHoje.length} size="sm" />
+              <MetricCard title="Esta semana" value={tarefasSemana.length} size="sm" />
+              <MetricCard title="Concluídas" value={tarefasConcluidas.length} size="sm" tone="muted" />
+            </div>
+            <TarefasClient tasks={tasks} setTasks={setTasks} deletedIds={deletedIds} linkOptions={linkOptions} currentUser={{ id: userId, name: userName }} />
+          </div>
         )}
 
         {activeTab === 'relatorio' && (
