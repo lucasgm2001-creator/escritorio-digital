@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { Plus, Check, Clock } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
+import { useActiveTeamId } from '@/components/auth/RoleProvider'
 import { cn } from '@/lib/utils'
 
 // Tarefa vinculada a um lead (tasks.linked_type='lead' + linked_id). Só os campos
@@ -43,6 +44,7 @@ export function LeadTasks({ leadId, leadName, userId, compact = true }: {
   compact?: boolean
 }) {
   const supabase = createClient()
+  const teamId = useActiveTeamId()   // FIX-P0-TEAMID-WRITES: carimba a equipe ativa ao criar tarefa
   const [tasks, setTasks] = useState<LeadTask[]>([])
   const [loading, setLoading] = useState(true)
   const [adding, setAdding] = useState(false)
@@ -80,7 +82,7 @@ export function LeadTasks({ leadId, leadName, userId, compact = true }: {
     setSaving(true)
     const { data, error } = await supabase
       .from('tasks')
-      .insert({ user_id: userId, title, done: false, linked_type: 'lead', linked_id: leadId, linked_name: leadName })
+      .insert({ user_id: userId, title, done: false, linked_type: 'lead', linked_id: leadId, linked_name: leadName, ...(teamId ? { team_id: teamId } : {}) })
       .select('id, title, due_date, due_time, done')
       .single()
     setSaving(false)

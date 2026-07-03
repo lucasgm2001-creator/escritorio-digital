@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { Search, X, Plus, MessageCircle, ArrowRight } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { useToast } from '@/components/ui/toast'
+import { useActiveTeamId } from '@/components/auth/RoleProvider'
 import { cn } from '@/lib/utils'
 import { planLabel, healthOf, type Client, type Nicho, type ClientIntegration } from './types'
 
@@ -20,6 +21,7 @@ export function HubTab({ clients, nichos, integrations, onOpen, onNichoCreated }
   onNichoCreated: (n: Nicho) => void
 }) {
   const supabase = createClient()
+  const teamId = useActiveTeamId()   // FIX-P0-TEAMID-WRITES: carimba a equipe ativa ao criar nicho
   const { toast } = useToast()
   const [search, setSearch] = useState('')
   const [open, setOpen] = useState<Set<string>>(new Set())   // prateleiras abertas (todas FECHADAS no início)
@@ -69,7 +71,7 @@ export function HubTab({ clients, nichos, integrations, onOpen, onNichoCreated }
     if (nichoNames.has(nome)) { toast({ type: 'error', message: 'Já existe uma prateleira com esse nome.' }); return }
     setBusy(true)
     const posicao = Math.max(0, ...nichos.map(n => n.posicao)) + 1
-    const { data, error } = await supabase.from('nichos').insert({ nome, cor: newColor, posicao, ativo: true }).select('*').single()
+    const { data, error } = await supabase.from('nichos').insert({ nome, cor: newColor, posicao, ativo: true, ...(teamId ? { team_id: teamId } : {}) }).select('*').single()
     setBusy(false)
     if (error || !data) { toast({ type: 'error', message: `Não foi possível criar: ${error?.message ?? 'erro'}` }); return }
     onNichoCreated(data as Nicho)

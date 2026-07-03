@@ -31,7 +31,9 @@ export interface MovableLead {
 // se inativo) + LANÇA o deal de comissão (+1ª semana paga). Idempotente: não duplica se
 // o lead sair e voltar (dedup por lead_id, com fallback client_name+seller).
 // Extraído do KanbanBoard pra ser reusado pelo agente do Hall — MESMA lógica, sem duplicar.
-export async function runWonFlow(supabase: SupaClient, lead: MovableLead, userName: string, planoId: string | null = null): Promise<ActionNote[]> {
+// FIX-P0-TEAMID-WRITES: teamId (equipe ativa) carimba as escritas team-scoped — o trigger só cobre usuário
+// de 1 equipe. Opcional/último parâmetro: sem ele (ex.: chamadas antigas/servidor) volta ao trigger.
+export async function runWonFlow(supabase: SupaClient, lead: MovableLead, userName: string, planoId: string | null = null, teamId: string | null = null): Promise<ActionNote[]> {
   const notes: ActionNote[] = []
   const today = ymd(new Date())
 
@@ -40,6 +42,7 @@ export async function runWonFlow(supabase: SupaClient, lead: MovableLead, userNa
     description: `Lead ${lead.name} movido para Venda Fechada`,
     user_name: userName,
     entity_id: lead.id,
+    ...(teamId ? { team_id: teamId } : {}),
   })
 
   // 1) Cliente idempotente: reusa se já existe (por nome); senão cria. Reativa se inativo.
@@ -78,6 +81,7 @@ export async function runWonFlow(supabase: SupaClient, lead: MovableLead, userNa
       dia_pagamento_semana: diaPagamentoSemana,
       assigned_to: lead.assigned_to ?? null, assigned_name: lead.assigned_name ?? null,
       start_date: startIso,
+      ...(teamId ? { team_id: teamId } : {}),
     }).select('id').single()
     if (clientErr) notes.push({ message: `Lead movido, mas falhou ao cadastrar o cliente: ${clientErr.message}`, type: 'error' })
     else clientId = newClient?.id ?? null
@@ -128,6 +132,7 @@ export async function runWonFlow(supabase: SupaClient, lead: MovableLead, userNa
     valor_total_usd: valorTotalUsd, teto_semanas: tetoSemanas, valor_por_semana_usd: vps,
     comissao_percentual: pctUsed,
     status: 'em_andamento', data_fechamento: today,
+    ...(teamId ? { team_id: teamId } : {}),
   }).select('id').single()
   let deal = dealIns.data
   if (dealIns.error) {
@@ -153,7 +158,7 @@ export async function runWonFlow(supabase: SupaClient, lead: MovableLead, userNa
   const { data: fx } = await supabase.from('fx_config').select('cotacao_manual, cotacao_travada').eq('id', 1).maybeSingle()
   const manual = fx?.cotacao_manual != null ? Number(fx.cotacao_manual) : null
   const fxc: FxConfig = { cotacaoManual: manual, cotacaoTravada: !!fx?.cotacao_travada }
-  const wk1 = await payClientWeek(supabase, clientId, 1, today, resolveRate(fxc, manual ?? 0))
+  const wk1 = await payClientWeek(supabase, clientId, 1, today, resolveRate(fxc, manual ?? 0), teamId)
   if (!wk1.ok && wk1.reason === 'db') {
     notes.push({ message: `Deal criado, mas falhou a 1ª semana: ${wk1.message ?? 'erro'}`, type: 'error' })
     return notes
@@ -181,7 +186,7 @@ async function resolveMeetingSellerId(supabase: SupaClient, assignedName?: strin
 }
 
 export async function moveLead(
-  supabase: SupaClient, lead: MovableLead, newStatus: LeadStatus, userName: string, stages: FunnelStage[], planoId: string | null = null, userId: string | null = null,
+  supabase: SupaClient, lead: MovableLead, newStatus: LeadStatus, userName: string, stages: FunnelStage[], planoId: string | null = null, userId: string | null = null, teamId: string | null = null,
 ): Promise<{ ok: boolean; error?: string; notes: ActionNote[] }> {
   if (lead.status === newStatus) return { ok: true, notes: [] }
   const nowIso = new Date().toISOString()
@@ -195,9 +200,9 @@ export async function moveLead(
     leadId: lead.id, leadName: lead.name,
     fromStage: lead.status, toStage: newStatus,
     sellerId: lead.assigned_to ?? null, sellerName: lead.assigned_name ?? null,
-  })
+  }, teamId)
   // Marcos do ciclo (relatório) — significado lido de funnel_stages. Idempotente, NÃO mexe em comissão.
-  await markMilestones(supabase, lead.id, marcosForSlug(stages, newStatus))
+  await markMilestones(supabase, lead.id, marcosForSlug(stages, newStatus), teamId)
   // Won-flow (DINHEIRO) dispara pela FLAG is_won da fase (não por slug fixo). Comportamento idêntico.
   const won = wonSlug(stages)
   const isWon = newStatus === won && lead.status !== won
@@ -221,7 +226,7 @@ export async function moveLead(
           const { error: mErr } = await registerMeeting(
             supabase, sellerId,
             { metOn: ymd(new Date()), valorUsd: MEETING_USD, clientName: lead.name, leadId: lead.id },
-            resolveRate(fxc, manual ?? 0),
+            resolveRate(fxc, manual ?? 0), teamId,
           )
           if (!mErr) notes.push({ message: `Comissão de reunião lançada (US$ ${MEETING_USD}).`, type: 'success' })
           else console.error('[moveLead] comissão de reunião falhou ao inserir:', mErr.message)
@@ -243,9 +248,10 @@ export async function moveLead(
         user_name: userName,
         user_id: userId,
         entity_id: lead.id,
+        ...(teamId ? { team_id: teamId } : {}),
       })
     } catch { /* registrar atividade é secundário — não quebra o move */ }
   }
-  if (isWon) notes.push(...await runWonFlow(supabase, lead, userName, planoId))
+  if (isWon) notes.push(...await runWonFlow(supabase, lead, userName, planoId, teamId))
   return { ok: true, notes }
 }

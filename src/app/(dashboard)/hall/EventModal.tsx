@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import { useActiveTeamId } from '@/components/auth/RoleProvider'
 import { dayBR } from './dateBR'
 import { type CalendarEvent, EVENT_TYPE_LABELS, bentoInput } from './calendarShared'
 import { useDialog } from '@/components/ui/useDialog'
@@ -16,6 +17,7 @@ interface EventModalProps {
 }
 
 export function EventModal({ date, hour, userId, onClose, onSaved }: EventModalProps) {
+  const teamId = useActiveTeamId()   // FIX-P0-TEAMID-WRITES: carimba a equipe ativa ao criar evento
   const [form, setForm] = useState({
     title: '',
     date: dayBR(date),
@@ -45,6 +47,7 @@ export function EventModal({ date, hour, userId, onClose, onSaved }: EventModalP
         description: form.description || null,
         type: form.type,
         color: form.color,
+        ...(teamId ? { team_id: teamId } : {}),
       }).select().single()
 
       if (err) {

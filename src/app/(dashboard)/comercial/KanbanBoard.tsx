@@ -11,7 +11,7 @@ import { useIsTouchDevice } from '@/lib/hooks/useIsTouchDevice'
 import { createClient } from '@/lib/supabase/client'
 import { cn } from '@/lib/utils'
 import { DraggableTabs } from '@/components/DraggableTabs'
-import { useCanManageTeam } from '@/components/auth/RoleProvider'
+import { useCanManageTeam, useActiveTeamId } from '@/components/auth/RoleProvider'
 import { KanbanColumn } from './KanbanColumn'
 import { PhaseSelectorMobile } from './PhaseSelectorMobile'
 import { LeadCard } from './LeadCard'
@@ -113,6 +113,7 @@ export function KanbanBoard({ initialLeads, initialStages, initialClients, curre
   }, [])
 
   const supabase = createClient()
+  const teamId = useActiveTeamId()   // FIX-P0-TEAMID-WRITES: carimba a equipe ativa nas escritas do funil
   // Fases ao vivo: vêm de initialStages — a page do Comercial é dinâmica (Supabase/cookies), então
   // initialStages já chega fresco; um router.refresh re-hidrata via o efeito abaixo. SÓ VISUAL — o
   // won-flow/comissão lê initialStages (dinheiro intocado). (Removida a re-leitura redundante no mount.)
@@ -206,7 +207,7 @@ export function KanbanBoard({ initialLeads, initialStages, initialClients, curre
     const prevStage = lead.stage_changed_at
     const nowIso = new Date().toISOString()
     setLeads(prev => prev.map(l => l.id === lead.id ? { ...l, status: newStatus, stage_changed_at: nowIso } : l))   // otimista
-    const res = await moveLead(supabase, lead, newStatus, currentUser.name, initialStages, planoId, currentUser.id)
+    const res = await moveLead(supabase, lead, newStatus, currentUser.name, initialStages, planoId, currentUser.id, teamId)
     if (!res.ok) {
       setLeads(prev => prev.map(l => l.id === lead.id ? { ...l, status: prevStatus, stage_changed_at: prevStage } : l))   // rollback
       showToast(`Não foi possível mover o lead: ${res.error}`, 'error')
@@ -214,7 +215,7 @@ export function KanbanBoard({ initialLeads, initialStages, initialClients, curre
     }
     for (const n of res.notes) showToast(n.message, n.type)
     return true
-  }, [supabase, currentUser.name, currentUser.id, initialStages])
+  }, [supabase, currentUser.name, currentUser.id, initialStages, teamId])
 
   // Choke point de TODO movimento (drag, tap, diário). Ao FECHAR (is_won) pelo funil, intercepta
   // e pede o PLANO antes de criar a venda (Fase 2A). Demais fases movem direto. (Agente = caminho à parte.)
@@ -247,12 +248,12 @@ export function KanbanBoard({ initialLeads, initialStages, initialClients, curre
     })
     if (error) { showToast(`Não foi possível registrar o contato: ${error.message}`, 'error'); return }
     // Marco do relatório: contato real = interagiu (nao_atendeu NÃO conta). Idempotente.
-    if (type === 'atendeu' || type === 'mensagem') await markMilestones(supabase, lead.id, ['interagiu'])
+    if (type === 'atendeu' || type === 'mensagem') await markMilestones(supabase, lead.id, ['interagiu'], teamId)
     const newScore = Math.max(0, Math.min(1000, (lead.score ?? 0) + delta))
     await supabase.from('leads').update({ score: newScore, last_contact_at: nowIso }).eq('id', lead.id)
     setLeads(prev => prev.map(l => l.id === lead.id ? { ...l, score: newScore, last_contact_at: nowIso } : l))
     showToast(`Contato registrado: ${type === 'atendeu' ? 'Atendeu' : type === 'mensagem' ? 'Mensagem' : 'Não atendeu'}.`)
-  }, [supabase, currentUser])
+  }, [supabase, currentUser, teamId])
 
   const handleDragEnd = useCallback(async (e: DragEndEvent) => {
     setActiveId(null)

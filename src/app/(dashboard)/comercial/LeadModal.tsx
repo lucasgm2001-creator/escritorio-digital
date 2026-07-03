@@ -6,6 +6,7 @@ import { FUSO_OPTIONS, type Lead } from './types'
 import { US_STATES, sanitizeAreaCode } from '@/lib/usStates'
 import { logStageEvent } from '@/lib/stageEvents'
 import { useToast } from '@/components/ui/toast'
+import { useActiveTeamId } from '@/components/auth/RoleProvider'
 import { ymd } from '@/lib/format'
 import { wonSlug, type FunnelStage } from '@/lib/funnelStages'
 import type { Client } from '../clientes/types'
@@ -98,6 +99,7 @@ export function LeadModal({ onClose, onCreated, currentUser, stages, clients }: 
   })()
 
   const supabase = createClient()
+  const teamId = useActiveTeamId()   // FIX-P0-TEAMID-WRITES: carimba a equipe ativa na criação de lead
 
   useEffect(() => {
     supabase.from('sellers').select('id, name').eq('status', 'ativo').order('name').then(({ data }) => {
@@ -161,6 +163,7 @@ export function LeadModal({ onClose, onCreated, currentUser, stages, clients }: 
       score: 500,
       created_manually: true,             // criado à mão → trigger gera contact_code (C-XXXX). NÃO setar o código aqui.
       status: stageSlug,                  // fase escolhida (default Venda Concluída)
+      ...(teamId ? { team_id: teamId } : {}),
     }).select().single()
 
     if (error || !data) {
@@ -178,6 +181,7 @@ export function LeadModal({ onClose, onCreated, currentUser, stages, clients }: 
       description: `Cliente existente adicionado ao funil: ${c.name}`,
       user_name: currentUser.name,
       entity_id: data.id,
+      ...(teamId ? { team_id: teamId } : {}),
     })
     onCreated(data as Lead)
     onClose()
@@ -218,6 +222,7 @@ export function LeadModal({ onClose, onCreated, currentUser, stages, clients }: 
       score: 500,
       created_manually: true,   // criado à mão → trigger gera contact_code (C-XXXX). NÃO setar o código aqui.
       status: 'novo',
+      ...(teamId ? { team_id: teamId } : {}),
     }).select().single()
 
     if (insertError || !data) {
@@ -231,7 +236,7 @@ export function LeadModal({ onClose, onCreated, currentUser, stages, clients }: 
       leadId: data.id, leadName: data.name,
       fromStage: null, toStage: data.status ?? 'novo',
       sellerId: data.assigned_to ?? null, sellerName: data.assigned_name ?? null,
-    })
+    }, teamId)
 
     // Registrar atividade é best-effort: não bloqueia o sucesso do lead.
     await supabase.from('activities').insert({
@@ -239,6 +244,7 @@ export function LeadModal({ onClose, onCreated, currentUser, stages, clients }: 
       description: `Novo lead cadastrado: ${form.name.trim()}`,
       user_name: currentUser.name,
       entity_id: data.id,
+      ...(teamId ? { team_id: teamId } : {}),
     })
     onCreated(data as Lead)
     onClose()

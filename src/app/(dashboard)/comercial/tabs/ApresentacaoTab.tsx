@@ -8,6 +8,7 @@ import { SortableContext, useSortable, arrayMove, verticalListSortingStrategy } 
 import { CSS } from '@dnd-kit/utilities'
 import { createClient } from '@/lib/supabase/client'
 import { useToast } from '@/components/ui/toast'
+import { useActiveTeamId } from '@/components/auth/RoleProvider'
 import { cn, formatDate } from '@/lib/utils'
 import { Portal } from '@/components/ui/Portal'
 import { useDialog } from '@/components/ui/useDialog'
@@ -191,6 +192,7 @@ function LeadBriefModal({ leadId, fallbackName, onContinue, onClose }: {
 export function ApresentacaoTab() {
   const { toast } = useToast()
   const supabase = createClient()
+  const teamId = useActiveTeamId()   // FIX-P0-TEAMID-WRITES: carimba a equipe ativa em materiais/apresentações
   const inputRef = useRef<HTMLInputElement>(null)
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }))
 
@@ -284,7 +286,7 @@ export function ApresentacaoTab() {
       if (upErr) { toast({ type: 'error', message: `Falha ao enviar "${file.name}": ${upErr.message}` }); continue }
       const { data: { publicUrl } } = supabase.storage.from('materiais').getPublicUrl(path)
       const { data, error } = await supabase.from('presentation_materials')
-        .insert({ name: file.name, storage_path: path, url: publicUrl, mime_type: file.type || null, size_bytes: file.size, pasta: uploadPasta.trim() || null, nicho: uploadNicho.trim() || null })
+        .insert({ name: file.name, storage_path: path, url: publicUrl, mime_type: file.type || null, size_bytes: file.size, pasta: uploadPasta.trim() || null, nicho: uploadNicho.trim() || null, ...(teamId ? { team_id: teamId } : {}) })
         .select(COLS).single()
       if (error || !data) {
         await supabase.storage.from('materiais').remove([path])
@@ -388,7 +390,7 @@ export function ApresentacaoTab() {
       setPresentations(prev => prev.map(p => (p.id === editingId ? (data as Presentation) : p)))
       toast({ type: 'success', message: 'Apresentação atualizada.' })
     } else {
-      const { data, error } = await supabase.from('presentations').insert(payload).select(PRES_COLS).single()
+      const { data, error } = await supabase.from('presentations').insert({ ...payload, ...(teamId ? { team_id: teamId } : {}) }).select(PRES_COLS).single()
       if (error || !data) { toast({ type: 'error', message: `Não foi possível salvar: ${error?.message ?? 'erro'}` }); setSavingPres(false); return }
       setPresentations(prev => [data as Presentation, ...prev])
       setEditingId((data as Presentation).id)

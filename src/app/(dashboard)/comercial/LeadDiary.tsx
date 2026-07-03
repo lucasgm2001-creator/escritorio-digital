@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef, useMemo, memo } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useToast } from '@/components/ui/toast'
+import { useActiveTeamId } from '@/components/auth/RoleProvider'
 import { getScoreInfo } from '@/lib/utils/score'
 import { markMilestones } from '@/lib/leadMilestones'
 import { cn } from '@/lib/utils'
@@ -186,6 +187,7 @@ export function LeadDiary({ lead, onClose, onUpdated, onMoveStage, onDeleted, cu
   const [draft, setDraft] = useState(emptyDraft)
 
   const supabase = createClient()
+  const teamId = useActiveTeamId()   // FIX-P0-TEAMID-WRITES: carimba a equipe ativa na interação/marco
   const { toast } = useToast()
   const scoreInfo = getScoreInfo(currentLead.score)
   // Opções de fase = fases ATIVAS de funnel_stages (data-driven, igual ao board) → fase NOVA aparece aqui sem
@@ -414,6 +416,7 @@ export function LeadDiary({ lead, onClose, onUpdated, onMoveStage, onDeleted, cu
         score_delta: delta,
         created_by: currentUser.id,
         created_by_name: currentUser.name,
+        ...(teamId ? { team_id: teamId } : {}),
       })
       .select()
       .single()
@@ -425,7 +428,7 @@ export function LeadDiary({ lead, onClose, onUpdated, onMoveStage, onDeleted, cu
     }
 
     // Marco do relatório: contato real = interagiu (nao_atendeu/nota não contam). Idempotente.
-    if (type === 'atendeu' || type === 'mensagem') await markMilestones(supabase, lead.id, ['interagiu'])
+    if (type === 'atendeu' || type === 'mensagem') await markMilestones(supabase, lead.id, ['interagiu'], teamId)
 
     const { error: scoreErr } = await supabase
       .from('leads')

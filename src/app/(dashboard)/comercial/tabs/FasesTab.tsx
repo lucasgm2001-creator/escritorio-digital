@@ -11,6 +11,7 @@ import { SortableContext, useSortable, arrayMove, verticalListSortingStrategy } 
 import { CSS } from '@dnd-kit/utilities'
 import { ChevronUp, ChevronDown, ChevronRight, GripVertical, Plus, Lock, Trash2, X, Pencil, Check } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
+import { useActiveTeamId } from '@/components/auth/RoleProvider'
 import { useToast } from '@/components/ui/toast'
 import { isStageProtected, stageRole, type FunnelStage, type StageRole } from '@/lib/funnelStages'
 import { cn } from '@/lib/utils'
@@ -77,6 +78,7 @@ type StagePatch = Partial<Pick<FunnelStage, 'nome' | 'cor' | 'dias_esfriamento' 
 // tem ✓/Enter, excluir tem modal. (Reordenar/mover-de-grupo = o próprio gesto é a confirmação.)
 export function FasesTab() {
   const supabase = createClient()
+  const teamId = useActiveTeamId()   // FIX-P0-TEAMID-WRITES: carimba a equipe ativa ao criar fase
   const { toast } = useToast()
   const router = useRouter()
   const [stages, setStages] = useState<FunnelStage[]>([])
@@ -228,7 +230,7 @@ export function FasesTab() {
       }
       let lastErr: { message: string } | null = null
       for (let attempt = 0; attempt < 8; attempt++) {
-        const { error } = await supabase.from('funnel_stages').insert({ ...row, slug })
+        const { error } = await supabase.from('funnel_stages').insert({ ...row, slug, ...(teamId ? { team_id: teamId } : {}) })
         if (!error) { lastErr = null; break }
         lastErr = error
         if (error.code === '23505') { slug = `${baseSlug}_${n++}`; continue }   // UNIQUE (slug) → próximo sufixo

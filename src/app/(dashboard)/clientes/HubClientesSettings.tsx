@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { ChevronUp, ChevronDown, Plus } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { useToast } from '@/components/ui/toast'
+import { useActiveTeamId } from '@/components/auth/RoleProvider'
 import { Panel } from '@/components/bento/Panel'
 import { cn } from '@/lib/utils'
 import type { Nicho } from './types'
@@ -13,6 +14,7 @@ const COLORS = ['#38bdf8', '#fbbf24', '#C2F73A', '#22C55E', '#10B981', '#A855F7'
 // Gestão das prateleiras (tabela `nichos`): criar / renomear / cor / ordem / ativar-desativar.
 export function HubClientesSettings() {
   const supabase = createClient()
+  const teamId = useActiveTeamId()   // FIX-P0-TEAMID-WRITES: carimba a equipe ativa ao criar nicho
   const { toast } = useToast()
   const [nichos, setNichos] = useState<Nicho[]>([])
   const [loading, setLoading] = useState(true)
@@ -68,7 +70,7 @@ export function HubClientesSettings() {
     if (nichos.some(n => n.nome === nome)) { toast({ type: 'error', message: 'Já existe.' }); return }
     setBusy(true)
     const posicao = Math.max(0, ...nichos.map(n => n.posicao)) + 1
-    const { error } = await supabase.from('nichos').insert({ nome, cor: COLORS[nichos.length % COLORS.length], posicao, ativo: true })
+    const { error } = await supabase.from('nichos').insert({ nome, cor: COLORS[nichos.length % COLORS.length], posicao, ativo: true, ...(teamId ? { team_id: teamId } : {}) })
     setBusy(false)
     if (error) { toast({ type: 'error', message: `Não foi possível criar: ${error.message}` }); return }
     setNewName(''); setAdding(false); load()

@@ -15,6 +15,7 @@ interface StageEventInput {
 export async function logStageEvent(
   supabase: SupabaseClient,
   { leadId, leadName, fromStage, toStage, sellerId, sellerName }: StageEventInput,
+  teamId?: string | null,   // FIX-P0-TEAMID-WRITES: carimba a equipe ativa (o trigger só cobre 1 equipe)
 ): Promise<void> {
   try {
     await supabase.from('stage_events').insert({
@@ -25,6 +26,7 @@ export async function logStageEvent(
       seller_id: sellerId ?? null,
       seller_name: sellerName ?? null,
       changed_at: new Date().toISOString(),
+      ...(teamId ? { team_id: teamId } : {}),
     })
   } catch {
     /* log de evento é secundário — não quebra o fluxo do lead */

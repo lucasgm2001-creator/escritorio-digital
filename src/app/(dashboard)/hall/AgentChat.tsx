@@ -5,6 +5,7 @@ import { Markdown } from '@/components/ui/Markdown'
 import { AiInsightsPanel } from '@/components/ai/AiInsightsPanel'
 import { Sparkles } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
+import { useActiveTeamId } from '@/components/auth/RoleProvider'
 import { moveLead, type MovableLead } from '../comercial/leadActions'
 import { type LeadStatus } from '../comercial/types'
 import { loadStages } from '@/lib/funnelStages'
@@ -53,6 +54,7 @@ export function AgentChat({ userId, userName }: { userId: string; userName: stri
   const busyRef = useRef(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const supabase = createClient()
+  const teamId = useActiveTeamId()   // FIX-P0-TEAMID-WRITES: carimba a equipe ativa nas escritas do agente
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -85,6 +87,7 @@ export function AgentChat({ userId, userName }: { userId: string; userName: stri
         status: 'novo',
         assigned_to: userId,
         assigned_name: userName,
+        ...(teamId ? { team_id: teamId } : {}),
       }).select('id').single()
       if (error || !data) return `Não consegui criar o lead: ${error?.message ?? 'erro'}`
       // Histórico de movimentação: entrada no funil (ADITIVO/best-effort).
@@ -92,7 +95,7 @@ export function AgentChat({ userId, userName }: { userId: string; userName: stri
         leadId: data.id, leadName: name,
         fromStage: null, toStage: 'novo',
         sellerId: userId, sellerName: userName,
-      })
+      }, teamId)
       return `Pronto! Lead "${name}" criado no funil (status Novo).`
     }
     if (action.tool === 'create_task') {
@@ -112,6 +115,7 @@ export function AgentChat({ userId, userName }: { userId: string; userName: stri
       }
       const { data: created, error } = await supabase.from('tasks').insert({
         user_id: userId, title, due_date: dueDate, due_time: dueTime, done: false, ...(link ?? {}),
+        ...(teamId ? { team_id: teamId } : {}),
       }).select('id').single()
       if (error) return `Não consegui criar a tarefa: ${error.message}`
       // Sincroniza com o Google Agenda (best-effort, fire-and-forget) — só se tiver data.
@@ -167,7 +171,7 @@ export function AgentChat({ userId, userName }: { userId: string; userName: stri
       // MESMA função do funil → dispara o won-flow pela flag is_won da fase. planoId (Fase 2A) vem do
       // prepMoverLead no fechamento; nas outras fases é null. Só FORNECE o id (mesmo caminho do modal do funil).
       const planoId = p.planoId ? String(p.planoId) : null
-      const res = await moveLead(supabase, lead as MovableLead, destino as LeadStatus, userName, stages, planoId, userId)
+      const res = await moveLead(supabase, lead as MovableLead, destino as LeadStatus, userName, stages, planoId, userId, teamId)
       if (!res.ok) return `Não consegui mover o ${lead.name}: ${res.error}`
       let msg = `Pronto! Movi o ${lead.name} pra ${label}.`
       for (const n of res.notes) if (n.message) msg += `\n${n.message}`
@@ -195,7 +199,7 @@ export function AgentChat({ userId, userName }: { userId: string; userName: stri
       const { data: wk } = await supabase.from('weekly_payments').select('numero_semana').eq('deal_id', dealId)
       const paidNums = (wk ?? []).map(w => Number(w.numero_semana))
       const rate = await getFxRate()
-      const res = await payWeek(supabase, { id: deal.id, valorPorSemanaUsd: Number(deal.valor_por_semana_usd), tetoSemanas: deal.teto_semanas, status: deal.status }, paidNums, numero, paidOn, rate)
+      const res = await payWeek(supabase, { id: deal.id, valorPorSemanaUsd: Number(deal.valor_por_semana_usd), tetoSemanas: deal.teto_semanas, status: deal.status }, paidNums, numero, paidOn, rate, teamId)
       if (!res.ok) return `Não registrei o pagamento do ${clientName}: ${payWeekMessage(res.reason, res.message)}`
       return `Pronto! ${clientName}: semana ${numero} de ${teto} registrada (US$ ${Number(p.valorUsd)}).`
     }
@@ -208,10 +212,10 @@ export function AgentChat({ userId, userName }: { userId: string; userName: stri
       const leadId = p.leadId ? String(p.leadId) : null
       if (!sellerId || !metOn) return 'Não consegui registrar a reunião: dados incompletos.'
       const rate = await getFxRate()
-      const { error } = await registerMeeting(supabase, sellerId, { metOn, valorUsd, clientId, clientName, leadId }, rate)
+      const { error } = await registerMeeting(supabase, sellerId, { metOn, valorUsd, clientId, clientName, leadId }, rate, teamId)
       if (error) return `Não consegui lançar a reunião: ${error.message}`
       // Marco do relatório: reunião feita com o lead (separado da comissão). Idempotente.
-      if (leadId) await markMilestones(supabase, leadId, ['reuniao'])
+      if (leadId) await markMilestones(supabase, leadId, ['reuniao'], teamId)
       return `Pronto! Reunião${clientName ? ` com ${clientName}` : ''} lançada (US$ ${valorUsd}, ${metOn}).`
     }
     return 'Ação desconhecida.'
