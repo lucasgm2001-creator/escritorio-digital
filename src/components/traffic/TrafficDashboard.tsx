@@ -2,10 +2,11 @@ import Link from 'next/link'
 import { AdminStat } from '@/components/admin/AdminStat'
 import { Panel } from '@/components/bento/Panel'
 import { AiInsightsPanel } from '@/components/ai/AiInsightsPanel'
+import { TrafficHeader } from './TrafficHeader'
 import { TrafficPlatformGrid } from './TrafficPlatformGrid'
 
-// Dashboard executivo de Tráfego — PLACEHOLDERS (sem integração/API/dados). Reusa AdminStat + Panel.
-// Aceita clientName opcional: o MESMO componente servirá a aba "Tráfego" do cliente (só filtrado).
+// Dashboard executivo de Tráfego — PLACEHOLDERS elegantes (sem integração/API/dados). Reusa AdminStat +
+// Panel + AiInsightsPanel + TrafficPlatformGrid. Aceita clientName: o MESMO dashboard serve a aba do cliente.
 const STATUS = [
   { label: 'Contas conectadas', value: '0' },
   { label: 'Campanhas ativas', value: '0' },
@@ -14,8 +15,9 @@ const STATUS = [
 ]
 
 const KPIS = [
-  'Investimento', 'Receita', 'ROAS', 'CPA', 'CTR', 'CPM',
-  'CPC', 'Conversões', 'Leads', 'CPL', 'Ticket médio', 'Clientes ativos',
+  'Investimento', 'Impressões', 'Cliques', 'CTR', 'CPC',
+  'CPM', 'CPA', 'ROAS', 'Conversões', 'Receita',
+  'Leads', 'Clientes', 'CAC', 'LTV', 'ROI',
 ]
 
 const QUICK = [
@@ -26,30 +28,20 @@ const QUICK = [
   { label: 'IA', href: '/trafego/ia' },
 ]
 
-const IA_ITEMS = [
-  'Resumo executivo', 'Campanhas com problema', 'Oportunidades',
-  'Próximas ações', 'Briefing automático', 'Resumo semanal', 'Resumo mensal',
-]
+const IA_ITEMS = ['Resumo executivo', 'Campanhas com risco', 'Oportunidades', 'Próximas ações', 'Briefing semanal', 'Briefing mensal']
 
 export function TrafficDashboard({ clientName }: { clientName?: string }) {
   return (
     <div className="space-y-6">
-      <header className="space-y-1">
-        <p className="font-tech text-[11px] uppercase tracking-[0.14em] text-lime-fg">
-          Tráfego{clientName ? ` · ${clientName}` : ''}
-        </p>
-        <h1 className="font-display font-bold text-2xl text-bento-text">Dashboard executivo</h1>
-        <p className="text-sm text-bento-muted">
-          {clientName ? `Mídia paga de ${clientName}.` : 'Mídia paga consolidada (Meta, Google e mais).'} Indicadores em
-          placeholder — sem integração ou API nesta fase.
-        </p>
-      </header>
+      <TrafficHeader
+        eyebrow={clientName ? `Tráfego · ${clientName}` : 'Tráfego'}
+        title="Dashboard executivo"
+        subtitle={`${clientName ? `Mídia paga de ${clientName}.` : 'Mídia paga consolidada (Meta, Google e mais).'} Indicadores em placeholder — conecte uma plataforma em Contas para começar.`}
+      />
 
-      {/* Status operacional */}
+      {/* Status operacional + integrações */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5">
-        {STATUS.map(item => (
-          <AdminStat key={item.label} label={item.label} value={item.value} hint="em breve" />
-        ))}
+        {STATUS.map(item => <AdminStat key={item.label} label={item.label} value={item.value} />)}
       </div>
 
       {/* Ações rápidas */}
@@ -67,25 +59,23 @@ export function TrafficDashboard({ clientName }: { clientName?: string }) {
       {/* Indicadores executivos */}
       <div>
         <p className="font-tech text-[10px] uppercase tracking-[0.12em] text-bento-muted mb-2">Indicadores</p>
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2.5">
-          {KPIS.map(kpi => (
-            <AdminStat key={kpi} label={kpi} value="—" hint="em breve" />
-          ))}
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5">
+          {KPIS.map(kpi => <AdminStat key={kpi} label={kpi} value="—" />)}
         </div>
       </div>
 
-      {/* Plataformas (preparação visual) */}
+      {/* Status das integrações */}
       <div>
-        <p className="font-tech text-[10px] uppercase tracking-[0.12em] text-bento-muted mb-2">Plataformas</p>
+        <p className="font-tech text-[10px] uppercase tracking-[0.12em] text-bento-muted mb-2">Status das integrações</p>
         <TrafficPlatformGrid />
       </div>
 
       {/* Inteligência + Alertas */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-start">
         <AiInsightsPanel items={IA_ITEMS} />
         <Panel label="Alertas">
           <p className="text-[13px] text-bento-muted leading-relaxed">
-            Alertas de campanha (orçamento, queda de ROAS, sem entrega) aparecerão aqui quando as contas de anúncio
+            Alertas de campanha (orçamento, queda de ROAS, sem entrega) aparecem aqui quando as contas de anúncio
             forem conectadas.
           </p>
         </Panel>

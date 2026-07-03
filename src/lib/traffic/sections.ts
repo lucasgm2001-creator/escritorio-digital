@@ -1,12 +1,13 @@
-import { TrendingUp, Users, KeyRound, Presentation, FolderOpen, FileText, Sparkles, ExternalLink } from 'lucide-react'
+import { TrendingUp, KeyRound, Presentation, Files, Briefcase, FolderOpen, Trophy, Users, FileText, Sparkles, SlidersHorizontal } from 'lucide-react'
 import type { DomainGroup, DomainSection } from '@/lib/domain/nav'
 
-// Fundação do domínio TRÁFEGO (mídia paga). SÓ organização/navegação — nenhuma integração, API, banco
-// ou lógica. Estrutura espelha a Administração (mesma casca genérica).
+// Organização DEFINITIVA do domínio TRÁFEGO (TRAFFIC-002). SÓ estrutura/navegação — nenhuma integração,
+// API, banco ou lógica. Mesma casca genérica (DomainShell) de Admin/Cliente.
 
 export const TRAFFIC_GROUPS: DomainGroup[] = [
   { key: 'visao', label: 'Visão' },
   { key: 'gestao', label: 'Gestão' },
+  { key: 'medicao', label: 'Medição' },
   { key: 'inteligencia', label: 'Inteligência' },
   { key: 'plataforma', label: 'Plataforma' },
 ]
@@ -14,20 +15,26 @@ export const TRAFFIC_GROUPS: DomainGroup[] = [
 export const TRAFFIC_SECTIONS: DomainSection[] = [
   { key: 'dashboard', group: 'visao', label: 'Dashboard', href: '/trafego', icon: TrendingUp,
     tagline: 'Visão executiva de mídia paga.', objetivo: 'Investimento, receita, ROAS, CPA e alertas num só lugar.', proximaEtapa: 'Conectar contas de anúncio.' },
-  { key: 'clientes', group: 'gestao', label: 'Clientes', href: '/trafego/clientes', icon: Users,
-    tagline: 'Tráfego por cliente.', objetivo: 'Desempenho de mídia de cada cliente, isolado.', proximaEtapa: 'Reusar o dashboard filtrado por cliente.' },
-  { key: 'contas', group: 'gestao', label: 'Contas de anúncio', href: '/trafego/contas', icon: KeyRound,
-    tagline: 'Contas conectadas por plataforma.', objetivo: 'Conectar Meta, Google, TikTok e LinkedIn Ads.', proximaEtapa: 'Centro de integrações de mídia.' },
+  { key: 'contas', group: 'gestao', label: 'Contas', href: '/trafego/contas', icon: KeyRound,
+    tagline: 'Plataformas e contas conectadas.', objetivo: 'Meta, Google, GA4, Search Console, TikTok e LinkedIn.', proximaEtapa: 'Conectar a primeira plataforma.' },
   { key: 'campanhas', group: 'gestao', label: 'Campanhas', href: '/trafego/campanhas', icon: Presentation,
-    tagline: 'Campanhas, conjuntos e anúncios.', objetivo: 'Acompanhar campanhas ativas e desempenho.', proximaEtapa: 'Sincronizar campanhas das contas conectadas.' },
+    tagline: 'Campanhas ativas e desempenho.', objetivo: 'Status, objetivo, investimento e resultados.', proximaEtapa: 'Sincronizar campanhas das contas.' },
+  { key: 'conjuntos', group: 'gestao', label: 'Conjuntos', href: '/trafego/conjuntos', icon: Files,
+    tagline: 'Conjuntos de anúncios.', objetivo: 'Segmentação, orçamento e entrega por conjunto.', proximaEtapa: 'Importar conjuntos das campanhas.' },
+  { key: 'anuncios', group: 'gestao', label: 'Anúncios', href: '/trafego/anuncios', icon: Briefcase,
+    tagline: 'Anúncios individuais.', objetivo: 'Criativo, status e resultado por anúncio.', proximaEtapa: 'Importar anúncios dos conjuntos.' },
   { key: 'criativos', group: 'gestao', label: 'Criativos', href: '/trafego/criativos', icon: FolderOpen,
-    tagline: 'Biblioteca de criativos.', objetivo: 'Comparar criativos por desempenho.', proximaEtapa: 'Importar criativos das campanhas.' },
+    tagline: 'Biblioteca de criativos.', objetivo: 'Imagens, vídeos, copies e performance.', proximaEtapa: 'Importar criativos das campanhas.' },
+  { key: 'conversoes', group: 'medicao', label: 'Conversões', href: '/trafego/conversoes', icon: Trophy,
+    tagline: 'Pixel e eventos de conversão.', objetivo: 'Purchase, Lead, Checkout e eventos custom.', proximaEtapa: 'Conectar Pixel e Conversions API.' },
+  { key: 'analytics', group: 'medicao', label: 'Analytics', href: '/trafego/analytics', icon: Users,
+    tagline: 'Audiência e comportamento.', objetivo: 'Usuários, sessões, origens e páginas.', proximaEtapa: 'Conectar o GA4.' },
   { key: 'relatorios', group: 'inteligencia', label: 'Relatórios', href: '/trafego/relatorios', icon: FileText,
-    tagline: 'Relatórios de mídia.', objetivo: 'Relatórios executivos e por cliente.', proximaEtapa: 'Consumir o Reporting Engine.' },
+    tagline: 'Relatórios de mídia.', objetivo: 'Mensal, executivo, comparativos e exportações.', proximaEtapa: 'Consumir o Reporting Engine.' },
   { key: 'ia', group: 'inteligencia', label: 'IA', href: '/trafego/ia', icon: Sparkles,
-    tagline: 'Copiloto de tráfego.', objetivo: 'Resumos, oportunidades e alertas automáticos.', proximaEtapa: 'Consumir o AI Engine.' },
-  { key: 'integracoes', group: 'plataforma', label: 'Integrações', href: '/trafego/integracoes', icon: ExternalLink,
-    tagline: 'Fontes de mídia do workspace.', objetivo: 'Meta/Google/TikTok/LinkedIn + Pixel e CAPI.', proximaEtapa: 'Coexistir com as integrações atuais (INT-001).' },
+    tagline: 'Copiloto de tráfego.', objetivo: 'Resumos, anomalias, oportunidades e briefings.', proximaEtapa: 'Consumir o AI Engine.' },
+  { key: 'configuracoes', group: 'plataforma', label: 'Configurações', href: '/trafego/configuracoes', icon: SlidersHorizontal,
+    tagline: 'Preferências do módulo.', objetivo: 'Conta padrão, moeda, atribuição e sincronização.', proximaEtapa: 'Definir os padrões da equipe.' },
 ]
 
 export function getTrafficSection(key: string): DomainSection | undefined {
