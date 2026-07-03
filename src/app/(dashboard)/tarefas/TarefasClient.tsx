@@ -10,6 +10,7 @@ import { copyText } from '@/lib/clipboard'
 import { ymd } from '@/lib/format'
 import type { Task, LinkOption, ParsedTask } from './types'
 import { useToast } from '@/components/ui/toast'
+import { Phone, Video, MessageCircle, Building2, CircleDot, type LucideIcon } from 'lucide-react'
 
 // Título a partir do texto digitado (rede de segurança local — espelha o servidor).
 // Garante que o título NUNCA fique vazio mesmo se a IA falhar/não responder.
@@ -76,6 +77,25 @@ const PRIO_ORDER: Record<string, number> = { urgente: 3, alta: 2, normal: 1 }
 const PRIORITY_TAG: Record<string, string> = {
   alta:    'text-amber-400 bg-amber-900/30',
   urgente: 'text-red-400 bg-red-900/30',
+}
+
+// Identidade da tarefa (TASK-EXPERIENCE-001, Part 3): inferida SÓ de campos REAIS já existentes — sem IA,
+// sem dado novo. is_meeting → reunião · add_call → ligação · lead vinculado → follow-up · cliente vinculado
+// → cliente · resto → geral. (Documento/e-mail/pendência não têm fonte confiável no schema → não inventamos.)
+type TaskKind = 'meeting' | 'call' | 'followup' | 'client' | 'general'
+const KIND_META: Record<TaskKind, { Icon: LucideIcon; tint: string }> = {
+  meeting:  { Icon: Video,         tint: 'text-purple-400' },
+  call:     { Icon: Phone,         tint: 'text-blue-400' },
+  followup: { Icon: MessageCircle, tint: 'text-lime-fg' },
+  client:   { Icon: Building2,     tint: 'text-emerald-400' },
+  general:  { Icon: CircleDot,     tint: 'text-bento-dim' },
+}
+function taskKind(t: Task): TaskKind {
+  if (t.is_meeting) return 'meeting'
+  if (t.add_call) return 'call'
+  if (t.linked_type === 'lead') return 'followup'
+  if (t.linked_type === 'client') return 'client'
+  return 'general'
 }
 
 function sectionOf(t: Task, today: string, tomorrow: string, weekEnd: string): SectionId {
@@ -315,6 +335,7 @@ export function TarefasClient({ tasks, setTasks, deletedIds, linkOptions, curren
     const phone = t.linked_id ? phoneById.get(t.linked_id) : undefined
     const isExpanded = expandedId === t.id
     const isConfirming = confirmId === t.id
+    const { Icon: KindIcon, tint: kindTint } = KIND_META[taskKind(t)]
 
     return (
       <div key={t.id} className="group bento-fx p-3 transition-colors hover:border-lime/30">
@@ -338,6 +359,7 @@ export function TarefasClient({ tasks, setTasks, deletedIds, linkOptions, curren
           {/* Conteúdo */}
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2 flex-wrap">
+              <KindIcon className={cn('w-3.5 h-3.5 shrink-0', t.done ? 'text-bento-dim/60' : kindTint)} aria-hidden />
               <span className={cn('text-sm leading-snug', t.done ? 'line-through text-bento-muted' : 'text-bento-text')}>
                 {t.title}
               </span>
@@ -442,6 +464,7 @@ export function TarefasClient({ tasks, setTasks, deletedIds, linkOptions, curren
     const isToday = !t.done && t.due_date === today
     const isOverdue = !t.done && !!t.due_date && t.due_date < today
     const phone = t.linked_id ? phoneById.get(t.linked_id) : undefined
+    const { Icon: KindIcon, tint: kindTint } = KIND_META[taskKind(t)]
     return (
       <div key={t.id} className={cn('relative bento-fx p-3 overflow-hidden', isToday && 'bg-lime/[0.06]')}>
         {isToday && <span className="absolute top-0 inset-x-0 h-0.5 bg-lime" aria-hidden />}
@@ -454,7 +477,10 @@ export function TarefasClient({ tasks, setTasks, deletedIds, linkOptions, curren
           <div role="button" tabIndex={0} onClick={() => openEdit(t)}
             onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openEdit(t) } }}
             className="min-w-0 flex-1 text-left cursor-pointer">
-            <span className={cn('text-sm leading-snug', t.done ? 'line-through text-bento-muted' : 'text-bento-text')}>{t.title}</span>
+            <div className="flex items-start gap-1.5">
+              <KindIcon className={cn('w-3.5 h-3.5 shrink-0 mt-0.5', t.done ? 'text-bento-dim/60' : kindTint)} aria-hidden />
+              <span className={cn('text-sm leading-snug', t.done ? 'line-through text-bento-muted' : 'text-bento-text')}>{t.title}</span>
+            </div>
             <div className="flex items-center gap-2 flex-wrap mt-1.5">
               {t.linked_id && t.linked_name && (
                 <Link href={t.linked_type === 'lead' ? '/comercial' : '/clientes'} onClick={e => e.stopPropagation()}
