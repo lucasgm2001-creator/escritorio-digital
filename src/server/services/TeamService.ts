@@ -195,3 +195,65 @@ export async function changeMemberRole(
   if (error) throw error
   return { ok: true, memberName }
 }
+
+// Transferir ownership para outro membro. EXCLUSIVO do owner (Part 4). Revalida no banco que quem chama é
+// mesmo owner. Ordem À PROVA DE FALHA (espelha leaveActiveTeam): promove o novo owner ANTES de rebaixar o
+// antigo → pior caso de falha parcial é 2 owners (recuperável), NUNCA 0. O owner antigo vira admin (a
+// equipe continua com owner). Nada é apagado.
+export async function transferOwnership(
+  context: RequestContext,
+  targetUserId: string,
+): Promise<MemberMgmtOutcome> {
+  const teamId = context.activeTeamId
+  if (!teamId) return { ok: false, reason: 'no-active-team' }
+  if (context.role !== 'owner') return { ok: false, reason: 'not-authorized' }
+
+  const svc = createServiceClient()
+  const roster = await loadRoster(svc, teamId)
+  const mine = roster.find(m => m.user_id === context.user.id) ?? null
+  if (!mine || mine.role !== 'owner') return { ok: false, reason: 'not-authorized' }   // revalida no banco
+  const target = roster.find(m => m.user_id === targetUserId) ?? null
+  if (!target) return { ok: false, reason: 'target-not-found' }
+  if (target.user_id === context.user.id) return { ok: false, reason: 'target-is-self' }
+
+  const memberName = await nameOf(svc, target.user_id)
+
+  const { error: e1 } = await svc.from('team_members').update({ role: 'owner' }).eq('id', target.id)
+  if (e1) throw e1
+  const { error: e2 } = await svc.from('teams').update({ owner_id: target.user_id }).eq('id', teamId)
+  if (e2) throw e2
+  const { error: e3 } = await svc.from('team_members').update({ role: 'admin' }).eq('id', mine.id)
+  if (e3) throw e3
+
+  return { ok: true, memberName }
+}
+
+// Remover um membro da equipe. Owner remove member|admin; admin remove só member (conservador — Part 5). O
+// owner NUNCA é removido por aqui (protege o último owner: para tirar um owner, transfira antes). Ninguém
+// se remove por aqui (usar "Sair da equipe"). Apaga SÓ a linha de team_members do alvo — nenhum lead,
+// cliente, dado financeiro ou operacional é tocado.
+export async function removeMember(
+  context: RequestContext,
+  targetUserId: string,
+): Promise<MemberMgmtOutcome> {
+  const teamId = context.activeTeamId
+  if (!teamId) return { ok: false, reason: 'no-active-team' }
+  if (context.role !== 'owner' && context.role !== 'admin') return { ok: false, reason: 'not-authorized' }
+
+  const svc = createServiceClient()
+  const roster = await loadRoster(svc, teamId)
+  const target = roster.find(m => m.user_id === targetUserId) ?? null
+  if (!target) return { ok: false, reason: 'target-not-found' }
+  if (target.user_id === context.user.id) return { ok: false, reason: 'target-is-self' }   // usar "Sair da equipe"
+  if (target.role === 'owner') return { ok: false, reason: 'last-owner' }   // owner nunca é removido por aqui
+
+  const allowed =
+    (context.role === 'owner' && (target.role === 'member' || target.role === 'admin')) ||
+    (context.role === 'admin' && target.role === 'member')
+  if (!allowed) return { ok: false, reason: 'not-authorized' }
+
+  const memberName = await nameOf(svc, target.user_id)
+  const { error } = await svc.from('team_members').delete().eq('id', target.id)
+  if (error) throw error
+  return { ok: true, memberName }
+}

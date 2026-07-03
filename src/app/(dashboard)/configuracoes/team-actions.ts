@@ -6,6 +6,8 @@ import {
   revokeInvite,
   leaveActiveTeam,
   changeMemberRole,
+  transferOwnership,
+  removeMember,
   type MemberMgmtDeny,
 } from '@/server/services/TeamService'
 import { getRequestContext } from '@/server/context/request-context'
@@ -189,4 +191,36 @@ export async function changeMemberRoleAction(
 
   const message = newRole === 'admin' ? 'Membro promovido para admin.' : 'Membro rebaixado para member.'
   return { ok: true, data: { message } }
+}
+
+// Transferir ownership — só o owner (validado no servidor). Confirmação forte (digitar o nome) é na UI.
+export async function transferOwnershipAction(targetUserId: string): Promise<ActionResult<{ message: string }>> {
+  const context = await getRequestContext()
+  if (!context) return { ok: false, error: 'Sessao expirada. Entre novamente.' }
+
+  let outcome
+  try {
+    outcome = await transferOwnership(context, targetUserId)
+  } catch (error) {
+    return { ok: false, error: errorMessage(error) }
+  }
+  if (!outcome.ok) return { ok: false, error: MEMBER_MGMT_ERROR[outcome.reason] }
+
+  return { ok: true, data: { message: 'Ownership transferida com sucesso.' } }
+}
+
+// Remover membro — owner/admin conforme a regra do servidor. Confirmação (nome do membro) é na UI.
+export async function removeMemberAction(targetUserId: string): Promise<ActionResult<{ message: string }>> {
+  const context = await getRequestContext()
+  if (!context) return { ok: false, error: 'Sessao expirada. Entre novamente.' }
+
+  let outcome
+  try {
+    outcome = await removeMember(context, targetUserId)
+  } catch (error) {
+    return { ok: false, error: errorMessage(error) }
+  }
+  if (!outcome.ok) return { ok: false, error: MEMBER_MGMT_ERROR[outcome.reason] }
+
+  return { ok: true, data: { message: 'Membro removido da equipe.' } }
 }

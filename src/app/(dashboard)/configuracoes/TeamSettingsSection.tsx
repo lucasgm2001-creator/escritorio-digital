@@ -2,10 +2,10 @@
 
 import { useMemo, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
-import { ArrowUp, ArrowDown, Check, Copy, ShieldCheck, UserPlus, XCircle } from 'lucide-react'
+import { ArrowUp, ArrowDown, ArrowRightLeft, Check, Copy, ShieldAlert, ShieldCheck, Trash2, UserPlus, XCircle } from 'lucide-react'
 import { Panel } from '@/components/bento/Panel'
 import { cn } from '@/lib/utils'
-import { createTeamInviteAction, revokeTeamInviteAction, changeMemberRoleAction } from './team-actions'
+import { createTeamInviteAction, revokeTeamInviteAction, changeMemberRoleAction, transferOwnershipAction, removeMemberAction } from './team-actions'
 import { TeamAccessControls, type TeamAccessTeam } from './TeamAccessControls'
 
 export type TeamSettingsMember = {
@@ -132,9 +132,13 @@ export function TeamSettingsSection({ teamName, members, invites: initialInvites
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
   const [busyInviteId, setBusyInviteId] = useState<string | null>(null)
   const [busyMemberId, setBusyMemberId] = useState<string | null>(null)
+  // Confirmação forte por membro (transfer/remove) — só uma aberta por vez. confirmText: digitar o nome.
+  const [confirm, setConfirm] = useState<{ memberId: string; kind: 'transfer' | 'remove' } | null>(null)
+  const [confirmText, setConfirmText] = useState('')
   const [isPendingAction, startTransition] = useTransition()
 
   const iAmOwner = currentRole === 'owner'
+  const closeConfirm = () => { setConfirm(null); setConfirmText('') }
 
   // Promover/rebaixar — só o owner (o servidor revalida). Recarrega os dados do servidor após a mudança.
   const changeRole = (member: TeamSettingsMember, newRole: 'admin' | 'member') => {
@@ -144,6 +148,34 @@ export function TeamSettingsSection({ teamName, members, invites: initialInvites
       const res = await changeMemberRoleAction(member.userId, newRole)
       setBusyMemberId(null)
       if (!res.ok) { setMessage({ type: 'error', text: res.error }); return }
+      setMessage({ type: 'success', text: res.data.message })
+      router.refresh()
+    })
+  }
+
+  // Transferir ownership — servidor revalida (owner-only, ordem à prova de falha). Fecha o diálogo e recarrega.
+  const transfer = (member: TeamSettingsMember) => {
+    setMessage(null)
+    setBusyMemberId(member.id)
+    startTransition(async () => {
+      const res = await transferOwnershipAction(member.userId)
+      setBusyMemberId(null)
+      if (!res.ok) { setMessage({ type: 'error', text: res.error }); return }
+      closeConfirm()
+      setMessage({ type: 'success', text: res.data.message })
+      router.refresh()
+    })
+  }
+
+  // Remover membro — servidor revalida (owner/admin, nunca owner/self). Só tira a participação; nada mais.
+  const remove = (member: TeamSettingsMember) => {
+    setMessage(null)
+    setBusyMemberId(member.id)
+    startTransition(async () => {
+      const res = await removeMemberAction(member.userId)
+      setBusyMemberId(null)
+      if (!res.ok) { setMessage({ type: 'error', text: res.error }); return }
+      closeConfirm()
       setMessage({ type: 'success', text: res.data.message })
       router.refresh()
     })
@@ -273,8 +305,17 @@ export function TeamSettingsSection({ teamName, members, invites: initialInvites
               const isSelf = member.userId === currentUserId
               const canPromote = iAmOwner && !isSelf && member.role === 'member'
               const canDemote = iAmOwner && !isSelf && member.role === 'admin'
-              const hasActions = canPromote || canDemote
+              // Transferir: só o owner, para outro membro que ainda não é owner. Remover: owner tira
+              // member|admin; admin tira só member; ninguém tira o owner nem a si mesmo (o servidor revalida).
+              const canTransfer = iAmOwner && !isSelf && member.role !== 'owner'
+              const canRemove = !isSelf && member.role !== 'owner' && (
+                (iAmOwner && (member.role === 'member' || member.role === 'admin')) ||
+                (currentRole === 'admin' && member.role === 'member')
+              )
+              const hasActions = canPromote || canDemote || canTransfer || canRemove
               const busy = busyMemberId === member.id
+              const confirming = confirm?.memberId === member.id
+              const transferWord = teamName ?? member.name   // digitar o nome da equipe (fallback: nome do membro)
               return (
                 <div key={member.id} className="bento-fx p-3">
                   <div className="flex items-center gap-3">
@@ -296,7 +337,7 @@ export function TeamSettingsSection({ teamName, members, invites: initialInvites
                       {roleLabel[member.role]}
                     </span>
                   </div>
-                  {hasActions && (
+                  {hasActions && !confirming && (
                     <div className="mt-2.5 pt-2.5 border-t border-bento-border flex flex-wrap gap-2">
                       {canPromote && (
                         <button type="button" onClick={() => changeRole(member, 'admin')} disabled={isPendingAction}
@@ -310,6 +351,70 @@ export function TeamSettingsSection({ teamName, members, invites: initialInvites
                           <ArrowDown className="w-3.5 h-3.5" /> {busy ? 'Aplicando...' : 'Rebaixar a member'}
                         </button>
                       )}
+                      {canTransfer && (
+                        <button type="button" onClick={() => { setMessage(null); setConfirmText(''); setConfirm({ memberId: member.id, kind: 'transfer' }) }} disabled={isPendingAction}
+                          className="inline-flex items-center gap-1.5 px-3 min-h-[36px] rounded-btn text-xs font-medium border border-bento-border text-bento-text hover:border-amber-500/50 hover:text-amber-300 transition-colors disabled:opacity-50">
+                          <ArrowRightLeft className="w-3.5 h-3.5" /> Transferir ownership
+                        </button>
+                      )}
+                      {canRemove && (
+                        <button type="button" onClick={() => { setMessage(null); setConfirmText(''); setConfirm({ memberId: member.id, kind: 'remove' }) }} disabled={isPendingAction}
+                          className="inline-flex items-center gap-1.5 px-3 min-h-[36px] rounded-btn text-xs font-medium border border-bento-border text-bento-dim hover:border-red-400/60 hover:text-red-400 transition-colors disabled:opacity-50">
+                          <Trash2 className="w-3.5 h-3.5" /> Remover
+                        </button>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Transferência de ownership — confirmação forte (Part 4): digitar o nome da equipe. */}
+                  {confirming && confirm?.kind === 'transfer' && (
+                    <div className="mt-2.5 rounded-bento border border-amber-800/40 bg-amber-900/15 p-3 space-y-2.5">
+                      <p className="text-sm font-semibold text-bento-text">Transferir ownership para {member.name}?</p>
+                      <p className="text-xs text-bento-muted">
+                        <strong className="text-bento-text">{member.name}</strong> passa a ser o owner desta equipe e você vira admin. A equipe continua com owner.
+                      </p>
+                      <div>
+                        <label className="block text-[11px] text-bento-muted mb-1">
+                          Para confirmar, digite <strong className="text-bento-text">{transferWord}</strong>
+                        </label>
+                        <input value={confirmText} onChange={e => setConfirmText(e.target.value)} disabled={isPendingAction} placeholder={transferWord}
+                          className="w-full bg-bento-bg border border-bento-border rounded-btn px-3 min-h-[40px] text-sm text-bento-text placeholder:text-bento-muted focus:outline-none focus:border-amber-500/50 disabled:opacity-50" />
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <button type="button" onClick={() => transfer(member)} disabled={isPendingAction || confirmText.trim() !== transferWord}
+                          className="inline-flex items-center gap-1.5 px-3 py-2 rounded-btn text-xs font-semibold bg-amber-500/15 border border-amber-500/40 text-amber-300 hover:bg-amber-500/25 disabled:opacity-50 min-h-[40px]">
+                          <ArrowRightLeft className="w-3.5 h-3.5" /> {busy ? 'Transferindo...' : 'Confirmar transferência'}
+                        </button>
+                        <button type="button" onClick={closeConfirm} disabled={isPendingAction}
+                          className="px-3 py-2 rounded-btn text-xs border border-bento-border text-bento-dim hover:text-bento-text transition-colors disabled:opacity-50 min-h-[40px]">
+                          Cancelar
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Remoção — confirmação (Part 5): mostra o nome e deixa claro que só a participação sai. */}
+                  {confirming && confirm?.kind === 'remove' && (
+                    <div className="mt-2.5 rounded-bento border border-red-800/40 bg-red-900/15 p-3 space-y-2.5">
+                      <div className="flex items-start gap-2">
+                        <ShieldAlert className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
+                        <div className="min-w-0">
+                          <p className="text-sm font-semibold text-bento-text">Remover {member.name} da equipe?</p>
+                          <p className="text-xs text-bento-muted mt-1">
+                            <strong className="text-bento-text">{member.name}</strong> perde o acesso a esta equipe. Nenhum lead, cliente ou dado é apagado — só a participação na equipe é removida.
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <button type="button" onClick={() => remove(member)} disabled={isPendingAction}
+                          className="inline-flex items-center gap-1.5 px-3 py-2 rounded-btn text-xs font-semibold bg-red-500/15 border border-red-500/40 text-red-400 hover:bg-red-500/25 disabled:opacity-50 min-h-[40px]">
+                          <Trash2 className="w-3.5 h-3.5" /> {busy ? 'Removendo...' : 'Remover membro'}
+                        </button>
+                        <button type="button" onClick={closeConfirm} disabled={isPendingAction}
+                          className="px-3 py-2 rounded-btn text-xs border border-bento-border text-bento-dim hover:text-bento-text transition-colors disabled:opacity-50 min-h-[40px]">
+                          Cancelar
+                        </button>
+                      </div>
                     </div>
                   )}
                 </div>
