@@ -6,18 +6,22 @@ import Link from 'next/link'
 import { Search, Menu, ChevronLeft, X } from 'lucide-react'
 import { DomainNav } from './DomainNav'
 import { Sidebar } from '@/components/layout/Sidebar'
+import { WorkspaceSwitcher, type SwitcherTeam } from '@/components/layout/WorkspaceSwitcher'
 import { DOMAIN_CONFIGS } from '@/lib/domain/registry'
 import type { DomainConfig, DomainKey } from '@/lib/domain/nav'
 
 // Casca GENÉRICA de domínio (Administração, Tráfego, Workspace do Cliente, ...). Uma implementação p/ todos.
 // Mobile: cabeçalho fixo (← back / seção / Seções) + bottom sheet. iPad/Desktop: rail + contexto.
 // Aceita configKey (registro estático) OU um config resolvido (ex.: Cliente, com hrefs por id).
-export function DomainShell({ configKey, config: configProp, subtitle, userName, role, children }: {
+export function DomainShell({ configKey, config: configProp, subtitle, userName, role, userEmail = null, avatarUrl = null, teams = [], children }: {
   configKey?: DomainKey
   config?: DomainConfig
   subtitle: string | null
   userName: string
   role: string
+  userEmail?: string | null
+  avatarUrl?: string | null
+  teams?: SwitcherTeam[]
   children: React.ReactNode
 }) {
   const [sheetOpen, setSheetOpen] = useState(false)
@@ -62,12 +66,16 @@ export function DomainShell({ configKey, config: configProp, subtitle, userName,
         <div className="hidden md:flex items-center gap-3 min-h-[56px] px-5 pt-[env(safe-area-inset-top)] border-b border-bento-border shrink-0">
           <span className="font-display font-semibold text-sm text-bento-text">{config.title}</span>
           {subtitle && <span className="text-xs text-bento-muted truncate">· {subtitle}</span>}
-          <button type="button" disabled aria-label="Buscar (em breve)"
-            className="ml-auto flex items-center gap-2 text-xs text-bento-dim border border-bento-border rounded-btn px-2.5 py-1.5 opacity-70 cursor-not-allowed">
-            <Search className="w-3.5 h-3.5" />
-            <span className="hidden lg:inline">Buscar</span>
-            <kbd className="font-tech text-[10px]">⌘K</kbd>
-          </button>
+          <div className="ml-auto flex items-center gap-3">
+            <button type="button" disabled aria-label="Buscar (em breve)"
+              className="flex items-center gap-2 text-xs text-bento-dim border border-bento-border rounded-btn px-2.5 py-1.5 opacity-70 cursor-not-allowed">
+              <Search className="w-3.5 h-3.5" />
+              <span className="hidden lg:inline">Buscar</span>
+              <kbd className="font-tech text-[10px]">⌘K</kbd>
+            </button>
+            {/* Workspace Switcher global (Part 5) — mesmo canto superior direito do DashboardShell. */}
+            <WorkspaceSwitcher userName={userName} userEmail={userEmail} avatarUrl={avatarUrl} teams={teams} />
+          </div>
         </div>
 
         <main className="flex-1 min-h-0 overflow-y-auto">

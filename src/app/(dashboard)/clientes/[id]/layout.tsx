@@ -13,6 +13,9 @@ export default async function ClientWorkspaceLayout({ params, children }: { para
   if (!client) notFound()
 
   const userName = capitalizeName(context.profile?.name ?? context.user.email?.split('@')[0] ?? 'Usuário')
+  const teams = context.memberships.map(m => ({
+    id: m.team_id, name: m.team?.name ?? 'Equipe', role: m.role, isActive: m.team_id === context.activeTeamId,
+  }))
 
   return (
     <ClientWorkspaceShell
@@ -21,6 +24,9 @@ export default async function ClientWorkspaceLayout({ params, children }: { para
       subtitle={client.company ?? null}
       userName={userName}
       role={context.role}
+      userEmail={context.user.email ?? null}
+      avatarUrl={context.profile?.avatar_url ?? null}
+      teams={teams}
     >
       {children}
     </ClientWorkspaceShell>

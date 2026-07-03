@@ -12,9 +12,20 @@ export default async function TrafegoLayout({ children }: { children: React.Reac
   if (context.memberships.length === 0) redirect('/onboarding')
 
   const userName = capitalizeName(context.profile?.name ?? context.user.email?.split('@')[0] ?? 'Usuário')
+  const teams = context.memberships.map(m => ({
+    id: m.team_id, name: m.team?.name ?? 'Equipe', role: m.role, isActive: m.team_id === context.activeTeamId,
+  }))
 
   return (
-    <DomainShell configKey="traffic" subtitle={context.activeTeamName} userName={userName} role={context.role}>
+    <DomainShell
+      configKey="traffic"
+      subtitle={context.activeTeamName}
+      userName={userName}
+      role={context.role}
+      userEmail={context.user.email ?? null}
+      avatarUrl={context.profile?.avatar_url ?? null}
+      teams={teams}
+    >
       {children}
     </DomainShell>
   )

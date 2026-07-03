@@ -15,9 +15,19 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   if (!can(context, 'teams', 'manage')) redirect('/hall')
 
   const userName = capitalizeName(context.profile?.name ?? context.user.email?.split('@')[0] ?? 'Usuário')
+  const teams = context.memberships.map(m => ({
+    id: m.team_id, name: m.team?.name ?? 'Equipe', role: m.role, isActive: m.team_id === context.activeTeamId,
+  }))
 
   return (
-    <AdminShell activeTeamName={context.activeTeamName} userName={userName} role={context.role}>
+    <AdminShell
+      activeTeamName={context.activeTeamName}
+      userName={userName}
+      role={context.role}
+      userEmail={context.user.email ?? null}
+      avatarUrl={context.profile?.avatar_url ?? null}
+      teams={teams}
+    >
       {children}
     </AdminShell>
   )
