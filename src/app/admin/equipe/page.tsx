@@ -1,45 +1,56 @@
-import { UserPlus } from 'lucide-react'
-import { can } from '@/lib/permissions/can'
 import { getRequestContext } from '@/server/context/request-context'
 import { getActiveTeamMembers, getActiveTeamInvites } from '@/server/services/TeamService'
-import { PeopleHeader } from '@/components/people/PeopleHeader'
-import { TeamSettingsSection } from '@/app/(dashboard)/configuracoes/TeamSettingsSection'
+import { WorkspaceCenter } from './WorkspaceCenter'
 
-// Administração › Equipe — REUSA a gestão real de membros/convites de Configurações (mesmo componente +
-// mesmas server actions). O layout de /admin já garante owner/admin. Sem reescrever lógica.
+// Administração › Equipe = WORKSPACE CENTER (TEAM-ADMIN-002). Centro de administração da equipe, com abas.
+// O layout de /admin já garante owner/admin. Reusa as MESMAS server actions (nenhuma nova regra de negócio);
+// aqui só reunimos os dados de leitura e resolvemos os nomes (nunca user_id). Configurações › Equipe segue
+// como self-service do usuário (trocar/sair/entrar) — não é tocada.
 export default async function AdminEquipePage() {
   const context = await getRequestContext()
-  const [members, invites] = context
+  const [rawMembers, rawInvites] = context
     ? await Promise.all([getActiveTeamMembers(context), getActiveTeamInvites(context)])
     : [[], []]
 
+  // Nome resolvido por usuário (perfil.name → email → fallback) — reusado para membros e "quem convidou".
+  const nameByUser = new Map<string, string>()
+  for (const m of rawMembers) {
+    nameByUser.set(m.user_id, m.profile?.name || m.profile?.email || 'Usuário sem nome')
+  }
+
+  const members = rawMembers.map(m => ({
+    id: m.id,
+    userId: m.user_id,
+    name: nameByUser.get(m.user_id) ?? 'Usuário sem nome',
+    email: m.profile?.email ?? null,
+    role: m.role,
+    joinedAt: m.created_at,
+  }))
+
+  const currentUserId = context?.user.id ?? ''
+  const invites = rawInvites.map(inv => ({
+    id: inv.id,
+    token: inv.token,
+    expiresAt: inv.expires_at,
+    usedAt: inv.used_at,
+    createdAt: inv.created_at,
+    createdByName: inv.created_by
+      ? (inv.created_by === currentUserId ? 'Você' : (nameByUser.get(inv.created_by) ?? null))
+      : null,
+  }))
+
+  const ownerName = members.find(m => m.role === 'owner')?.name ?? null
+
   return (
-    <div className="space-y-6">
-      <PeopleHeader icon={UserPlus} title="Equipe" tagline="Membros e convites do workspace." badge="Funcional" />
-      <TeamSettingsSection
-        teamName={context?.activeTeamName ?? null}
-        canManage={context ? can(context, 'teams', 'manage') : false}
-        currentUserId={context?.user.id ?? ''}
-        currentRole={context?.membership?.role ?? 'member'}
-        activeTeamId={context?.activeTeamId ?? ''}
-        teams={(context?.memberships ?? []).map(m => ({ id: m.team_id, name: m.team?.name ?? 'Equipe', role: m.role }))}
-        members={members.map(member => ({
-          id: member.id,
-          userId: member.user_id,
-          role: member.role,
-          joinedAt: member.created_at,
-          // Nome NUNCA é o user_id: perfil.name → perfil.email → fallback amigável (o UUID vira só detalhe técnico).
-          name: member.profile?.name || member.profile?.email || 'Usuário sem nome',
-          email: member.profile?.email ?? null,
-        }))}
-        invites={invites.map(invite => ({
-          id: invite.id,
-          token: invite.token,
-          expiresAt: invite.expires_at,
-          usedAt: invite.used_at,
-          createdAt: invite.created_at,
-        }))}
-      />
-    </div>
+    <WorkspaceCenter
+      teamName={context?.activeTeamName ?? null}
+      activeTeamName={context?.activeTeamName ?? null}
+      currentUserId={currentUserId}
+      currentRole={context?.membership?.role ?? 'member'}
+      members={members}
+      invites={invites}
+      teamCount={context?.memberships.length ?? 0}
+      ownerName={ownerName}
+    />
   )
 }
