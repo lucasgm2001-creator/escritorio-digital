@@ -15,6 +15,7 @@ import {
 import { createClient } from '@/lib/supabase/client'
 import { useSave } from '@/lib/useSave'
 import { useToast } from '@/components/ui/toast'
+import { useActiveTeamId } from '@/components/auth/RoleProvider'
 import { cn } from '@/lib/utils'
 import { monthlySummary, resolveRate, dealTotal } from '@/lib/commission/calc'
 import { payWeek, payWeekMessage, registerMeeting, ensureClient } from '@/lib/commission/actions'
@@ -330,6 +331,7 @@ export function CommissionSection({ sellerId, sellerName }: { sellerId: string; 
   const save = useSave()
   const { toast } = useToast()
   const supabase = createClient()
+  const teamId = useActiveTeamId()   // FIX-P0-TEAMID-WRITES: carimba a equipe ativa nas escritas
 
   const [open, setOpen] = useState<Record<string, boolean>>({})
   const toggle = (k: string) => setOpen(o => ({ ...o, [k]: !o[k] }))
@@ -495,7 +497,7 @@ export function CommissionSection({ sellerId, sellerName }: { sellerId: string; 
     if (salaries.some(s => s.effectiveFrom === effFrom)) { setSalError('Já existe um salário com vigência nesse mês.'); return }
     setSavingSal(true)
     const { ok, data } = await save<{ seller_id: string; valor_usd: number; effective_from: string }>({
-      run: () => supabase.from('seller_salaries').insert({ seller_id: sellerId, valor_usd: v, effective_from: effFrom }).select('seller_id, valor_usd, effective_from').single(),
+      run: () => supabase.from('seller_salaries').insert({ seller_id: sellerId, valor_usd: v, effective_from: effFrom, ...(teamId ? { team_id: teamId } : {}) }).select('seller_id, valor_usd, effective_from').single(),
       success: `Salário de ${usd(v)} a partir de ${fmtMonthYear(effFrom)}.`,
       error: 'Não foi possível salvar o salário',
     })
@@ -519,13 +521,14 @@ export function CommissionSection({ sellerId, sellerName }: { sellerId: string; 
     const vps = Math.round((total / semanas) * 100) / 100
     setSavingDeal(true)
     // Vínculo OBRIGATÓRIO: acha ou cria o cliente (nunca client_id null → sem deal órfão).
-    const clientId = await ensureClient(supabase, dealForm.client, { assignedName: sellerName })
+    const clientId = await ensureClient(supabase, dealForm.client, { assignedName: sellerName }, teamId)
     if (!clientId) { setSavingDeal(false); setDealError('Não foi possível vincular/criar o cliente.'); return }
     const { ok, data } = await save<DealRow>({
       run: () => supabase.from('deals').insert({
         seller_id: sellerId, client_id: clientId, client_name: dealForm.client.trim(),
         valor_total_usd: total, teto_semanas: semanas, valor_por_semana_usd: vps,
         status: 'em_andamento', data_fechamento: dealForm.dataFechamento,
+        ...(teamId ? { team_id: teamId } : {}),
       }).select('id, seller_id, client_name, valor_total_usd, teto_semanas, valor_por_semana_usd, status, data_fechamento').single(),
       success: 'Venda lançada.',
       error: 'Não foi possível lançar a venda',
@@ -543,7 +546,7 @@ export function CommissionSection({ sellerId, sellerName }: { sellerId: string; 
   const markWeek = async (deal: DealUI, numero: number, paidOn: string): Promise<boolean> => {
     if (!paidOn) { toast({ type: 'error', message: 'Informe a data do recebimento.' }); return false }
     const paidNums = weeks.filter(w => w.dealId === deal.id).map(w => w.numeroSemana)
-    const res = await payWeek(supabase, deal, paidNums, numero, paidOn, currentRate)
+    const res = await payWeek(supabase, deal, paidNums, numero, paidOn, currentRate, teamId)
     if (!res.ok) { toast({ type: 'error', message: payWeekMessage(res.reason, res.message) }); return false }
     if (res.row) {
       const row = res.row
@@ -614,7 +617,7 @@ export function CommissionSection({ sellerId, sellerName }: { sellerId: string; 
     if (semanas < paidCount) { toast({ type: 'error', message: `Já há ${paidCount} semana(s) paga(s). Desmarque antes de reduzir o número de semanas.` }); return false }
     const vps = Math.round((total / semanas) * 100) / 100
     if (!patch.client.trim()) { toast({ type: 'error', message: 'Informe o cliente da venda.' }); return false }
-    const clientId = await ensureClient(supabase, patch.client, { assignedName: sellerName })
+    const clientId = await ensureClient(supabase, patch.client, { assignedName: sellerName }, teamId)
     if (!clientId) { toast({ type: 'error', message: 'Não foi possível vincular/criar o cliente.' }); return false }
     const prev = deal
     const updated: DealUI = { ...deal, clientName: patch.client.trim(), valorTotalUsd: total, tetoSemanas: semanas, valorPorSemanaUsd: vps, dataFechamento: patch.dataFechamento }
@@ -647,14 +650,14 @@ export function CommissionSection({ sellerId, sellerName }: { sellerId: string; 
         metOn: meetingForm.metOn, valorUsd: valor,
         clientId: matched?.id ?? null, clientName: meetingForm.client.trim() || null, note: meetingForm.note.trim() || null,
         leadId: matchedLead?.id ?? null,
-      }, currentRate),
+      }, currentRate, teamId),
       success: 'Reunião lançada.',
       error: 'Não foi possível lançar a reunião',
     })
     if (ok && data) {
       setMeetings(prev => [toMeeting(data), ...prev])
       // Marco do relatório: reunião feita com este lead (separado da comissão). Idempotente.
-      if (matchedLead) await markMilestones(supabase, matchedLead.id, ['reuniao'])
+      if (matchedLead) await markMilestones(supabase, matchedLead.id, ['reuniao'], teamId)
       setShowNewMeeting(false)
       setMeetingForm({ metOn: todayISO(), valor: '15', client: '', note: '' })
     }

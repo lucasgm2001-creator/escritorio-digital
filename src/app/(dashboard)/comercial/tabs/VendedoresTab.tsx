@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useToast } from '@/components/ui/toast'
+import { useActiveTeamId } from '@/components/auth/RoleProvider'
 import { useSave } from '@/lib/useSave'
 import { cn, formatDate } from '@/lib/utils'
 import { CommissionSection } from './CommissionSection'
@@ -458,6 +459,7 @@ export function VendedoresTab() {
   const { toast } = useToast()
   const save = useSave()
   const supabase = createClient()
+  const teamId = useActiveTeamId()   // FIX-P0-TEAMID-WRITES: carimba a equipe ativa ao criar vendedor
 
   const [sellers, setSellers] = useState<SellerRow[]>([])
   const [loading, setLoading] = useState(true)
@@ -522,6 +524,7 @@ export function VendedoresTab() {
         name: form.name.trim(), email: form.email.trim() || null, phone: form.telefone.trim() || null,
         cargo: form.cargo.trim() || null, monthly_goal: goal,
         status: 'ativo', total_sales: 0, total_commissions: 0, leads_assigned: 0, conversion_rate: 0,
+        ...(teamId ? { team_id: teamId } : {}),
       }).select(SELLER_COLS).single(),
       success: 'Vendedor criado.',
       error: 'Não foi possível criar o vendedor',

@@ -7,6 +7,7 @@ import { useToast } from '@/components/ui/toast'
 import { Portal } from '@/components/ui/Portal'
 import { useDialog } from '@/components/ui/useDialog'
 import { payDueWeeks, voidClientWeek } from '@/lib/commission/actions'
+import { useActiveTeamId } from '@/components/auth/RoleProvider'
 import { formatCurrency } from '@/lib/utils'
 import { formatDateBR } from '@/lib/date'
 import { cn } from '@/lib/utils'
@@ -18,6 +19,7 @@ interface ClientPayment { id: string; numero_semana: number; valor_usd: number; 
 
 export function ClientPaymentsPanel({ clients }: { clients: { id: string; name: string }[] }) {
   const supabase = createClient()
+  const teamId = useActiveTeamId()   // FIX-P0-TEAMID-WRITES: carimba a equipe ativa ao marcar semanas
   const { toast } = useToast()
   const [open, setOpen] = useState(false)
   const [payments, setPayments] = useState<Record<string, ClientPayment[]>>({})
@@ -63,7 +65,7 @@ export function ClientPaymentsPanel({ clients }: { clients: { id: string; name: 
     if (busyRef.current) return
     busyRef.current = true; setBusyId(clientId)
     try {
-      const r = await payDueWeeks(supabase, clientId, await getRate(), max)
+      const r = await payDueWeeks(supabase, clientId, await getRate(), max, teamId)
       if (r.marked.length === 0) { toast({ type: 'error', message: r.reason === 'inativo' ? 'Cliente inativo — congelado.' : 'Nenhuma semana vencida até hoje.' }); return }
       await reload(clientId)
     } finally { busyRef.current = false; setBusyId(null) }

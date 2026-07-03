@@ -2,6 +2,11 @@ import type { createClient } from '@/lib/supabase/client'
 
 type SupaClient = ReturnType<typeof createClient>
 
+// FIX-P0-TEAMID-WRITES: carimba team_id no payload SÓ quando a equipe ativa é conhecida (client). Sem ela
+// (ex.: rotas de servidor/service-role), volta ao comportamento atual (deixa o trigger set_team_id_default
+// resolver). A RLS (team_scope) continua sendo a autoridade — isto só evita gravar team_id NULL no multi-equipe.
+const withTeam = (teamId: string | null | undefined) => (teamId ? { team_id: teamId } : {})
+
 type WeekRowDb = { id: string; deal_id: string; numero_semana: number; valor_usd: number; paid_on: string; cotacao_usd_brl: number }
 
 export type PayWeekReason = 'frozen' | 'teto' | 'dup' | 'invalid' | 'db'
@@ -21,12 +26,14 @@ export function nextUnpaidWeek(deal: { tetoSemanas: number; status: string }, pa
 // NÃO cria deal. Congela a cotação `rate` no lançamento.
 export async function payWeek(
   supabase: SupaClient, deal: PayDeal, paidNumbers: number[], numero: number, paidOn: string, rate: number,
+  teamId?: string | null,
 ): Promise<{ ok: boolean; reason?: PayWeekReason; message?: string; row?: WeekRowDb }> {
   if (deal.status !== 'em_andamento') return { ok: false, reason: 'frozen' }
   if (!Number.isInteger(numero) || numero < 1 || numero > deal.tetoSemanas) return { ok: false, reason: 'invalid' }
   if (paidNumbers.includes(numero)) return { ok: false, reason: 'dup' }
   const { data, error } = await supabase.from('weekly_payments').insert({
     deal_id: deal.id, numero_semana: numero, valor_usd: deal.valorPorSemanaUsd, paid_on: paidOn, cotacao_usd_brl: rate,
+    ...withTeam(teamId),
   }).select('id, deal_id, numero_semana, valor_usd, paid_on, cotacao_usd_brl').single()
   if (error) {
     // 23505 = índice único uq_weekly_payments_deal_semana (deal_id, numero_semana):
@@ -55,10 +62,12 @@ export function payWeekMessage(reason: PayWeekReason | undefined, dbMessage?: st
 export function registerMeeting(
   supabase: SupaClient, sellerId: string,
   m: { metOn: string; valorUsd: number; clientId?: string | null; clientName?: string | null; note?: string | null; leadId?: string | null }, rate: number,
+  teamId?: string | null,
 ) {
   return supabase.from('meetings').insert({
     seller_id: sellerId, met_on: m.metOn, valor_usd: m.valorUsd, cotacao_usd_brl: rate,
     client_id: m.clientId ?? null, client_name: m.clientName ?? null, note: m.note ?? null, lead_id: m.leadId ?? null,
+    ...withTeam(teamId),
   }).select('id, seller_id, met_on, valor_usd, cotacao_usd_brl, client_name').single()
 }
 
@@ -93,7 +102,7 @@ export type CommissionOutcome = 'paid' | 'capped' | 'no_deal' | 'dup' | 'frozen'
 // Deriva a semana de comissão a partir da semana paga do cliente — pelo MESMO payWeek
 // (US$25, teto 4, trava). NÃO muda a regra; só decide SE chama e com quais paidNumbers.
 async function deriveCommission(
-  supabase: SupaClient, clientId: string, numero: number, paidOn: string, rate: number,
+  supabase: SupaClient, clientId: string, numero: number, paidOn: string, rate: number, teamId?: string | null,
 ): Promise<CommissionOutcome> {
   const { data: deals } = await supabase.from('deals')
     .select('id, valor_por_semana_usd, teto_semanas, status')
@@ -106,7 +115,7 @@ async function deriveCommission(
   const res = await payWeek(
     supabase,
     { id: deal.id, valorPorSemanaUsd: Number(deal.valor_por_semana_usd), tetoSemanas: deal.teto_semanas, status: deal.status },
-    paidNumbers, numero, paidOn, rate,
+    paidNumbers, numero, paidOn, rate, teamId,
   )
   if (res.ok) return 'paid'
   if (res.reason === 'dup') return 'dup'
@@ -118,13 +127,14 @@ async function deriveCommission(
 // Fonte única do fluxo novo — reusa payWeek (mantém trava/regra/números). Receita idempotente
 // (unique client_id+numero_semana → 'dup'). A comissão é derivada mesmo em 'dup' (auto-corrige).
 export async function payClientWeek(
-  supabase: SupaClient, clientId: string, numero: number, paidOn: string, rate: number,
+  supabase: SupaClient, clientId: string, numero: number, paidOn: string, rate: number, teamId?: string | null,
 ): Promise<{ ok: boolean; reason?: 'dup' | 'invalid' | 'db'; message?: string; valorUsd?: number; commission?: CommissionOutcome }> {
   if (!Number.isInteger(numero) || numero < 1) return { ok: false, reason: 'invalid' }
   const { planoId, valorUsd } = await resolveClientPlan(supabase, clientId)
 
   const { error } = await supabase.from('client_payments').insert({
     client_id: clientId, numero_semana: numero, valor_usd: valorUsd, paid_on: paidOn, cotacao_usd_brl: rate, plano_id: planoId,
+    ...withTeam(teamId),
   })
   let dup = false
   let derivRate = rate
@@ -140,7 +150,7 @@ export async function payClientWeek(
     else return { ok: false, reason: 'db', message: error.message }
   }
 
-  const commission = await deriveCommission(supabase, clientId, numero, paidOn, derivRate)
+  const commission = await deriveCommission(supabase, clientId, numero, paidOn, derivRate, teamId)
   if (dup) return { ok: false, reason: 'dup', commission, valorUsd }
   return { ok: true, valorUsd, commission }
 }
@@ -161,7 +171,7 @@ export function dueDateFor(startYmd: string, diaPagamento: number, n: number): s
 // Marca as semanas VENCIDAS até hoje (paid_on = DATA REAL da semana), via payClientWeek (receita +
 // comissão derivada). NUNCA marca semana futura. Anuladas ocupam o número → não re-marca. Inativo congela.
 export async function payDueWeeks(
-  supabase: SupaClient, clientId: string, rate: number, maxWeeks = 12,
+  supabase: SupaClient, clientId: string, rate: number, maxWeeks = 12, teamId?: string | null,
 ): Promise<{ marked: number[]; reason: string }> {
   const { data: cli } = await supabase.from('clients').select('status, start_date, dia_pagamento_semana').eq('id', clientId).maybeSingle()
   if (!cli) return { marked: [], reason: 'nao_encontrado' }
@@ -180,7 +190,7 @@ export async function payDueWeeks(
     const due = dueDateFor(start, dia, n)
     if (due > today) break          // ainda não venceu → para (NUNCA marca futura)
     registered.add(n)               // ocupa n (evita loop mesmo se falhar)
-    const res = await payClientWeek(supabase, clientId, n, due, rate) // paid_on = due (data REAL, não hoje)
+    const res = await payClientWeek(supabase, clientId, n, due, rate, teamId) // paid_on = due (data REAL, não hoje)
     if (res.ok) marked.push(n)
     else if (res.reason !== 'dup') break // erro real → para; 'dup' (corrida) segue
   }
@@ -205,7 +215,7 @@ export async function voidClientWeek(
 // órfão (client_id null), que quebra a derivação da comissão. Retorna null SÓ se faltar nome ou
 // a criação falhar → o chamador então NÃO deve criar o deal.
 export async function ensureClient(
-  supabase: SupaClient, name: string, extra?: { assignedName?: string | null },
+  supabase: SupaClient, name: string, extra?: { assignedName?: string | null }, teamId?: string | null,
 ): Promise<string | null> {
   const nm = (name ?? '').trim()
   if (!nm) return null
@@ -217,6 +227,7 @@ export async function ensureClient(
   const { data: nc, error } = await supabase.from('clients').insert({
     name: nm, plan_weekly: 0, status: 'ativo', assigned_name: extra?.assignedName ?? null,
     start_date: new Date().toISOString(),
+    ...withTeam(teamId),
   }).select('id').single()
   if (error || !nc) { console.error('[ensureClient] falha ao criar cliente', { name: nm, error: error?.message }); return null }
   return nc.id
