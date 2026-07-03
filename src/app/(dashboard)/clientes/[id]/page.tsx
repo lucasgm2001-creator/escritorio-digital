@@ -5,6 +5,7 @@ import { getClientFinance } from '@/server/services/ClientFinanceService'
 import { getClientTimeline } from '@/server/services/ClientTimelineService'
 import { getClientLeadHub } from '@/server/services/ClientContextService'
 import { clientHealthBand } from '@/lib/client/health-band'
+import { currentBillingProfile } from '@/lib/billing/profile'
 import { ClientResumo } from '@/components/client/ClientResumo'
 
 // Resumo = home do Workspace do Cliente. Combina identidade + Financeiro + última atividade/reunião +
@@ -44,6 +45,7 @@ export default async function ClientResumoPage({ params }: { params: { id: strin
       lastPaymentAt={lastPaymentAt}
       health={health}
       journey={leadHub?.journey ?? []}
+      billing={currentBillingProfile()}
     />
   )
 }

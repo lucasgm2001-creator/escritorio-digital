@@ -8,6 +8,7 @@ import { type Client } from '@/app/(dashboard)/clientes/types'
 import type { ClientFinanceVM } from '@/server/services/ClientFinanceService'
 import type { ClientHealthBand, ClientHealthKey } from '@/lib/client/health-band'
 import type { LeadJourneyStep } from '@/lib/commercial/lead-hub-types'
+import type { CustomerBillingProfile } from '@/lib/billing/types'
 
 // Dashboard Executivo do Cliente (CLIENT-005) — só APRESENTA dados reais (identidade + Financeiro + última
 // atividade/reunião/pagamento + jornada comercial + Saúde). Reusa MetricCard + Panel + LeadJourney.
@@ -21,7 +22,7 @@ function contractAge(iso?: string | null): string {
 }
 const HEALTH_TONE: Record<ClientHealthKey, MetricTone> = { excelente: 'emerald', boa: 'lime', atencao: 'muted', critica: 'negative' }
 
-export function ClientResumo({ client, finance, lastActivityAt, lastMeetingAt, lastPaymentAt, health, journey }: {
+export function ClientResumo({ client, finance, lastActivityAt, lastMeetingAt, lastPaymentAt, health, journey, billing }: {
   client: Client
   finance: ClientFinanceVM
   lastActivityAt: string | null
@@ -29,6 +30,7 @@ export function ClientResumo({ client, finance, lastActivityAt, lastMeetingAt, l
   lastPaymentAt: string | null
   health: ClientHealthBand
   journey: LeadJourneyStep[]
+  billing: CustomerBillingProfile
 }) {
   const daysSinceActivity = lastActivityAt ? Math.floor((Date.now() - new Date(lastActivityAt).getTime()) / DAY) : null
   const proximaAcao = finance.semanasPendentes > 0 ? 'Cobrar semana(s) pendente(s)'
@@ -41,8 +43,11 @@ export function ClientResumo({ client, finance, lastActivityAt, lastMeetingAt, l
     { title: 'Receita gerada', value: usd(finance.totalRecebido), tone: 'emerald' },
     { title: 'Semanas pagas', value: String(finance.semanasPagas), tone: 'positive' },
     { title: 'Semanas pendentes', value: String(finance.semanasPendentes), tone: finance.semanasPendentes > 0 ? 'negative' : 'default' },
-    { title: 'Última reunião', value: dateOrDash(lastMeetingAt) },
     { title: 'Último pagamento', value: dateOrDash(lastPaymentAt) },
+    { title: 'Próxima cobrança', value: dateOrDash(finance.proximaCobranca) },
+    { title: 'Forma de pagamento', value: billing.method?.label ?? 'Manual' },
+    { title: 'Status de cobrança', value: finance.semanasPendentes > 0 ? 'Pendente' : 'Em dia', tone: finance.semanasPendentes > 0 ? 'negative' : 'positive' },
+    { title: 'Última reunião', value: dateOrDash(lastMeetingAt) },
     { title: 'Último relatório', value: '—' },
     { title: 'Saúde', value: health.label, tone: HEALTH_TONE[health.key] },
   ]
