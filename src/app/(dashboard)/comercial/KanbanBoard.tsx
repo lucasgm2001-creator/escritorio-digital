@@ -3,9 +3,11 @@
 import { useState, useCallback, useEffect, useMemo, useRef } from 'react'
 import Link from 'next/link'
 import {
-  DndContext, DragOverlay, PointerSensor, useSensor, useSensors,
+  DndContext, DragOverlay, PointerSensor, TouchSensor, useSensor, useSensors,
   type DragStartEvent, type DragEndEvent,
 } from '@dnd-kit/core'
+import { GripVertical, Check } from 'lucide-react'
+import { useIsTouchDevice } from '@/lib/hooks/useIsTouchDevice'
 import { createClient } from '@/lib/supabase/client'
 import { cn } from '@/lib/utils'
 import { DraggableTabs } from '@/components/DraggableTabs'
@@ -173,8 +175,17 @@ export function KanbanBoard({ initialLeads, initialStages, initialClients, curre
     ...(canManageTeam ? [{ key: 'vendedores' as Tab, label: 'Equipe e Comissões' }] : []),
   ]
 
+  // IPAD-FUNNEL-001 — drag consciente de TOUCH. Desktop (mouse): PointerSensor distance 8, INALTERADO.
+  // Touch/iPad: só arrasta no "Modo Organizar" e, mesmo assim, com delay (segurar) — escorregar o dedo ROLA,
+  // nunca move um lead por acidente. useSensor é sempre chamado (regra de hooks); a ativação é condicional
+  // (useSensors filtra nulls → sem sensor = sem drag). A lógica de movimento (handleDragEnd/moveLead) não muda.
+  const isTouch = useIsTouchDevice()
+  const [organizeMode, setOrganizeMode] = useState(false)
+  const pointerSensor = useSensor(PointerSensor, { activationConstraint: { distance: 8 } })
+  const touchSensor = useSensor(TouchSensor, { activationConstraint: { delay: 220, tolerance: 8 } })
   const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 8 } })
+    !isTouch ? pointerSensor : null,
+    isTouch && organizeMode ? touchSensor : null,
   )
   // Mobile NÃO usa drag (rolar não pode agarrar card): mover é pelo seletor de fase no LeadDiary.
 
@@ -307,6 +318,32 @@ export function KanbanBoard({ initialLeads, initialStages, initialClients, curre
             <span className="font-tech text-[11px] text-bento-muted whitespace-nowrap hidden sm:inline">
               Período: <span className="text-bento-text font-semibold">{funnelRange.label}</span>
             </span>
+            {/* Modo Organizar — SÓ em touch (IPAD-FUNNEL-001). Fora dele, no iPad o funil é rolagem segura. */}
+            {isTouch && (
+              <button
+                type="button"
+                onClick={() => setOrganizeMode(v => !v)}
+                aria-pressed={organizeMode}
+                className={cn(
+                  'ml-auto inline-flex items-center gap-1.5 px-3 min-h-[44px] rounded-btn text-sm font-medium border transition-colors',
+                  organizeMode ? 'border-lime bg-lime/15 text-lime-fg' : 'border-bento-border text-bento-dim hover:text-bento-text',
+                )}
+              >
+                {organizeMode ? <Check className="w-4 h-4" /> : <GripVertical className="w-4 h-4" />}
+                {organizeMode ? 'Concluir' : 'Organizar'}
+              </button>
+            )}
+          </div>
+        )}
+
+        {/* Banner discreto do Modo Organizar (Part 7) — só touch + modo ativo. */}
+        {tab === 'funil' && isTouch && organizeMode && (
+          <div className="px-4 sm:px-6 pb-3">
+            <div className="flex items-center gap-2 rounded-btn border border-lime/40 bg-lime/10 px-3 py-2 text-[13px] text-bento-text">
+              <GripVertical className="w-4 h-4 text-lime-fg shrink-0" />
+              <span className="flex-1 min-w-0">Modo organizar ativo — segure e arraste um lead para mover.</span>
+              <button type="button" onClick={() => setOrganizeMode(false)} className="text-xs font-semibold text-lime-fg shrink-0 min-h-[44px] px-2">Concluir</button>
+            </div>
           </div>
         )}
       </div>
