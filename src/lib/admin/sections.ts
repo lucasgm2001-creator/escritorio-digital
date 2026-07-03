@@ -1,7 +1,7 @@
 import type { LucideIcon } from 'lucide-react'
 import {
   Building2, Users, FolderOpen, Briefcase, Wallet, ShieldCheck,
-  Sparkles, ExternalLink, KeyRound, FileText, TrendingUp, Clock, UserPlus,
+  Sparkles, ExternalLink, KeyRound, FileText, TrendingUp, Clock, UserPlus, Webhook,
 } from 'lucide-react'
 
 // Fonte única da estrutura da Administração (Constituição: informação única).
@@ -9,7 +9,7 @@ import {
 
 export type AdminSectionKey =
   | 'empresa' | 'equipe' | 'departamentos' | 'cargos' | 'colaboradores' | 'remuneracao'
-  | 'permissoes' | 'automacoes' | 'integracoes' | 'api' | 'auditoria'
+  | 'permissoes' | 'automacoes' | 'integracoes' | 'api' | 'inbound' | 'auditoria'
   | 'billing' | 'logs'
 
 export type AdminGroupKey = 'organizacao' | 'regras' | 'plataforma' | 'observabilidade'
@@ -131,6 +131,16 @@ export const ADMIN_SECTIONS: AdminSection[] = [
     metrics: ['Chaves ativas', 'Webhooks', 'Requisições'],
     emptyTitle: 'Chaves e webhooks em breve',
     emptyHint: 'Base do futuro ecossistema e SDK.',
+  },
+  {
+    key: 'inbound', label: 'Webhooks de Entrada', href: '/admin/inbound', group: 'plataforma', icon: Webhook,
+    tagline: 'A porta de entrada — leads e eventos de ferramentas externas.',
+    description: 'A Central de API de ENTRADA: recebe leads e eventos de Magnetic, Meta Lead Ads, formulários, WhatsApp e automações (Make/n8n/Zapier). Estrutura provider-agnostic pronta; nada ativo até autorização, chave e mapeamento.',
+    planned: ['Providers de entrada preparados', 'Webhook seguro por token (HMAC, replay protection)', 'Normalização payload externo → lead', 'Logs de entrega, eventos e replay'],
+    context: 'A porta de entrada do workspace. Coexiste com o webhook Magnetic atual (/api/leads/inbound), generalizando-o — nunca o reescreve (INT-001).',
+    metrics: ['Providers', 'Endpoints ativos', 'Entregas 24h'],
+    emptyTitle: 'Webhooks de entrada preparados',
+    emptyHint: 'Ative um provider com autorização, chave e mapeamento.',
   },
   {
     key: 'auditoria', label: 'Auditoria', href: '/admin/auditoria', group: 'observabilidade', icon: FileText,
