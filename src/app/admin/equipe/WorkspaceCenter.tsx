@@ -2,13 +2,16 @@
 
 import { useMemo, useState } from 'react'
 import type { LucideIcon } from 'lucide-react'
-import { LayoutGrid, Users, Ticket, Building2 } from 'lucide-react'
+import { LayoutGrid, Users, Ticket, ShieldCheck, Building2, ScrollText, Lock } from 'lucide-react'
 import { WorkspaceHeader } from '@/components/ui/WorkspaceHeader'
 import { cn } from '@/lib/utils'
 import { OverviewPanel } from './panels/OverviewPanel'
 import { MembersPanel, type WorkspaceMember } from './panels/MembersPanel'
 import { InvitesPanel, type WorkspaceInvite } from './panels/InvitesPanel'
 import { TeamsPanel, type WorkspaceTeam } from './panels/TeamsPanel'
+import { PermissionsPanel } from './panels/PermissionsPanel'
+import { AuditPanel } from './panels/AuditPanel'
+import { SecurityPanel } from './panels/SecurityPanel'
 import type { WorkspaceRole } from './shared'
 
 export type WorkspaceCenterProps = {
@@ -23,14 +26,16 @@ export type WorkspaceCenterProps = {
   ownerName: string | null
 }
 
-// Abas do Workspace Center (Part 1). A ordem canônica é fixa; cada commit acende a sua aba (sem aba vazia /
-// "em breve"). Commit atual: Visão geral · Membros · Convites · Equipes. As demais entram nos próximos commits.
-type TabKey = 'overview' | 'members' | 'invites' | 'teams'
+// Abas do Workspace Center (Part 1), na ordem canônica completa.
+type TabKey = 'overview' | 'members' | 'invites' | 'permissions' | 'teams' | 'audit' | 'security'
 const TABS: { key: TabKey; label: string; icon: LucideIcon }[] = [
   { key: 'overview', label: 'Visão geral', icon: LayoutGrid },
   { key: 'members', label: 'Membros', icon: Users },
   { key: 'invites', label: 'Convites', icon: Ticket },
+  { key: 'permissions', label: 'Permissões', icon: ShieldCheck },
   { key: 'teams', label: 'Equipes', icon: Building2 },
+  { key: 'audit', label: 'Auditoria', icon: ScrollText },
+  { key: 'security', label: 'Segurança', icon: Lock },
 ]
 
 function isActiveInvite(inv: WorkspaceInvite): boolean {
@@ -88,8 +93,17 @@ export function WorkspaceCenter(props: WorkspaceCenterProps) {
         {tab === 'invites' && (
           <InvitesPanel invites={invites} teamName={teamName} />
         )}
+        {tab === 'permissions' && (
+          <PermissionsPanel currentRole={currentRole} />
+        )}
         {tab === 'teams' && (
           <TeamsPanel teams={teams} />
+        )}
+        {tab === 'audit' && (
+          <AuditPanel />
+        )}
+        {tab === 'security' && (
+          <SecurityPanel currentRole={currentRole} teamName={teamName} teamCount={teamCount} memberCount={memberCount} />
         )}
       </div>
     </div>
