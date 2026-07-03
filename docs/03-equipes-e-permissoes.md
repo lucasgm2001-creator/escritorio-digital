@@ -204,3 +204,72 @@ Regras de protecao:
 - Admin nao deve remover o ultimo Owner.
 - Mudancas de papel devem ser auditaveis.
 - A UI pode esconder acoes, mas a seguranca real deve estar no banco/servidor.
+
+---
+
+# Estado implementado (TEAM-ADMIN-001/002/003)
+
+Esta secao documenta a arquitetura COMO CONSTRUIDA, alem do planejamento acima.
+
+## Onde cada coisa mora
+
+- **Workspace Center** (`/admin/equipe`): centro de administracao da equipe (owner/admin), com 7 abas — Visao geral, Membros, Convites, Permissoes, Equipes, Auditoria, Seguranca. Componente `WorkspaceCenter` + `panels/`.
+- **Configuracoes > Equipe**: self-service do proprio usuario (trocar equipe, sair, entrar por convite). Nao foi absorvido pelo Workspace Center — os dois coexistem.
+- **Workspace Switcher** (`components/layout/WorkspaceSwitcher`): global no canto superior direito de todos os shells (DashboardShell via Topbar; DomainShell em Administracao/Trafego/Cliente). E a forma principal de trocar de equipe: troca inline (sem abrir Configuracoes) + criar equipe + perfil/conta/config/sair.
+
+## Papeis e matriz de permissoes (aplicada no servidor)
+
+`owner` > `admin` > `member` (coluna `team_members.role`; nao existe `manager`). Regras validadas em `TeamService`/`can.ts`, nunca so na UI:
+
+| Acao | Owner | Admin | Member |
+|---|---|---|---|
+| Acessar Administracao / Workspace Center | sim | sim | nao |
+| Convidar / revogar convite | sim | sim | nao |
+| Promover member->admin / rebaixar admin->member | sim | nao | nao |
+| Transferir ownership | sim | nao | nao |
+| Remover member | sim | sim | nao |
+| Remover admin | sim | nao | nao |
+| Sair da equipe | sim (com sucessao) | sim | sim |
+
+- **Owner unico** (sem outro membro) nao pode sair nem ser removido.
+- **Sucessao**: ao owner sair, promove-se o sucessor (admin mais antigo -> member mais antigo) ANTES de remover o antigo — nunca 0 owners.
+- **Ownership transfer**: promove o novo owner -> grava `teams.owner_id` -> rebaixa o antigo a admin (ordem a prova de falha).
+
+## Limites
+
+- Maximo de equipes por usuario centralizado em `lib/teams/limits.ts` (`MAX_TEAMS_PER_USER`, hoje 4; seam por plano em `LIMIT_BY_PLAN`). Validado no servidor (`redeemInvite`/`createTeam`). Nao e regra de banco.
+
+## Equipe ativa e cookie
+
+- Cookie `edv2_active_team_id` (httpOnly, 1 ano) guarda a equipe ativa.
+- `getActiveTeam(userId)` resolve: `memberships.find(cookie) ?? memberships[0] ?? null`. **Um cookie invalido (equipe inexistente ou sem membership) e IGNORADO** — cai na primeira equipe valida, ou `null` se nao houver nenhuma. Ou seja, uma referencia invalida nunca e honrada.
+- O cookie e trocado por `switchTeamAction`/`createTeamAction` e limpo por `leaveTeamAction` e por `signOut` (higiene entre contas).
+
+## Maquina de estados de navegacao (sem loops)
+
+Cada estado tem um fluxo proprio e uma saida:
+
+| Estado | Comportamento |
+|---|---|
+| Autenticado + tem equipe | Entra no `/hall` (equipe ativa = cookie valido ou `memberships[0]`). |
+| Autenticado + sem equipe | Guarda do grupo `(dashboard)` manda pro `/onboarding` (criar/entrar em equipe). |
+| Removido da equipe ativa, tem outra | `getActiveTeam` seleciona `memberships[0]` automaticamente (cookie antigo ignorado). |
+| Removido da unica equipe | Vai pro `/onboarding`. |
+| Sem permissao (member em `/admin`) | Redirect pro `/hall` (tem equipe, entao nao ha loop). |
+
+**Bug historico corrigido (TEAM-ADMIN-003):** o `/onboarding` nao tinha logout. Como ele fica fora do grupo `(dashboard)` (sem Topbar/switcher) e o middleware manda `usuario autenticado + /login -> /hall`, uma conta sem equipe ficava presa no loop `/login -> /hall -> /onboarding`. Correcao: **saida sempre disponivel no onboarding** (form `action={signOut}`, POST nativo — funciona mesmo sem JS) + `signOut` limpa o cookie de equipe. Logout tem prioridade maxima e nunca fica preso.
+
+## Seguranca (servidor autoritativo)
+
+Toda Server Action re-deriva a sessao (`getRequestContext`) e valida a autorizacao contra o banco — nunca confia em input do cliente. Vale mesmo chamando a action manualmente, alterando HTML ou via DevTools:
+
+- `changeMemberRole`, `transferOwnership`, `removeMember`: checam `context.role` e recarregam o roster por service-role antes de escrever.
+- `switchTeam`: valida que o usuario pertence a equipe alvo.
+- `leaveTeam`: regra de sucessao/owner-unico no `TeamService`.
+- `redeemInvite` / `createTeam`: validam o convite e o limite de equipes; os RPCs usam `auth.uid()`.
+
+Escritas privilegiadas usam service-role apenas apos validar a regra em codigo (o RLS de `team_members` so deixa admin alterar/remover). Nenhuma acao apaga leads/clientes/dados financeiros/operacionais — mexem so em `team_members`/`teams.owner_id`.
+
+## Auditoria e notificacoes (contratos)
+
+`lib/events/audit.ts` (categoria `workspace` no Event Bus) e `lib/notifications/` sao **so contratos** — nada e gravado ou enviado ainda. A aba Auditoria lista os eventos contratados; as notificacoes tem formatters puros prontos, sem runtime.
