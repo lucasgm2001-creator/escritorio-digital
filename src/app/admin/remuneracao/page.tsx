@@ -3,8 +3,11 @@ import { getRequestContext } from '@/server/context/request-context'
 import { listTemplates, getPreview } from '@/server/services/CompensationEngineService'
 import { PeopleHeader } from '@/components/people/PeopleHeader'
 import { CompensationTemplatesView } from '@/components/admin/CompensationTemplatesView'
+import { VendedoresTab } from '@/app/(dashboard)/comercial/tabs/VendedoresTab'
 
-// Administração › Remuneração — leitura REAL da Compensation Engine (COMPENSATION-004, PARTE 7).
+// Administração › Remuneração (ORG-COMP-001). Centro de remuneração: a config REAL de vendedores/salário/
+// comissão (VendedoresTab, realocada do Comercial — mesma regra de dinheiro, nada recalculado) + o modelo de
+// templates por função da Compensation Engine (leitura/prévia, COMPENSATION-004). /admin já garante owner/admin.
 export default async function RemuneracaoPage() {
   const context = await getRequestContext()
   const templates = context ? await listTemplates(context) : []
@@ -14,14 +17,27 @@ export default async function RemuneracaoPage() {
     : null
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       <PeopleHeader
         icon={Wallet}
         title="Remuneração"
-        tagline="Templates de remuneração — leitura real da Compensation Engine."
-        badge="Somente leitura"
+        tagline="Vendedores, salário e comissão — e o modelo de templates por função."
+        badge="Config"
       />
-      <CompensationTemplatesView templates={templates} preview={preview} />
+
+      {/* Configuração REAL (relocada do Comercial): vendedores, salário com vigência, comissão por venda/
+          semana. Mesma Compensation atual — nenhuma regra financeira alterada, nenhum histórico recalculado. */}
+      <section className="space-y-3">
+        <p className="font-tech text-[10px] uppercase tracking-[0.12em] text-bento-muted">Vendedores &amp; comissão (config atual)</p>
+        <VendedoresTab />
+      </section>
+
+      {/* Modelo por função (Compensation Engine) — leitura/prévia; a config avançada por função/override
+          individual está proposta em docs/ (requer migration, não aplicada nesta sprint). */}
+      <section className="space-y-3">
+        <p className="font-tech text-[10px] uppercase tracking-[0.12em] text-bento-muted">Templates por função (modelo)</p>
+        <CompensationTemplatesView templates={templates} preview={preview} />
+      </section>
     </div>
   )
 }
