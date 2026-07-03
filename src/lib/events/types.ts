@@ -7,6 +7,7 @@
 export type EventCategory =
   | 'lead' | 'task' | 'meeting' | 'client' | 'payment'
   | 'integration' | 'webhook' | 'report' | 'notification' | 'ai' | 'system'
+  | 'workspace'
 
 export type EventPriority = 'low' | 'normal' | 'high' | 'critical'
 

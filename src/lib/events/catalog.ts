@@ -45,6 +45,16 @@ export const EVENT_CATALOG: EventDefinition[] = [
   { type: 'report.generated',    category: 'report',       priority: 'low',    description: 'Um relatório (PDF/exportação) foi gerado.', source: 'Relatórios', targets: ['Timeline', 'Notificações'] },
   { type: 'notification.created', category: 'notification', priority: 'normal', description: 'Uma notificação foi criada para um usuário.', source: 'Notificações', targets: ['Timeline'] },
   { type: 'ai.summary.created',   category: 'ai',           priority: 'low',    description: 'A IA gerou um resumo/briefing.', source: 'IA', targets: ['Timeline', 'Dashboard'] },
+
+  // ── Workspace / Equipe (auditoria — TEAM-ADMIN-002, Part 7; só contrato, nada é publicado ainda) ──
+  { type: 'workspace.member_promoted',   category: 'workspace', priority: 'normal', description: 'Um membro foi promovido (member → admin).', source: 'Workspace', targets: ['Auditoria', 'Notificações', 'Timeline'] },
+  { type: 'workspace.member_demoted',    category: 'workspace', priority: 'normal', description: 'Um membro foi rebaixado (admin → member).', source: 'Workspace', targets: ['Auditoria', 'Notificações', 'Timeline'] },
+  { type: 'workspace.owner_transferred', category: 'workspace', priority: 'high',   description: 'A propriedade (ownership) da equipe foi transferida.', source: 'Workspace', targets: ['Auditoria', 'Notificações', 'Timeline'] },
+  { type: 'workspace.invite_accepted',   category: 'workspace', priority: 'normal', description: 'Um convite foi aceito e um novo membro entrou.', source: 'Workspace', targets: ['Auditoria', 'Notificações', 'Timeline'] },
+  { type: 'workspace.invite_revoked',    category: 'workspace', priority: 'low',    description: 'Um convite pendente foi revogado.', source: 'Workspace', targets: ['Auditoria', 'Timeline'] },
+  { type: 'workspace.member_removed',    category: 'workspace', priority: 'high',   description: 'Um membro foi removido da equipe.', source: 'Workspace', targets: ['Auditoria', 'Notificações', 'Timeline'] },
+  { type: 'workspace.created',           category: 'workspace', priority: 'normal', description: 'Uma nova equipe (workspace) foi criada.', source: 'Workspace', targets: ['Auditoria', 'Timeline'] },
+  { type: 'workspace.left',              category: 'workspace', priority: 'normal', description: 'Um usuário saiu da equipe (com sucessão de owner quando aplicável).', source: 'Workspace', targets: ['Auditoria', 'Notificações', 'Timeline'] },
 ]
 
 export const EVENT_CATEGORIES: { key: EventCategory; label: string }[] = [
@@ -59,6 +69,7 @@ export const EVENT_CATEGORIES: { key: EventCategory; label: string }[] = [
   { key: 'notification', label: 'Notificações' },
   { key: 'ai', label: 'IA' },
   { key: 'system', label: 'Sistema' },
+  { key: 'workspace', label: 'Workspace' },
 ]
 
 export function eventsByCategory(category: EventCategory): EventDefinition[] {
