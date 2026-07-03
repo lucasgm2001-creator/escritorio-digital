@@ -1,14 +1,16 @@
-import { Building2, Phone, MessageSquare, UserPlus, CalendarDays, Clock, TrendingUp, Sparkles } from 'lucide-react'
+import { Building2, Phone, MessageSquare, UserPlus, CalendarDays, Clock, Sparkles } from 'lucide-react'
 import { cn, formatCurrency } from '@/lib/utils'
 import { formatDateBR } from '@/lib/date'
 import { Panel } from '@/components/bento/Panel'
 import { MetricCard, type MetricTone } from '@/components/ui/MetricCard'
-import { planLabel, type Client } from '@/app/(dashboard)/clientes/types'
+import { LeadJourney } from '@/components/lead/LeadJourney'
+import { type Client } from '@/app/(dashboard)/clientes/types'
 import type { ClientFinanceVM } from '@/server/services/ClientFinanceService'
-import type { ClientHealthBand } from '@/lib/client/health-band'
+import type { ClientHealthBand, ClientHealthKey } from '@/lib/client/health-band'
+import type { LeadJourneyStep } from '@/lib/commercial/lead-hub-types'
 
-// Dashboard Executivo do Cliente (CLIENT-004) — só APRESENTA dados reais (identidade + Financeiro +
-// última atividade + Saúde). Reusa MetricCard + Panel. O que não tem fonte fica como "—".
+// Dashboard Executivo do Cliente (CLIENT-005) — só APRESENTA dados reais (identidade + Financeiro + última
+// atividade/reunião/pagamento + jornada comercial + Saúde). Reusa MetricCard + Panel + LeadJourney.
 const DAY = 86_400_000
 const usd = (value: number): string => formatCurrency(value, 'en-US', 'USD')
 const dateOrDash = (iso: string | null | undefined): string => (iso ? formatDateBR(iso) : '—')
@@ -17,12 +19,16 @@ function contractAge(iso?: string | null): string {
   const days = Math.floor((Date.now() - new Date(iso).getTime()) / DAY)
   return days >= 0 ? `${days}d` : '—'
 }
+const HEALTH_TONE: Record<ClientHealthKey, MetricTone> = { excelente: 'emerald', boa: 'lime', atencao: 'muted', critica: 'negative' }
 
-export function ClientResumo({ client, finance, lastActivityAt, health }: {
+export function ClientResumo({ client, finance, lastActivityAt, lastMeetingAt, lastPaymentAt, health, journey }: {
   client: Client
   finance: ClientFinanceVM
   lastActivityAt: string | null
+  lastMeetingAt: string | null
+  lastPaymentAt: string | null
   health: ClientHealthBand
+  journey: LeadJourneyStep[]
 }) {
   const daysSinceActivity = lastActivityAt ? Math.floor((Date.now() - new Date(lastActivityAt).getTime()) / DAY) : null
   const proximaAcao = finance.semanasPendentes > 0 ? 'Cobrar semana(s) pendente(s)'
@@ -30,11 +36,15 @@ export function ClientResumo({ client, finance, lastActivityAt, health }: {
     : finance.proximaCobranca ? 'Preparar próxima cobrança'
     : 'Acompanhar a entrega'
 
-  const kpis: { title: string; value: string; tone?: MetricTone }[] = [
-    { title: 'Plano', value: planLabel(client.plan_weekly) },
-    { title: 'Total recebido', value: usd(finance.totalRecebido), tone: 'emerald' },
+  const cards: { title: string; value: string; tone?: MetricTone }[] = [
+    { title: 'Dias como cliente', value: contractAge(client.start_date) },
+    { title: 'Receita gerada', value: usd(finance.totalRecebido), tone: 'emerald' },
     { title: 'Semanas pagas', value: String(finance.semanasPagas), tone: 'positive' },
     { title: 'Semanas pendentes', value: String(finance.semanasPendentes), tone: finance.semanasPendentes > 0 ? 'negative' : 'default' },
+    { title: 'Última reunião', value: dateOrDash(lastMeetingAt) },
+    { title: 'Último pagamento', value: dateOrDash(lastPaymentAt) },
+    { title: 'Último relatório', value: '—' },
+    { title: 'Saúde', value: health.label, tone: HEALTH_TONE[health.key] },
   ]
   const info = [
     { icon: Building2, label: 'Empresa', value: client.company ?? client.name },
@@ -47,7 +57,6 @@ export function ClientResumo({ client, finance, lastActivityAt, health }: {
   const activity = [
     { icon: Clock, label: 'Última atividade', value: dateOrDash(lastActivityAt) },
     { icon: CalendarDays, label: 'Próxima cobrança', value: finance.proximaCobranca ? `S${finance.proximaSemana} · ${dateOrDash(finance.proximaCobranca)}` : '—' },
-    { icon: TrendingUp, label: 'Tempo de contrato', value: contractAge(client.start_date) },
   ]
 
   return (
@@ -65,9 +74,13 @@ export function ClientResumo({ client, finance, lastActivityAt, health }: {
         </span>
       </header>
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5">
-        {kpis.map(kpi => <MetricCard key={kpi.title} title={kpi.title} value={kpi.value} tone={kpi.tone} size="lg" />)}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+        {cards.map(card => <MetricCard key={card.title} title={card.title} value={card.value} tone={card.tone} size="lg" />)}
       </div>
+
+      <Panel label="Histórico comercial">
+        {journey.length > 0 ? <LeadJourney steps={journey} /> : <p className="text-[13px] text-bento-muted">Sem histórico comercial vinculado a este cliente.</p>}
+      </Panel>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-start">
         <Panel label="Resumo">
