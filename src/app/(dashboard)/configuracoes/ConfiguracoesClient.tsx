@@ -7,7 +7,7 @@ import {
   Sun, Moon, Monitor, Home, Briefcase, ListChecks, Projector, Users,
   Palette, Accessibility, Image as ImageIcon, User, LayoutGrid, Database, Plug, Info, Map, Boxes,
   Download, RefreshCw, ExternalLink, Workflow, ChevronRight, ChevronLeft, ChevronDown, CalendarDays,
-  ShieldCheck, TrendingUp, Sparkles,
+  ShieldCheck, TrendingUp, Sparkles, Settings,
   type LucideIcon,
 } from 'lucide-react'
 import { Panel } from '@/components/bento/Panel'
@@ -913,6 +913,15 @@ export function ConfiguracoesClient({ userId, google, teamSettings }: Props) {
   const [sub, setSub] = useState<string | null>(null)   // sub-tela (ex.: 'fases') dentro da seção aberta
   const toggle = (k: string) => { setSub(null); setOpenKey(cur => (cur === k ? null : k)) }
 
+  // Tablet/Desktop (md+, ≥768px) = master-detail; celular = accordion. Default mobile p/ não dar hydration
+  // mismatch; ajusta no mount (mesmo padrão do DashboardShell). Sem query nova — só layout.
+  const [isWide, setIsWide] = useState(false)
+  useEffect(() => {
+    const check = () => setIsWide(window.innerWidth >= 768)
+    check(); window.addEventListener('resize', check)
+    return () => window.removeEventListener('resize', check)
+  }, [])
+
   // Conteúdo de cada seção (renderizado só quando aberta).
   const renderContent = (key: string) => {
     if (sub === 'fases') return <FasesTab />
@@ -942,12 +951,52 @@ export function ConfiguracoesClient({ userId, google, teamSettings }: Props) {
   }
 
   return (
-    <div className="p-4 sm:p-6 max-w-3xl mx-auto font-body">
+    <div className={cn('p-4 sm:p-6 mx-auto font-body', isWide ? 'max-w-6xl' : 'max-w-3xl')}>
       <div className="mb-5">
         <h1 className="font-display text-2xl font-bold text-bento-text tracking-tight">Configurações</h1>
-        <p className="text-bento-muted text-sm mt-0.5">Toque numa seção para abrir</p>
+        <p className="text-bento-muted text-sm mt-0.5">{isWide ? 'Escolha uma seção à esquerda' : 'Toque numa seção para abrir'}</p>
       </div>
 
+      {isWide ? (
+        /* ── Tablet/Desktop: MASTER-DETAIL (não accordion). Esquerda = domínios; direita = conteúdo. ── */
+        <div className="flex gap-6 items-start">
+          <nav className="w-60 shrink-0 space-y-4">
+            {GROUPS.map(g => (
+              <div key={g.title}>
+                <p className="font-tech text-[10px] uppercase tracking-[0.12em] text-bento-muted mb-1.5 px-1">{g.title}</p>
+                <div className="space-y-0.5">
+                  {g.items.filter(it => it.key !== 'equipe' || teamSettings).map(it => {
+                    const active = openKey === it.key
+                    return (
+                      <button key={it.key} type="button" onClick={() => { setSub(null); setOpenKey(it.key) }}
+                        className={cn('w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-left text-sm min-h-[40px] transition-colors',
+                          active ? 'bg-lime/15 text-lime-fg font-medium' : 'text-bento-muted hover:bg-bento-bg/60 hover:text-bento-text')}>
+                        <it.Icon className={cn('w-4 h-4 shrink-0', active ? 'text-lime-fg' : 'text-bento-muted')} />
+                        <span className="truncate">{it.label}</span>
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+            ))}
+          </nav>
+          <div className="flex-1 min-w-0">
+            {openKey ? (
+              <>
+                {sub && (
+                  <button type="button" onClick={() => setSub(null)}
+                    className="flex items-center gap-1 -ml-1 mb-4 text-sm font-medium text-bento-dim hover:text-bento-text min-h-[44px]">
+                    <ChevronLeft className="w-4 h-4" />Voltar
+                  </button>
+                )}
+                {renderContent(openKey)}
+              </>
+            ) : (
+              <EmptyState icon={Settings} title="Selecione uma seção" description="Escolha um item à esquerda para configurar o Escritório Digital." />
+            )}
+          </div>
+        </div>
+      ) : (
       <div className="space-y-5">
         {GROUPS.map(g => (
           <div key={g.title}>
@@ -982,6 +1031,7 @@ export function ConfiguracoesClient({ userId, google, teamSettings }: Props) {
           </div>
         ))}
       </div>
+      )}
     </div>
   )
 }
