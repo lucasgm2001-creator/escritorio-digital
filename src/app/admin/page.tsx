@@ -3,6 +3,7 @@ import { getRequestContext } from '@/server/context/request-context'
 import { getPeopleOverview } from '@/server/services/PeopleService'
 import { listTemplates } from '@/server/services/CompensationEngineService'
 import { ADMIN_SECTIONS } from '@/lib/admin/sections'
+import { WorkspaceHeader } from '@/components/ui/WorkspaceHeader'
 
 // Painel administrativo (não é só um menu): status real + ações rápidas + módulos com roadmap discreto.
 const REAL = new Set(['equipe', 'departamentos', 'cargos', 'colaboradores', 'remuneracao'])
@@ -27,10 +28,7 @@ export default async function AdminHomePage() {
 
   return (
     <div className="space-y-6">
-      <header className="space-y-1">
-        <p className="font-tech text-[11px] uppercase tracking-[0.14em] text-lime-fg">Administração</p>
-        <h1 className="font-display font-bold text-2xl text-bento-text">Painel administrativo</h1>
-      </header>
+      <WorkspaceHeader eyebrow="Administração" title="Painel administrativo" />
 
       {/* Status (dados reais) */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5">
