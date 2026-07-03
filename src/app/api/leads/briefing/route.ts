@@ -1,7 +1,8 @@
 import { generateText } from 'ai'
 import { anthropic } from '@ai-sdk/anthropic'
 import { NextResponse } from 'next/server'
-import { requireAuth } from '@/lib/supabase/require-auth'
+import { getRequestContext } from '@/server/context/request-context'
+import { assertLeadOwnership } from '@/server/security/team-ownership'
 import { checkRateLimit } from '@/lib/rate-limit'
 import { createServiceClient } from '@/lib/supabase/service'
 import { aiErrorMessage } from '@/lib/aiError'
@@ -23,10 +24,10 @@ const VALID_STATUS = ['novo', 'interagiu', 'nao_interagiu', 'reuniao', 'no_show'
 const str = (v: unknown): string => (v == null ? '' : String(v).trim())
 
 export async function POST(req: Request) {
-  // Acesso: rota chamada pela UI logada (não é webhook). Auth por sessão + rate limit.
-  const authResult = await requireAuth()
-  if ('error' in authResult) return authResult.error
-  const rl = checkRateLimit(authResult.user.id)
+  // Acesso: rota chamada pela UI logada (não é webhook). Auth + equipe ativa via getRequestContext.
+  const context = await getRequestContext()
+  if (!context) return NextResponse.json({ ok: false, reason: 'unauthorized' }, { status: 401 })
+  const rl = checkRateLimit(context.user.id)
   if (!rl.allowed) {
     return NextResponse.json({ ok: false, reason: 'rate' }, {
       status: 429,
@@ -46,13 +47,17 @@ export async function POST(req: Request) {
   try {
     const supabase = createServiceClient()
 
-    // Lê o lead + o histórico (asc; só os tipos úteis, sem briefing/sistema).
-    const [{ data: lead }, { data: ints }] = await Promise.all([
-      supabase.from('leads').select('name, company, status, notes').eq('id', leadId).maybeSingle(),
-      supabase.from('lead_interactions').select('type, note, created_at')
-        .eq('lead_id', leadId).in('type', INPUT_TYPES).order('created_at', { ascending: true }),
-    ])
-    if (!lead) return NextResponse.json({ ok: false, reason: 'no_lead' }, { status: 404 })
+    // SEGURANÇA (P1-SERVICEROLE-001): o service-role ignora a RLS. Confirma que o lead é da equipe ATIVA
+    // ANTES de ler o histórico / chamar a IA / gravar. Reusa a linha lida (sem 2ª query).
+    const owned = await assertLeadOwnership<{ name: string | null; company: string | null; status: string | null; notes: string | null }>(
+      supabase, leadId, context.activeTeamId, 'id, team_id, name, company, status, notes',
+    )
+    if (!owned.ok) return NextResponse.json({ ok: false, reason: owned.status === 403 ? 'forbidden' : 'no_lead' }, { status: owned.status })
+    const lead = owned.row
+
+    // Só então lê o histórico (asc; só os tipos úteis, sem briefing/sistema).
+    const { data: ints } = await supabase.from('lead_interactions').select('type, note, created_at')
+      .eq('lead_id', leadId).in('type', INPUT_TYPES).order('created_at', { ascending: true })
 
     const interactions = ints ?? []
     const notes = str(lead.notes)
@@ -124,7 +129,7 @@ export async function POST(req: Request) {
 
     const { data: inserted, error } = await supabase
       .from('lead_interactions')
-      .insert({ lead_id: leadId, type: 'briefing', created_by_name: 'Briefing IA', note: noteText })
+      .insert({ lead_id: leadId, type: 'briefing', created_by_name: 'Briefing IA', note: noteText, ...(context.activeTeamId ? { team_id: context.activeTeamId } : {}) })
       .select('id')
       .single()
     if (error || !inserted) {

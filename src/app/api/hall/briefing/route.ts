@@ -1,7 +1,7 @@
 import { generateText } from 'ai'
 import { anthropic } from '@ai-sdk/anthropic'
 import { NextResponse } from 'next/server'
-import { requireAuth } from '@/lib/supabase/require-auth'
+import { getRequestContext } from '@/server/context/request-context'
 import { checkRateLimit } from '@/lib/rate-limit'
 import { createServiceClient } from '@/lib/supabase/service'
 import { aiErrorMessage } from '@/lib/aiError'
@@ -18,15 +18,20 @@ const DAY_MS = 86_400_000
 const str = (v: unknown): string => (v == null ? '' : String(v).trim())
 
 export async function POST() {
-  // Chamado pela UI logada: auth por sessão + rate-limit (igual aos outros endpoints).
-  const authResult = await requireAuth()
-  if ('error' in authResult) return authResult.error
-  const rl = checkRateLimit(authResult.user.id)
+  // Chamado pela UI logada: auth + equipe ativa via getRequestContext + rate-limit.
+  const context = await getRequestContext()
+  if (!context) return NextResponse.json({ ok: false, reason: 'unauthorized' }, { status: 401 })
+  const rl = checkRateLimit(context.user.id)
   if (!rl.allowed) {
     return NextResponse.json({ ok: true, briefing: 'Muitas requisições agora — tente o briefing em alguns segundos.' })
   }
 
-  const userId = authResult.user.id
+  const userId = context.user.id
+  // SEGURANÇA (P1-SERVICEROLE-001): o briefing agrega dados da EQUIPE ATIVA. service-role ignora a RLS,
+  // então TODA leitura de equipe abaixo filtra por activeTeamId — nunca vaza leads/reuniões/atividades de
+  // outra equipe. Sem equipe ativa, não há o que agregar.
+  const activeTeamId = context.activeTeamId
+  if (!activeTeamId) return NextResponse.json({ ok: true, briefing: 'Bom dia. Configure sua equipe para ver o briefing.' })
   const now = new Date()
   // Data civil de Brasília (mesma convenção do resto do app).
   const todayYMD = now.toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' })
@@ -40,10 +45,10 @@ export async function POST() {
       supabase.from('tasks').select('title, due_date, due_time, done')
         .eq('user_id', userId).eq('done', false).not('due_date', 'is', null).lte('due_date', todayYMD)
         .order('due_date', { ascending: true }),
-      supabase.from('funnel_stages').select('slug, nome, is_won, is_lost, arquivada'),
+      supabase.from('funnel_stages').select('slug, nome, is_won, is_lost, arquivada').eq('team_id', activeTeamId),
       // Reuniões de HOJE (meetings.met_on). Só nome/observação — sem valores.
-      supabase.from('meetings').select('client_name, note, met_on').eq('met_on', todayYMD),
-      supabase.from('activities').select('description, user_name, created_at').order('created_at', { ascending: false }).limit(10),
+      supabase.from('meetings').select('client_name, note, met_on').eq('team_id', activeTeamId).eq('met_on', todayYMD),
+      supabase.from('activities').select('description, user_name, created_at').eq('team_id', activeTeamId).order('created_at', { ascending: false }).limit(10),
       supabase.from('profiles').select('name').eq('id', userId).maybeSingle(),
     ])
 
@@ -60,7 +65,7 @@ export async function POST() {
     let parados: { name: string; fase: string; dias: number }[] = []
     if (activeSlugs.length) {
       const { data: leads } = await supabase.from('leads').select('name, status, updated_at')
-        .in('status', activeSlugs).lte('updated_at', fiveDaysAgoISO)
+        .eq('team_id', activeTeamId).in('status', activeSlugs).lte('updated_at', fiveDaysAgoISO)
         .order('updated_at', { ascending: true }).limit(15)
       parados = (leads ?? []).map(l => ({
         name: str(l.name) || 'Sem nome',
