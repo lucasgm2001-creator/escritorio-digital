@@ -55,6 +55,17 @@ export const EVENT_CATALOG: EventDefinition[] = [
   { type: 'workspace.member_removed',    category: 'workspace', priority: 'high',   description: 'Um membro foi removido da equipe.', source: 'Workspace', targets: ['Auditoria', 'Notificações', 'Timeline'] },
   { type: 'workspace.created',           category: 'workspace', priority: 'normal', description: 'Uma nova equipe (workspace) foi criada.', source: 'Workspace', targets: ['Auditoria', 'Timeline'] },
   { type: 'workspace.left',              category: 'workspace', priority: 'normal', description: 'Um usuário saiu da equipe (com sucessão de owner quando aplicável).', source: 'Workspace', targets: ['Auditoria', 'Notificações', 'Timeline'] },
+
+  // ── Colaboradores / RH (ciclo de vida — PEOPLE-001, Part 8; só contrato, nada publicado ainda) ──
+  { type: 'employee.created',             category: 'people', priority: 'normal', description: 'Um colaborador foi cadastrado.', source: 'Colaboradores', targets: ['Auditoria', 'Timeline', 'Notificações'] },
+  { type: 'employee.updated',             category: 'people', priority: 'low',    description: 'Dados de um colaborador foram alterados.', source: 'Colaboradores', targets: ['Auditoria', 'Timeline'] },
+  { type: 'employee.promoted',            category: 'people', priority: 'normal', description: 'Um colaborador foi promovido.', source: 'Colaboradores', targets: ['Auditoria', 'Notificações', 'Timeline'] },
+  { type: 'employee.department.changed',  category: 'people', priority: 'normal', description: 'Um colaborador mudou de departamento.', source: 'Colaboradores', targets: ['Auditoria', 'Timeline'] },
+  { type: 'employee.role.changed',        category: 'people', priority: 'normal', description: 'O cargo/função de um colaborador mudou.', source: 'Colaboradores', targets: ['Auditoria', 'Timeline'] },
+  { type: 'employee.permissions.changed', category: 'people', priority: 'high',   description: 'As permissões de um colaborador foram alteradas.', source: 'Colaboradores', targets: ['Auditoria', 'Notificações', 'Timeline'] },
+  { type: 'employee.salary.changed',      category: 'people', priority: 'high',   description: 'A remuneração de um colaborador foi alterada (vigência futura; histórico não recalcula).', source: 'Colaboradores', targets: ['Auditoria', 'Notificações', 'Timeline'] },
+  { type: 'employee.goal.changed',        category: 'people', priority: 'normal', description: 'Uma meta de um colaborador foi definida/alterada.', source: 'Colaboradores', targets: ['Auditoria', 'Timeline'] },
+  { type: 'employee.archived',            category: 'people', priority: 'normal', description: 'Um colaborador foi arquivado/desativado.', source: 'Colaboradores', targets: ['Auditoria', 'Notificações', 'Timeline'] },
 ]
 
 export const EVENT_CATEGORIES: { key: EventCategory; label: string }[] = [
@@ -70,6 +81,7 @@ export const EVENT_CATEGORIES: { key: EventCategory; label: string }[] = [
   { key: 'ai', label: 'IA' },
   { key: 'system', label: 'Sistema' },
   { key: 'workspace', label: 'Workspace' },
+  { key: 'people', label: 'Colaboradores' },
 ]
 
 export function eventsByCategory(category: EventCategory): EventDefinition[] {
