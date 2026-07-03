@@ -1,7 +1,8 @@
 'use client'
 
 import { useState, useMemo } from 'react'
-import { Search, X, Plus, MessageCircle } from 'lucide-react'
+import Link from 'next/link'
+import { Search, X, Plus, MessageCircle, ArrowRight } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { useToast } from '@/components/ui/toast'
 import { cn } from '@/lib/utils'
@@ -144,26 +145,33 @@ function ClientCard({ client, integ, onOpen }: { client: Client; integ?: ClientI
   const health = healthOf(client.status)
   const waOn = !!integ?.ativo
   const cityLine = [client.city, client.company].filter(Boolean).join(' · ')
+  // Card = wrapper (não-interativo) com DOIS caminhos irmãos: o botão abre o detalhe atual (onOpen);
+  // o link abre o Workspace (/clientes/[id]). Sem <Link> aninhado em <button> (evita ação indevida).
   return (
-    <button onClick={onOpen}
-      className="text-left bento-fx p-3.5 hover:border-lime/40 transition-colors flex flex-col gap-2.5">
-      <div className="flex items-start gap-2.5">
-        <span className="w-9 h-9 rounded-lg bg-lime/15 border border-lime/30 flex items-center justify-center flex-none">
-          <span className="text-sm font-bold text-lime-fg">{(client.name || '?')[0]}</span>
-        </span>
-        <div className="min-w-0 flex-1">
-          <p className="font-semibold text-bento-text text-sm truncate">{client.name}</p>
-          {cityLine && <p className="text-xs text-bento-muted truncate">{cityLine}</p>}
+    <div className="bento-fx p-3.5 hover:border-lime/40 transition-colors flex flex-col gap-2.5">
+      <button onClick={onOpen} className="text-left flex flex-col gap-2.5">
+        <div className="flex items-start gap-2.5">
+          <span className="w-9 h-9 rounded-lg bg-lime/15 border border-lime/30 flex items-center justify-center flex-none">
+            <span className="text-sm font-bold text-lime-fg">{(client.name || '?')[0]}</span>
+          </span>
+          <div className="min-w-0 flex-1">
+            <p className="font-semibold text-bento-text text-sm truncate">{client.name}</p>
+            {cityLine && <p className="text-xs text-bento-muted truncate">{cityLine}</p>}
+          </div>
+          <span className={cn('w-2 h-2 rounded-full flex-none mt-1', health.dot)} title={health.label} />
         </div>
-        <span className={cn('w-2 h-2 rounded-full flex-none mt-1', health.dot)} title={health.label} />
-      </div>
-      <div className="flex items-center gap-2 flex-wrap">
-        <span className="font-tech text-[10px] font-semibold px-2 py-0.5 rounded-full border border-lime/40 text-lime-fg bg-lime/10">{planLabel(client.plan_weekly)}</span>
-        <span className={cn('font-tech text-[10px] px-2 py-0.5 rounded-full border inline-flex items-center gap-1',
-          waOn ? 'border-[#22C55E]/40 text-[#22C55E] bg-[#22C55E]/10' : 'border-bento-border text-bento-muted bg-bento-bg')}>
-          <MessageCircle className="w-3 h-3" />{waOn ? 'WhatsApp ativo' : 'WhatsApp off'}
-        </span>
-      </div>
-    </button>
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="font-tech text-[10px] font-semibold px-2 py-0.5 rounded-full border border-lime/40 text-lime-fg bg-lime/10">{planLabel(client.plan_weekly)}</span>
+          <span className={cn('font-tech text-[10px] px-2 py-0.5 rounded-full border inline-flex items-center gap-1',
+            waOn ? 'border-[#22C55E]/40 text-[#22C55E] bg-[#22C55E]/10' : 'border-bento-border text-bento-muted bg-bento-bg')}>
+            <MessageCircle className="w-3 h-3" />{waOn ? 'WhatsApp ativo' : 'WhatsApp off'}
+          </span>
+        </div>
+      </button>
+      <Link href={`/clientes/${client.id}`}
+        className="flex items-center justify-center gap-1.5 pt-2.5 border-t border-bento-border/60 text-[12px] font-medium text-lime-fg hover:text-bento-text transition-colors min-h-[40px]">
+        Abrir workspace <ArrowRight className="w-3.5 h-3.5" />
+      </Link>
+    </div>
   )
 }

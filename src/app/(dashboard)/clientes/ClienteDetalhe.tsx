@@ -1,7 +1,8 @@
 'use client'
 
 import { useState } from 'react'
-import { ChevronLeft, MessageCircle, FolderOpen, FileDown, Power } from 'lucide-react'
+import Link from 'next/link'
+import { ChevronLeft, MessageCircle, FolderOpen, FileDown, Power, ArrowRight } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { useToast } from '@/components/ui/toast'
 import { cn, formatCurrency } from '@/lib/utils'
@@ -82,6 +83,7 @@ export function ClienteDetalhe({ client, nichos, integration, onBack, onUpdated 
             </div>
           </div>
         </div>
+        <Link href={`/clientes/${client.id}`} className="inline-flex items-center gap-1.5 bento-btn px-3 py-2 rounded-btn text-sm font-semibold shrink-0"><ArrowRight className="w-4 h-4" />Abrir workspace</Link>
         <button onClick={() => window.print()} className="inline-flex items-center gap-1.5 border border-bento-border text-bento-dim px-3 py-2 rounded-btn text-sm hover:border-lime transition-colors shrink-0"><FileDown className="w-4 h-4" />Gerar PDF</button>
       </div>
 
