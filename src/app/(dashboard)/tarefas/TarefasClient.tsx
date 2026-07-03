@@ -317,7 +317,7 @@ export function TarefasClient({ tasks, setTasks, deletedIds, linkOptions, curren
     const isConfirming = confirmId === t.id
 
     return (
-      <div key={t.id} className="group bento-fx p-3">
+      <div key={t.id} className="group bento-fx p-3 transition-colors hover:border-lime/30">
         <div className="flex items-start gap-3">
           {/* Checkbox */}
           <button
@@ -632,31 +632,6 @@ export function TarefasClient({ tasks, setTasks, deletedIds, linkOptions, curren
           </div>
         )}
 
-        {/* Criar por texto (IA) */}
-        <div className="bento-fx p-3">
-          <div className="flex items-center gap-2">
-            <svg className="w-4 h-4 text-lime-fg shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M13 10V3L4 14h7v7l9-11h-7z" />
-            </svg>
-            <input
-              value={aiText}
-              onChange={e => { setAiText(e.target.value); if (aiError) setAiError('') }}
-              onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleAiCreate() } }}
-              disabled={aiLoading}
-              placeholder="Escreva uma tarefa: “reunião com Flávio sexta 15h”…"
-              className="flex-1 bg-transparent text-sm text-bento-text placeholder:text-bento-muted focus:outline-none disabled:opacity-50"
-            />
-            <button
-              onClick={handleAiCreate}
-              disabled={aiLoading || !aiText.trim()}
-              className="bento-btn px-3 py-1.5 rounded-btn text-xs font-semibold shrink-0 disabled:opacity-50 min-h-0"
-            >
-              {aiLoading ? 'Interpretando…' : 'Criar'}
-            </button>
-          </div>
-          {aiError && <p className="text-xs text-red-400 mt-2 pl-6">{aiError}</p>}
-        </div>
-
         {/* Resumo do dia (IA) */}
         {summaryOpen && (
           <div className="bento-fx p-4 relative">
@@ -723,6 +698,32 @@ export function TarefasClient({ tasks, setTasks, deletedIds, linkOptions, curren
             )}
           </>
         )}
+
+        {/* Criar por texto (IA) — DEMOTADO p/ DEPOIS da lista (HALL-003A, Part 4): ver -> decidir -> executar.
+            Mesmíssimos handlers/estado (handleAiCreate/aiText/aiError), só reposicionado. */}
+        <div className="bento-fx p-3">
+          <div className="flex items-center gap-2">
+            <svg className="w-4 h-4 text-lime-fg shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M13 10V3L4 14h7v7l9-11h-7z" />
+            </svg>
+            <input
+              value={aiText}
+              onChange={e => { setAiText(e.target.value); if (aiError) setAiError('') }}
+              onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleAiCreate() } }}
+              disabled={aiLoading}
+              placeholder="Escreva uma tarefa: “reunião com Flávio sexta 15h”…"
+              className="flex-1 bg-transparent text-sm text-bento-text placeholder:text-bento-muted focus:outline-none disabled:opacity-50"
+            />
+            <button
+              onClick={handleAiCreate}
+              disabled={aiLoading || !aiText.trim()}
+              className="bento-btn px-3 py-1.5 rounded-btn text-xs font-semibold shrink-0 disabled:opacity-50 min-h-0"
+            >
+              {aiLoading ? 'Interpretando…' : 'Criar'}
+            </button>
+          </div>
+          {aiError && <p className="text-xs text-red-400 mt-2 pl-6">{aiError}</p>}
+        </div>
       </div>
 
       {modalOpen && (
