@@ -594,7 +594,8 @@ export function TarefasClient({ tasks, setTasks, deletedIds, linkOptions, curren
           ) : (() => {
             const items = mobileChip === 'hoje' ? groups.hoje : mobileChip === 'proximas' ? proximas : mobileChip === 'atrasadas' ? groups.atrasadas : doneWeek
             if (items.length === 0) return mobileChip === 'hoje' ? <EmptyToday /> : <p className="text-center text-xs text-bento-muted/60 py-8 font-tech">Nada aqui.</p>
-            return <div className="space-y-2">{items.map(renderMobileRow)}</div>
+            // Tablet (md+): 2 colunas — aproveita a largura do iPad em vez de encolher o desktop (Part 8).
+            return <div className="grid gap-2 md:grid-cols-2 items-start">{items.map(renderMobileRow)}</div>
           })()}
         </div>
       )}
