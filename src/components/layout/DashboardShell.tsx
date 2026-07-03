@@ -98,8 +98,9 @@ export function DashboardShell({ children, userName, userId, avatarUrl, pageTitl
         <main className="flex-1 overflow-y-auto overscroll-contain touch-pan-y [-webkit-overflow-scrolling:touch]">
           {children}
         </main>
-        {/* Navegação inferior — só mobile (<1024px); fica no fluxo, abaixo do main, sem cobrir conteúdo. */}
-        {isMobile && <BottomNav />}
+        {/* Navegação inferior — só mobile (<1024px); fica no fluxo, abaixo do main, sem cobrir conteúdo.
+            "Mais" abre o mesmo drawer (Sidebar) do hambúrguer → todos os andares acessíveis no celular. */}
+        {isMobile && <BottomNav onMore={() => setMobileOpen(true)} />}
       </div>
     </div>
   )
