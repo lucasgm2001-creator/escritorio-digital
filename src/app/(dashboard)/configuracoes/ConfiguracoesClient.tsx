@@ -3,14 +3,15 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Image from 'next/image'
-import Link from 'next/link'
 import {
   Sun, Moon, Monitor, Home, Briefcase, ListChecks, Projector, Users,
   Palette, Accessibility, Image as ImageIcon, User, LayoutGrid, Database, Plug, Info, Map, Boxes,
   Download, RefreshCw, ExternalLink, Workflow, ChevronRight, ChevronLeft, ChevronDown, CalendarDays,
+  ShieldCheck, TrendingUp, Sparkles,
   type LucideIcon,
 } from 'lucide-react'
 import { Panel } from '@/components/bento/Panel'
+import { EmptyState } from '@/components/ui/EmptyState'
 import { createClient } from '@/lib/supabase/client'
 import { cn } from '@/lib/utils'
 import { ymd, usd } from '@/lib/format'
@@ -489,11 +490,11 @@ function AndarSection({ keyId, label, onOpenSub }: { keyId: string; label: strin
   }
   const isComercial = keyId === 'andar-comercial'
   return (
-    <Panel label={`Andar — ${label}`}>
+    <Panel label={label}>
       <div className="space-y-4">
         <p className="text-sm text-bento-muted">{meta?.desc}</p>
         <div className="flex flex-wrap gap-2">
-          {meta && <a href={meta.route} className={actionBtnCls}><ExternalLink className="w-4 h-4" />Abrir {label}</a>}
+          {/* Sem atalho "abrir andar" (EXPERIENCE-004): Configurações CONFIGURA, não navega. Fica só a config real. */}
           <button onClick={resetTabs} className={actionBtnCls}><RefreshCw className="w-4 h-4" />{done ? 'Ordem restaurada' : 'Restaurar ordem das abas'}</button>
         </div>
         {isComercial ? (
@@ -777,27 +778,40 @@ function HallSettingsSection({ userId }: { userId: string }) {
   )
 }
 
-const ANDARES: NavItem[] = [
-  { key: 'andar-hall', label: 'Hall', Icon: Home },
-  { key: 'andar-comercial', label: 'Comercial', Icon: Briefcase },
-  { key: 'andar-tarefas', label: 'Tarefas', Icon: ListChecks },
-  { key: 'andar-studio', label: 'Studio', Icon: Projector },
-  { key: 'andar-clientes', label: 'Clientes', Icon: Users },
-]
-const SISTEMA: NavItem[] = [
-  { key: 'equipe', label: 'Equipe e membros', Icon: Users },
-  { key: 'tema', label: 'Tema', Icon: Palette },
-  { key: 'mapa', label: 'Mapa', Icon: Map },
-  { key: 'hub-clientes', label: 'Hub de Clientes', Icon: Boxes },
-  { key: 'acessibilidade', label: 'Acessibilidade', Icon: Accessibility },
-  { key: 'logo', label: 'Logo do sistema', Icon: ImageIcon },
-  { key: 'conta', label: 'Conta', Icon: User },
-  { key: 'aparencia', label: 'Aparência', Icon: LayoutGrid },
-  { key: 'dados', label: 'Dados & Export', Icon: Database },
-  { key: 'integracoes', label: 'Integrações', Icon: Plug },
-  { key: 'planos', label: 'Planos', Icon: LayoutGrid },
-  { key: 'sobre', label: 'Sobre', Icon: Info },
-]
+// ─── Seções de configuração honestas por domínio (sem "Em breve": estado real). Não são atalho pra andar. ───
+function ConfigRow({ label, status }: { label: string; status: string }) {
+  return (
+    <div className="flex items-center justify-between gap-3 py-2.5 border-b border-bento-border/60 last:border-0">
+      <span className="text-[13px] text-bento-text min-w-0">{label}</span>
+      <span className="font-tech text-[10px] uppercase tracking-wide text-bento-muted shrink-0 text-right">{status}</span>
+    </div>
+  )
+}
+function SegurancaSection({ role }: { role: 'owner' | 'admin' | 'member' }) {
+  const roleLabel = role === 'owner' ? 'Owner' : role === 'admin' ? 'Admin' : 'Member'
+  return (
+    <Panel label="Segurança e permissões">
+      <div className="space-y-0">
+        <ConfigRow label="Seu papel nesta equipe" status={roleLabel} />
+        <ConfigRow label="Papéis e permissões (owner/admin/member)" status="Gerenciado em Administração" />
+        <ConfigRow label="Convites, sucessão e sair da equipe" status="Gerenciado em Equipe" />
+        <ConfigRow label="Sessão atual" status="Ativa" />
+      </div>
+    </Panel>
+  )
+}
+function TrafegoConfigSection() {
+  return (
+    <EmptyState icon={TrendingUp} title="Tráfego requer integração"
+      description="Contas, campanhas, pixels e conversões aparecem aqui quando uma plataforma (Meta, Google) for conectada em Tráfego › Contas." />
+  )
+}
+function IaConfigSection() {
+  return (
+    <EmptyState icon={Sparkles} title="IA — estado operacional"
+      description="Agentes, resumos e briefings usam o AI Engine. No momento, indisponível operacionalmente (manutenção/crédito). Sem configuração adicional necessária aqui." />
+  )
+}
 
 // ─── SISTEMA › Planos (catálogo — só leitura: nome + valor semanal) ───
 // Comissão NÃO aparece aqui: a config de remuneração é área administrativa própria (owner/admin).
@@ -851,9 +865,46 @@ interface Props {
   } | null
 }
 
+// EXPERIENCE-004 — Configurações organizada por DOMÍNIO (não mais "atalho para andar").
 const GROUPS: { title: string; items: NavItem[] }[] = [
-  { title: 'Andares', items: ANDARES },
-  { title: 'Sistema', items: SISTEMA },
+  { title: 'Conta', items: [
+    { key: 'conta', label: 'Conta e senha', Icon: User },
+    { key: 'aparencia', label: 'Aparência', Icon: LayoutGrid },
+    { key: 'tema', label: 'Tema', Icon: Palette },
+    { key: 'acessibilidade', label: 'Acessibilidade', Icon: Accessibility },
+    { key: 'andar-hall', label: 'Painel do Hall', Icon: Home },
+  ] },
+  { title: 'Equipe', items: [
+    { key: 'equipe', label: 'Equipe e membros', Icon: Users },
+  ] },
+  { title: 'Segurança', items: [
+    { key: 'seguranca', label: 'Segurança e permissões', Icon: ShieldCheck },
+  ] },
+  { title: 'Integrações', items: [
+    { key: 'integracoes', label: 'Integrações', Icon: Plug },
+  ] },
+  { title: 'Comercial', items: [
+    { key: 'andar-comercial', label: 'Funil e organização', Icon: Briefcase },
+  ] },
+  { title: 'Clientes', items: [
+    { key: 'hub-clientes', label: 'Hub de Clientes', Icon: Boxes },
+    { key: 'andar-clientes', label: 'Organização do andar', Icon: Users },
+  ] },
+  { title: 'Tráfego', items: [
+    { key: 'trafego-config', label: 'Tráfego', Icon: TrendingUp },
+  ] },
+  { title: 'IA', items: [
+    { key: 'ia-config', label: 'IA', Icon: Sparkles },
+  ] },
+  { title: 'Sistema', items: [
+    { key: 'dados', label: 'Dados & Export', Icon: Database },
+    { key: 'planos', label: 'Planos', Icon: LayoutGrid },
+    { key: 'mapa', label: 'Mapa', Icon: Map },
+    { key: 'andar-tarefas', label: 'Tarefas — organização', Icon: ListChecks },
+    { key: 'andar-studio', label: 'Studio — organização', Icon: Projector },
+    { key: 'logo', label: 'Logo do sistema', Icon: ImageIcon },
+    { key: 'sobre', label: 'Sobre', Icon: Info },
+  ] },
 ]
 
 export function ConfiguracoesClient({ userId, google, teamSettings }: Props) {
@@ -867,19 +918,14 @@ export function ConfiguracoesClient({ userId, google, teamSettings }: Props) {
     if (sub === 'fases') return <FasesTab />
     if (key === 'andar-hall') return <HallSettingsSection userId={userId} />
     if (key.startsWith('andar-')) {
-      const label = ANDARES.find(a => a.key === key)?.label ?? 'Andar'
+      const label = GROUPS.flatMap(g => g.items).find(a => a.key === key)?.label ?? 'Andar'
       return <AndarSection keyId={key} label={label} onOpenSub={setSub} />
     }
     switch (key) {
-      case 'equipe': return teamSettings ? (
-        <div className="space-y-3">
-          <Link href="/admin/equipe" className="flex items-center justify-between gap-2 bento-fx p-3 hover:border-lime/40 transition-colors">
-            <span className="text-sm text-bento-text">A gestão de equipe também vive na <span className="text-lime-fg font-medium">Administração</span>.</span>
-            <span className="text-xs font-tech text-lime-fg shrink-0 flex items-center gap-1"><ExternalLink className="w-3.5 h-3.5" /> Abrir</span>
-          </Link>
-          <TeamSettingsSection {...teamSettings} />
-        </div>
-      ) : null
+      case 'equipe': return teamSettings ? <TeamSettingsSection {...teamSettings} /> : null
+      case 'seguranca': return <SegurancaSection role={teamSettings?.currentRole ?? 'member'} />
+      case 'trafego-config': return <TrafegoConfigSection />
+      case 'ia-config': return <IaConfigSection />
       case 'tema': return <ThemeSection />
       case 'mapa': return <MapSettingsContent />
       case 'hub-clientes': return <HubClientesSettings />
