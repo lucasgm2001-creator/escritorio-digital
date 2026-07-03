@@ -1,0 +1,70 @@
+import type { EventCategory, EventPriority, EventType } from './types'
+
+// Catálogo ÚNICO de eventos (EVENT-001, Parts 3/4). Só metadados — nenhum evento é publicado. Cada definição
+// declara categoria, prioridade, descrição, módulo de ORIGEM e módulos de DESTINO interessados (documental).
+export type EventDefinition = {
+  type: EventType
+  category: EventCategory
+  priority: EventPriority
+  description: string
+  source: string
+  targets: string[]
+}
+
+export const EVENT_CATALOG: EventDefinition[] = [
+  // ── Lead / Comercial ──
+  { type: 'lead.created',   category: 'lead', priority: 'normal', description: 'Um lead entrou no funil (manual ou por webhook de entrada).', source: 'Comercial', targets: ['Timeline', 'Dashboard', 'IA', 'Notificações'] },
+  { type: 'lead.updated',   category: 'lead', priority: 'low',    description: 'Dados de um lead foram alterados.', source: 'Comercial', targets: ['Timeline', 'Dashboard'] },
+  { type: 'lead.deleted',   category: 'lead', priority: 'low',    description: 'Um lead foi removido do funil.', source: 'Comercial', targets: ['Timeline', 'Dashboard'] },
+  { type: 'lead.moved',     category: 'lead', priority: 'normal', description: 'Um lead mudou de etapa do funil.', source: 'Comercial', targets: ['Timeline', 'Dashboard', 'IA'] },
+
+  // ── Tarefas ──
+  { type: 'task.created',   category: 'task', priority: 'low',    description: 'Uma tarefa foi criada.', source: 'Tarefas', targets: ['Timeline', 'Notificações'] },
+  { type: 'task.completed', category: 'task', priority: 'normal', description: 'Uma tarefa foi concluída.', source: 'Tarefas', targets: ['Timeline', 'Dashboard'] },
+  { type: 'task.deleted',   category: 'task', priority: 'low',    description: 'Uma tarefa foi excluída.', source: 'Tarefas', targets: ['Timeline'] },
+
+  // ── Reuniões ──
+  { type: 'meeting.created',   category: 'meeting', priority: 'normal', description: 'Uma reunião foi agendada.', source: 'Agenda', targets: ['Timeline', 'Notificações'] },
+  { type: 'meeting.completed', category: 'meeting', priority: 'normal', description: 'Uma reunião foi realizada.', source: 'Agenda', targets: ['Timeline', 'Dashboard', 'Comercial'] },
+
+  // ── Clientes ──
+  { type: 'client.created', category: 'client', priority: 'normal', description: 'Um lead virou cliente (venda fechada).', source: 'Clientes', targets: ['Timeline', 'Dashboard', 'Billing', 'IA'] },
+  { type: 'client.updated', category: 'client', priority: 'low',    description: 'Dados de um cliente foram alterados.', source: 'Clientes', targets: ['Timeline'] },
+
+  // ── Pagamentos / Billing ──
+  { type: 'payment.confirmed', category: 'payment', priority: 'high',     description: 'Um pagamento foi confirmado.', source: 'Billing', targets: ['Timeline', 'Dashboard', 'Comercial', 'Notificações'] },
+  { type: 'payment.failed',    category: 'payment', priority: 'critical', description: 'Um pagamento falhou.', source: 'Billing', targets: ['Timeline', 'Notificações', 'IA'] },
+  { type: 'payment.refunded',  category: 'payment', priority: 'high',     description: 'Um pagamento foi estornado.', source: 'Billing', targets: ['Timeline', 'Dashboard', 'Notificações'] },
+
+  // ── Integrações / Webhooks ──
+  { type: 'integration.connected', category: 'integration', priority: 'normal',   description: 'Uma integração foi conectada.', source: 'Integrações', targets: ['Timeline', 'Notificações'] },
+  { type: 'integration.failed',    category: 'integration', priority: 'high',     description: 'Uma integração falhou/expirou.', source: 'Integrações', targets: ['Timeline', 'Notificações'] },
+  { type: 'webhook.received',      category: 'webhook',     priority: 'normal',   description: 'Um webhook de entrada foi recebido.', source: 'Inbound', targets: ['Comercial', 'Timeline', 'IA'] },
+
+  // ── Relatórios / Notificações / IA ──
+  { type: 'report.generated',    category: 'report',       priority: 'low',    description: 'Um relatório (PDF/exportação) foi gerado.', source: 'Relatórios', targets: ['Timeline', 'Notificações'] },
+  { type: 'notification.created', category: 'notification', priority: 'normal', description: 'Uma notificação foi criada para um usuário.', source: 'Notificações', targets: ['Timeline'] },
+  { type: 'ai.summary.created',   category: 'ai',           priority: 'low',    description: 'A IA gerou um resumo/briefing.', source: 'IA', targets: ['Timeline', 'Dashboard'] },
+]
+
+export const EVENT_CATEGORIES: { key: EventCategory; label: string }[] = [
+  { key: 'lead', label: 'Leads' },
+  { key: 'task', label: 'Tarefas' },
+  { key: 'meeting', label: 'Reuniões' },
+  { key: 'client', label: 'Clientes' },
+  { key: 'payment', label: 'Pagamentos' },
+  { key: 'integration', label: 'Integrações' },
+  { key: 'webhook', label: 'Webhooks' },
+  { key: 'report', label: 'Relatórios' },
+  { key: 'notification', label: 'Notificações' },
+  { key: 'ai', label: 'IA' },
+  { key: 'system', label: 'Sistema' },
+]
+
+export function eventsByCategory(category: EventCategory): EventDefinition[] {
+  return EVENT_CATALOG.filter(e => e.category === category)
+}
+
+export function getEventDefinition(type: string): EventDefinition | undefined {
+  return EVENT_CATALOG.find(e => e.type === type)
+}
