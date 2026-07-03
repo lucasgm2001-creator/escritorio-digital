@@ -1,4 +1,5 @@
 import type { Config } from 'tailwindcss'
+import plugin from 'tailwindcss/plugin'
 
 const config: Config = {
   darkMode: ['class'],
@@ -130,7 +131,11 @@ const config: Config = {
       },
     },
   },
-  plugins: [],
+  plugins: [
+    // Variante 'coarse:' (IPAD-002) — estilos SÓ em dispositivos de TOQUE (iPad/celular, pointer: coarse).
+    // Desktop (mouse, pointer: fine) não recebe → cards maiores/legíveis no iPad sem inchar o desktop.
+    plugin(({ addVariant }) => { addVariant('coarse', '@media (pointer: coarse)') }),
+  ],
 }
 
 export default config

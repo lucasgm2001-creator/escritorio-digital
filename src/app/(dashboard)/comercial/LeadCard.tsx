@@ -41,13 +41,13 @@ function LeadCardBody({ lead }: { lead: Lead }) {
 
   return (
     <>
-      <p className="font-semibold text-bento-text text-xs leading-snug truncate">{lead.name}</p>
+      <p className="font-semibold text-bento-text text-xs coarse:text-sm leading-snug truncate">{lead.name}</p>
       {sub && (
-        <p className="font-tech text-[10px] text-bento-muted truncate mt-0.5">{sub}</p>
+        <p className="font-tech text-[10px] coarse:text-[13px] text-bento-muted truncate mt-0.5">{sub}</p>
       )}
 
       <div className="flex items-center justify-between gap-2 mt-2">
-        <span className="font-tech text-[11px] font-semibold text-bento-dim tabular-nums">
+        <span className="font-tech text-[11px] coarse:text-[13px] font-semibold text-bento-dim tabular-nums">
           {formattedValue || '—'}
         </span>
 
@@ -60,7 +60,7 @@ function LeadCardBody({ lead }: { lead: Lead }) {
             {signal === 'hot' ? 'Quente' : `${daysStopped(lead)}d`}
           </span>
         ) : nextAction ? (
-          <span className="inline-flex items-center gap-1.5 font-tech text-[9px] text-bento-muted truncate">
+          <span className="inline-flex items-center gap-1.5 font-tech text-[9px] coarse:text-[11px] text-bento-muted truncate">
             <span className="w-1 h-1 rounded-full bg-bento-muted flex-none" />
             {nextAction}
           </span>
@@ -93,7 +93,7 @@ export function LeadCard({ lead, isDragging, onClick }: Props) {
       {...listeners}
       onClick={onClick}
       className={cn(
-        'bento-fx p-2.5 cursor-pointer select-none',
+        'bento-fx p-2.5 coarse:p-3.5 cursor-pointer select-none',
         'hover:border-lime/50 transition-colors duration-150',
         SIGNAL_BORDER[signal],
         isDragging && 'shadow-card-hover rotate-1 scale-105 border-lime',
@@ -112,7 +112,7 @@ export function StaticLeadCard({ lead, onClick }: Props) {
       type="button"
       onClick={onClick}
       className={cn(
-        'block w-full text-left bento-fx p-2.5 cursor-pointer',
+        'block w-full text-left bento-fx p-2.5 coarse:p-3.5 cursor-pointer',
         'hover:border-lime/50 transition-colors duration-150',
         SIGNAL_BORDER[signal],
         lead.status === 'fechado' && 'opacity-60',
