@@ -2,7 +2,9 @@
 
 import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
+import { cookies } from 'next/headers'
 import { createClient } from './server'
+import { ACTIVE_TEAM_COOKIE } from './team'
 import { getSiteURL } from '@/lib/site-url'
 
 export async function signIn(email: string, password: string) {
@@ -66,6 +68,11 @@ export async function signOut() {
   if (error) {
     console.error('Erro ao fazer logout:', error)
   }
+
+  // Limpa o cookie da equipe ativa: uma referência antiga não pode interferir no próximo login (troca de
+  // conta). getActiveTeam já ignora cookie inválido, mas removê-lo evita lixo entre contas. O logout NÃO
+  // depende disso para funcionar — mesmo que falhe, a sessão já foi encerrada acima.
+  cookies().delete(ACTIVE_TEAM_COOKIE)
 
   // Limpa cache de todo o app
   revalidatePath('/', 'layout')
