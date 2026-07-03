@@ -3,65 +3,8 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { cn } from '@/lib/utils'
-import { Presentation, ShieldCheck } from 'lucide-react'
 import { BrandMark } from '@/components/brand/BrandMark'
-
-interface NavItem {
-  href: string
-  label: string
-  icon: React.ReactNode
-  group?: string
-}
-
-const icons = {
-  hall: (
-    <svg className="w-[18px] h-[18px] shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
-    </svg>
-  ),
-  trafego: (
-    <svg className="w-[18px] h-[18px] shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M3 17l6-6 4 4 8-8m0 0h-5m5 0v5" />
-    </svg>
-  ),
-  tarefas: (
-    <svg className="w-[18px] h-[18px] shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M9 11l3 3L22 4M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11" />
-    </svg>
-  ),
-  comercial: (
-    <svg className="w-[18px] h-[18px] shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
-    </svg>
-  ),
-  clientes: (
-    <svg className="w-[18px] h-[18px] shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
-    </svg>
-  ),
-  studio: (
-    <Presentation className="w-[18px] h-[18px] shrink-0" />
-  ),
-  config: (
-    <svg className="w-[18px] h-[18px] shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-    </svg>
-  ),
-  admin: (
-    <ShieldCheck className="w-[18px] h-[18px] shrink-0" />
-  ),
-}
-
-const NAV_ITEMS: NavItem[] = [
-  { href: '/hall',           label: 'Hall',           icon: icons.hall,       group: 'main' },
-  { href: '/trafego',        label: 'Tráfego',        icon: icons.trafego,    group: 'main' },
-  { href: '/comercial',      label: 'Comercial',      icon: icons.comercial,  group: 'main' },
-  { href: '/clientes',       label: 'Clientes',       icon: icons.clientes,   group: 'main' },
-  { href: '/studio',         label: 'Studio de Apresentação', icon: icons.studio, group: 'main' },
-  { href: '/admin',          label: 'Administração',  icon: icons.admin,      group: 'system' },
-  { href: '/configuracoes',  label: 'Configurações',  icon: icons.config,     group: 'system' },
-]
+import { MAIN_MODULES, SYSTEM_MODULES, type NavModule } from '@/lib/navigation'
 
 interface SidebarProps {
   open: boolean
@@ -75,10 +18,7 @@ export function Sidebar({ open, onToggle, mobileClose, activeTeamName }: Sidebar
   const pathname = usePathname()
   const isMobileDrawer = !!mobileClose
 
-  // App pessoal de usuário único: sem papéis, todos os itens são visíveis.
-  const mainItems   = NAV_ITEMS.filter(i => i.group === 'main')
-  const systemItems = NAV_ITEMS.filter(i => i.group === 'system')
-
+  // Itens derivam da FONTE ÚNICA (@/lib/navigation) — mesma lista/ordem/grupos que a BottomNav usa.
   return (
     <aside
       className={cn(
@@ -119,11 +59,11 @@ export function Sidebar({ open, onToggle, mobileClose, activeTeamName }: Sidebar
 
       {/* Nav */}
       <nav className="flex-1 py-3 px-2 space-y-0.5 overflow-hidden overflow-y-auto">
-        {mainItems.map(item => (
+        {MAIN_MODULES.map(item => (
           <NavLink key={item.href} item={item} pathname={pathname} open={open || isMobileDrawer} />
         ))}
 
-        {systemItems.length > 0 && (
+        {SYSTEM_MODULES.length > 0 && (
           <>
             {(open || isMobileDrawer) && (
               <div className="px-2 pt-4 pb-1">
@@ -131,7 +71,7 @@ export function Sidebar({ open, onToggle, mobileClose, activeTeamName }: Sidebar
               </div>
             )}
             {!(open || isMobileDrawer) && <div className="my-2 mx-2 border-t border-sidebar-border/10" />}
-            {systemItems.map(item => (
+            {SYSTEM_MODULES.map(item => (
               <NavLink key={item.href} item={item} pathname={pathname} open={open || isMobileDrawer} />
             ))}
           </>
@@ -157,7 +97,7 @@ export function Sidebar({ open, onToggle, mobileClose, activeTeamName }: Sidebar
   )
 }
 
-function NavLink({ item, pathname, open }: { item: NavItem; pathname: string; open: boolean }) {
+function NavLink({ item, pathname, open }: { item: NavModule; pathname: string; open: boolean }) {
   const active = pathname === item.href || pathname.startsWith(item.href + '/')
 
   return (
@@ -172,7 +112,7 @@ function NavLink({ item, pathname, open }: { item: NavItem; pathname: string; op
         )}
       >
         <span className={cn('shrink-0', active ? 'text-lime-fg' : '')}>
-          {item.icon}
+          <item.Icon className="w-[18px] h-[18px] shrink-0" />
         </span>
         {open && (
           <span className="whitespace-nowrap truncate">{item.label}</span>
