@@ -1,7 +1,13 @@
 'use server'
 
 import { cookies } from 'next/headers'
-import { createInvite, revokeInvite, leaveActiveTeam } from '@/server/services/TeamService'
+import {
+  createInvite,
+  revokeInvite,
+  leaveActiveTeam,
+  changeMemberRole,
+  type MemberMgmtDeny,
+} from '@/server/services/TeamService'
 import { getRequestContext } from '@/server/context/request-context'
 import { ACTIVE_TEAM_COOKIE } from '@/lib/supabase/team'
 import { createServiceClient } from '@/lib/supabase/service'
@@ -149,4 +155,38 @@ export async function redeemInviteAction(token: string): Promise<ActionResult<{ 
   const teamName = (team?.name as string | null) ?? 'equipe'
   const count = context.memberships.length + 1
   return { ok: true, data: { teamId, message: `Voce entrou na equipe ${teamName}. Agora participa de ${count} ${count === 1 ? 'equipe' : 'equipes'}.` } }
+}
+
+// ── TEAM-ADMIN-001: gestão de membros ────────────────────────────────────────────────────────────────
+
+// Traduz o motivo de recusa do servidor para a mensagem do usuário (Part 8). A autoridade é o SERVIDOR;
+// aqui só traduzimos. "not-authorized" cobre o caso de a UI exibir um botão que o servidor recusa.
+const MEMBER_MGMT_ERROR: Record<MemberMgmtDeny, string> = {
+  'no-active-team': 'Nao ha equipe ativa.',
+  'not-authorized': 'Voce nao tem permissao para alterar este membro.',
+  'target-not-found': 'Membro nao encontrado nesta equipe.',
+  'target-is-self': 'Use "Sair da equipe" para sair voce mesmo.',
+  'target-is-owner': 'Use "Transferir ownership" para alterar o owner.',
+  'last-owner': 'Nao e possivel remover o ultimo owner.',
+  'invalid-role': 'Papel invalido.',
+}
+
+// Promover/rebaixar (member↔admin) — só o owner, validado no servidor. A UI recarrega via router.refresh.
+export async function changeMemberRoleAction(
+  targetUserId: string,
+  newRole: 'admin' | 'member',
+): Promise<ActionResult<{ message: string }>> {
+  const context = await getRequestContext()
+  if (!context) return { ok: false, error: 'Sessao expirada. Entre novamente.' }
+
+  let outcome
+  try {
+    outcome = await changeMemberRole(context, targetUserId, newRole)
+  } catch (error) {
+    return { ok: false, error: errorMessage(error) }
+  }
+  if (!outcome.ok) return { ok: false, error: MEMBER_MGMT_ERROR[outcome.reason] }
+
+  const message = newRole === 'admin' ? 'Membro promovido para admin.' : 'Membro rebaixado para member.'
+  return { ok: true, data: { message } }
 }

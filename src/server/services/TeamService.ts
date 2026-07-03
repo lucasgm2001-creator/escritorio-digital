@@ -135,3 +135,63 @@ export async function leaveActiveTeam(context: RequestContext): Promise<LeaveTea
 
   return { ok: true, promotedName, leftTeamId: teamId }
 }
+
+// ── TEAM-ADMIN-001: gestão de membros (papéis, transferência, remoção) ───────────────────────────────
+// TODA regra crítica roda AQUI (no servidor) — a UI só habilita/oculta botões. As escritas usam SERVICE
+// ROLE porque o RLS de team_members só deixa admin alterar/remover, e queremos validar a regra de negócio
+// (quem-pode-o-quê, owner único, sucessão) em código antes de tocar no banco. NENHUMA operação apaga dados
+// operacionais (leads/clientes/financeiro): mexe SÓ em team_members / teams.owner_id.
+
+export type MemberMgmtDeny =
+  | 'no-active-team'
+  | 'not-authorized'
+  | 'target-not-found'
+  | 'target-is-self'
+  | 'target-is-owner'
+  | 'last-owner'
+  | 'invalid-role'
+
+export type MemberMgmtOutcome = { ok: false; reason: MemberMgmtDeny } | { ok: true; memberName: string | null }
+
+type RosterRow = { id: string; user_id: string; role: string; created_at: string | null }
+
+async function loadRoster(svc: ReturnType<typeof createServiceClient>, teamId: string): Promise<RosterRow[]> {
+  const { data, error } = await svc
+    .from('team_members')
+    .select('id, user_id, role, created_at')
+    .eq('team_id', teamId)
+  if (error) throw error
+  return (data ?? []) as RosterRow[]
+}
+
+async function nameOf(svc: ReturnType<typeof createServiceClient>, userId: string): Promise<string | null> {
+  const { data } = await svc.from('profiles').select('name, email').eq('id', userId).maybeSingle()
+  return (data?.name as string | null) || (data?.email as string | null) || null
+}
+
+// Promover member→admin ou rebaixar admin→member. EXCLUSIVO do owner (Part 3: só o Owner promove/rebaixa
+// admin). Nunca altera o owner por aqui — troca de dono é transferência de ownership. Idempotente.
+export async function changeMemberRole(
+  context: RequestContext,
+  targetUserId: string,
+  newRole: 'admin' | 'member',
+): Promise<MemberMgmtOutcome> {
+  const teamId = context.activeTeamId
+  if (!teamId) return { ok: false, reason: 'no-active-team' }
+  if (newRole !== 'admin' && newRole !== 'member') return { ok: false, reason: 'invalid-role' }
+  if (context.role !== 'owner') return { ok: false, reason: 'not-authorized' }
+
+  const svc = createServiceClient()
+  const roster = await loadRoster(svc, teamId)
+  const target = roster.find(m => m.user_id === targetUserId) ?? null
+  if (!target) return { ok: false, reason: 'target-not-found' }
+  if (target.user_id === context.user.id) return { ok: false, reason: 'target-is-self' }
+  if (target.role === 'owner') return { ok: false, reason: 'target-is-owner' }
+
+  const memberName = await nameOf(svc, target.user_id)
+  if (target.role === newRole) return { ok: true, memberName }   // já está no papel pedido (idempotente)
+
+  const { error } = await svc.from('team_members').update({ role: newRole }).eq('id', target.id)
+  if (error) throw error
+  return { ok: true, memberName }
+}

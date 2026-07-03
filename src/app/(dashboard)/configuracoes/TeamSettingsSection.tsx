@@ -1,10 +1,11 @@
 'use client'
 
 import { useMemo, useState, useTransition } from 'react'
-import { Check, Copy, ShieldCheck, UserPlus, XCircle } from 'lucide-react'
+import { useRouter } from 'next/navigation'
+import { ArrowUp, ArrowDown, Check, Copy, ShieldCheck, UserPlus, XCircle } from 'lucide-react'
 import { Panel } from '@/components/bento/Panel'
 import { cn } from '@/lib/utils'
-import { createTeamInviteAction, revokeTeamInviteAction } from './team-actions'
+import { createTeamInviteAction, revokeTeamInviteAction, changeMemberRoleAction } from './team-actions'
 import { TeamAccessControls, type TeamAccessTeam } from './TeamAccessControls'
 
 export type TeamSettingsMember = {
@@ -125,11 +126,28 @@ function InviteRow({
 }
 
 export function TeamSettingsSection({ teamName, members, invites: initialInvites, canManage = true, currentUserId, currentRole, activeTeamId, teams }: Props) {
+  const router = useRouter()
   const [invites, setInvites] = useState(initialInvites)
   const [latestInvite, setLatestInvite] = useState<TeamSettingsInvite | null>(null)
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
   const [busyInviteId, setBusyInviteId] = useState<string | null>(null)
+  const [busyMemberId, setBusyMemberId] = useState<string | null>(null)
   const [isPendingAction, startTransition] = useTransition()
+
+  const iAmOwner = currentRole === 'owner'
+
+  // Promover/rebaixar — só o owner (o servidor revalida). Recarrega os dados do servidor após a mudança.
+  const changeRole = (member: TeamSettingsMember, newRole: 'admin' | 'member') => {
+    setMessage(null)
+    setBusyMemberId(member.id)
+    startTransition(async () => {
+      const res = await changeMemberRoleAction(member.userId, newRole)
+      setBusyMemberId(null)
+      if (!res.ok) { setMessage({ type: 'error', text: res.error }); return }
+      setMessage({ type: 'success', text: res.data.message })
+      router.refresh()
+    })
+  }
 
   const pendingInvites = useMemo(() => invites.filter(isPending), [invites])
   const expiredInvites = useMemo(() => invites.filter(invite => !invite.usedAt && isExpired(invite)), [invites])
@@ -251,27 +269,52 @@ export function TeamSettingsSection({ teamName, members, invites: initialInvites
         <div>
           <p className="font-tech text-[10px] uppercase tracking-wide text-bento-muted mb-2">Membros atuais</p>
           <div className="space-y-2">
-            {members.map(member => (
-              <div key={member.id} className="bento-fx p-3 flex items-center gap-3">
-                <span aria-hidden className="grid place-items-center w-9 h-9 rounded-full bg-bento-bg border border-bento-border text-[11px] font-tech text-bento-dim shrink-0">
-                  {initialsOf(member.name)}
-                </span>
-                <div className="min-w-0 flex-1">
-                  <p className="text-sm font-medium text-bento-text truncate">
-                    {member.name}
-                    {member.userId === currentUserId && <span className="text-[11px] font-normal text-bento-dim"> (você)</span>}
-                  </p>
-                  {member.email && <p className="text-[11px] text-bento-muted truncate">{member.email}</p>}
-                  <p className="text-[10px] text-bento-dim mt-0.5">
-                    Entrada: {formatDate(member.joinedAt)} · <span className="font-tech">#{member.userId.slice(0, 8)}</span>
-                  </p>
+            {members.map(member => {
+              const isSelf = member.userId === currentUserId
+              const canPromote = iAmOwner && !isSelf && member.role === 'member'
+              const canDemote = iAmOwner && !isSelf && member.role === 'admin'
+              const hasActions = canPromote || canDemote
+              const busy = busyMemberId === member.id
+              return (
+                <div key={member.id} className="bento-fx p-3">
+                  <div className="flex items-center gap-3">
+                    <span aria-hidden className="grid place-items-center w-9 h-9 rounded-full bg-bento-bg border border-bento-border text-[11px] font-tech text-bento-dim shrink-0">
+                      {initialsOf(member.name)}
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-medium text-bento-text truncate">
+                        {member.name}
+                        {isSelf && <span className="text-[11px] font-normal text-bento-dim"> (você)</span>}
+                      </p>
+                      {member.email && <p className="text-[11px] text-bento-muted truncate">{member.email}</p>}
+                      <p className="text-[10px] text-bento-dim mt-0.5">
+                        Entrada: {formatDate(member.joinedAt)} · <span className="font-tech">#{member.userId.slice(0, 8)}</span>
+                      </p>
+                    </div>
+                    <span className="flex items-center gap-1.5 text-[11px] px-2 py-1 rounded-full border border-bento-border text-bento-dim flex-none">
+                      <ShieldCheck className="w-3.5 h-3.5" />
+                      {roleLabel[member.role]}
+                    </span>
+                  </div>
+                  {hasActions && (
+                    <div className="mt-2.5 pt-2.5 border-t border-bento-border flex flex-wrap gap-2">
+                      {canPromote && (
+                        <button type="button" onClick={() => changeRole(member, 'admin')} disabled={isPendingAction}
+                          className="inline-flex items-center gap-1.5 px-3 min-h-[36px] rounded-btn text-xs font-medium border border-bento-border text-bento-text hover:border-lime hover:text-lime-fg transition-colors disabled:opacity-50">
+                          <ArrowUp className="w-3.5 h-3.5" /> {busy ? 'Aplicando...' : 'Promover a admin'}
+                        </button>
+                      )}
+                      {canDemote && (
+                        <button type="button" onClick={() => changeRole(member, 'member')} disabled={isPendingAction}
+                          className="inline-flex items-center gap-1.5 px-3 min-h-[36px] rounded-btn text-xs font-medium border border-bento-border text-bento-dim hover:text-bento-text transition-colors disabled:opacity-50">
+                          <ArrowDown className="w-3.5 h-3.5" /> {busy ? 'Aplicando...' : 'Rebaixar a member'}
+                        </button>
+                      )}
+                    </div>
+                  )}
                 </div>
-                <span className="flex items-center gap-1.5 text-[11px] px-2 py-1 rounded-full border border-bento-border text-bento-dim flex-none">
-                  <ShieldCheck className="w-3.5 h-3.5" />
-                  {roleLabel[member.role]}
-                </span>
-              </div>
-            ))}
+              )
+            })}
           </div>
         </div>
 
