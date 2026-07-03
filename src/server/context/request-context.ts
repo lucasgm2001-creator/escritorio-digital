@@ -51,3 +51,21 @@ export const getRequestContext = cache(async (): Promise<RequestContext | null> 
     role: toRequestContextRole(membership),
   }
 })
+
+export type SwitcherTeamView = {
+  id: string
+  name: string
+  role: TeamMembership['role']
+  isActive: boolean
+}
+
+// Projeta as equipes do usuário para o Workspace Switcher (id/nome/papel/ativa). FONTE ÚNICA da mesma
+// leitura antes repetida em cada layout (dashboard/admin/tráfego/cliente) — TEAM-ADMIN-003 (dedup, Part 1).
+export function switcherTeamsFromContext(context: RequestContext): SwitcherTeamView[] {
+  return context.memberships.map(m => ({
+    id: m.team_id,
+    name: m.team?.name ?? 'Equipe',
+    role: m.role,
+    isActive: m.team_id === context.activeTeamId,
+  }))
+}

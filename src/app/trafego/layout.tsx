@@ -1,6 +1,6 @@
 import { redirect } from 'next/navigation'
 import { capitalizeName } from '@/lib/utils'
-import { getRequestContext } from '@/server/context/request-context'
+import { getRequestContext, switcherTeamsFromContext } from '@/server/context/request-context'
 import { DomainShell } from '@/components/domain/DomainShell'
 
 export const metadata = { title: 'Tráfego · Escritório Digital' }
@@ -12,9 +12,7 @@ export default async function TrafegoLayout({ children }: { children: React.Reac
   if (context.memberships.length === 0) redirect('/onboarding')
 
   const userName = capitalizeName(context.profile?.name ?? context.user.email?.split('@')[0] ?? 'Usuário')
-  const teams = context.memberships.map(m => ({
-    id: m.team_id, name: m.team?.name ?? 'Equipe', role: m.role, isActive: m.team_id === context.activeTeamId,
-  }))
+  const teams = switcherTeamsFromContext(context)
 
   return (
     <DomainShell

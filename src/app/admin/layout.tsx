@@ -1,7 +1,7 @@
 import { redirect } from 'next/navigation'
 import { capitalizeName } from '@/lib/utils'
 import { can } from '@/lib/permissions/can'
-import { getRequestContext } from '@/server/context/request-context'
+import { getRequestContext, switcherTeamsFromContext } from '@/server/context/request-context'
 import { AdminShell } from '@/components/admin/AdminShell'
 
 export const metadata = { title: 'Administração · Escritório Digital' }
@@ -15,9 +15,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   if (!can(context, 'teams', 'manage')) redirect('/hall')
 
   const userName = capitalizeName(context.profile?.name ?? context.user.email?.split('@')[0] ?? 'Usuário')
-  const teams = context.memberships.map(m => ({
-    id: m.team_id, name: m.team?.name ?? 'Equipe', role: m.role, isActive: m.team_id === context.activeTeamId,
-  }))
+  const teams = switcherTeamsFromContext(context)
 
   return (
     <AdminShell

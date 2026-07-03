@@ -2,7 +2,7 @@ import { redirect } from 'next/navigation'
 import { DashboardShell } from '@/components/layout/DashboardShell'
 import { ToastProvider } from '@/components/ui/toast'
 import { capitalizeName } from '@/lib/utils'
-import { getRequestContext } from '@/server/context/request-context'
+import { getRequestContext, switcherTeamsFromContext } from '@/server/context/request-context'
 import { CommissionLockProvider } from '@/components/commission/CommissionLock'
 import { RoleProvider } from '@/components/auth/RoleProvider'
 
@@ -31,13 +31,8 @@ export default async function DashboardLayout({ children }: { children: React.Re
   // (componente BrandMark na Sidebar/cabeçalho) — não depende do logo do Storage.
   const avatarUrl = context.profile?.avatar_url ?? null
 
-  // Equipes do usuário para o Workspace Switcher (Part 5) — trocar/entrar sem abrir Configurações.
-  const teams = context.memberships.map(m => ({
-    id: m.team_id,
-    name: m.team?.name ?? 'Equipe',
-    role: m.role,
-    isActive: m.team_id === context.activeTeamId,
-  }))
+  // Equipes do usuário para o Workspace Switcher (Part 5) — fonte única em switcherTeamsFromContext.
+  const teams = switcherTeamsFromContext(context)
 
   return (
     <DashboardShell
