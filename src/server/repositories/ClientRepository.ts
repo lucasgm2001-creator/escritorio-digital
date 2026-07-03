@@ -58,3 +58,32 @@ export const getClientActivities = cache(async (clientId: string): Promise<Clien
   if (error) return []
   return (data ?? []) as ClientActivityRecord[]
 })
+
+// Lead de ORIGEM do cliente: o deal do won-flow guarda client_id + lead_id (bridge existente). Assim as
+// reuniões/jornada do lead ligam ao cliente SEM alterar banco. Degrada para null (cliente sem deal/lead).
+export const getLeadIdForClient = cache(async (clientId: string): Promise<string | null> => {
+  const supabase = createClient()
+  const { data, error } = await supabase
+    .from('deals')
+    .select('lead_id, data_fechamento')
+    .eq('client_id', clientId)
+    .not('lead_id', 'is', null)
+    .order('data_fechamento', { ascending: true })
+    .limit(1)
+  if (error) return null
+  return (data?.[0]?.lead_id as string | null | undefined) ?? null
+})
+
+// Reuniões do lead (tabela meetings, chaveada por lead_id). Fonte real da Agenda/Timeline do cliente.
+export type ClientMeetingRecord = { id: string; note: string | null; met_on: string | null; created_at: string | null }
+
+export const getMeetingsByLead = cache(async (leadId: string): Promise<ClientMeetingRecord[]> => {
+  const supabase = createClient()
+  const { data, error } = await supabase
+    .from('meetings')
+    .select('id, note, met_on, created_at')
+    .eq('lead_id', leadId)
+    .order('met_on', { ascending: false })
+  if (error) return []
+  return (data ?? []) as ClientMeetingRecord[]
+})

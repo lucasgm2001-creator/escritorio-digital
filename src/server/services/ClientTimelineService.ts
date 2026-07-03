@@ -4,21 +4,23 @@ import type { RequestContext } from '@/server/context/request-context'
 import type { LeadTimelineItem } from '@/lib/commercial/lead-hub-types'
 import { categoryForInteractionType } from '@/lib/commercial/lead-categories'
 import { getClientWorkspace } from './ClientWorkspaceService'
+import { getClientLeadHub } from './ClientContextService'
 import { getClientPaymentsByClient, getClientActivities } from '@/server/repositories/ClientRepository'
 
-// Timeline REAL do cliente (CLIENT-004). Unifica os dados reais existentes num LeadTimelineItem[] — o
-// MESMO contrato/visual do Lead Hub (reusa LeadTimeline). Isolamento por equipe via getClientWorkspace.
-// Fontes hoje: clients.created_at, client_payments (recebido/anulado), activities (entity_id = cliente).
-// Reuniões/observações/eventos de tráfego entram quando tiverem fonte por cliente (transparente).
+// Timeline REAL e UNIFICADA do cliente (CLIENT-005). Junta os eventos do CLIENTE (criação, recebimentos,
+// atividades) com toda a timeline do LEAD de origem (reuniões, propostas, fases, observações, deals) — via
+// getClientLeadHub, que REUSA o LeadHub. Mesmo contrato/visual do Lead Hub (reusa LeadTimeline). Sem
+// duplicar eventos (dedupe por id). Isolamento por equipe via getClientWorkspace.
 const usd = (value: number): string => `US$ ${Math.round(value).toLocaleString('en-US')}`
 
 export async function getClientTimeline(context: RequestContext, clientId: string): Promise<LeadTimelineItem[]> {
   const client = await getClientWorkspace(clientId) // team-scoped (TEAM-001) + cache
   if (!client) return []
 
-  const [payments, activities] = await Promise.all([
+  const [payments, activities, leadHub] = await Promise.all([
     getClientPaymentsByClient(clientId),
     getClientActivities(clientId),
+    getClientLeadHub(context, clientId),
   ])
 
   const items: LeadTimelineItem[] = []
@@ -50,16 +52,21 @@ export async function getClientTimeline(context: RequestContext, clientId: strin
     }
   }
 
-  // Atividades (activities.entity_id = cliente), se existirem
+  // Atividades do cliente (activities.entity_id = cliente), se existirem
   for (const activity of activities) {
     items.push({
-      id: `act-${activity.id}`, type: 'atividade', category: categoryForInteractionType(activity.type), origin: 'sistema',
+      id: `cact-${activity.id}`, type: 'atividade', category: categoryForInteractionType(activity.type), origin: 'sistema',
       author: activity.user_name ?? null, at: activity.created_at ?? null,
       title: activity.description || activity.type, description: null,
     })
   }
 
-  // Do mais novo ao mais antigo (LeadTimeline agrupa preservando a ordem).
-  items.sort((a, b) => (b.at ? new Date(b.at).getTime() : 0) - (a.at ? new Date(a.at).getTime() : 0))
-  return items
+  // Timeline do LEAD de origem (reuniões, propostas, fases, observações, deals) — reuso do LeadHub.
+  if (leadHub) items.push(...leadHub.timeline)
+
+  // Dedupe por id + ordena do mais novo ao mais antigo (LeadTimeline agrupa preservando a ordem).
+  const seen = new Set<string>()
+  const unique = items.filter(item => (seen.has(item.id) ? false : (seen.add(item.id), true)))
+  unique.sort((a, b) => (b.at ? new Date(b.at).getTime() : 0) - (a.at ? new Date(a.at).getTime() : 0))
+  return unique
 }
