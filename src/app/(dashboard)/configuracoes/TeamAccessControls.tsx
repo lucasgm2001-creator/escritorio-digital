@@ -47,6 +47,7 @@ export function TeamAccessControls({
   const [confirming, setConfirming] = useState(false)
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
   const [inviteCode, setInviteCode] = useState('')
+  const [confirmText, setConfirmText] = useState('')   // digitar o nome da equipe para confirmar a saída
 
   const isOwner = currentRole === 'owner'
   const successor = useMemo(() => previewSuccessor(members, currentUserId), [members, currentUserId])
@@ -159,7 +160,7 @@ export function TeamAccessControls({
       {!confirming ? (
         <button
           type="button"
-          onClick={() => { setMessage(null); setConfirming(true) }}
+          onClick={() => { setMessage(null); setConfirmText(''); setConfirming(true) }}
           className="inline-flex items-center gap-1.5 text-xs text-bento-dim hover:text-red-400 transition-colors"
         >
           <LogOut className="w-3.5 h-3.5" /> Sair desta equipe
@@ -186,11 +187,26 @@ export function TeamAccessControls({
               )}
             </div>
           </div>
+          {/* Ação crítica: digitar o nome da equipe para liberar o botão (Part 5). */}
+          {!soleOwnerBlocked && (
+            <div>
+              <label className="block text-[11px] text-bento-muted mb-1">
+                Para confirmar, digite <strong className="text-bento-text">{currentTeamName}</strong>
+              </label>
+              <input
+                value={confirmText}
+                onChange={e => setConfirmText(e.target.value)}
+                disabled={pending}
+                placeholder={currentTeamName}
+                className="w-full bg-bento-bg border border-bento-border rounded-btn px-3 min-h-[40px] text-sm text-bento-text placeholder:text-bento-muted focus:outline-none focus:border-red-500/50 disabled:opacity-50"
+              />
+            </div>
+          )}
           <div className="flex items-center gap-2">
             <button
               type="button"
               onClick={onLeave}
-              disabled={pending || soleOwnerBlocked}
+              disabled={pending || soleOwnerBlocked || confirmText.trim() !== currentTeamName}
               className="inline-flex items-center gap-1.5 px-3 py-2 rounded-btn text-xs font-semibold bg-red-500/15 border border-red-500/40 text-red-400 hover:bg-red-500/25 disabled:opacity-50 min-h-[40px]"
             >
               <LogOut className="w-3.5 h-3.5" /> {pending ? 'Saindo...' : 'Confirmar saída'}
