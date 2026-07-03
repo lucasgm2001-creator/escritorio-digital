@@ -52,6 +52,7 @@
 
   --bento-bg:        8 13 10;      /* #080D0A */
   --bento-panel:     17 26 20;     /* #111A14 */
+  --bento-surface:   20 30 24;     /* #141E18  superfície ELEVADA e OPACA de overlay (dropdown/menu/modal/sheet) */
   --bento-border:    38 51 40;     /* #263328 */
   --bento-text:      243 247 239;  /* #F3F7EF  (não branco puro) */
   --bento-dim:       168 179 162;  /* #A8B3A2 */
@@ -101,6 +102,7 @@ html.light {
 
   --bento-bg:     247 250 243;  /* #F7FAF3 */
   --bento-panel:  255 255 255;  /* #FFFFFF */
+  --bento-surface: 255 255 255; /* #FFFFFF  overlay OPACO no claro (dropdown/menu/modal/sheet) */
   --bento-border: 220 232 209;  /* #DCE8D1 */
   --bento-text:   24 32 20;     /* #182014 */
   --bento-dim:    93 102 88;    /* #5D6658 */

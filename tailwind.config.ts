@@ -72,12 +72,13 @@ const config: Config = {
         },
         // Neutros bento (theme-aware), isolados dos tokens --c-* legados.
         bento: {
-          bg:     'rgb(var(--bento-bg) / <alpha-value>)',
-          panel:  'rgb(var(--bento-panel) / <alpha-value>)',
-          border: 'rgb(var(--bento-border) / <alpha-value>)',
-          text:   'rgb(var(--bento-text) / <alpha-value>)',
-          dim:    'rgb(var(--bento-dim) / <alpha-value>)',
-          muted:  'rgb(var(--bento-muted) / <alpha-value>)',
+          bg:      'rgb(var(--bento-bg) / <alpha-value>)',
+          panel:   'rgb(var(--bento-panel) / <alpha-value>)',
+          surface: 'rgb(var(--bento-surface) / <alpha-value>)',
+          border:  'rgb(var(--bento-border) / <alpha-value>)',
+          text:    'rgb(var(--bento-text) / <alpha-value>)',
+          dim:     'rgb(var(--bento-dim) / <alpha-value>)',
+          muted:   'rgb(var(--bento-muted) / <alpha-value>)',
         },
       },
       fontFamily: {
