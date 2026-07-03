@@ -538,13 +538,8 @@ export function TarefasClient({ tasks, setTasks, deletedIds, linkOptions, curren
             </div>
           )}
 
-          {/* Botão CLARO p/ abrir o formulário completo (Tarefa/Reunião). O "adicionar rápido" fica na barra de baixo. */}
-          <button onClick={openNew}
-            className="bento-btn w-full flex items-center justify-center gap-2 min-h-[48px] rounded-btn text-sm font-semibold">
-            <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
-            Nova tarefa
-          </button>
-
+          {/* Criação DEMOTADA (HALL-003A, Parts 3/9): "Nova tarefa" fica só na barra fixa de baixo (FAB, mesmo
+              openNew) — não compete com o dado no topo. Resolver > criar; o topo prioriza resumo, filtro e lista. */}
           {/* Responsável (minibox) + Resumo do dia */}
           <div className="flex items-center gap-2">
             {sellers.length > 0 && (
