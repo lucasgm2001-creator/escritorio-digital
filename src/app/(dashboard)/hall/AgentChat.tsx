@@ -2,6 +2,8 @@
 
 import { useState, useRef, useEffect } from 'react'
 import { Markdown } from '@/components/ui/Markdown'
+import { AiInsightsPanel } from '@/components/ai/AiInsightsPanel'
+import { Sparkles } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { moveLead, type MovableLead } from '../comercial/leadActions'
 import { type LeadStatus } from '../comercial/types'
@@ -312,9 +314,22 @@ export function AgentChat({ userId, userName }: { userId: string; userName: stri
       {/* Messages */}
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
         {messages.length === 0 && (
-          <div className="flex flex-col items-center justify-center h-full text-center">
-            <p className="text-muted-foreground mb-2">Nenhuma conversa iniciada</p>
-            <p className="text-sm text-muted-foreground/70">
+          <div className="flex flex-col items-center justify-center min-h-full text-center gap-4 px-2 py-4">
+            <div className="w-12 h-12 rounded-bento bg-lime/10 border border-lime/20 flex items-center justify-center">
+              <Sparkles className="w-6 h-6 text-lime-fg" />
+            </div>
+            <div className="space-y-1">
+              <p className="font-display font-semibold text-bento-text">Agente operacional</p>
+              <p className="text-sm text-bento-muted max-w-sm">Peça em linguagem natural — o agente executa no sistema e confirma antes de salvar.</p>
+            </div>
+            <div className="w-full max-w-md text-left">
+              <AiInsightsPanel
+                label="O que o agente faz"
+                items={['Criar lead no funil', 'Criar tarefa (com data e hora)', 'Concluir tarefa', 'Mover lead entre estágios']}
+                note="Você confirma antes de qualquer gravação. Respostas com IA podem ficar temporariamente indisponíveis por manutenção — não é erro do sistema."
+              />
+            </div>
+            <p className="text-sm text-bento-muted/70">
               Ex.: &quot;cria um lead chamado João da Construtora Silva&quot;
             </p>
           </div>

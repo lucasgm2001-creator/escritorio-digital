@@ -481,6 +481,13 @@ export function HallClient({ initialActivities, initialTasks, linkOptions, userN
 
         {activeTab === 'mapa' && (
           <>
+            {/* Contexto acima do mapa (Hall 2.0) — harmoniza com as seções da Visão Geral e evita que o mapa
+                pareça isolado. NÃO compete com o header do próprio LeadMap (nível de seção, não de título). */}
+            <SectionLabel>Distribuição geográfica</SectionLabel>
+            <p className="text-sm text-bento-muted -mt-1">
+              <strong className="font-semibold text-bento-text">{mapLeads.length}</strong> {mapLeads.length === 1 ? 'lead' : 'leads'}
+              {' · '}<strong className="font-semibold text-bento-text">{mapClients.length}</strong> {mapClients.length === 1 ? 'cliente' : 'clientes'} da equipe, por estado (EUA).
+            </p>
             {/* Mapa CHEIO — enche a LARGURA; a altura vem da proporção (height:auto do SVG). Sem altura
                 fixa (não letterboxa). Mobile: padding mínimo no card pra o mapa usar quase a tela toda. */}
             {/* Título ÚNICO: o header do LeadMap ("Mapa de Leads" + relógios). O Panel fica SEM label p/ não duplicar. */}
