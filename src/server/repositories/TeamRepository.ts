@@ -140,6 +140,23 @@ export async function getTeamMembers(teamId: string): Promise<TeamMember[]> {
   }))
 }
 
+// Contagem de membros por equipe (TEAM-ADMIN-002, Part 4). Service-role: conta as linhas de team_members das
+// equipes pedidas (as do próprio usuário) e agrega em memória — o RLS não deixaria contar equipes das quais
+// ele participa mas não administra. Só leitura de team_id; nenhum dado sensível cruza.
+export async function getTeamMemberCounts(teamIds: string[]): Promise<Map<string, number>> {
+  const counts = new Map<string, number>()
+  if (teamIds.length === 0) return counts
+
+  const svc = createServiceClient()
+  const { data, error } = await svc.from('team_members').select('team_id').in('team_id', teamIds)
+  if (error) throw error
+
+  for (const row of (data ?? []) as { team_id: string }[]) {
+    counts.set(row.team_id, (counts.get(row.team_id) ?? 0) + 1)
+  }
+  return counts
+}
+
 export async function getTeamInvites(teamId: string): Promise<TeamInvite[]> {
   const supabase = createClient()
 

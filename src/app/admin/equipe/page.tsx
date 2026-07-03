@@ -1,5 +1,5 @@
 import { getRequestContext } from '@/server/context/request-context'
-import { getActiveTeamMembers, getActiveTeamInvites } from '@/server/services/TeamService'
+import { getActiveTeamMembers, getActiveTeamInvites, getTeamsOverview } from '@/server/services/TeamService'
 import { WorkspaceCenter } from './WorkspaceCenter'
 
 // Administração › Equipe = WORKSPACE CENTER (TEAM-ADMIN-002). Centro de administração da equipe, com abas.
@@ -8,9 +8,9 @@ import { WorkspaceCenter } from './WorkspaceCenter'
 // como self-service do usuário (trocar/sair/entrar) — não é tocada.
 export default async function AdminEquipePage() {
   const context = await getRequestContext()
-  const [rawMembers, rawInvites] = context
-    ? await Promise.all([getActiveTeamMembers(context), getActiveTeamInvites(context)])
-    : [[], []]
+  const [rawMembers, rawInvites, teams] = context
+    ? await Promise.all([getActiveTeamMembers(context), getActiveTeamInvites(context), getTeamsOverview(context)])
+    : [[], [], []]
 
   // Nome resolvido por usuário (perfil.name → email → fallback) — reusado para membros e "quem convidou".
   const nameByUser = new Map<string, string>()
@@ -49,6 +49,7 @@ export default async function AdminEquipePage() {
       currentRole={context?.membership?.role ?? 'member'}
       members={members}
       invites={invites}
+      teams={teams}
       teamCount={context?.memberships.length ?? 0}
       ownerName={ownerName}
     />

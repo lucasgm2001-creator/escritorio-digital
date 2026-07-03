@@ -3,10 +3,12 @@ import 'server-only'
 import { requirePermission } from '@/lib/permissions/require-permission'
 import { createServiceClient } from '@/lib/supabase/service'
 import type { RequestContext } from '@/server/context/request-context'
+import type { TeamRole } from '@/lib/supabase/team'
 import {
   createTeamInvite,
   getTeamInvites,
   getTeamMembers,
+  getTeamMemberCounts,
   revokeTeamInvite,
   type TeamInvite,
   type TeamMember,
@@ -35,6 +37,30 @@ export async function getActiveTeamMembers(
   const activeTeamId = requireActiveTeamId(context)
 
   return getTeamMembers(activeTeamId)
+}
+
+export type TeamOverview = {
+  id: string
+  name: string
+  role: TeamRole
+  memberCount: number
+  isActive: boolean
+}
+
+// Panorama das equipes DO PRÓPRIO usuário (TEAM-ADMIN-002, Part 4) — nome, papel, nº de membros e qual é a
+// ativa. Fonte = context.memberships (as equipes que ele participa); a contagem vem do repositório. Sem
+// exigir permissão de admin: qualquer membro pode ver/alternar as suas equipes.
+export async function getTeamsOverview(context: RequestContext): Promise<TeamOverview[]> {
+  const teamIds = context.memberships.map(m => m.team_id)
+  const counts = await getTeamMemberCounts(teamIds)
+
+  return context.memberships.map(m => ({
+    id: m.team_id,
+    name: m.team?.name ?? 'Equipe',
+    role: m.role,
+    memberCount: counts.get(m.team_id) ?? 0,
+    isActive: m.team_id === context.activeTeamId,
+  }))
 }
 
 export async function getActiveTeamInvites(
