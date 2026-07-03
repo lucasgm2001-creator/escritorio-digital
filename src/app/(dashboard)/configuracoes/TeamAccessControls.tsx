@@ -4,6 +4,7 @@ import { useMemo, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { Users, LogOut, ShieldAlert, Ticket } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { MAX_TEAMS_PER_USER, hasReachedTeamLimit } from '@/lib/teams/limits'
 import { switchTeamAction, leaveTeamAction, redeemInviteAction } from './team-actions'
 
 export type TeamAccessTeam = { id: string; name: string; role: string }
@@ -53,7 +54,7 @@ export function TeamAccessControls({
   const successor = useMemo(() => previewSuccessor(members, currentUserId), [members, currentUserId])
   const soleOwnerBlocked = isOwner && !successor
   const currentTeamName = teams.find(t => t.id === activeTeamId)?.name ?? 'esta equipe'
-  const atLimit = teams.length >= 4
+  const atLimit = hasReachedTeamLimit(teams.length)
 
   const onSwitch = (teamId: string) => {
     if (teamId === activeTeamId || pending) return
@@ -95,7 +96,7 @@ export function TeamAccessControls({
       <div>
         <div className="flex items-center justify-between mb-1.5">
           <p className="font-tech text-[10px] uppercase tracking-wide text-bento-muted">Suas equipes</p>
-          <span className="font-tech text-[10px] text-bento-dim tabular-nums">{teams.length}/4 equipes</span>
+          <span className="font-tech text-[10px] text-bento-dim tabular-nums">{teams.length}/{MAX_TEAMS_PER_USER} equipes</span>
         </div>
         <div className="space-y-1.5">
           {teams.map(t => {
@@ -126,7 +127,7 @@ export function TeamAccessControls({
 
       {/* Entrar em outra equipe por convite (Part 3) — respeita o limite de 4 (Part 2). */}
       {atLimit ? (
-        <p className="text-[11px] text-bento-muted">Você atingiu o limite de 4 equipes. Saia de uma para entrar em outra.</p>
+        <p className="text-[11px] text-bento-muted">Você atingiu o limite de {MAX_TEAMS_PER_USER} equipes. Saia de uma para entrar em outra.</p>
       ) : (
         <div>
           <p className="font-tech text-[10px] uppercase tracking-wide text-bento-muted mb-1.5">Entrar em outra equipe</p>

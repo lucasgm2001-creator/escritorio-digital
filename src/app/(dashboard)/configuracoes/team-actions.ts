@@ -14,9 +14,7 @@ import { getRequestContext } from '@/server/context/request-context'
 import { ACTIVE_TEAM_COOKIE } from '@/lib/supabase/team'
 import { createServiceClient } from '@/lib/supabase/service'
 import { createClient } from '@/lib/supabase/server'
-
-// TEAM-SECURITY-002 — cada usuário participa de no máximo 4 equipes.
-const MAX_TEAMS = 4
+import { MAX_TEAMS_PER_USER, hasReachedTeamLimit } from '@/lib/teams/limits'
 
 // Cookie da equipe ativa — lido server-side por getActiveTeam. httpOnly (não precisa no client), 1 ano.
 const TEAM_COOKIE_OPTS = {
@@ -143,9 +141,9 @@ export async function redeemInviteAction(token: string): Promise<ActionResult<{ 
   if (context.memberships.some(m => m.team_id === teamId)) {
     return { ok: true, data: { teamId, message: 'Voce ja participa dessa equipe. Use o seletor para alterna-la.' } }
   }
-  // Limite de 4 equipes (Part 2) — validado NO SERVIDOR.
-  if (context.memberships.length >= MAX_TEAMS) {
-    return { ok: false, error: 'Voce ja participa do limite de 4 equipes. Saia de uma equipe antes de entrar em outra.' }
+  // Limite de equipes (fonte única em lib/teams/limits) — validado NO SERVIDOR.
+  if (hasReachedTeamLimit(context.memberships.length)) {
+    return { ok: false, error: `Voce ja participa do limite de ${MAX_TEAMS_PER_USER} equipes. Saia de uma equipe antes de entrar em outra.` }
   }
 
   // Resgate real: client do USUÁRIO (auth.uid() = o convidado). Insere a membership sem tocar nas demais.
