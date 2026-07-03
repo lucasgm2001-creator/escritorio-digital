@@ -5,6 +5,7 @@ import { usePathname } from 'next/navigation'
 import Link from 'next/link'
 import { Search, Menu, ChevronLeft, X } from 'lucide-react'
 import { DomainNav } from './DomainNav'
+import { Sidebar } from '@/components/layout/Sidebar'
 import { DOMAIN_CONFIGS } from '@/lib/domain/registry'
 import type { DomainConfig, DomainKey } from '@/lib/domain/nav'
 
@@ -20,6 +21,7 @@ export function DomainShell({ configKey, config: configProp, subtitle, userName,
   children: React.ReactNode
 }) {
   const [sheetOpen, setSheetOpen] = useState(false)
+  const [railOpen, setRailOpen] = useState(false)   // rail global colapsada por padrão (60px); expande no toggle
   const pathname = usePathname()
   const config = configProp ?? DOMAIN_CONFIGS[configKey!]
   const current = config.sections.find(section =>
@@ -29,6 +31,12 @@ export function DomainShell({ configKey, config: configProp, subtitle, userName,
 
   return (
     <div className="flex h-[100dvh] overflow-hidden bg-bento-bg text-bento-text">
+      {/* Rail GLOBAL persistente (IPAD-003) — a MESMA Sidebar/NAV_MODULES do DashboardShell, nunca some.
+          Em Tráfego/Administração dá pra trocar de módulo SEM voltar ao Hall. Só md+ (iPad/desktop); no
+          celular a navegação segue pelo cabeçalho + sheet. Reuso total: nenhuma 2ª navegação/config. */}
+      <div className="hidden md:flex shrink-0">
+        <Sidebar open={railOpen} onToggle={() => setRailOpen(o => !o)} activeTeamName={subtitle} />
+      </div>
       <DomainNav
         config={config}
         subtitle={subtitle}

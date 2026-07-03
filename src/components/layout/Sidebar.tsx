@@ -29,7 +29,7 @@ export function Sidebar({ open, onToggle, mobileClose, activeTeamName }: Sidebar
     >
       {/* Marca do app — símbolo oficial "O Módulo Ativo" + wordmark "Escritório Digital".
           Expandida = símbolo + nome; recolhida (rail estreito) = só o símbolo, centralizado. */}
-      <div className="flex items-center h-14 px-3 border-b border-sidebar-border/10 overflow-hidden gap-2.5">
+      <div className="flex items-center min-h-[56px] px-3 pt-[env(safe-area-inset-top)] border-b border-sidebar-border/10 overflow-hidden gap-2.5">
         <BrandMark
           size={30}
           decorative={open || isMobileDrawer}
