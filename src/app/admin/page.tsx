@@ -28,7 +28,7 @@ export default async function AdminHomePage() {
 
   return (
     <div className="space-y-6">
-      <WorkspaceHeader eyebrow="Administração" title="Painel administrativo" />
+      <WorkspaceHeader breadcrumb={['Administração']} title="Painel administrativo" />
 
       {/* Status (dados reais) */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5">

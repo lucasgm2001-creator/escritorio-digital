@@ -34,7 +34,7 @@ export function TrafficDashboard({ clientName }: { clientName?: string }) {
   return (
     <div className="space-y-6">
       <TrafficHeader
-        eyebrow={clientName ? `Tráfego · ${clientName}` : 'Tráfego'}
+        breadcrumb={clientName ? ['Tráfego', clientName] : ['Tráfego']}
         title="Dashboard executivo"
         subtitle={`${clientName ? `Mídia paga de ${clientName}.` : 'Mídia paga consolidada (Meta, Google e mais).'} Indicadores em placeholder — conecte uma plataforma em Contas para começar.`}
       />

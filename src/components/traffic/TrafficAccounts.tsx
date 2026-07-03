@@ -8,7 +8,7 @@ export function TrafficAccounts({ scopeLabel }: { scopeLabel?: string }) {
   return (
     <div className="space-y-6">
       <TrafficHeader
-        eyebrow={scopeLabel ? `Tráfego · ${scopeLabel}` : 'Tráfego'}
+        breadcrumb={scopeLabel ? ['Tráfego', scopeLabel] : ['Tráfego']}
         title="Contas"
         subtitle="Sem contas conectadas. Conecte uma plataforma para começar a trazer campanhas, conversões e analytics."
       />

@@ -7,7 +7,7 @@ export default function Page() {
   return (
     <div className="space-y-5">
       <WorkspaceHeader
-        eyebrow="Administração"
+        breadcrumb={['Administração', 'Integrações']}
         title="Integrações"
         subtitle="Provedores disponíveis para conectar. Nenhuma conta conectada — pronto para conectar quando autorizado."
         size="compact"

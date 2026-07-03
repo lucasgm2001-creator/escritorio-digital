@@ -26,7 +26,7 @@ export default async function DashboardExecutivoPage() {
         <ChevronLeft className="w-4 h-4" /> Comercial
       </Link>
       <WorkspaceHeader
-        eyebrow="Dashboard Executivo"
+        breadcrumb={['Comercial', 'Dashboard']}
         title="Visão comercial"
         subtitle="Indicadores do DashboardMetricsService; insights e funil do ReportingService — fonte única, sem cálculo na tela."
       />
