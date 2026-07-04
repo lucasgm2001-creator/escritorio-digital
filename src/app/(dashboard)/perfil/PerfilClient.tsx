@@ -3,6 +3,7 @@
 import { useState, useRef } from 'react'
 import Image from 'next/image'
 import { createClient } from '@/lib/supabase/client'
+import { updateOwnProfileAction } from './profile-actions'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 
 interface Props {
@@ -85,7 +86,8 @@ export function PerfilClient({ userId, email, initialName, initialPhone, initial
       const { data: { publicUrl } } = supabase.storage.from('avatars').getPublicUrl(path)
       const urlWithBust = `${publicUrl}?t=${Date.now()}`
 
-      const { error: dbErr } = await supabase.from('profiles').update({ avatar_url: urlWithBust }).eq('id', userId)
+      // Servidor: escreve no PRÓPRIO perfil (id do contexto, nunca da UI).
+      const { error: dbErr } = await updateOwnProfileAction({ avatar_url: urlWithBust })
       if (dbErr) throw dbErr
       setAvatarUrl(urlWithBust)
       setSuccess('Foto atualizada com sucesso.')
@@ -104,12 +106,12 @@ export function PerfilClient({ userId, email, initialName, initialPhone, initial
     setError('')
     setSuccess('')
     try {
-      const supabase = createClient()
-      const { error: err } = await supabase.from('profiles').update({
+      // Servidor: escreve no PRÓPRIO perfil (id do contexto, nunca da UI).
+      const { error: err } = await updateOwnProfileAction({
         name: name.trim(),
         phone: phone.trim() || null,
         cargo: cargo.trim() || null,
-      }).eq('id', userId)
+      })
 
       if (err) throw err
       setSuccess('Perfil atualizado com sucesso.')
