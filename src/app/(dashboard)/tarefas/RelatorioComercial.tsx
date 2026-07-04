@@ -114,8 +114,9 @@ export function RelatorioComercial() {
     { t: 'Venda perdida', v: r.perdido },
   ]
 
-  // PDF EXECUTIVO: NÃO calcula nem consulta o banco aqui. Puxa os view-models prontos via Server Action
-  // (ReportingService + DashboardMetricsService, fonte única) e delega o desenho ao buildExecutivePdf.
+  // PDF EXECUTIVO: NÃO calcula nem consulta o banco aqui. Puxa o view-model pronto via Server Action
+  // (ReportingService — period-scoped, fonte única) e delega o desenho ao buildExecutivePdf. O PDF respeita
+  // exatamente a janela selecionada (só dados do período).
   const gerarPdf = async () => {
     setPdfBusy(true)
     setError(null)
@@ -124,7 +125,7 @@ export function RelatorioComercial() {
       const res = await getCommercialReportAction(period)
       if (!res.ok) { setError(res.error); return }
       const { buildExecutivePdf } = await import('@/lib/commercial/executive-pdf')
-      await buildExecutivePdf({ dashboard: res.dashboard, report: res.report, workspace: res.workspace, user: res.user })
+      await buildExecutivePdf({ report: res.report, workspace: res.workspace, user: res.user })
     } catch {
       setError('Não foi possível gerar o PDF.')
     } finally {
