@@ -31,13 +31,13 @@ export async function POST(req: Request) {
     const tasks: CompactTask[] = Array.isArray(body.tasks) ? body.tasks.slice(0, 60) : []
 
     if (tasks.length === 0) {
-      return NextResponse.json({ summary: 'Você não tem nenhuma tarefa para hoje nem pendências atrasadas. Dia livre. 🎯' })
+      return NextResponse.json({ summary: 'Você não tem nenhuma tarefa para hoje nem tarefas pendentes. Dia livre. 🎯' })
     }
 
     // Lista compacta para o modelo (sem dados sensíveis além do título).
     const lines = tasks.map(t => {
       const tags = [
-        t.overdue ? 'ATRASADA' : null,
+        t.overdue ? 'PENDENTE' : null,
         t.priority !== 'normal' ? t.priority.toUpperCase() : null,
         t.due_time ? t.due_time.slice(0, 5) : null,
       ].filter(Boolean).join(', ')
@@ -46,14 +46,14 @@ export async function POST(req: Request) {
 
     const system = [
       `Você é um assistente de produtividade. Resuma o dia do usuário em 2 a 4 frases curtas, em português, tom direto e encorajador.`,
-      `Mencione: quantas tarefas, quais são urgentes (pelo nome) e o que está atrasado. NÃO liste tudo cru — sintetize e priorize o que precisa de atenção.`,
+      `Mencione: quantas tarefas, quais são urgentes (pelo nome) e o que está pendente. NÃO liste tudo cru — sintetize e priorize o que precisa de atenção.`,
       `Não invente nada que não esteja na lista. Responda só o texto, sem markdown nem títulos.`,
     ].join('\n')
 
     const { text: summary } = await generateText({
       model: anthropic('claude-haiku-4-5-20251001'),
       system,
-      messages: [{ role: 'user', content: `Tarefas (hoje + atrasadas):\n${lines}` }],
+      messages: [{ role: 'user', content: `Tarefas (hoje + pendentes):\n${lines}` }],
       maxOutputTokens: 300,
     })
 

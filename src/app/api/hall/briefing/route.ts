@@ -87,7 +87,7 @@ export async function POST() {
     // Dados pro modelo (somente o que existe).
     const dados = [
       `Tarefas de hoje (${hoje.length}): ${hoje.map(t => str(t.title) + (t.due_time ? ` às ${str(t.due_time).slice(0, 5)}` : '')).join('; ') || 'nenhuma'}`,
-      `Tarefas atrasadas (${atrasadas.length}): ${atrasadas.map(t => `${str(t.title)} (venceu ${str(t.due_date)})`).join('; ') || 'nenhuma'}`,
+      `Tarefas pendentes (${atrasadas.length}): ${atrasadas.map(t => `${str(t.title)} (venceu ${str(t.due_date)})`).join('; ') || 'nenhuma'}`,
       `Reuniões de hoje (${reunioes.length}): ${reunioes.join('; ') || 'nenhuma'}`,
       `Leads parados 5+ dias (${parados.length}): ${parados.map(p => `${p.name} — ${p.fase}, ${p.dias}d parado`).join('; ') || 'nenhum'}`,
       `Últimas atividades: ${atividades.slice(0, 10).join('; ') || 'nenhuma'}`,
@@ -97,7 +97,7 @@ export async function POST() {
     const system =
       'Você é uma secretária executiva objetiva. Gere um briefing matinal CURTO em português do Brasil ' +
       'a partir SOMENTE dos dados fornecidos — NUNCA invente itens, números ou nomes. Estrutura: um ' +
-      'cumprimento curto e depois bullets com o que precisa de atenção HOJE (tarefas de hoje, atrasadas, ' +
+      'cumprimento curto e depois bullets com o que precisa de atenção HOJE (tarefas de hoje, pendentes, ' +
       'reuniões, leads parados). Direto, sem floreio. Se não houver nada relevante, diga que o dia está ' +
       'tranquilo. Use markdown simples (bullets com "-"). NÃO cite valores em dinheiro.'
     const userContent = `Hoje é ${todayLabel}.${userName ? ` Usuário: ${userName}.` : ''}\n\nDADOS:\n${dados.join('\n')}`

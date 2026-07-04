@@ -66,7 +66,7 @@ type SectionId = 'atrasadas' | 'hoje' | 'amanha' | 'semana' | 'depois'
 type MobileChip = 'hoje' | 'proximas' | 'atrasadas' | 'concluidas'
 
 const SECTIONS: { id: SectionId; label: string; danger?: boolean; muted?: boolean }[] = [
-  { id: 'atrasadas', label: 'Atrasadas', danger: true },
+  { id: 'atrasadas', label: 'Pendentes', danger: true },
   { id: 'hoje',      label: 'Hoje' },
   { id: 'amanha',    label: 'Amanhã' },
   { id: 'semana',    label: 'Esta semana' },
@@ -602,7 +602,7 @@ export function TarefasClient({ tasks, setTasks, deletedIds, linkOptions, curren
             {([
               { id: 'hoje', label: 'Hoje', count: groups.hoje.length, dot: 'bg-lime' },
               { id: 'proximas', label: 'Próximas', count: proximas.length },
-              { id: 'atrasadas', label: 'Atrasadas', count: groups.atrasadas.length, dot: 'bg-red-500' },
+              { id: 'atrasadas', label: 'Pendentes', count: groups.atrasadas.length, dot: 'bg-red-500' },
               { id: 'concluidas', label: 'Concluídas', count: doneWeek.length },
             ] as { id: MobileChip; label: string; count: number; dot?: string }[]).map(c => (
               <button key={c.id} type="button" onClick={() => setMobileChip(c.id)}

@@ -101,7 +101,7 @@ function MuralTaskRow({ task, onClick, overdue = false }: { task: Task; onClick:
       <span className={cn('w-1.5 h-1.5 rounded-full flex-none', overdue ? 'bg-amber-400' : 'bg-lime')} />
       <span className="text-sm text-bento-text truncate flex-1 min-w-0">{task.title}</span>
       {overdue
-        ? <span className="font-tech text-[10px] uppercase tracking-wide text-amber-400 flex-none">Atrasada</span>
+        ? <span className="font-tech text-[10px] uppercase tracking-wide text-amber-400 flex-none">Pendente</span>
         : hora && <span className="font-tech text-[11px] text-bento-muted flex-none tabular-nums">{hora}</span>}
     </button>
   )
@@ -372,7 +372,7 @@ export function HallClient({ initialActivities, initialTasks, linkOptions, userN
             <p className="text-sm leading-relaxed">
               {tarefasAtrasadas.length > 0 ? (
                 <>
-                  <strong className="font-semibold text-amber-400">{tarefasAtrasadas.length} {tarefasAtrasadas.length === 1 ? 'tarefa atrasada' : 'tarefas atrasadas'}</strong>
+                  <strong className="font-semibold text-amber-400">{tarefasAtrasadas.length} {tarefasAtrasadas.length === 1 ? 'tarefa pendente' : 'tarefas pendentes'}</strong>
                   <span className="text-bento-muted">{' · '}{tarefasHoje.length} para hoje{' · '}{reunioesHoje} {reunioesHoje === 1 ? 'reunião' : 'reuniões'}</span>
                 </>
               ) : (
@@ -395,7 +395,7 @@ export function HallClient({ initialActivities, initialTasks, linkOptions, userN
                     {tarefasAtrasadas.length > 4 && (
                       <button type="button" onClick={() => router.push('/tarefas')}
                         className="w-full text-left font-tech text-[11px] uppercase tracking-wide text-amber-400 hover:text-amber-300 transition-colors py-1">
-                        +{tarefasAtrasadas.length - 4} atrasadas — ver todas
+                        +{tarefasAtrasadas.length - 4} pendentes — ver todas
                       </button>
                     )}
                     {/* Hoje: reuniões + tarefas do dia */}
@@ -510,7 +510,7 @@ export function HallClient({ initialActivities, initialTasks, linkOptions, userN
             {/* Resumo do topo — protagonista: Atrasadas (âmbar). Contagens de dados JÁ carregados (sem query
                 nova); a lista completa, filtros e "nova tarefa" seguem no TarefasClient abaixo, intacto. */}
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-              <MetricCard title="Atrasadas" value={tarefasAtrasadas.length} size="sm" tone={tarefasAtrasadas.length > 0 ? 'warning' : 'muted'} />
+              <MetricCard title="Pendentes" value={tarefasAtrasadas.length} size="sm" tone={tarefasAtrasadas.length > 0 ? 'warning' : 'muted'} />
               <MetricCard title="Hoje" value={tarefasHoje.length} size="sm" />
               <MetricCard title="Esta semana" value={tarefasSemana.length} size="sm" />
               <MetricCard title="Concluídas" value={tarefasConcluidas.length} size="sm" tone="muted" />
