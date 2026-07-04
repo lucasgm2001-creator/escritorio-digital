@@ -136,6 +136,37 @@ async function resolveInitialStage(supabase: SupabaseClient, teamId: string): Pr
   return data?.[0]?.slug || 'novo'
 }
 
+// Tarefa automática de LIGAÇÃO para o lead novo (INBOUND-ACTION-001). Best-effort: uma falha aqui NUNCA pode
+// perder o lead (já criado/retornado). Anti-duplicidade: não recria se já houver uma ligação pendente do dia
+// para o MESMO lead (linked_id + done=false + due_date de hoje + título "Ligar para…"). Só o webhook chama
+// isto — lead MANUAL não passa por aqui, logo segue sem task automática. Responsável = dono do lead (owner
+// DR Growth), com user_id de profile válido → a tarefa aparece no Hall/Tarefas dele. Não sincroniza Google
+// Agenda (insert direto; o sync roda só pelas actions da UI), então add_call=true é só o tipo "ligação".
+async function createCallTask(supabase: SupabaseClient, leadId: string, leadName: string, teamId: string, now: Date): Promise<void> {
+  try {
+    const today = now.toISOString().slice(0, 10)
+    const { data: dup } = await supabase.from('tasks').select('id')
+      .eq('linked_type', 'lead').eq('linked_id', leadId).eq('done', false)
+      .eq('due_date', today).ilike('title', 'Ligar para%').limit(1)
+    if (dup && dup.length) return
+    await supabase.from('tasks').insert({
+      user_id: ASSIGNED_TO,                         // responsável do lead (owner DR Growth; FK profiles) → Hall dele
+      title: `Ligar para ${leadName}`,
+      due_date: today,
+      due_time: now.toISOString().slice(11, 16),    // 'HH:MM' do horário de chegada do lead
+      duration_min: 15,
+      add_call: true,                               // tipo "ligação" (ícone telefone em Tarefas/Hall)
+      is_meeting: false,                            // não é reunião/vídeo
+      priority: 'normal',
+      done: false,
+      linked_type: 'lead', linked_id: leadId, linked_name: leadName,
+      team_id: teamId,
+    })
+  } catch (e) {
+    console.error('[leads/inbound] call task failed:', e instanceof Error ? e.message : String(e))
+  }
+}
+
 export async function POST(req: Request) {
   // 1) SEGURANÇA antes de qualquer acesso ao banco.
   if (!secretOk(req)) {
@@ -213,6 +244,7 @@ export async function POST(req: Request) {
     // Tenancy explícita + fase inicial oficial (o webhook não tem sessão). NUNCA team_id null → nunca órfão.
     const teamId = INBOUND_TEAM_ID
     const initialStage = await resolveInitialStage(supabase, teamId)
+    const now = new Date()
 
     // 12) Dedup: já existe lead com o MESMO email OU o MESMO phone? (o que vier). Se a checagem FALHAR
     //     (erro de query), NÃO inserir às cegas — aborta com 500, senão arriscaria duplicar.
@@ -270,6 +302,9 @@ export async function POST(req: Request) {
       fromStage: null, toStage: initialStage,
       sellerId: null, sellerName: ASSIGNED_NAME,
     }, teamId)
+
+    // Tarefa automática de ligação p/ o lead novo (best-effort — não bloqueia a resposta do webhook).
+    await createCallTask(supabase, data.id, name || 'Sem nome', teamId, now)
 
     return NextResponse.json({ ok: true, leadId: data.id })
   } catch (e) {
