@@ -167,6 +167,23 @@ async function createCallTask(supabase: SupabaseClient, leadId: string, leadName
   }
 }
 
+// Atividade no feed (INBOUND-ACTION-001): a chegada do lead aparece em "Atividades Recentes" do Hall. Mesmo
+// padrão do lead manual — type 'lead' + entity_id → card CLICÁVEL que abre o lead. Descrição própria (origem
+// Magnetic) para não confundir com o "Novo lead cadastrado" do fluxo manual. Best-effort.
+async function logInboundActivity(supabase: SupabaseClient, leadId: string, leadName: string, teamId: string): Promise<void> {
+  try {
+    await supabase.from('activities').insert({
+      type: 'lead',
+      description: `Novo lead recebido pelo Magnetic Funnels: ${leadName}`,
+      user_name: ASSIGNED_NAME,
+      entity_id: leadId,
+      team_id: teamId,
+    })
+  } catch (e) {
+    console.error('[leads/inbound] activity failed:', e instanceof Error ? e.message : String(e))
+  }
+}
+
 export async function POST(req: Request) {
   // 1) SEGURANÇA antes de qualquer acesso ao banco.
   if (!secretOk(req)) {
@@ -305,6 +322,8 @@ export async function POST(req: Request) {
 
     // Tarefa automática de ligação p/ o lead novo (best-effort — não bloqueia a resposta do webhook).
     await createCallTask(supabase, data.id, name || 'Sem nome', teamId, now)
+    // Atividade no feed do Hall (best-effort).
+    await logInboundActivity(supabase, data.id, name || 'Sem nome', teamId)
 
     return NextResponse.json({ ok: true, leadId: data.id })
   } catch (e) {
