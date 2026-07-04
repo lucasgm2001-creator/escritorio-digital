@@ -23,6 +23,7 @@ const LeadModal     = dynamic(() => import('./LeadModal').then(m => ({ default: 
 const WonPlanModal  = dynamic(() => import('./WonPlanModal').then(m => ({ default: m.WonPlanModal })),       { ssr: false })
 const MetricasTab   = dynamic(() => import('./tabs/MetricasTab').then(m => ({ default: m.MetricasTab })),     { ssr: false, loading: TabLoading })
 const ContatosTab   = dynamic(() => import('./tabs/ContatosTab').then(m => ({ default: m.ContatosTab })),     { ssr: false, loading: TabLoading })
+const RadarTab      = dynamic(() => import('./tabs/RadarTab').then(m => ({ default: m.RadarTab })),           { ssr: false, loading: TabLoading })
 import { moveLeadAction, addLeadInteractionAction } from './lead-write-actions'
 import { useRealtimeRows } from '@/lib/hooks/useRealtimeRows'
 import { usdCompact as fmtUSDc } from '@/lib/format'
@@ -34,7 +35,7 @@ import { rangeFor, inPeriodByActivity, type Range } from '@/lib/period'
 import { funnelConversionLabel } from '@/lib/funnelMetrics'
 export type { LeadStatus, Lead, ColumnConfig } from './types'
 
-type Tab = 'funil' | 'contatos' | 'metricas'
+type Tab = 'funil' | 'radar' | 'contatos' | 'metricas'
 
 interface CurrentUser { id: string; name: string }
 
@@ -146,7 +147,7 @@ export function KanbanBoard({ initialLeads, initialStages, initialClients, curre
     if (!tabHandled.current) {
       tabHandled.current = true
       const tabParam = params.get('tab')
-      const allowedTabs = ['funil', 'contatos', 'metricas']
+      const allowedTabs = ['funil', 'radar', 'contatos', 'metricas']
       if (tabParam && allowedTabs.includes(tabParam)) setTab(tabParam as Tab)
     }
     // lead: precisa da LISTA carregada. M16: depende de `leads` → abre assim que o id existir (uma vez só).
@@ -164,6 +165,7 @@ export function KanbanBoard({ initialLeads, initialStages, initialClients, curre
 
   const TABS: { key: Tab; label: string }[] = [
     { key: 'funil',        label: 'Funil' },
+    { key: 'radar',        label: 'Radar' },
     { key: 'contatos',     label: 'Contatos' },
     { key: 'metricas',     label: 'Métricas' },
   ]
@@ -387,6 +389,7 @@ export function KanbanBoard({ initialLeads, initialStages, initialClients, curre
           </div>
         )}
 
+        {tab === 'radar'        && <RadarTab leads={leads} />}
         {tab === 'contatos'     && <ContatosTab leads={leads} clients={clients} onOpenLead={setSelectedLead} onClientUpdated={c => setClients(prev => prev.map(x => x.id === c.id ? c : x))} />}
         {tab === 'metricas'     && <MetricasTab />}
       </div>

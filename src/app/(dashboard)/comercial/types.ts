@@ -32,6 +32,13 @@ export interface Lead {
   raw_payload?: Record<string, unknown> | null   // payload BRUTO do formulário/Magnetic (inbound) — nada se perde
   created_manually?: boolean   // criado à mão (form "Novo Lead") — habilita edição completa no detalhe
   contact_code?: string | null // código curto "C-0032" gerado pelo TRIGGER quando created_manually=true (app não gera)
+  // Radar Comercial (RADAR-COMERCIAL-001, migration 045) — situação de acompanhamento. next_action_at = next_contact.
+  current_situation?: string | null
+  last_action?: string | null
+  next_action?: string | null
+  temperature?: string | null
+  followup_state?: string | null
+  situation_updated_at?: string | null
 }
 
 // Fuso horário (EUA) — valor interno → label exibido. Compartilhado (Contatos + formulários de lead/cliente).
