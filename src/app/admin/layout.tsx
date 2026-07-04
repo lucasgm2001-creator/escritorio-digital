@@ -4,6 +4,8 @@ import { can } from '@/lib/permissions/can'
 import { getRequestContext, switcherTeamsFromContext } from '@/server/context/request-context'
 import { AdminShell } from '@/components/admin/AdminShell'
 import { ModuleAccessProvider } from '@/components/auth/ModuleAccessProvider'
+import { ToastProvider } from '@/components/ui/toast'
+import { RoleProvider } from '@/components/auth/RoleProvider'
 
 export const metadata = { title: 'Administração · Escritório Digital' }
 
@@ -28,7 +30,15 @@ export default async function AdminLayout({ children }: { children: React.ReactN
         avatarUrl={context.profile?.avatar_url ?? null}
         teams={teams}
       >
-        {children}
+        {/* HOTFIX/FIX-REMUNERACAO-PROVIDER: a Administração herda componentes client do Comercial
+            (VendedoresTab/CommissionSection) que dependem destes contextos — mesmo padrão do
+            (dashboard)/layout.tsx. Sem ToastProvider, useToast lançava e derrubava /admin/remuneracao.
+            RoleProvider expõe activeTeamId (ClientPaymentsPanel carimba a equipe certa em vez de null). */}
+        <ToastProvider>
+          <RoleProvider role={context.role} activeTeamId={context.activeTeamId}>
+            {children}
+          </RoleProvider>
+        </ToastProvider>
       </AdminShell>
     </ModuleAccessProvider>
   )
