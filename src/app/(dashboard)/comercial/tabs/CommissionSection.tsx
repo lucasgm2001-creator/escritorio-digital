@@ -15,11 +15,14 @@ import {
 import { createClient } from '@/lib/supabase/client'
 import { useSave } from '@/lib/useSave'
 import { useToast } from '@/components/ui/toast'
-import { useActiveTeamId } from '@/components/auth/RoleProvider'
+import {
+  updateFxConfigAction, addSalaryAction, createDealAction, updateDealStatusAction, deleteDealAction,
+  updateDealAction, payWeekAction, deleteWeekAction, updateWeekDateAction, registerMeetingAction,
+  deleteMeetingAction, updateMeetingAction,
+} from '../compensation-write-actions'
 import { cn } from '@/lib/utils'
 import { monthlySummary, resolveRate, dealTotal } from '@/lib/commission/calc'
-import { payWeek, payWeekMessage, registerMeeting, ensureClient } from '@/lib/commission/actions'
-import { markMilestones } from '@/lib/leadMilestones'
+import { payWeekMessage } from '@/lib/commission/actions'
 import type { SalaryPeriod, Meeting, WeeklyPayment, FxConfig, Deal, DealStatus } from '@/lib/commission/types'
 import { usd, brl } from '@/lib/format'
 import { ClientPaymentsPanel } from './ClientPaymentsPanel'
@@ -77,8 +80,6 @@ const toWeek = (r: { id: string; deal_id: string; numero_semana: number; valor_u
 const toMeeting = (r: { id: string; seller_id: string; met_on: string; valor_usd: number; cotacao_usd_brl: number; client_name: string | null }): MeetingUI => ({
   id: r.id, sellerId: r.seller_id, metOn: r.met_on, valorUsd: Number(r.valor_usd), cotacaoUsdBrl: Number(r.cotacao_usd_brl), clientName: r.client_name,
 })
-type DealRow = Parameters<typeof toDealUI>[0]
-type MeetingRow = Parameters<typeof toMeeting>[0]
 
 // ── Card de uma venda: semanas (marcar/desmarcar) + status ────────────────────
 function DealCard({ deal, weeks, statusBusy, onMark, onUnmark, onEditDate, onChangeStatus, onEditDeal, onDeleteDeal }: {
@@ -331,7 +332,6 @@ export function CommissionSection({ sellerId, sellerName }: { sellerId: string; 
   const save = useSave()
   const { toast } = useToast()
   const supabase = createClient()
-  const teamId = useActiveTeamId()   // FIX-P0-TEAMID-WRITES: carimba a equipe ativa nas escritas
 
   const [open, setOpen] = useState<Record<string, boolean>>({})
   const toggle = (k: string) => setOpen(o => ({ ...o, [k]: !o[k] }))
@@ -479,7 +479,7 @@ export function CommissionSection({ sellerId, sellerName }: { sellerId: string; 
     const prevM = fxManual, prevT = fxTravada
     await save({
       optimistic: () => { setFxManual(manualNum); setFxTravada(fxTravadaInput) },
-      run: () => supabase.from('fx_config').update({ cotacao_manual: manualNum, cotacao_travada: fxTravadaInput, updated_at: new Date().toISOString() }).eq('id', 1),
+      run: () => updateFxConfigAction({ cotacao_manual: manualNum, cotacao_travada: fxTravadaInput }),
       rollback: () => { setFxManual(prevM); setFxTravada(prevT) },
       success: 'Cotação atualizada.',
       error: 'Não foi possível salvar a cotação',
@@ -496,13 +496,14 @@ export function CommissionSection({ sellerId, sellerName }: { sellerId: string; 
     const effFrom = `${salMonth}-01`
     if (salaries.some(s => s.effectiveFrom === effFrom)) { setSalError('Já existe um salário com vigência nesse mês.'); return }
     setSavingSal(true)
-    const { ok, data } = await save<{ seller_id: string; valor_usd: number; effective_from: string }>({
-      run: () => supabase.from('seller_salaries').insert({ seller_id: sellerId, valor_usd: v, effective_from: effFrom, ...(teamId ? { team_id: teamId } : {}) }).select('seller_id, valor_usd, effective_from').single(),
+    const { ok, data } = await save({
+      run: () => addSalaryAction({ sellerId, valorUsd: v, effectiveFrom: effFrom }),
       success: `Salário de ${usd(v)} a partir de ${fmtMonthYear(effFrom)}.`,
       error: 'Não foi possível salvar o salário',
     })
     if (ok && data) {
-      setSalaries(prev => [{ sellerId: data.seller_id, valorUsd: Number(data.valor_usd), effectiveFrom: data.effective_from }, ...prev]
+      const d = data as { seller_id: string; valor_usd: number; effective_from: string }
+      setSalaries(prev => [{ sellerId: d.seller_id, valorUsd: Number(d.valor_usd), effectiveFrom: d.effective_from }, ...prev]
         .sort((a, b) => (a.effectiveFrom < b.effectiveFrom ? 1 : -1)))
       setSalValor('')
     }
@@ -520,24 +521,15 @@ export function CommissionSection({ sellerId, sellerName }: { sellerId: string; 
     if (!dealForm.client.trim()) { setDealError('Informe o cliente da venda.'); return }
     const vps = Math.round((total / semanas) * 100) / 100
     setSavingDeal(true)
-    // Vínculo OBRIGATÓRIO: acha ou cria o cliente (nunca client_id null → sem deal órfão).
-    const clientId = await ensureClient(supabase, dealForm.client, { assignedName: sellerName }, teamId)
-    if (!clientId) { setSavingDeal(false); setDealError('Não foi possível vincular/criar o cliente.'); return }
-    const { ok, data } = await save<DealRow>({
-      run: () => supabase.from('deals').insert({
-        seller_id: sellerId, client_id: clientId, client_name: dealForm.client.trim(),
-        valor_total_usd: total, teto_semanas: semanas, valor_por_semana_usd: vps,
-        status: 'em_andamento', data_fechamento: dealForm.dataFechamento,
-        ...(teamId ? { team_id: teamId } : {}),
-      }).select('id, seller_id, client_name, valor_total_usd, teto_semanas, valor_por_semana_usd, status, data_fechamento').single(),
-      success: 'Venda lançada.',
-      error: 'Não foi possível lançar a venda',
-    })
-    if (ok && data) {
-      setDeals(prev => [toDealUI(data), ...prev])
-      setClients(prev => prev.some(c => c.id === clientId) ? prev : [...prev, { id: clientId, name: dealForm.client.trim() }])
+    // Servidor: can(finance,approve) + ensureClient (nunca deal órfão) + insert do deal. Regra de dinheiro intacta.
+    const res = await createDealAction({ sellerId, client: dealForm.client, sellerName, total, semanas, vps, dataFechamento: dealForm.dataFechamento })
+    if (res.error) { setSavingDeal(false); setDealError(res.error.message); return }
+    if (res.data) {
+      setDeals(prev => [toDealUI(res.data as Parameters<typeof toDealUI>[0]), ...prev])
+      if (res.clientId) { const cid = res.clientId; setClients(prev => prev.some(c => c.id === cid) ? prev : [...prev, { id: cid, name: dealForm.client.trim() }]) }
       setShowNewDeal(false)
       setDealForm({ client: '', valorTotal: '100', semanas: '4', dataFechamento: todayISO() })
+      toast({ type: 'success', message: 'Venda lançada.' })
     }
     setSavingDeal(false)
   }
@@ -546,10 +538,10 @@ export function CommissionSection({ sellerId, sellerName }: { sellerId: string; 
   const markWeek = async (deal: DealUI, numero: number, paidOn: string): Promise<boolean> => {
     if (!paidOn) { toast({ type: 'error', message: 'Informe a data do recebimento.' }); return false }
     const paidNums = weeks.filter(w => w.dealId === deal.id).map(w => w.numeroSemana)
-    const res = await payWeek(supabase, deal, paidNums, numero, paidOn, currentRate, teamId)
+    const res = await payWeekAction(deal, paidNums, numero, paidOn, currentRate)
     if (!res.ok) { toast({ type: 'error', message: payWeekMessage(res.reason, res.message) }); return false }
     if (res.row) {
-      const row = res.row
+      const row = res.row as Parameters<typeof toWeek>[0]
       setWeeks(prev => [...prev, toWeek(row)])
       toast({ type: 'success', message: `Semana ${numero} recebida em ${fmtDayMonthYear(paidOn)}.` })
     }
@@ -559,7 +551,7 @@ export function CommissionSection({ sellerId, sellerName }: { sellerId: string; 
   const unmarkWeek = async (week: WeeklyPayment) => {
     await save({
       optimistic: () => setWeeks(prev => prev.filter(w => w.id !== week.id)),
-      run: () => supabase.from('weekly_payments').delete().eq('id', week.id),
+      run: () => deleteWeekAction(week.id),
       rollback: () => setWeeks(prev => [...prev, week]),
       success: 'Semana desmarcada.',
       error: 'Não foi possível desmarcar a semana',
@@ -573,7 +565,7 @@ export function CommissionSection({ sellerId, sellerName }: { sellerId: string; 
     const prevDate = week.paidOn
     const { ok } = await save({
       optimistic: () => setWeeks(ws => ws.map(w => w.id === week.id ? { ...w, paidOn: newDate } : w)),
-      run: () => supabase.from('weekly_payments').update({ paid_on: newDate }).eq('id', week.id),
+      run: () => updateWeekDateAction(week.id, newDate),
       rollback: () => setWeeks(ws => ws.map(w => w.id === week.id ? { ...w, paidOn: prevDate } : w)),
       success: `Data da semana ${week.numeroSemana} atualizada.`,
       error: 'Não foi possível atualizar a data',
@@ -586,7 +578,7 @@ export function CommissionSection({ sellerId, sellerName }: { sellerId: string; 
     setStatusBusyId(deal.id)
     await save({
       optimistic: () => setDeals(ds => ds.map(d => d.id === deal.id ? { ...d, status } : d)),
-      run: () => supabase.from('deals').update({ status }).eq('id', deal.id),
+      run: () => updateDealStatusAction(deal.id, status),
       rollback: () => setDeals(ds => ds.map(d => d.id === deal.id ? { ...d, status: prev } : d)),
       success: 'Status da venda atualizado.',
       error: 'Não foi possível mudar o status',
@@ -598,7 +590,7 @@ export function CommissionSection({ sellerId, sellerName }: { sellerId: string; 
   const deleteDeal = async (deal: DealUI) => {
     await save({
       optimistic: () => { setDeals(ds => ds.filter(d => d.id !== deal.id)); setWeeks(ws => ws.filter(w => w.dealId !== deal.id)) },
-      run: () => supabase.from('deals').delete().eq('id', deal.id),
+      run: () => deleteDealAction(deal.id),
       rollback: () => { void load() },
       success: 'Venda excluída.',
       error: 'Não foi possível excluir a venda',
@@ -617,22 +609,15 @@ export function CommissionSection({ sellerId, sellerName }: { sellerId: string; 
     if (semanas < paidCount) { toast({ type: 'error', message: `Já há ${paidCount} semana(s) paga(s). Desmarque antes de reduzir o número de semanas.` }); return false }
     const vps = Math.round((total / semanas) * 100) / 100
     if (!patch.client.trim()) { toast({ type: 'error', message: 'Informe o cliente da venda.' }); return false }
-    const clientId = await ensureClient(supabase, patch.client, { assignedName: sellerName }, teamId)
-    if (!clientId) { toast({ type: 'error', message: 'Não foi possível vincular/criar o cliente.' }); return false }
     const prev = deal
     const updated: DealUI = { ...deal, clientName: patch.client.trim(), valorTotalUsd: total, tetoSemanas: semanas, valorPorSemanaUsd: vps, dataFechamento: patch.dataFechamento }
-    const { ok } = await save({
-      optimistic: () => setDeals(ds => ds.map(d => d.id === deal.id ? updated : d)),
-      run: () => supabase.from('deals').update({
-        client_id: clientId, client_name: patch.client.trim(),
-        valor_total_usd: total, teto_semanas: semanas, valor_por_semana_usd: vps, data_fechamento: patch.dataFechamento,
-      }).eq('id', deal.id),
-      rollback: () => setDeals(ds => ds.map(d => d.id === deal.id ? prev : d)),
-      success: 'Venda atualizada.',
-      error: 'Não foi possível atualizar a venda',
-    })
-    if (ok) setClients(cs => cs.some(c => c.id === clientId) ? cs : [...cs, { id: clientId, name: patch.client.trim() }])
-    return ok
+    setDeals(ds => ds.map(d => d.id === deal.id ? updated : d))   // otimista
+    // Servidor: can(finance,approve) + ensureClient + update do deal. Semanas já pagas seguem congeladas.
+    const res = await updateDealAction(deal.id, { client: patch.client, sellerName, total, semanas, vps, dataFechamento: patch.dataFechamento })
+    if (res.error) { setDeals(ds => ds.map(d => d.id === deal.id ? prev : d)); toast({ type: 'error', message: `Não foi possível atualizar a venda: ${res.error.message}` }); return false }
+    if (res.clientId) { const cid = res.clientId; setClients(cs => cs.some(c => c.id === cid) ? cs : [...cs, { id: cid, name: patch.client.trim() }]) }
+    toast({ type: 'success', message: 'Venda atualizada.' })
+    return true
   }
 
   // ── Lançar / remover reunião ───────────────────────────────────────────────────
@@ -645,19 +630,17 @@ export function CommissionSection({ sellerId, sellerName }: { sellerId: string; 
     const matched = clients.find(c => c.name.toLowerCase() === q)
     const matchedLead = leads.find(l => l.name.toLowerCase() === q)
     setSavingMeeting(true)
-    const { ok, data } = await save<MeetingRow>({
-      run: () => registerMeeting(supabase, sellerId, {
-        metOn: meetingForm.metOn, valorUsd: valor,
+    const { ok, data } = await save({
+      run: () => registerMeetingAction({
+        sellerId, metOn: meetingForm.metOn, valorUsd: valor,
         clientId: matched?.id ?? null, clientName: meetingForm.client.trim() || null, note: meetingForm.note.trim() || null,
-        leadId: matchedLead?.id ?? null,
-      }, currentRate, teamId),
+        leadId: matchedLead?.id ?? null, rate: currentRate,
+      }),   // servidor: can(finance,approve) + registerMeeting + marco de reunião (se houver lead)
       success: 'Reunião lançada.',
       error: 'Não foi possível lançar a reunião',
     })
     if (ok && data) {
-      setMeetings(prev => [toMeeting(data), ...prev])
-      // Marco do relatório: reunião feita com este lead (separado da comissão). Idempotente.
-      if (matchedLead) await markMilestones(supabase, matchedLead.id, ['reuniao'], teamId)
+      setMeetings(prev => [toMeeting(data as Parameters<typeof toMeeting>[0]), ...prev])
       setShowNewMeeting(false)
       setMeetingForm({ metOn: todayISO(), valor: '15', client: '', note: '' })
     }
@@ -667,7 +650,7 @@ export function CommissionSection({ sellerId, sellerName }: { sellerId: string; 
   const deleteMeeting = async (m: MeetingUI) => {
     await save({
       optimistic: () => setMeetings(prev => prev.filter(x => x.id !== m.id)),
-      run: () => supabase.from('meetings').delete().eq('id', m.id),
+      run: () => deleteMeetingAction(m.id),
       rollback: () => setMeetings(prev => [...prev, m]),
       success: 'Reunião removida.',
       error: 'Não foi possível remover a reunião',
@@ -684,7 +667,7 @@ export function CommissionSection({ sellerId, sellerName }: { sellerId: string; 
     const updated: MeetingUI = { ...m, metOn: patch.metOn, valorUsd: valor, clientName: patch.client.trim() || null }
     const { ok } = await save({
       optimistic: () => setMeetings(ms => ms.map(x => x.id === m.id ? updated : x)),
-      run: () => supabase.from('meetings').update({ met_on: patch.metOn, valor_usd: valor, client_id: matched?.id ?? null, client_name: patch.client.trim() || null }).eq('id', m.id),
+      run: () => updateMeetingAction(m.id, { metOn: patch.metOn, valorUsd: valor, clientId: matched?.id ?? null, clientName: patch.client.trim() || null }),
       rollback: () => setMeetings(ms => ms.map(x => x.id === m.id ? prev : x)),
       success: 'Reunião atualizada.',
       error: 'Não foi possível atualizar a reunião',
