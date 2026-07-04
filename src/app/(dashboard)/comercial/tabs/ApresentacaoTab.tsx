@@ -8,7 +8,10 @@ import { SortableContext, useSortable, arrayMove, verticalListSortingStrategy } 
 import { CSS } from '@dnd-kit/utilities'
 import { createClient } from '@/lib/supabase/client'
 import { useToast } from '@/components/ui/toast'
-import { useActiveTeamId } from '@/components/auth/RoleProvider'
+import {
+  createMaterialAction, updateMaterialAction, deleteMaterialAction,
+  createPresentationAction, updatePresentationAction, deletePresentationAction,
+} from '../presentation-write-actions'
 import { cn, formatDate } from '@/lib/utils'
 import { Portal } from '@/components/ui/Portal'
 import { useDialog } from '@/components/ui/useDialog'
@@ -191,8 +194,7 @@ function LeadBriefModal({ leadId, fallbackName, onContinue, onClose }: {
 
 export function ApresentacaoTab() {
   const { toast } = useToast()
-  const supabase = createClient()
-  const teamId = useActiveTeamId()   // FIX-P0-TEAMID-WRITES: carimba a equipe ativa em materiais/apresentações
+  const supabase = createClient()   // storage (upload/remoção) + leituras. ESCRITAS das tabelas vão por action.
   const inputRef = useRef<HTMLInputElement>(null)
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }))
 
@@ -285,15 +287,17 @@ export function ApresentacaoTab() {
       const { error: upErr } = await supabase.storage.from('materiais').upload(path, file, { contentType: file.type || undefined, upsert: false })
       if (upErr) { toast({ type: 'error', message: `Falha ao enviar "${file.name}": ${upErr.message}` }); continue }
       const { data: { publicUrl } } = supabase.storage.from('materiais').getPublicUrl(path)
-      const { data, error } = await supabase.from('presentation_materials')
-        .insert({ name: file.name, storage_path: path, url: publicUrl, mime_type: file.type || null, size_bytes: file.size, pasta: uploadPasta.trim() || null, nicho: uploadNicho.trim() || null, ...(teamId ? { team_id: teamId } : {}) })
-        .select(COLS).single()
+      // Servidor: can(commercial,edit) + team_id. A linha da tabela vai por action; o arquivo já está no storage.
+      const { data, error } = await createMaterialAction({
+        name: file.name, storage_path: path, url: publicUrl, mime_type: file.type || null,
+        size_bytes: file.size, pasta: uploadPasta.trim() || null, nicho: uploadNicho.trim() || null,
+      })
       if (error || !data) {
         await supabase.storage.from('materiais').remove([path])
         toast({ type: 'error', message: `Falha ao salvar "${file.name}": ${error?.message ?? 'erro'}` })
         continue
       }
-      uploaded.push(data as Material)
+      uploaded.push(data as unknown as Material)
     }
     if (uploaded.length) {
       setMaterials(prev => [...uploaded.reverse(), ...prev])
@@ -311,7 +315,7 @@ export function ApresentacaoTab() {
   }
   const handleDelete = async (m: Material) => {
     setDeletingId(m.id)
-    const { error } = await supabase.from('presentation_materials').delete().eq('id', m.id)
+    const { error } = await deleteMaterialAction(m.id)
     if (error) { toast({ type: 'error', message: `Não foi possível excluir: ${error.message}` }); setDeletingId(null); return }
     await supabase.storage.from('materiais').remove([m.storage_path])
     setMaterials(prev => prev.filter(x => x.id !== m.id))
@@ -328,7 +332,7 @@ export function ApresentacaoTab() {
     const patch = { pasta: editForm.pasta.trim() || null, nicho: editForm.nicho.trim() || null }
     setSavingMeta(true)
     setMaterials(prev => prev.map(x => (x.id === m.id ? { ...x, ...patch } : x)))
-    const { error } = await supabase.from('presentation_materials').update(patch).eq('id', m.id)
+    const { error } = await updateMaterialAction(m.id, patch)
     setSavingMeta(false)
     if (error) {
       setMaterials(prev => prev.map(x => (x.id === m.id ? m : x)))
@@ -343,7 +347,7 @@ export function ApresentacaoTab() {
   const toggleFavorito = async (m: Material) => {
     const next = !m.favorito
     setMaterials(prev => prev.map(x => (x.id === m.id ? { ...x, favorito: next } : x)))
-    const { error } = await supabase.from('presentation_materials').update({ favorito: next }).eq('id', m.id)
+    const { error } = await updateMaterialAction(m.id, { favorito: next })
     if (error) {
       setMaterials(prev => prev.map(x => (x.id === m.id ? { ...x, favorito: m.favorito } : x)))
       toast({ type: 'error', message: `Não foi possível favoritar: ${error.message}` })
@@ -384,16 +388,15 @@ export function ApresentacaoTab() {
     setSavingPres(true)
     const payload = { name, lead_id: form.leadId || null, items: selectedIds }
     if (editingId) {
-      const { data, error } = await supabase.from('presentations')
-        .update({ ...payload, updated_at: new Date().toISOString() }).eq('id', editingId).select(PRES_COLS).single()
+      const { data, error } = await updatePresentationAction(editingId, payload)   // servidor: can(commercial,edit)
       if (error || !data) { toast({ type: 'error', message: `Não foi possível salvar: ${error?.message ?? 'erro'}` }); setSavingPres(false); return }
-      setPresentations(prev => prev.map(p => (p.id === editingId ? (data as Presentation) : p)))
+      setPresentations(prev => prev.map(p => (p.id === editingId ? (data as unknown as Presentation) : p)))
       toast({ type: 'success', message: 'Apresentação atualizada.' })
     } else {
-      const { data, error } = await supabase.from('presentations').insert({ ...payload, ...(teamId ? { team_id: teamId } : {}) }).select(PRES_COLS).single()
+      const { data, error } = await createPresentationAction(payload)   // servidor: can(commercial,edit) + team_id
       if (error || !data) { toast({ type: 'error', message: `Não foi possível salvar: ${error?.message ?? 'erro'}` }); setSavingPres(false); return }
-      setPresentations(prev => [data as Presentation, ...prev])
-      setEditingId((data as Presentation).id)
+      setPresentations(prev => [data as unknown as Presentation, ...prev])
+      setEditingId((data as unknown as Presentation).id)
       toast({ type: 'success', message: 'Apresentação salva.' })
     }
     setSavingPres(false)
@@ -402,7 +405,7 @@ export function ApresentacaoTab() {
 
   const deletePresentation = async (p: Presentation) => {
     setDeletingPresId(p.id)
-    const { error } = await supabase.from('presentations').delete().eq('id', p.id)
+    const { error } = await deletePresentationAction(p.id)
     if (error) { toast({ type: 'error', message: `Não foi possível excluir: ${error.message}` }); setDeletingPresId(null); return }
     setPresentations(prev => prev.filter(x => x.id !== p.id))
     setConfirmingPresId(null); setDeletingPresId(null)
