@@ -1,11 +1,12 @@
 'use client'
 
 import { useState } from 'react'
-import { Wallet, ChevronDown } from 'lucide-react'
+import { Wallet, ChevronDown, Download } from 'lucide-react'
 import { MetricCard } from '@/components/ui/MetricCard'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { usd, brl } from '@/lib/format'
 import { cn } from '@/lib/utils'
+import { buildMyCompensationPdf } from '@/lib/commercial/my-compensation-pdf'
 import type { MyCompensationView } from '@/server/services/MyCompensationService'
 import type { CommissionType, PaymentRule } from '@/server/repositories/CompensationRepository'
 
@@ -23,8 +24,13 @@ function commissionText(c: { enabled: boolean; type: CommissionType; value: numb
 }
 const STATUS_LABEL: Record<string, string> = { em_andamento: 'Em andamento', concluido: 'Concluído', interrompido: 'Interrompido' }
 
-export function MinhaRemuneracao({ vm }: { vm: MyCompensationView }) {
+export function MinhaRemuneracao({ vm, workspace }: { vm: MyCompensationView; workspace: string }) {
   const [open, setOpen] = useState<string | null>(vm.months[0]?.key ?? null)
+  const [pdfLoading, setPdfLoading] = useState(false)
+  const downloadPdf = async () => {
+    setPdfLoading(true)
+    try { await buildMyCompensationPdf(vm, workspace) } finally { setPdfLoading(false) }
+  }
 
   if (!vm.hasComp) {
     return (
@@ -41,21 +47,30 @@ export function MinhaRemuneracao({ vm }: { vm: MyCompensationView }) {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h2 className="font-display font-bold text-lg text-bento-text">Minha Remuneração</h2>
-        <p className="text-[13px] text-bento-muted">
-          {vm.cargo ?? 'Cargo não configurado'}{vm.department ? ` · ${vm.department}` : ''} · {vm.sellerName}
-        </p>
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <h2 className="font-display font-bold text-lg text-bento-text">Minha Remuneração</h2>
+          <p className="text-[13px] text-bento-muted">
+            {vm.cargo ?? 'Cargo não configurado'}{vm.department ? ` · ${vm.department}` : ''} · {vm.sellerName}
+          </p>
+          <p className="text-[11px] text-bento-dim mt-0.5">
+            {vm.status === 'inativo' ? 'Inativo' : 'Ativo'}{vm.lastUpdate ? ` · última atualização ${vm.lastUpdate}` : ''}
+          </p>
+        </div>
+        <button type="button" onClick={downloadPdf} disabled={pdfLoading}
+          className="inline-flex items-center gap-1.5 shrink-0 border border-bento-border text-bento-muted hover:border-lime hover:text-bento-text px-3 min-h-[40px] rounded-btn text-[13px] font-medium transition-colors disabled:opacity-50">
+          <Download className="w-3.5 h-3.5" />{pdfLoading ? 'Gerando…' : 'Baixar PDF'}
+        </button>
       </div>
 
-      {/* Indicadores (Parte 9) */}
+      {/* Indicadores (Parte 3) */}
       <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-2.5">
-        <MetricCard title="Recebido no mês" value={usd(cur?.totalUsd ?? 0)} size="sm" tone="positive" />
-        <MetricCard title="Recebido no ano" value={usd(vm.yearReceivedUsd)} size="sm" />
-        <MetricCard title="Saldo previsto" value={usd(vm.nextPayout?.totalUsd ?? 0)} size="sm" />
+        <MetricCard title="Salário fixo" value={usd(cur?.salaryUsd ?? 0)} size="sm" />
+        <MetricCard title="Comissão do mês" value={usd((cur?.meetingsUsd ?? 0) + (cur?.weeksUsd ?? 0))} size="sm" tone="positive" />
+        <MetricCard title="Receber esta semana" value={usd(vm.thisWeekUsd)} size="sm" />
+        <MetricCard title="Receber este mês" value={usd(cur?.totalUsd ?? 0)} size="sm" />
         <MetricCard title="Próximo pagamento" value={vm.nextPayout?.date ?? '—'} size="sm" tone="muted" />
         <MetricCard title="Comissão acumulada" value={usd(vm.totalReceivedUsd)} size="sm" />
-        <MetricCard title="Contratos fechados" value={vm.dealsCount} size="sm" tone="muted" />
       </div>
 
       {/* Modelo (Parte 6) */}

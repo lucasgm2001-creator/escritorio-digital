@@ -2,8 +2,8 @@ import 'server-only'
 
 import { createClient } from '@/lib/supabase/server'
 import type { RequestContext } from '@/server/context/request-context'
-import { monthlySummary, nextPayoutProjection } from '@/lib/commission/calc'
-import type { FxConfig, Meeting, MonthlySummary, SalaryPeriod, WeeklyPayment } from '@/lib/commission/types'
+import { monthlySummary, nextPayoutProjection, dealTotal } from '@/lib/commission/calc'
+import type { DealStatus, FxConfig, Meeting, MonthlySummary, SalaryPeriod, WeeklyPayment } from '@/lib/commission/types'
 import { resolveCompensationRule, type NormalizedCompensationRule } from '@/server/services/CompensationService'
 import { roleByKey, departmentByKey, type DepartmentKey } from '@/lib/people/catalog'
 
@@ -43,13 +43,17 @@ export type MyCompensationView = {
   yearReceivedUsd: number
   totalReceivedUsd: number
   dealsCount: number
+  thisWeekUsd: number         // receber esta semana (parcela semanal das vendas ativas — projeção do motor)
+  status: string              // status do vendedor (ativo/inativo)
+  lastUpdate: string | null   // data do último lançamento (última atualização)
   months: CompMonth[]
 }
 
 export async function getMyCompensationView(context: RequestContext): Promise<MyCompensationView> {
   const empty: MyCompensationView = {
     hasComp: false, sellerName: context.profile?.name ?? '', cargo: null, department: null, rule: null,
-    currentMonth: null, nextPayout: null, yearReceivedUsd: 0, totalReceivedUsd: 0, dealsCount: 0, months: [],
+    currentMonth: null, nextPayout: null, yearReceivedUsd: 0, totalReceivedUsd: 0, dealsCount: 0,
+    thisWeekUsd: 0, status: 'ativo', lastUpdate: null, months: [],
   }
   const teamId = context.activeTeamId
   if (!teamId) return empty
@@ -57,7 +61,7 @@ export async function getMyCompensationView(context: RequestContext): Promise<My
   const userId = context.user.id
 
   // SEGURANÇA: o seller é o do usuário logado. Sem parâmetro da UI → ninguém abre a remuneração de outro.
-  const { data: seller } = await supabase.from('sellers').select('id, name').eq('user_id', userId).eq('team_id', teamId).maybeSingle()
+  const { data: seller } = await supabase.from('sellers').select('id, name, status').eq('user_id', userId).eq('team_id', teamId).maybeSingle()
   if (!seller) return empty
 
   // Cargo/departamento reais (team_members RH — migration 044), resolvidos no catálogo oficial.
@@ -70,7 +74,7 @@ export async function getMyCompensationView(context: RequestContext): Promise<My
   const [salRes, mtgRes, dealRes, fxRes, rule] = await Promise.all([
     supabase.from('seller_salaries').select('seller_id, valor_usd, effective_from').eq('seller_id', seller.id),
     supabase.from('meetings').select('id, seller_id, met_on, valor_usd, cotacao_usd_brl, client_name').eq('seller_id', seller.id),
-    supabase.from('deals').select('id, client_name, valor_total_usd, status, data_fechamento').eq('seller_id', seller.id),
+    supabase.from('deals').select('id, client_name, valor_total_usd, valor_por_semana_usd, teto_semanas, status, data_fechamento').eq('seller_id', seller.id),
     supabase.from('fx_config').select('cotacao_manual, cotacao_travada').eq('team_id', teamId).maybeSingle(),
     resolveCompensationRule(context, seller.id, today),
   ])
@@ -78,7 +82,7 @@ export async function getMyCompensationView(context: RequestContext): Promise<My
   const salaries: SalaryPeriod[] = (salRes.data ?? []).map(s => ({ sellerId: s.seller_id, valorUsd: Number(s.valor_usd), effectiveFrom: s.effective_from }))
   const meetings: Meeting[] = (mtgRes.data ?? []).map(m => ({ id: m.id, sellerId: m.seller_id, metOn: m.met_on, valorUsd: Number(m.valor_usd), cotacaoUsdBrl: Number(m.cotacao_usd_brl) }))
   const mtgClient = new Map((mtgRes.data ?? []).map(m => [m.id, (m as { client_name: string | null }).client_name]))
-  const deals = (dealRes.data ?? []) as { id: string; client_name: string | null; valor_total_usd: number; status: string; data_fechamento: string | null }[]
+  const deals = (dealRes.data ?? []) as { id: string; client_name: string | null; valor_total_usd: number; valor_por_semana_usd: number; teto_semanas: number; status: string; data_fechamento: string | null }[]
   const dealById = new Map(deals.map(d => [d.id, d]))
   const dealIds = deals.map(d => d.id)
 
@@ -105,6 +109,16 @@ export async function getMyCompensationView(context: RequestContext): Promise<My
   // Comissão acumulada (histórico) = todas as semanas + reuniões já recebidas (sem salário).
   const totalReceivedUsd = round2(weeks.reduce((s, w) => s + w.valorUsd, 0) + meetings.reduce((s, mm) => s + mm.valorUsd, 0))
 
+  // Receber esta semana = parcela semanal das vendas ATIVAS que ainda têm semanas a vencer (reusa dealTotal).
+  const thisWeekUsd = round2(deals
+    .filter(d => d.status === 'em_andamento')
+    .map(d => ({ id: d.id, sellerId: seller.id, valorTotalUsd: Number(d.valor_total_usd), tetoSemanas: Number(d.teto_semanas), valorPorSemanaUsd: Number(d.valor_por_semana_usd), status: d.status as DealStatus, dataFechamento: d.data_fechamento ?? '' }))
+    .filter(dl => dealTotal(dl, weeks).semanasRestantes > 0)
+    .reduce((s, dl) => s + dl.valorPorSemanaUsd, 0))
+  // Última atualização = data do lançamento mais recente (semana paga / reunião).
+  const eventDates = [...weeks.map(w => w.paidOn), ...meetings.map(mm => mm.metOn)].filter(Boolean).sort()
+  const lastUpdate = eventDates.length ? eventDates[eventDates.length - 1] : null
+
   // Histórico mês a mês — meses com atividade (semanas/reuniões) + o mês corrente (salário). Até 12 recentes.
   const monthKeys = new Set<string>()
   weeks.forEach(w => monthKeys.add(w.paidOn.slice(0, 7)))
@@ -129,6 +143,7 @@ export async function getMyCompensationView(context: RequestContext): Promise<My
 
   return {
     hasComp: true, sellerName: seller.name, cargo: role?.name ?? null, department: dept?.name ?? null,
-    rule, currentMonth, nextPayout, yearReceivedUsd, totalReceivedUsd, dealsCount: deals.length, months,
+    rule, currentMonth, nextPayout, yearReceivedUsd, totalReceivedUsd, dealsCount: deals.length,
+    thisWeekUsd, status: (seller as { status?: string }).status ?? 'ativo', lastUpdate, months,
   }
 }

@@ -17,7 +17,7 @@ const TABS: { key: 'perfil' | 'remuneracao'; label: string; icon: LucideIcon }[]
   { key: 'remuneracao', label: 'Minha Remuneração', icon: Wallet },
 ]
 
-export function PerfilShell({ profile, comp }: { profile: ProfileProps; comp: MyCompensationView }) {
+export function PerfilShell({ profile, comp, workspace }: { profile: ProfileProps; comp: MyCompensationView; workspace: string }) {
   const [tab, setTab] = useState<'perfil' | 'remuneracao'>('perfil')
   return (
     <div className="space-y-5">
@@ -32,7 +32,7 @@ export function PerfilShell({ profile, comp }: { profile: ProfileProps; comp: My
           ))}
         </div>
       </div>
-      {tab === 'perfil' ? <PerfilClient {...profile} /> : <MinhaRemuneracao vm={comp} />}
+      {tab === 'perfil' ? <PerfilClient {...profile} /> : <MinhaRemuneracao vm={comp} workspace={workspace} />}
     </div>
   )
 }

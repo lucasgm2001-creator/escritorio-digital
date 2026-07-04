@@ -21,7 +21,8 @@ export default async function PerfilPage() {
   const context = await getRequestContext()
   const EMPTY: MyCompensationView = {
     hasComp: false, sellerName: profile?.name ?? '', cargo: null, department: null, rule: null,
-    currentMonth: null, nextPayout: null, yearReceivedUsd: 0, totalReceivedUsd: 0, dealsCount: 0, months: [],
+    currentMonth: null, nextPayout: null, yearReceivedUsd: 0, totalReceivedUsd: 0, dealsCount: 0,
+    thisWeekUsd: 0, status: 'ativo', lastUpdate: null, months: [],
   }
   const comp = context ? await getMyCompensationView(context) : EMPTY
 
@@ -36,6 +37,7 @@ export default async function PerfilPage() {
         initialAvatarUrl: profile?.avatar_url ?? null,
       }}
       comp={comp}
+      workspace={context?.activeTeamName ?? 'DR Growth'}
     />
   )
 }
