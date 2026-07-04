@@ -49,7 +49,14 @@ const TONE_VALUE: Record<MetricTone, string> = {
 // Escala de tamanho. md = tamanho ATUAL (Hall) — nao mudar para nao quebrar o uso existente.
 const SIZE_CARD: Record<MetricSize, string> = { sm: 'px-3 py-2', md: 'px-3 py-2.5', lg: 'px-4 py-4' }
 const SIZE_TITLE: Record<MetricSize, string> = { sm: 'text-[10px]', md: 'text-[11px]', lg: 'text-xs' }
-const SIZE_VALUE: Record<MetricSize, string> = { sm: 'text-lg', md: 'text-2xl', lg: 'text-3xl' }
+// Fonte do VALOR com clamp(): teto = tamanho ATUAL (lg/2xl/3xl), piso confortável, escala levemente entre eles
+// conforme a viewport encolhe. Evita número grande estourar o card sem reduzir a fonte exageradamente. O piso
+// respeita legibilidade; o truncate no span é a rede de segurança final (nunca vaza a largura).
+const SIZE_VALUE: Record<MetricSize, string> = {
+  sm: 'text-[clamp(0.95rem,0.80rem+0.7vw,1.125rem)]',
+  md: 'text-[clamp(1.10rem,0.85rem+1.25vw,1.5rem)]',
+  lg: 'text-[clamp(1.25rem,0.90rem+1.75vw,1.875rem)]',
+}
 
 export function MetricCard({
   title, value, subtitle, icon, trend, tone = 'default', size = 'md', href, onClick, className,
@@ -58,8 +65,10 @@ export function MetricCard({
 
   // Superficie base (bento). Interativo: alvo confortavel (min-h-[64px] cobre >44px), foco visivel e
   // realce SUTIL de borda no hover — sem scale/glow/animacao decorativa (DS-005).
+  // min-w-0 = deixa o card ENCOLHER na track do grid/flex (sem isso, min-width:auto força a track a crescer e
+  // o número estoura o layout). overflow-hidden = clipe de segurança final. Ambos são a base do fix de KPI.
   const cardCls = cn(
-    'bento-fx flex flex-col gap-1 text-left w-full', SIZE_CARD[size],
+    'bento-fx flex flex-col gap-1 text-left w-full min-w-0 overflow-hidden', SIZE_CARD[size],
     interactive && 'min-h-[64px] transition-colors hover:border-lime/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lime/40',
     className,
   )
@@ -71,7 +80,7 @@ export function MetricCard({
         {icon && <span className="text-bento-muted shrink-0 [&_svg]:w-4 [&_svg]:h-4">{icon}</span>}
       </div>
 
-      <span className={cn('font-display font-bold tabular-nums leading-none', SIZE_VALUE[size], TONE_VALUE[tone])}>{value}</span>
+      <span className={cn('block min-w-0 max-w-full truncate font-display font-bold tabular-nums leading-none', SIZE_VALUE[size], TONE_VALUE[tone])}>{value}</span>
 
       {(subtitle || trend) && (
         <div className="flex items-center gap-1.5 mt-0.5">

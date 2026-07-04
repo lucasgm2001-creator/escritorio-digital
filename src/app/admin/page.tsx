@@ -33,8 +33,8 @@ export default async function AdminHomePage() {
       {/* Status (dados reais) */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5">
         {stats.map(stat => (
-          <Link key={stat.label} href={stat.href} className="bento-fx p-4 hover:border-lime/40 transition-colors">
-            <p className="font-display font-bold text-2xl text-bento-text leading-none">{stat.value}</p>
+          <Link key={stat.label} href={stat.href} className="bento-fx p-4 min-w-0 overflow-hidden hover:border-lime/40 transition-colors">
+            <p className="font-display font-bold text-2xl text-bento-text leading-none truncate">{stat.value}</p>
             <p className="text-[11px] text-bento-muted mt-2 truncate">{stat.label}</p>
           </Link>
         ))}
