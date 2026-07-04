@@ -178,8 +178,9 @@ export function LeadModal({ onClose, onCreated, currentUser, stages, clients }: 
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
-    if (isClient) return handleSubmitClient(e)
     e.preventDefault()
+    if (loading) return   // um envio por vez: barra o 2º disparo se o botão for clicado 2x muito rápido (LEAD-DUPLICATE-001)
+    if (isClient) return handleSubmitClient(e)
     if (!form.name.trim()) return
     setLoading(true)
     setSubmitError('')

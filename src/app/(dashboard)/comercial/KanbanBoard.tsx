@@ -259,7 +259,10 @@ export function KanbanBoard({ initialLeads, initialStages, initialClients, curre
     await moveLeadToStatus(lead, newStatus)
   }, [leads, cols, moveLeadToStatus])
 
-  const handleLeadCreated = (lead: Lead) => setLeads(prev => [lead, ...prev])
+  // Guard por id (idempotente): o lead novo chega por DOIS caminhos — este callback otimista (onCreated) E o eco
+  // do realtime (useRealtimeRows). Sem o guard, quando o realtime chega ANTES, o prepend abaixo duplicava o card
+  // (mesmo lead, mesmo id) — 1 linha no banco, 2 cards na tela. Mesmo padrão de dedupe do useRealtimeRows. (LEAD-DUPLICATE-001)
+  const handleLeadCreated = (lead: Lead) => setLeads(prev => (prev.some(l => l.id === lead.id) ? prev : [lead, ...prev]))
   const handleLeadUpdated = (lead: Lead) => setLeads(prev => prev.map(l => l.id === lead.id ? lead : l))
 
   const activeLead = activeId ? leads.find(l => l.id === activeId) : null
