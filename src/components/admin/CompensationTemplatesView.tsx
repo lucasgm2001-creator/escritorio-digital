@@ -1,5 +1,5 @@
 import { Panel } from '@/components/bento/Panel'
-import type { CompensationPreview, CompensationRule, CompensationRuleType, CompensationTemplateDefinition } from '@/core/compensation/types'
+import type { CompensationRule, CompensationRuleType, CompensationTemplateDefinition } from '@/core/compensation/types'
 
 const RULE_LABEL: Record<CompensationRuleType, string> = {
   salary_fixed: 'Salário fixo',
@@ -19,24 +19,15 @@ function ruleDesc(rule: CompensationRule): string {
   return rule.amount != null ? usd(rule.amount) : '—'
 }
 
-// Leitura REAL da Compensation Engine em Administração › Remuneração (só leitura; edição chega depois).
-export function CompensationTemplatesView({ templates, preview }: { templates: CompensationTemplateDefinition[]; preview: CompensationPreview | null }) {
-  const previewCards = preview
-    ? [
-        { label: 'Salário', value: preview.salary },
-        { label: 'Comissão', value: preview.commission },
-        { label: 'Upgrade', value: preview.upgrade },
-        { label: 'Renovação', value: preview.renewal },
-        { label: 'Bônus', value: preview.bonus },
-        { label: 'Total', value: preview.total },
-      ]
-    : []
-  const commissionLine = preview?.lines.find(line => line.type === 'commission_percent') ?? null
+// Modelo de remuneração por função (Compensation Engine, só leitura). Mostra as REGRAS de cada template.
+// A remuneração REAL de vendedores (salário/comissão/pagamentos) fica na config acima (VendedoresTab).
+export function CompensationTemplatesView({ templates }: { templates: CompensationTemplateDefinition[] }) {
+  if (templates.length === 0) {
+    return <p className="text-sm text-bento-muted">Nenhum template de remuneração cadastrado.</p>
+  }
 
   return (
     <div className="space-y-6">
-      {templates.length === 0 && <p className="text-sm text-bento-muted">Nenhum template.</p>}
-
       {templates.map(template => (
         <Panel key={template.id} label={`${template.name} · ${template.currency} · v${template.version}`}>
           <div className="space-y-1.5">
@@ -49,27 +40,6 @@ export function CompensationTemplatesView({ templates, preview }: { templates: C
           </div>
         </Panel>
       ))}
-
-      {preview && (
-        <Panel label="Prévia — Closer, venda de plano US$140/semana">
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
-            {previewCards.map(card => (
-              <div key={card.label} className="bento-fx p-3">
-                <p className="font-display font-bold text-base text-bento-text leading-none truncate">{usd(card.value)}</p>
-                <p className="text-[11px] text-bento-muted mt-1.5">{card.label}</p>
-              </div>
-            ))}
-          </div>
-          {commissionLine && (
-            <p className="text-[12px] text-bento-muted mt-3">
-              Comissão: {usd(commissionLine.perInstallment)}/semana × {commissionLine.installments} = {usd(commissionLine.total)}.
-            </p>
-          )}
-          <p className="text-[11px] text-bento-dim mt-1">
-            Calculado pela Compensation Engine (pura). Somente leitura — edição e ledger chegam nas próximas fases.
-          </p>
-        </Panel>
-      )}
     </div>
   )
 }
