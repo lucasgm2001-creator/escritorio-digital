@@ -12,7 +12,7 @@ import { EmptyState } from '@/components/ui/EmptyState'
 import { CompensationFlow } from '@/components/admin/CompensationFlow'
 import type { CollaboratorDetailVM } from '@/lib/people/types'
 import { cn } from '@/lib/utils'
-import { COLLABORATOR_STATUS, TEAM_ROLE_BADGE, formatJoinedAt, initials } from '@/lib/people/presentation'
+import { COLLABORATOR_STATUS, MODULE_LEVEL_BADGE, TEAM_ROLE_BADGE, formatJoinedAt, initials } from '@/lib/people/presentation'
 import { ROLE_CATALOG, ROLE_LEVEL_LABEL, COMP_MODEL_LABEL } from '@/lib/people/catalog'
 import { InfoTile } from './InfoTile'
 import { ModuleAccessEditor } from './ModuleAccessEditor'
@@ -82,15 +82,33 @@ export function CollaboratorDetail({ collaborator, teamName, canEditPermissions 
 
       <div className="pt-1">
         {tab === 'resumo' && (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
-            <InfoTile icon={ShieldCheck} label="Papel de acesso" value={role.label} />
-            <InfoTile icon={Briefcase} label="Cargo" value={collaborator.roleName ?? 'Não configurado'} />
-            <InfoTile icon={FolderOpen} label="Departamento" value={collaborator.departmentName ?? 'Não configurado'} />
-            <InfoTile icon={Wallet} label="Template" value={collaborator.templateName ?? 'Sem remuneração definida'} />
-            <InfoTile icon={UserPlus} label="Gestor" value={collaborator.managerName ?? 'Não configurado'} />
-            <InfoTile icon={Users} label="Equipe" value={teamName ?? '—'} />
-            <InfoTile icon={CalendarDays} label="Entrada" value={formatJoinedAt(collaborator.joinedAt)} />
-            <InfoTile icon={Mail} label="Email" value={collaborator.email ?? 'Não configurado'} />
+          <div className="space-y-5">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
+              <InfoTile icon={ShieldCheck} label="Papel de acesso" value={role.label} />
+              <InfoTile icon={Briefcase} label="Cargo" value={collaborator.roleName ?? 'Não configurado'} />
+              <InfoTile icon={FolderOpen} label="Departamento" value={collaborator.departmentName ?? 'Não configurado'} />
+              <InfoTile icon={Wallet} label="Template" value={collaborator.templateName ?? 'Sem remuneração definida'} />
+              <InfoTile icon={UserPlus} label="Gestor" value={collaborator.managerName ?? 'Não configurado'} />
+              <InfoTile icon={Users} label="Equipe" value={teamName ?? '—'} />
+              <InfoTile icon={CalendarDays} label="Entrada" value={formatJoinedAt(collaborator.joinedAt)} />
+              <InfoTile icon={Mail} label="Email" value={collaborator.email ?? 'Não configurado'} />
+            </div>
+
+            {/* Resumo visual das permissões efetivas (matriz do PERMISSIONS-002). Detalhe/edição na aba Permissões. */}
+            <div>
+              <p className="font-tech text-[10px] uppercase tracking-[0.12em] text-bento-muted mb-2">Acesso por módulo</p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+                {collaborator.moduleMatrix.map(mod => {
+                  const lvl = MODULE_LEVEL_BADGE[mod.level]
+                  return (
+                    <div key={mod.key} className="flex items-center justify-between gap-2 rounded-bento border border-bento-border px-2.5 py-1.5 min-w-0">
+                      <span className="text-[12px] text-bento-text truncate">{mod.label}</span>
+                      <span className={cn('text-[9px] font-tech uppercase tracking-wide px-1.5 py-0.5 rounded-full border shrink-0', lvl.cls)}>{lvl.label}</span>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
           </div>
         )}
 
