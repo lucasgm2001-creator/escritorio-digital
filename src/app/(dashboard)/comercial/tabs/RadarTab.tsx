@@ -7,8 +7,8 @@ import { EmptyState } from '@/components/ui/EmptyState'
 import { SituationDrawer } from '../SituationDrawer'
 import type { Lead } from '../types'
 import {
-  FOLLOWUP_STATE_LABEL, LAST_ACTION_LABEL, NEXT_ACTION_LABEL, TEMPERATURE_LABEL, temperatureFromScore,
-  type FollowupState, type Temperature, type LastAction, type NextAction,
+  FOLLOWUP_STATE_LABEL, NEXT_ACTION_LABEL, TEMPERATURE_LABEL, temperatureFromScore,
+  type FollowupState, type Temperature, type NextAction,
 } from '@/lib/commercial/situation'
 
 // Radar Comercial (RADAR-COMERCIAL-001, Part 4) — situação de acompanhamento de cada lead num painel moderno.
@@ -95,30 +95,36 @@ export function RadarTab({ leads }: { leads: Lead[] }) {
       ) : (
         <div className="space-y-2">
           {shown.map(({ lead, temp, state }) => (
-            <div key={lead.id} className="bento-fx p-3.5 flex flex-col gap-2">
-              <div className="flex items-start gap-2.5">
-                <span className={cn('mt-1 w-2.5 h-2.5 rounded-full shrink-0', temp ? TEMP_DOT[temp] : 'bg-bento-muted')} title={temp ? TEMPERATURE_LABEL[temp] : 'Temperatura não definida'} />
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className="text-sm font-semibold text-bento-text truncate">{lead.name}</span>
-                    {lead.company && <span className="text-[12px] text-bento-muted truncate">· {lead.company}</span>}
-                  </div>
-                  <p className="text-[13px] text-bento-muted mt-0.5">{lead.current_situation || <span className="text-bento-dim italic">Sem situação registrada</span>}</p>
+            <div key={lead.id} className="bento-fx p-4 flex flex-col gap-2">
+              {/* 1) Quem é — nome protagonista + empresa; estado à direita. */}
+              <div className="flex items-center gap-2.5">
+                <span className={cn('w-2 h-2 rounded-full shrink-0', temp ? TEMP_DOT[temp] : 'bg-bento-border')} title={temp ? TEMPERATURE_LABEL[temp] : 'Temperatura não definida'} />
+                <div className="min-w-0 flex-1 flex items-baseline gap-2">
+                  <span className="text-[15px] font-semibold text-bento-text truncate">{lead.name}</span>
+                  {lead.company && <span className="text-[12px] text-bento-muted truncate">{lead.company}</span>}
                 </div>
-                <span className={cn('text-[9px] font-tech uppercase tracking-wide px-1.5 py-0.5 rounded-full border shrink-0', STATE_BADGE[state])}>{FOLLOWUP_STATE_LABEL[state]}</span>
+                <span className={cn('text-[9px] font-tech uppercase tracking-wide px-2 py-0.5 rounded-full border shrink-0', STATE_BADGE[state])}>{FOLLOWUP_STATE_LABEL[state]}</span>
               </div>
 
-              <div className="flex items-center justify-between gap-2 flex-wrap text-[11px] text-bento-dim pl-5">
-                <div className="flex items-center gap-x-3 gap-y-0.5 flex-wrap">
-                  <span>Última: <span className="text-bento-muted">{lead.last_action ? LAST_ACTION_LABEL[lead.last_action as LastAction] : 'Aguardando primeira atualização'}</span></span>
-                  <span>Próxima: <span className="text-bento-muted">{lead.next_action && lead.next_action !== 'nenhuma' ? NEXT_ACTION_LABEL[lead.next_action as NextAction] : 'Sem próxima ação'}</span></span>
-                  {lead.next_contact && <span>Quando: <span className="text-bento-muted">{lead.next_contact}</span></span>}
-                  {lead.assigned_name && <span>Resp: <span className="text-bento-muted">{lead.assigned_name}</span></span>}
+              {/* 2) Qual a situação — a leitura principal. */}
+              <p className="text-[13px] leading-snug text-bento-muted pl-[18px]">
+                {lead.current_situation || <span className="text-bento-dim italic">Sem situação registrada</span>}
+              </p>
+
+              {/* 3) O que fazer + quando — a linha de ação; responsável e atalho ficam discretos. */}
+              <div className="flex items-center justify-between gap-3 pl-[18px]">
+                <div className="min-w-0 flex items-center gap-1.5 text-[12px]">
+                  <ArrowRight className="w-3.5 h-3.5 text-bento-dim shrink-0" />
+                  {lead.next_action && lead.next_action !== 'nenhuma' ? (
+                    <span className="text-bento-text truncate">{NEXT_ACTION_LABEL[lead.next_action as NextAction]}{lead.next_contact && <span className="text-bento-muted"> · {lead.next_contact}</span>}</span>
+                  ) : (
+                    <span className="text-bento-dim">Sem próxima ação</span>
+                  )}
                 </div>
-                <button type="button" onClick={() => setActive(lead)}
-                  className="inline-flex items-center gap-1 text-[12px] font-semibold text-lime-fg hover:underline shrink-0">
-                  Ação rápida <ArrowRight className="w-3 h-3" />
-                </button>
+                <div className="flex items-center gap-3 shrink-0">
+                  {lead.assigned_name && <span className="hidden sm:inline text-[11px] text-bento-dim">{lead.assigned_name}</span>}
+                  <button type="button" onClick={() => setActive(lead)} className="text-[12px] font-semibold text-lime-fg hover:underline">Atualizar</button>
+                </div>
               </div>
             </div>
           ))}
