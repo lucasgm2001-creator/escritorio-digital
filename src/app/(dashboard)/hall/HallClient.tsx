@@ -49,6 +49,7 @@ interface Props {
   linkOptions: LinkOption[]
   userName: string
   userId: string
+  activeTeamId: string | null
   dashboard: DashboardData
 }
 
@@ -194,7 +195,7 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
   )
 }
 
-export function HallClient({ initialActivities, initialTasks, linkOptions, userName, userId, dashboard }: Props) {
+export function HallClient({ initialActivities, initialTasks, linkOptions, userName, userId, activeTeamId, dashboard }: Props) {
   // M6: estado de tarefas VIVO e ÚNICO — Tarefas + Mural + Agenda leem a MESMA fonte (realtime + merge A5).
   const { tasks, setTasks, deletedIds } = useTasksState(initialTasks)
   const [activeTab, setActiveTab]     = useState<Tab>('activities')
@@ -265,14 +266,18 @@ export function HallClient({ initialActivities, initialTasks, linkOptions, userN
   // Agenda (uma carga) + realtime de atividades.
   useEffect(() => {
     const supabase = createClient()
-    supabase.from('calendar_events').select('*').eq('user_id', userId).order('date').then(({ data }) => { if (data) setCalEvents(data as CalendarEvent[]) })
+    // Agenda PESSOAL: eventos do usuário logado na equipe ativa (PERSONAL-WORK-001). Reuniões comerciais do
+    // lead vivem em `meetings` (outra entidade) — não entram aqui. Novo membro entra com agenda vazia.
+    let calQuery = supabase.from('calendar_events').select('*').eq('user_id', userId)
+    if (activeTeamId) calQuery = calQuery.eq('team_id', activeTeamId)
+    calQuery.order('date').then(({ data }) => { if (data) setCalEvents(data as CalendarEvent[]) })
 
     const dataChannel = supabase.channel('hall-realtime')
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'activities' },
         p => setActivities(prev => [p.new as Activity, ...prev.slice(0, 19)]))
       .subscribe()
     return () => { dataChannel.unsubscribe().then(() => supabase.removeChannel(dataChannel)) }
-  }, [userId])
+  }, [userId, activeTeamId])
 
   // ── Mural ↔ Agenda: MESMA fonte (tasks vivo do useTasksState, idêntica à do Calendar) ──────────
   // Toda tarefa com data que aparece na Agenda aparece aqui também. Ordem: atrasadas →

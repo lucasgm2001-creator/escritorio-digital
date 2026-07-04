@@ -43,6 +43,7 @@ export default async function HallPage() {
       linkOptions={linkOptions}
       userName={capitalizeName(context?.profile?.name ?? context?.user.email?.split('@')[0] ?? 'Usuário')}
       userId={context?.user.id ?? ''}
+      activeTeamId={activeTeamId}
       dashboard={dashboard}
     />
   )
