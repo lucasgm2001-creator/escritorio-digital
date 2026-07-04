@@ -6,6 +6,7 @@ import { Sidebar } from './Sidebar'
 import { Topbar } from './Topbar'
 import type { SwitcherTeam } from './WorkspaceSwitcher'
 import { BottomNav } from '@/components/mobile/BottomNav'
+import { ModuleLauncher } from '@/components/mobile/ModuleLauncher'
 import { RevalidateOnFocus } from '@/components/system/RevalidateOnFocus'
 import { ThemeWatcher } from '@/components/system/ThemeWatcher'
 
@@ -69,23 +70,9 @@ export function DashboardShell({ children, userName, userId, avatarUrl, pageTitl
         />
       )}
 
-      {/* Mobile sidebar overlay */}
-      {isMobile && mobileOpen && (
-        <>
-          <div
-            className="fixed inset-0 bg-black/60 backdrop-blur-sm z-40"
-            onClick={() => setMobileOpen(false)}
-          />
-          <div className="fixed left-0 top-0 h-[100dvh] z-50">
-            <Sidebar
-              open={true}
-              onToggle={() => setMobileOpen(false)}
-              mobileClose={() => setMobileOpen(false)}
-              activeTeamName={activeTeamName}
-            />
-          </div>
-        </>
-      )}
+      {/* Mobile: "Mais" (BottomNav) abre o LAUNCHER de módulos — grid de andares, não mais o rail lateral
+          antigo (rail no celular era anti-padrão). Fonte única de navegação; respeita permissões. */}
+      <ModuleLauncher open={mobileOpen} onClose={() => setMobileOpen(false)} />
 
       <div className="flex flex-col flex-1 min-w-0">
         <Topbar
