@@ -1,6 +1,7 @@
 import { ClientesFloor } from './ClientesFloor'
 import { createClient } from '@/lib/supabase/server'
 import { getRequestContext } from '@/server/context/request-context'
+import { requireModuleEntry } from '@/server/security/module-guard'
 import type { Client, Nicho, ClientIntegration } from './types'
 
 // Andar "Clientes" — vida do cliente DEPOIS da venda (Hub + Integrações). Dados via SSR (client/cookies),
@@ -14,6 +15,9 @@ export default async function ClientesPage() {
     // Projeção explícita (PERF-007): só as colunas lidas. Omite team_id (nunca lido no client; RLS filtra no servidor). Sem realtime/spread.
     supabase.from('client_integrations').select('id, client_id, ativo, instancia, numero_destino, template, landing_pages, created_at, updated_at'),
   ])
+
+  // Autoridade de acesso (PERMISSIONS-002): "Sem acesso → nem entra".
+  if (context) requireModuleEntry(context, 'clientes')
 
   const activeTeamId = context?.activeTeamId ?? null
 

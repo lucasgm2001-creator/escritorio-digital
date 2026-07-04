@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation'
 import { capitalizeName } from '@/lib/utils'
 import { can } from '@/lib/permissions/can'
 import { getRequestContext, switcherTeamsFromContext } from '@/server/context/request-context'
+import { requireModuleEntry } from '@/server/security/module-guard'
 import { DomainShell } from '@/components/domain/DomainShell'
 import { ModuleAccessProvider } from '@/components/auth/ModuleAccessProvider'
 
@@ -12,6 +13,7 @@ export default async function TrafegoLayout({ children }: { children: React.Reac
   const context = await getRequestContext()
   if (!context) redirect('/login')
   if (context.memberships.length === 0) redirect('/onboarding')
+  requireModuleEntry(context, 'trafego')   // "Sem acesso → nem entra" (PERMISSIONS-002)
 
   const userName = capitalizeName(context.profile?.name ?? context.user.email?.split('@')[0] ?? 'Usuário')
   const teams = switcherTeamsFromContext(context)

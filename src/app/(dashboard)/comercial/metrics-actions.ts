@@ -1,6 +1,7 @@
 'use server'
 
 import { getRequestContext } from '@/server/context/request-context'
+import { can } from '@/lib/permissions/can'
 import { getCommercialMetricsTab, EMPTY_METRICS_TAB } from '@/server/services/CommercialMetricsService'
 import type { Mode } from '@/lib/period'
 import type { CommercialMetricsTabVM } from '@/core/metrics/types'
@@ -10,5 +11,7 @@ import type { CommercialMetricsTabVM } from '@/core/metrics/types'
 export async function getCommercialMetricsTabAction(mode: Mode): Promise<CommercialMetricsTabVM> {
   const context = await getRequestContext()
   if (!context) return EMPTY_METRICS_TAB
+  // Autoridade de acesso (PERMISSIONS-002): ver métricas do Comercial exige nível ≥ Somente leitura.
+  if (!can(context, 'commercial', 'view')) return EMPTY_METRICS_TAB
   return getCommercialMetricsTab(context, mode)
 }

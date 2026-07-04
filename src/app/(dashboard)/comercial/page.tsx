@@ -2,6 +2,7 @@ import { KanbanBoard } from './KanbanBoard'
 import { createClient } from '@/lib/supabase/server'
 import { getStages } from '@/lib/funnelStages.server'
 import { getRequestContext } from '@/server/context/request-context'
+import { requireModuleEntry } from '@/server/security/module-guard'
 
 export default async function ComercialPage() {
   const supabase = createClient()
@@ -10,6 +11,9 @@ export default async function ComercialPage() {
     getRequestContext(),
     getStages(),
   ])
+
+  // Autoridade de acesso (PERMISSIONS-002): "Sem acesso → nem entra". Nível efetivo resolvido no servidor.
+  if (context) requireModuleEntry(context, 'comercial')
 
   const activeTeamId = context?.activeTeamId ?? null
 
