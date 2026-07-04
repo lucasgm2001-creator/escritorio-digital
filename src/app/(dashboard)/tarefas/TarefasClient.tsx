@@ -4,6 +4,7 @@ import { useState, useMemo, useEffect, type Dispatch, type SetStateAction, type 
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
+import { updateTaskAction, deleteTaskAction } from './task-write-actions'
 import { cn } from '@/lib/utils'
 import { TaskModal, type TaskPrefill } from './TaskModal'
 import { copyText } from '@/lib/clipboard'
@@ -220,7 +221,7 @@ export function TarefasClient({ tasks, setTasks, deletedIds, linkOptions, curren
     const completed_at = nowDone ? new Date().toISOString() : null
     setActionError('')
     setTasks(prev => prev.map(x => x.id === t.id ? { ...x, done: nowDone, completed_at } : x))
-    const { error } = await supabase.from('tasks').update({ done: nowDone, completed_at }).eq('id', t.id)
+    const { error } = await updateTaskAction(t.id, { done: nowDone, completed_at })
     if (error) {
       setTasks(prev => prev.map(x => x.id === t.id ? t : x))   // rollback ao original
       setActionError(`Não foi possível ${nowDone ? 'concluir' : 'reabrir'} a tarefa: ${error.message}`)
@@ -240,7 +241,7 @@ export function TarefasClient({ tasks, setTasks, deletedIds, linkOptions, curren
     const snapshot = tasks
     deletedIds.current.add(t.id)                          // trava: refresh defasado não re-insere
     setTasks(prev => prev.filter(x => x.id !== t.id))   // some da lista na hora
-    const { error } = await supabase.from('tasks').delete().eq('id', t.id)
+    const { error } = await deleteTaskAction(t.id)
     if (error) {
       deletedIds.current.delete(t.id)                          // deleção falhou → libera a trava
       setTasks(snapshot)                                        // rollback (re-insere)

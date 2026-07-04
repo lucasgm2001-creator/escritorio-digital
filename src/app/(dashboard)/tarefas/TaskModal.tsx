@@ -5,6 +5,7 @@ import { Portal } from '@/components/ui/Portal'
 import { useDialog } from '@/components/ui/useDialog'
 import { copyText } from '@/lib/clipboard'
 import { createClient } from '@/lib/supabase/client'
+import { createTaskAction, updateTaskAction } from './task-write-actions'
 import { cn } from '@/lib/utils'
 import { useToast } from '@/components/ui/toast'
 import type { Task, TaskPriority, LinkOption } from './types'
@@ -98,7 +99,8 @@ function MeetLinkBox({ url }: { url: string }) {
   )
 }
 
-export function TaskModal({ onClose, onSaved, currentUser, linkOptions, task, prefill, aiFilled }: Props) {
+// currentUser segue em Props (compat do caller) mas NÃO é usado: a action carimba user_id/team_id no servidor.
+export function TaskModal({ onClose, onSaved, linkOptions, task, prefill, aiFilled }: Props) {
   const { toast } = useToast()
   const editing = !!task
   const [title, setTitle]       = useState(task?.title ?? prefill?.title ?? '')
@@ -168,14 +170,12 @@ export function TaskModal({ onClose, onSaved, currentUser, linkOptions, task, pr
     }
 
     if (editing && task) {
-      const { data, error } = await supabase
-        .from('tasks').update(payload).eq('id', task.id).select().single()
-      if (!error && data) { syncCalendar((data as Task).id); onSaved(data as Task); onClose() }
+      const { data, error } = await updateTaskAction(task.id, payload)   // servidor: sessão + equipe + allowlist
+      if (!error && data) { syncCalendar((data as unknown as Task).id); onSaved(data as unknown as Task); onClose() }
       else setSaving(false)
     } else {
-      const { data, error } = await supabase
-        .from('tasks').insert({ ...payload, user_id: currentUser.id, done: false }).select().single()
-      if (!error && data) { syncCalendar((data as Task).id); onSaved(data as Task); onClose() }
+      const { data, error } = await createTaskAction(payload)   // servidor: user_id/team_id carimbados
+      if (!error && data) { syncCalendar((data as unknown as Task).id); onSaved(data as unknown as Task); onClose() }
       else setSaving(false)
     }
   }
