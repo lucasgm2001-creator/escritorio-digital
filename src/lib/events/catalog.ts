@@ -17,6 +17,11 @@ export const EVENT_CATALOG: EventDefinition[] = [
   { type: 'lead.updated',   category: 'lead', priority: 'low',    description: 'Dados de um lead foram alterados.', source: 'Comercial', targets: ['Timeline', 'Dashboard'] },
   { type: 'lead.deleted',   category: 'lead', priority: 'low',    description: 'Um lead foi removido do funil.', source: 'Comercial', targets: ['Timeline', 'Dashboard'] },
   { type: 'lead.moved',     category: 'lead', priority: 'normal', description: 'Um lead mudou de etapa do funil.', source: 'Comercial', targets: ['Timeline', 'Dashboard', 'IA'] },
+  // Radar Comercial (RADAR-COMERCIAL-001, Part 8) — situação/acompanhamento do lead.
+  { type: 'lead.situation.updated',  category: 'lead', priority: 'normal', description: 'A situação de acompanhamento de um lead foi atualizada.', source: 'Comercial', targets: ['Timeline', 'Dashboard', 'Radar'] },
+  { type: 'lead.next_action.created', category: 'lead', priority: 'normal', description: 'Uma próxima ação foi definida para um lead.', source: 'Comercial', targets: ['Tarefas', 'Timeline'] },
+  { type: 'lead.followup.scheduled', category: 'lead', priority: 'normal', description: 'Um follow-up de lead foi agendado.', source: 'Comercial', targets: ['Agenda', 'Timeline'] },
+  { type: 'lead.response.recorded',  category: 'lead', priority: 'low',    description: 'A resposta (ou ausência) de um lead foi registrada.', source: 'Comercial', targets: ['Timeline', 'IA'] },
 
   // ── Tarefas ──
   { type: 'task.created',   category: 'task', priority: 'low',    description: 'Uma tarefa foi criada.', source: 'Tarefas', targets: ['Timeline', 'Notificações'] },
