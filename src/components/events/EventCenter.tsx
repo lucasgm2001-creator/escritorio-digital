@@ -1,40 +1,61 @@
 import { ArrowRight } from 'lucide-react'
 import { WorkspaceHeader } from '@/components/ui/WorkspaceHeader'
 import { MetricCard } from '@/components/ui/MetricCard'
+import { Panel } from '@/components/bento/Panel'
+import { TimeAgo } from '@/components/system/TimeAgo'
 import { cn } from '@/lib/utils'
 import { EVENT_CATALOG, EVENT_CATEGORIES, eventsByCategory } from '@/lib/events/catalog'
 import type { EventPriority } from '@/lib/events/types'
-import { EventRuntimePanel } from './EventRuntimePanel'
+import type { ActivityEntry } from '@/server/services/AdminOverviewService'
 
-// Event Center (EVENT-001 + runtime EVENT-002). Catálogo ESTÁTICO + runtime EM MEMÓRIA (EventRuntimePanel).
-// Nenhuma persistência, nenhum módulo real reage. Reusa WorkspaceHeader/MetricCard/Panel/EmptyState (DS).
+// Event Center (ADMIN-REAL-001): eventos PUBLICADOS de verdade (feed `activities`) + o catálogo de tipos que
+// o sistema define (origem → destino). Tudo real, nada em memória. Reusa WorkspaceHeader/MetricCard/Panel/TimeAgo.
 const PRIORITY_TINT: Record<EventPriority, string> = {
   low: 'text-bento-dim', normal: 'text-bento-muted', high: 'text-amber-400', critical: 'text-red-400',
 }
 
-export function EventCenter() {
+export function EventCenter({ published }: { published: { total: number; recent: ActivityEntry[] } }) {
   const totalEvents = EVENT_CATALOG.length
   const totalCategories = EVENT_CATEGORIES.filter(c => eventsByCategory(c.key).length > 0).length
+
   return (
     <div className="space-y-6">
       <WorkspaceHeader
         breadcrumb={['Administração', 'Eventos']}
-        title="Event Bus"
-        subtitle="A espinha dorsal de eventos do Escritório Digital. Runtime em memória ativo (sem fila/persistência/banco) — publique um evento de teste abaixo; nenhum módulo real reage ainda."
+        title="Eventos"
+        subtitle="Os eventos publicados pela plataforma e o catálogo de tipos que o sistema define."
       />
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5">
-        <MetricCard title="Eventos no catálogo" value={totalEvents} size="sm" />
+        <MetricCard title="Eventos publicados" value={published.total} size="sm" tone={published.total > 0 ? 'positive' : 'muted'} />
+        <MetricCard title="Tipos no catálogo" value={totalEvents} size="sm" />
         <MetricCard title="Categorias" value={totalCategories} size="sm" />
-        <MetricCard title="Runtime" value="Em memória" size="sm" tone="muted" />
-        <MetricCard title="Persistência" value="Nenhuma" size="sm" tone="muted" />
       </div>
 
-      {/* Runtime ao vivo (EVENT-002) — subscribers registrados + últimos eventos + publicar teste. */}
-      <EventRuntimePanel />
+      {/* Eventos publicados REAIS (feed de atividades). */}
+      <Panel label="Últimos eventos publicados">
+        {published.recent.length === 0 ? (
+          <p className="text-[13px] text-bento-muted">Nenhum evento registrado.</p>
+        ) : (
+          <ul className="-my-1 divide-y divide-bento-border">
+            {published.recent.map(ev => (
+              <li key={ev.id} className="flex items-start gap-3 py-2.5">
+                <span className="mt-0.5 text-[9px] font-tech uppercase tracking-wide text-bento-dim border border-bento-border rounded-full px-1.5 py-0.5 shrink-0">{ev.type}</span>
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm text-bento-text leading-snug">{ev.description}</p>
+                  <p className="text-[11px] text-bento-muted mt-0.5">
+                    {ev.user_name ?? 'Sistema'}{ev.created_at && <> · <TimeAgo date={ev.created_at} /></>}
+                  </p>
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
+      </Panel>
 
-      {/* Catálogo por categoria (estático — Parts 3/4 do EVENT-001). */}
+      {/* Catálogo de TIPOS de evento que o sistema define (origem → destinos). Referência real do sistema. */}
       <div className="space-y-4">
+        <p className="font-tech text-[10px] uppercase tracking-[0.12em] text-bento-muted">Catálogo de tipos</p>
         {EVENT_CATEGORIES.map(cat => {
           const events = eventsByCategory(cat.key)
           if (events.length === 0) return null

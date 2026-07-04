@@ -29,6 +29,19 @@ export async function getRecentActivities(context: RequestContext, limit = 50): 
   return (data ?? []) as ActivityEntry[]
 }
 
+// Eventos PUBLICADOS de verdade = o feed `activities` (total + últimos). O Event Center mostra isto + o
+// catálogo de tipos de evento que o sistema define. Só leitura, team-scoped.
+export async function getPublishedEvents(context: RequestContext, limit = 12): Promise<{ total: number; recent: ActivityEntry[] }> {
+  const teamId = context.activeTeamId
+  if (!teamId) return { total: 0, recent: [] }
+  const supabase = createClient()
+  const [countRes, recent] = await Promise.all([
+    supabase.from('activities').select('id', { count: 'exact', head: true }).eq('team_id', teamId),
+    getRecentActivities(context, limit),
+  ])
+  return { total: countRes.count ?? 0, recent }
+}
+
 // Contagem team-scoped (head:true → não transfere linhas). eqFilter = 1 filtro extra opcional (coluna, valor).
 async function countTeam(
   supabase: ReturnType<typeof createClient>,

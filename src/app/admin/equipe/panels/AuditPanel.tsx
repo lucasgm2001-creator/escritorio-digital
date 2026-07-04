@@ -1,9 +1,9 @@
 import { ScrollText, Info } from 'lucide-react'
 import { eventsByCategory } from '@/lib/events/catalog'
 
-// Aba AUDITORIA (Part 1 — preparação). NÃO registra nada ainda. Mostra, de forma honesta, os eventos de
-// governança já CONTRATADOS no Event Bus (categoria 'workspace', TEAM-ADMIN-002 Part 7): o dia em que o
-// runtime de auditoria existir, é isto que será gravado. Sem "em breve" vazio — é o contrato real.
+// Aba AUDITORIA — GOVERNANÇA do workspace. Mostra os TIPOS de evento de governança já contratados no Event
+// Bus (categoria 'workspace', TEAM-ADMIN-002 Part 7): quando o registro de governança existir, é isto que
+// será gravado. A auditoria OPERACIONAL ao vivo (leads/vendas/tarefas) já roda em Administração › Auditoria.
 export function AuditPanel() {
   const events = eventsByCategory('workspace')
 

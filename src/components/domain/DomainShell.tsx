@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { usePathname } from 'next/navigation'
 import Link from 'next/link'
-import { Search, Menu, ChevronLeft, X } from 'lucide-react'
+import { Menu, ChevronLeft, X } from 'lucide-react'
 import { DomainNav } from './DomainNav'
 import { Sidebar } from '@/components/layout/Sidebar'
 import { WorkspaceSwitcher, type SwitcherTeam } from '@/components/layout/WorkspaceSwitcher'
@@ -67,12 +67,6 @@ export function DomainShell({ configKey, config: configProp, subtitle, userName,
           <span className="font-display font-semibold text-sm text-bento-text">{config.title}</span>
           {subtitle && <span className="text-xs text-bento-muted truncate">· {subtitle}</span>}
           <div className="ml-auto flex items-center gap-3">
-            <button type="button" disabled aria-label="Buscar (em breve)"
-              className="flex items-center gap-2 text-xs text-bento-dim border border-bento-border rounded-btn px-2.5 py-1.5 opacity-70 cursor-not-allowed">
-              <Search className="w-3.5 h-3.5" />
-              <span className="hidden lg:inline">Buscar</span>
-              <kbd className="font-tech text-[10px]">⌘K</kbd>
-            </button>
             {/* Workspace Switcher global (Part 5) — mesmo canto superior direito do DashboardShell. */}
             <WorkspaceSwitcher userName={userName} userEmail={userEmail} avatarUrl={avatarUrl} teams={teams} />
           </div>
