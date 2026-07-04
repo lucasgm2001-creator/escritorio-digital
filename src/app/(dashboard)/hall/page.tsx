@@ -2,15 +2,19 @@ import { HallClient } from './HallClient'
 import { capitalizeName } from '@/lib/utils'
 import { createClient } from '@/lib/supabase/server'
 import { getRequestContext } from '@/server/context/request-context'
+import { getDashboardData, type DashboardData } from '@/server/services/DashboardService'
 import type { Task, LinkOption } from '../tarefas/types'
+
+const EMPTY_DASH: DashboardData = { leadsAwaiting: { count: 0, sample: [] }, kpiGroups: [], alerts: [] }
 
 export default async function HallPage() {
   const supabase = createClient()
   const context = await getRequestContext()
   const activeTeamId = context?.activeTeamId ?? null
 
-  // Atividades/leads/clients são dados da equipe ativa. Tarefas seguem pessoais por user_id.
-  const [{ data: activities }, tasksRes, leadsRes, clientsRes] = await Promise.all([
+  // Atividades/leads/clients são dados da equipe ativa. Tarefas seguem pessoais por user_id. O cockpit
+  // (prioridades/KPIs/alertas) vem do DashboardService (reusa getCommercialDashboard — mesma fonte do Comercial).
+  const [{ data: activities }, tasksRes, leadsRes, clientsRes, dashboard] = await Promise.all([
     activeTeamId
       ? supabase.from('activities').select('*').eq('team_id', activeTeamId).order('created_at', { ascending: false }).limit(20)
       : Promise.resolve({ data: [] }),
@@ -21,6 +25,7 @@ export default async function HallPage() {
     activeTeamId
       ? supabase.from('clients').select('id, name, phone, company').eq('team_id', activeTeamId).order('name')
       : Promise.resolve({ data: [] }),
+    context ? getDashboardData(context) : Promise.resolve(EMPTY_DASH),
   ])
 
   const linkOptions: LinkOption[] = [
@@ -35,6 +40,7 @@ export default async function HallPage() {
       linkOptions={linkOptions}
       userName={capitalizeName(context?.profile?.name ?? context?.user.email?.split('@')[0] ?? 'Usuário')}
       userId={context?.user.id ?? ''}
+      dashboard={dashboard}
     />
   )
 }

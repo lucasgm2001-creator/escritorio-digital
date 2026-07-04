@@ -10,12 +10,13 @@ import { LiveDot } from '@/components/bento/LiveDot'
 import { NewsSection } from './NewsSection'
 import { CollapsibleSection } from '@/components/mobile/CollapsibleSection'
 import { MetricCard } from '@/components/ui/MetricCard'
-import { X, Clock, CalendarDays, Activity as ActivityIcon, Newspaper } from 'lucide-react'
+import { X, Clock, CalendarDays, Activity as ActivityIcon, Newspaper, UserPlus, ArrowRight, AlertTriangle } from 'lucide-react'
 import { Portal } from '@/components/ui/Portal'
 import { useDialog } from '@/components/ui/useDialog'
 import type { Activity } from '@/types'
 import type { Task, LinkOption } from '../tarefas/types'
 import type { MapLead, MapClient } from '../comercial/mapTypes'
+import type { DashboardData } from '@/server/services/DashboardService'
 import { useTasksState } from '../tarefas/useTasksState'
 import { ErrorBoundary } from '@/components/system/ErrorBoundary'
 import { Calendar } from './Calendar'
@@ -49,6 +50,7 @@ interface Props {
   linkOptions: LinkOption[]
   userName: string
   userId: string
+  dashboard: DashboardData
 }
 
 const ACTIVITY_ICONS: Record<string, React.ReactNode> = {
@@ -193,7 +195,7 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
   )
 }
 
-export function HallClient({ initialActivities, initialTasks, linkOptions, userName, userId }: Props) {
+export function HallClient({ initialActivities, initialTasks, linkOptions, userName, userId, dashboard }: Props) {
   // M6: estado de tarefas VIVO e ÚNICO — Tarefas + Mural + Agenda leem a MESMA fonte (realtime + merge A5).
   const { tasks, setTasks, deletedIds } = useTasksState(initialTasks)
   const [activeTab, setActiveTab]     = useState<Tab>('activities')
@@ -366,9 +368,37 @@ export function HallClient({ initialActivities, initialTasks, linkOptions, userN
 
         {activeTab === 'activities' && (
           <>
-            {/* ══ HOJE ══ Protagonista: o que exige ação agora. Atrasadas em destaque (âmbar), depois hoje +
-                reuniões. Tudo de dados JÁ carregados (tasks/calEvents) — sem query nem métrica nova. */}
-            <SectionLabel>Hoje</SectionLabel>
+            {/* ══ ALERTAS ══ só quando HÁ (pagamento em atraso, integração desligada, convite expirado, tarefas
+                acumuladas). Dados reais do DashboardService. Sem alerta → nem aparece (o vazio é o Hall limpo). */}
+            {dashboard.alerts.length > 0 && (
+              <div className="rounded-frame border border-amber-800/40 bg-amber-900/10 p-3 space-y-1.5">
+                <div className="flex items-center gap-2">
+                  <AlertTriangle className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                  <p className="font-tech text-[10px] uppercase tracking-[0.12em] text-amber-400">Alertas</p>
+                </div>
+                <ul className="space-y-1">
+                  {dashboard.alerts.map((a, i) => (
+                    <li key={i}>
+                      {a.href ? (
+                        <button type="button" onClick={() => router.push(a.href!)}
+                          className="w-full text-left flex items-center gap-2 text-[13px] text-bento-text hover:text-amber-300 transition-colors min-h-[32px]">
+                          <span className="w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0" />
+                          <span className="min-w-0 truncate">{a.message}</span>
+                        </button>
+                      ) : (
+                        <span className="flex items-center gap-2 text-[13px] text-bento-text">
+                          <span className="w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0" />{a.message}
+                        </span>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            {/* ══ PRIORIDADES DE HOJE ══ o que exige ação agora: pendentes + hoje + reuniões (dados JÁ carregados)
+                e leads aguardando contato (DashboardService). */}
+            <SectionLabel>Prioridades de hoje</SectionLabel>
             <p className="text-sm leading-relaxed">
               {tarefasAtrasadas.length > 0 ? (
                 <>
@@ -408,6 +438,26 @@ export function HallClient({ initialActivities, initialTasks, linkOptions, userN
                   </div>
                 </Panel>
               </CollapsibleSection>
+            )}
+
+            {/* Leads aguardando contato — do DashboardService (follow-up vencido OU nunca contatado). Ação → Comercial. */}
+            {dashboard.leadsAwaiting.count > 0 && (
+              <button type="button" onClick={() => router.push('/comercial')}
+                className="w-full text-left bento-fx p-3 flex items-center gap-3 hover:border-lime/40 transition-colors">
+                <div className="w-8 h-8 rounded-bento bg-lime/10 border border-lime/20 flex items-center justify-center shrink-0">
+                  <UserPlus className="w-4 h-4 text-lime-fg" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm text-bento-text">
+                    <strong className="font-semibold">{dashboard.leadsAwaiting.count}</strong>{' '}
+                    {dashboard.leadsAwaiting.count === 1 ? 'lead aguardando contato' : 'leads aguardando contato'}
+                  </p>
+                  {dashboard.leadsAwaiting.sample.length > 0 && (
+                    <p className="text-[12px] text-bento-muted truncate">{dashboard.leadsAwaiting.sample.map(s => s.name).join(' · ')}</p>
+                  )}
+                </div>
+                <ArrowRight className="w-4 h-4 text-bento-dim shrink-0" />
+              </button>
             )}
 
             {/* ══ PULSO DA EMPRESA ══ KPIs executivos reais (leads/clientes). Gate por hallCfg.metrics. */}
