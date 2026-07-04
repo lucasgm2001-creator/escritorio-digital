@@ -1,173 +1,95 @@
-# Proposta de migration — Colaboradores (cargo/departamento/gestor) + Remuneração (templates + override)
+# Colaboradores (cargo/departamento/gestor) + Remuneração — migration + reaproveitamento
 
 **IDs:** PERSONAL-WORK-001 (Parts 9–13) · COLLABORATORS-REAL-001 (Parts 4–6, 9)
-**Status:** PROPOSTA — **nada aplicado.** Aguarda autorização explícita para rodar.
-**Princípios:** ARCH-001 (UI→Services→Repos→DB), TEAM-001 (tudo escopado por `team_id`), reaproveitar
-`team_members`/`profiles`/`lib/commission`/Event Bus — **sem arquitetura paralela**, **sem recalcular histórico**.
+**Status:** **Fase 1 APLICADA** (extensão de `team_members`, migration 044). **Fase 2 (remuneração) REAPROVEITA infra existente — sem tabelas novas.**
+**Princípios:** ARCH-001, TEAM-001, reaproveitar `team_members`/`profiles`/`collaborator_compensation_settings`/
+`CompensationRepository`/`lib/commission`/Event Bus — **sem arquitetura paralela**, **sem recalcular histórico**.
+
+> ⚠️ **Auto-review (COLLAB Part 10):** a 1ª versão desta proposta sugeria tabelas `compensation_templates` +
+> `compensation_assignments`. Ao auditar `supabase/migrations/`, descobri que **a persistência de remuneração
+> por colaborador JÁ EXISTE** (`collaborator_compensation_settings`, migration 040, efetivo-datada, lida pelo
+> `CompensationRepository`) e que o modelo por cargo/tipo já está desenhado em
+> `docs/04-banco-de-dados/remuneracao-por-cargo-e-tipo.md`. Aquelas tabelas eram **duplicação** → **removidas**.
 
 ---
 
-## 0. O que a auditoria concluiu (por que esta migration)
+## 0. Auditoria — o que já existe
 
 | Necessidade | Já existe? | Ação |
 |---|---|---|
-| Ownership de **tarefa** | ✅ `tasks.user_id` + `tasks.team_id` | **Nenhuma** — já pessoal (só faltava filtrar `team_id`, já feito) |
-| Ownership de **agenda** | ✅ `calendar_events.user_id` + `team_id` | **Nenhuma** — idem |
-| **Reuniões comerciais** | ✅ `meetings` (seller_id/client_id/lead_id) | **Não mexer** — entidade separada |
-| **Cargo** do colaborador | ⚠️ `profiles.cargo` (texto livre, global) | Migrar p/ estruturado **por equipe** |
-| **Departamento** | ❌ | Criar campo (por equipe) |
-| **Gestor** (líder direto) | ⚠️ `profiles.is_manager` (bool) | Criar vínculo `manager_user_id` |
-| **Template de remuneração** por cargo | ❌ | Nova tabela |
-| **Remuneração individual / override** | ❌ | Nova tabela (efetivo-datada) |
-| **Metas** | ❌ (catálogo tem `goalType` padrão) | Campo no template/assignment |
+| Ownership de **tarefa/agenda** | ✅ `tasks`/`calendar_events` com `user_id`+`team_id` | Nenhuma (só faltava filtrar `team_id`, feito) |
+| **Reuniões comerciais** | ✅ `meetings` (entidade separada) | Não mexer |
+| **Cargo/Departamento/Gestor/Entrada/Status** por equipe | ❌ (só `profiles.cargo` texto global) | **Fase 1 — aplicada** (`team_members`) |
+| **Remuneração por colaborador** (fixo, comissão, reunião, renovação, upgrade, regra de pagamento, vigência) | ✅ **`collaborator_compensation_settings`** (migration 040) + `CompensationRepository` | **Reusar** — nada novo |
+| **Histórico imutável / snapshot** | ✅ ledger de comissão + efetivo-datação (design oficial) | Reusar |
+| **Regra por CARGO/tipo (template)** | 🟡 desenhado em `remuneracao-por-cargo-e-tipo.md`; hoje é por seller | Evoluir sobre o existente (fora deste escopo) |
 
-Catálogo de cargos/departamentos já é **código** (`lib/people/catalog.ts`, 35 cargos) — **não vai ao banco**.
-O banco guarda só o **vínculo** colaborador↔cargo e a remuneração real.
+O catálogo de cargos/departamentos é **código** (`lib/people/catalog.ts`, 35 cargos) — não vai ao banco.
 
 ---
 
-## 1. Tabela existente a ESTENDER — `team_members` (fatos de RH por equipe)
+## 1. Fase 1 — `team_members` estendida (✅ APLICADA, migration 044)
 
-Cargo/depto/gestor são **por equipe** (a mesma pessoa pode ter papéis diferentes em equipes diferentes) →
-pertencem a `team_members` (1:1 com a associação), não a `profiles` (global).
+Cargo/depto/gestor são **por equipe** → em `team_members` (1:1 com a associação), não em `profiles` (global).
 
 ```sql
--- PROPOSTA (não aplicado)
 alter table public.team_members
-  add column role_key         text,                       -- chave do cargo (ROLE_CATALOG.key); null = não configurado
-  add column department_key   text,                       -- chave do depto (DEPARTMENT_CATALOG.key); derivável do cargo
-  add column manager_user_id  uuid references public.profiles(id) on delete set null,
-  add column joined_at        date,                       -- data de entrada (fallback: created_at::date)
-  add column status           text not null default 'ativo'  -- ativo | inativo | afastado | convidado
+  add column if not exists role_key        text,   -- chave do cargo (ROLE_CATALOG.key); null = não configurado
+  add column if not exists department_key  text,   -- chave do depto (DEPARTMENT_CATALOG.key)
+  add column if not exists manager_user_id uuid references public.profiles(id) on delete set null,
+  add column if not exists joined_at       date,   -- entrada (backfill: created_at::date)
+  add column if not exists status          text not null default 'ativo'
     check (status in ('ativo','inativo','afastado','convidado'));
-
-create index if not exists idx_team_members_role   on public.team_members(team_id, role_key);
+create index if not exists idx_team_members_role    on public.team_members(team_id, role_key);
 create index if not exists idx_team_members_manager on public.team_members(manager_user_id);
 ```
 
-- `role_key`/`department_key` são **texto validado na aplicação** contra o catálogo (não FK — o catálogo é código).
-- Nenhuma coluna nova é obrigatória → **linhas atuais seguem válidas** (defaults/nullable).
+- Aditivo/retrocompatível; herda a RLS de `team_members`.
+- `role_key`/`department_key` validados na aplicação contra o catálogo (não FK).
+- **Backfill feito:** `joined_at = created_at::date` (todos); `status = 'ativo'` (todos); **Lucas → `closer`/`comercial`**
+  (alinha com `remuneracao-por-cargo-e-tipo.md`: "Lucas = Closer"); **Gabriel → não configurado** (idem: "Gabriel não
+  associado a regra nesta etapa"). Nenhum delete.
 
 ---
 
-## 2. Tabela nova — `compensation_templates` (o "modelo" por cargo)
+## 2. Remuneração — REUSAR `collaborator_compensation_settings` (nada novo)
 
-```sql
--- PROPOSTA (não aplicado)
-create table public.compensation_templates (
-  id             uuid primary key default gen_random_uuid(),
-  team_id        uuid not null references public.teams(id) on delete cascade,
-  role_key       text,                                    -- cargo sugerido (ROLE_CATALOG.key) ou null (avulso)
-  name           text not null,                           -- ex.: "Closer DR Growth"
-  base_salary    numeric(12,2) not null default 0,        -- fixo
-  commission_pct numeric(6,3),                            -- % sobre venda (ex.: 20.000)
-  commission_fixed numeric(12,2),                         -- comissão fixa por venda
-  bonus          jsonb not null default '[]',             -- [{label, trigger, amount}] — bônus/premiação/metas
-  recurrence     text not null default 'mensal'           -- mensal | por_venda | pontual
-    check (recurrence in ('mensal','por_venda','pontual')),
-  goal_type      text,                                    -- reunioes|vendas|time|performance|retencao|entregas|nenhuma
-  notes          text,
-  created_at     timestamptz not null default now(),
-  updated_at     timestamptz not null default now()
-);
-create index idx_comp_templates_team on public.compensation_templates(team_id, role_key);
-```
+A remuneração por colaborador **já é persistida e efetivo-datada**:
+
+- Tabela **`collaborator_compensation_settings`** (migration 040): `seller_id`, `fixed_salary_*`,
+  `contract_commission_*`, `meeting_commission_*`, `renewal_bonus_*`, `upgrade_commission_*`, `payment_rule`,
+  `effective_from`, `unique(seller_id, effective_from)`.
+- **`CompensationRepository`** (ARCH-001: DAL só leitura; regras no Service) já lê essa tabela.
+- **Override individual** = uma nova linha por `seller_id` com nova `effective_from` (o passado nunca muda).
+- **Histórico não recalcula** = ledger/snapshot de comissão (design oficial em `remuneracao-por-cargo-e-tipo.md`).
+
+**Modelo por CARGO (template):** o cargo (`team_members.role_key`) **sugere** os defaults (via `defaultComp`/
+`commission` do catálogo) ao criar a config do colaborador — o cargo **não** é a fonte final de cálculo (a config
+por colaborador é). Uma tabela de "regra por cargo" reutilizável é a evolução já prevista naquele doc; quando
+for construída, será **sobre** `collaborator_compensation_settings`, não uma tabela paralela. **Nada a criar agora.**
+
+⚠️ Tabela órfã encontrada: **`seller_comp_config`** existe no banco mas **nenhum código a usa** (o vivo é
+`collaborator_compensation_settings`). Sugiro tratá-la numa limpeza futura (confirmar e `DROP` com autorização) —
+não faz parte desta entrega.
 
 ---
 
-## 3. Tabela nova — `compensation_assignments` (colaborador → template + OVERRIDE, efetivo-datado)
+## 3. Impacto / Camadas / Eventos
 
-O **override individual** e a **vigência** vivem aqui. Efetivo-datado = **histórico nunca recalcula** (Part 6):
-uma venda paga sob a regra vigente na época permanece; regra nova só vale para vendas futuras.
-
-```sql
--- PROPOSTA (não aplicado)
-create table public.compensation_assignments (
-  id             uuid primary key default gen_random_uuid(),
-  team_id        uuid not null references public.teams(id) on delete cascade,
-  user_id        uuid not null references public.profiles(id) on delete cascade,
-  template_id    uuid references public.compensation_templates(id) on delete set null,
-  -- OVERRIDE individual (null = herda do template). Mesmos campos do template.
-  base_salary    numeric(12,2),
-  commission_pct numeric(6,3),
-  commission_fixed numeric(12,2),
-  bonus          jsonb,
-  goal_type      text,
-  notes          text,
-  effective_from date not null default current_date,      -- vigência (nunca reescreve o passado)
-  created_by     uuid references public.profiles(id),
-  created_at     timestamptz not null default now()
-);
-create index idx_comp_assign_user on public.compensation_assignments(team_id, user_id, effective_from desc);
-```
-
-A remuneração **efetiva** = `coalesce(override, template, catálogo)` na data — resolvida no Service
-(reaproveitando `lib/commission` para o cálculo; **sem segunda engine**).
-
----
-
-## 4. RLS (mesmo modelo já usado no projeto)
-
-```sql
--- PROPOSTA (não aplicado). Padrão: SELECT p/ membros da equipe; escrita só owner/admin.
-alter table public.compensation_templates   enable row level security;
-alter table public.compensation_assignments enable row level security;
-
--- Leitura: membro da equipe. (remuneração é sensível — pode-se restringir a owner/admin + o próprio; decidir na aplicação)
-create policy comp_tpl_read on public.compensation_templates for select
-  using (exists (select 1 from public.team_members tm where tm.team_id = compensation_templates.team_id and tm.user_id = auth.uid()));
-
--- Escrita: só owner/admin da equipe.
-create policy comp_tpl_write on public.compensation_templates for all
-  using (exists (select 1 from public.team_members tm where tm.team_id = compensation_templates.team_id and tm.user_id = auth.uid() and tm.role in ('owner','admin')))
-  with check (exists (select 1 from public.team_members tm where tm.team_id = compensation_templates.team_id and tm.user_id = auth.uid() and tm.role in ('owner','admin')));
--- (policies equivalentes para compensation_assignments)
-```
-
-As colunas novas de `team_members` herdam a RLS já existente da tabela — sem policy nova.
-
----
-
-## 5. Impacto
-
-- **Aditivo e retrocompatível.** Nenhuma coluna/tabela existente é removida ou renomeada. Linhas atuais seguem válidas.
-- **Sem recálculo de histórico** — comissões/pagamentos já registrados não mudam (efetivo-datação).
-- **Reaproveita**: `team_members` (vínculo), `profiles` (identidade), `lib/people/catalog` (cargos/deptos),
-  `lib/commission` (cálculo), Event Bus (`employee.role.changed`/`.department.changed`/`.compensation.changed`/
-  `.manager.changed`/`.hired`/`.archived` — já no catálogo).
-- **Camadas (ARCH-001)**: UI → Server Actions gated (`can(context,'teams','manage')`) → `PeopleService`/novo
-  `CompensationService` → Repositories → DB. Escrita em membro de outro usuário via service-role + guarda de
+- Aditivo e retrocompatível. Sem remoção/rename. Sem recálculo de histórico.
+- **ARCH-001**: UI → Server Actions gated (`can(context,'teams','manage')`) → `PeopleService`/`CompensationService`
+  → Repositories (`CompensationRepository`) → DB. Escrita em membro de outro usuário via service-role + guarda de
   ownership (TEAM-ADMIN-001).
+- **Event Bus**: `employee.role.changed` / `.department.changed` / `.manager.changed` / `.compensation.changed` /
+  `.hired` / `.archived` já no catálogo (só contrato).
 
 ---
 
-## 6. Plano de backfill (só após aplicar a migration)
+## 4. Próximos passos (com seu aval)
 
-1. `team_members.joined_at := created_at::date` (todos).
-2. `team_members.status := 'ativo'` (todos os membros atuais).
-3. `team_members.role_key` — mapear manualmente do `profiles.cargo` atual:
-   - **Lucas** (`profiles.cargo = 'SDR/Closer'`, owner) → `role_key = 'closer'` (ou 'owner'; decidir) — 1 linha.
-   - **Gabriel** (`cargo = null`) → deixar `null` (honesto: "não configurado") ou `'gestor_trafego'` se confirmado.
-4. **Remuneração**: **nenhum** backfill — começa vazio (estado honesto "não configurado"). Sem inventar valores.
-
-Contagem atual: **2 membros** (Lucas owner, Gabriel member) na equipe DR Growth. Nenhum delete, em nenhuma etapa.
-
----
-
-## 7. O que NÃO muda
-
-- Tarefas e agenda: **já** têm `user_id`+`team_id` — sem migration.
-- `meetings` (reuniões comerciais): intocado.
-- `profiles.cargo`: mantido (compat); a fonte estruturada passa a ser `team_members.role_key`. Podemos depreciar
-  `profiles.cargo` depois, sem pressa.
-- Nenhuma engine de comissão nova; nenhum histórico recalculado.
-
----
-
-## 8. Decisão pendente (para você)
-
-- [ ] Autorizar aplicar a migration (seções 1–4)?
-- [ ] `role_key` do Lucas: `closer`, `sdr` ou `owner`?
-- [ ] Leitura de remuneração: visível a todo membro da equipe **ou** só owner/admin + o próprio?
-
-Nada roda sem esse aval.
+1. **Wire de leitura** — `PeopleService` passa a ler `team_members.role_key/department_key/manager/status` →
+   Colaboradores mostra o cargo REAL do Lucas (Closer) e Gabriel "não configurado" (honesto). *Sem migration.*
+2. **UI de atribuição de cargo** — owner/admin escolhe cargo do catálogo → grava `team_members.role_key` por action
+   gated. *Sem migration.*
+3. **Remuneração** — UI de config sobre `collaborator_compensation_settings` (já existe a tabela + repo).
+4. **Limpeza** — avaliar `DROP TABLE seller_comp_config` (órfã), com autorização.
