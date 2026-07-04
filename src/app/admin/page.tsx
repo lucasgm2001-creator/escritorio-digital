@@ -1,25 +1,18 @@
 import Link from 'next/link'
 import { getRequestContext } from '@/server/context/request-context'
-import { getPeopleOverview } from '@/server/services/PeopleService'
-import { listTemplates } from '@/server/services/CompensationEngineService'
+import { getAdminOverview } from '@/server/services/AdminOverviewService'
 import { ADMIN_SECTIONS } from '@/lib/admin/sections'
 import { WorkspaceHeader } from '@/components/ui/WorkspaceHeader'
+import { MetricCard } from '@/components/ui/MetricCard'
 
-// Painel administrativo (não é só um menu): status real + ações rápidas + módulos com roadmap discreto.
-const REAL = new Set(['equipe', 'departamentos', 'cargos', 'colaboradores', 'remuneracao'])
+// Painel administrativo com DADOS REAIS (ADMIN-REAL-001): KPIs de Equipe/CRM/Financeiro/Sistema vindos do
+// banco (escopados à equipe ativa). Módulos ainda sem dado próprio seguem marcados como roadmap, honestos.
+const REAL = new Set(['equipe', 'departamentos', 'cargos', 'colaboradores', 'remuneracao', 'auditoria'])
 
 export default async function AdminHomePage() {
   const context = await getRequestContext()
-  const [overview, templates] = context
-    ? await Promise.all([getPeopleOverview(context), listTemplates(context)])
-    : [{ departments: 0, roles: 0, templates: 0, collaborators: 0 }, []]
+  const overview = context ? await getAdminOverview(context) : { groups: [] }
 
-  const stats = [
-    { label: 'Colaboradores', value: overview.collaborators, href: '/admin/colaboradores' },
-    { label: 'Departamentos', value: overview.departments, href: '/admin/departamentos' },
-    { label: 'Cargos', value: overview.roles, href: '/admin/cargos' },
-    { label: 'Templates de remuneração', value: templates.length, href: '/admin/remuneracao' },
-  ]
   const quick = [
     { label: 'Colaboradores', href: '/admin/colaboradores' },
     { label: 'Remuneração', href: '/admin/remuneracao' },
@@ -30,15 +23,17 @@ export default async function AdminHomePage() {
     <div className="space-y-6">
       <WorkspaceHeader breadcrumb={['Administração']} title="Painel administrativo" />
 
-      {/* Status (dados reais) */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5">
-        {stats.map(stat => (
-          <Link key={stat.label} href={stat.href} className="bento-fx p-4 min-w-0 overflow-hidden hover:border-lime/40 transition-colors">
-            <p className="font-display font-bold text-2xl text-bento-text leading-none truncate">{stat.value}</p>
-            <p className="text-[11px] text-bento-muted mt-2 truncate">{stat.label}</p>
-          </Link>
-        ))}
-      </div>
+      {/* KPIs REAIS por área — tudo do banco, escopado à equipe ativa (ADMIN-REAL-001). */}
+      {overview.groups.map(group => (
+        <section key={group.title} className="space-y-2">
+          <p className="font-tech text-[10px] uppercase tracking-[0.12em] text-bento-muted">{group.title}</p>
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5">
+            {group.metrics.map(m => (
+              <MetricCard key={m.label} title={m.label} value={m.value} size="sm" href={m.href} />
+            ))}
+          </div>
+        </section>
+      ))}
 
       {/* Ações rápidas */}
       <div>
