@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { createClient } from '@/lib/supabase/client'
+import { deleteCalendarEventAction } from './calendar-actions'
 import { useToast } from '@/components/ui/toast'
 import { cn } from '@/lib/utils'
 import { CalendarDays } from 'lucide-react'
@@ -23,8 +23,7 @@ function EventDetailModal({ event, onClose, onDelete }: { event: CalendarEvent; 
 
   const handleDelete = async () => {
     setDeleting(true)
-    const supabase = createClient()
-    const { error } = await supabase.from('calendar_events').delete().eq('id', event.id)
+    const { error } = await deleteCalendarEventAction(event.id)   // servidor: can(calendar,delete)
     if (error) {
       setDeleting(false)
       toast({ type: 'error', message: `Não foi possível excluir o evento: ${error.message}` })

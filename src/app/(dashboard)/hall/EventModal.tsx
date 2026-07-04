@@ -1,8 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { createClient } from '@/lib/supabase/client'
-import { useActiveTeamId } from '@/components/auth/RoleProvider'
+import { createCalendarEventAction } from './calendar-actions'
 import { dayBR } from './dateBR'
 import { type CalendarEvent, EVENT_TYPE_LABELS, bentoInput } from './calendarShared'
 import { useDialog } from '@/components/ui/useDialog'
@@ -16,8 +15,8 @@ interface EventModalProps {
   onSaved: (event: CalendarEvent) => void
 }
 
-export function EventModal({ date, hour, userId, onClose, onSaved }: EventModalProps) {
-  const teamId = useActiveTeamId()   // FIX-P0-TEAMID-WRITES: carimba a equipe ativa ao criar evento
+// userId segue no tipo (compat do caller) mas NÃO é usado: a action resolve o usuário/equipe no servidor.
+export function EventModal({ date, hour, onClose, onSaved }: EventModalProps) {
   const [form, setForm] = useState({
     title: '',
     date: dayBR(date),
@@ -37,9 +36,8 @@ export function EventModal({ date, hour, userId, onClose, onSaved }: EventModalP
     setSaving(true)
     setError('')
     try {
-      const supabase = createClient()
-      const { data, error: err } = await supabase.from('calendar_events').insert({
-        user_id: userId,
+      // Servidor: can(calendar,create) + user_id/team_id carimbados no servidor.
+      const { data, error: err } = await createCalendarEventAction({
         title: form.title.trim(),
         date: form.date,
         start_time: form.start_time || null,
@@ -47,16 +45,14 @@ export function EventModal({ date, hour, userId, onClose, onSaved }: EventModalP
         description: form.description || null,
         type: form.type,
         color: form.color,
-        ...(teamId ? { team_id: teamId } : {}),
-      }).select().single()
+      })
 
-      if (err) {
-        console.error('[calendar_events.insert] Error:', err)
-        setError(`Erro ao salvar evento: ${err.message}`)
+      if (err || !data) {
+        setError(`Erro ao salvar evento: ${err?.message ?? 'erro'}`)
         setSaving(false)
         return
       }
-      onSaved(data as CalendarEvent)
+      onSaved(data as unknown as CalendarEvent)
       onClose()
     } catch (error) {
       console.error('[calendar_events.insert] Unexpected error:', error)
