@@ -3,6 +3,8 @@
 // Multi-tenant por padrão (TEAM-001): toda entidade pertence a uma equipe (teamId).
 // Preparado para COMPENSATION-001 / PERMISSION-001 / AUTOMATION-001 sem retrabalho.
 
+import type { ModuleAccessRow } from './module-access'
+
 export type CollaboratorStatus = 'ativo' | 'inativo' | 'convidado' | 'afastado'
 
 // Departamento — a área da empresa. Topo da estrutura de pessoas.
@@ -72,6 +74,9 @@ export type RoleSummary = Role & {
 // Papel de ACESSO real na equipe (TEAM-001) — vem de team_members. Distinto de cargo/função (roleName).
 export type TeamAccessRole = 'owner' | 'admin' | 'member'
 
+// Linha da matriz efetiva de acesso por módulo (PEOPLE-002, Parts 5/6) — reexport do modelo puro para a UI.
+export type { ModuleAccessRow }
+
 export type CollaboratorCardVM = {
   id: string                 // = userId (colaborador real = membro da equipe)
   userId: string
@@ -102,4 +107,5 @@ export type CollaboratorDetailVM = {
   roleDescription: string | null
   templateName: string | null
   managerName: string | null
+  moduleMatrix: ModuleAccessRow[]   // acesso efetivo por módulo, resolvido no servidor (Parts 5/6)
 }

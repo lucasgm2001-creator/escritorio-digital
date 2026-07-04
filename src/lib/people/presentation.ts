@@ -1,4 +1,6 @@
 import type { CollaboratorStatus, TeamAccessRole } from './types'
+import type { ModuleLevel } from './module-access'
+import { MODULE_LEVEL_LABEL } from './module-access'
 import { formatDate } from '@/lib/utils'
 
 // Apresentação compartilhada do domínio Pessoas (DS-009: evoluir/reutilizar antes de duplicar).
@@ -16,6 +18,16 @@ export const TEAM_ROLE_BADGE: Record<TeamAccessRole, { label: string; cls: strin
   owner:  { label: 'Owner',  cls: 'bg-lime/15 text-lime-fg border-lime/30' },
   admin:  { label: 'Admin',  cls: 'bg-bento-panel text-bento-text border-bento-border' },
   member: { label: 'Membro', cls: 'bg-bento-panel/60 text-bento-dim border-bento-border' },
+}
+
+// Nível de acesso por módulo (none/read/edit/admin) — badge compartilhado da matriz de Permissões. "Calor"
+// ascendente: sem acesso (discreto) → leitura (neutro) → editar (lime suave) → administrador (lime forte).
+// Rótulos vêm de MODULE_LEVEL_LABEL (fonte única em module-access) — aqui só o estilo.
+export const MODULE_LEVEL_BADGE: Record<ModuleLevel, { label: string; cls: string }> = {
+  none:  { label: MODULE_LEVEL_LABEL.none,  cls: 'bg-bento-panel/60 text-bento-dim border-bento-border' },
+  read:  { label: MODULE_LEVEL_LABEL.read,  cls: 'bg-bento-panel text-bento-muted border-bento-border' },
+  edit:  { label: MODULE_LEVEL_LABEL.edit,  cls: 'bg-lime/10 text-lime-fg border-lime/20' },
+  admin: { label: MODULE_LEVEL_LABEL.admin, cls: 'bg-lime/15 text-lime-fg border-lime/30' },
 }
 
 export function initials(name: string): string {

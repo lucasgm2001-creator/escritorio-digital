@@ -3,6 +3,7 @@ import 'server-only'
 import type { RequestContext } from '@/server/context/request-context'
 import type { CollaboratorCardVM, CollaboratorDetailVM, DepartmentSummary, PeopleOverview, RoleSummary } from '@/lib/people/types'
 import { listDepartments, listRoles, listTemplates } from '@/server/repositories/PeopleRepository'
+import { effectiveModuleMatrix } from '@/lib/people/module-access'
 import { getActiveTeamMembers } from '@/server/services/TeamService'
 import type { TeamMember } from '@/server/repositories/TeamRepository'
 import * as Compensation from '@/server/services/CompensationEngineService'
@@ -81,7 +82,13 @@ export async function getCollaboratorDetail(context: RequestContext, id: string)
   const member = scope.members.find(m => m.user_id === id)
   if (!member) return null
   // Cargo/depto de RH ainda não persistidos → honestos (null); papel/entrada/foto/email são reais.
-  return { ...memberToCard(member), roleDescription: null }
+  // Matriz de acesso por módulo RESOLVIDA NO SERVIDOR (Part 6): nível efetivo = padrão do papel real. Sem
+  // override individual nesta fase (personalização/persistência é passo autorizado à parte) → matriz honesta.
+  return {
+    ...memberToCard(member),
+    roleDescription: null,
+    moduleMatrix: effectiveModuleMatrix(member.role),
+  }
 }
 
 // ---- Integração com a Compensation Engine (COMPENSATION-004, PARTE 6). Só delega — nada calcula aqui. ----

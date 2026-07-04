@@ -12,7 +12,7 @@ import { EmptyState } from '@/components/ui/EmptyState'
 import { CompensationFlow } from '@/components/admin/CompensationFlow'
 import type { CollaboratorDetailVM } from '@/lib/people/types'
 import { cn } from '@/lib/utils'
-import { COLLABORATOR_STATUS, TEAM_ROLE_BADGE, formatJoinedAt, initials } from '@/lib/people/presentation'
+import { COLLABORATOR_STATUS, MODULE_LEVEL_BADGE, TEAM_ROLE_BADGE, formatJoinedAt, initials } from '@/lib/people/presentation'
 import { ROLE_CATALOG, ROLE_LEVEL_LABEL, COMP_MODEL_LABEL } from '@/lib/people/catalog'
 import { InfoTile } from './InfoTile'
 
@@ -119,15 +119,36 @@ export function CollaboratorDetail({ collaborator, teamName }: { collaborator: C
         )}
 
         {tab === 'permissoes' && (
-          <Panel label="Permissões">
-            <div className="space-y-2">
-              <p className="text-[13px] text-bento-muted leading-relaxed">
-                As permissões <strong className="text-bento-text">efetivas</strong> derivam do papel de acesso
-                (<span className="text-bento-text">{role.label}</span>) + overrides individuais, calculadas no servidor.
+          <div className="space-y-4">
+            <Panel label="Acesso por módulo">
+              <ul className="-my-1 divide-y divide-bento-border">
+                {collaborator.moduleMatrix.map(mod => {
+                  const lvl = MODULE_LEVEL_BADGE[mod.level]
+                  return (
+                    <li key={mod.key} className="flex items-center justify-between gap-3 py-2.5">
+                      <span className="text-sm text-bento-text">{mod.label}</span>
+                      <span className={cn('text-[10px] font-tech uppercase tracking-wide px-2 py-0.5 rounded-full border shrink-0', lvl.cls)}>
+                        {lvl.label}
+                      </span>
+                    </li>
+                  )
+                })}
+              </ul>
+            </Panel>
+
+            <div className="rounded-frame border border-bento-border bg-bento-panel/40 p-4 space-y-1.5">
+              <p className="text-[13px] text-bento-text font-medium">Como isto é calculado</p>
+              <p className="text-[12px] text-bento-muted leading-relaxed">
+                Níveis <strong className="text-bento-text">efetivos</strong> derivam do papel de acesso
+                (<span className="text-bento-text">{role.label}</span>), resolvidos no servidor. Owner e administrador
+                têm acesso total; membro começa com leitura em tudo.
               </p>
-              <p className="text-[12px] text-bento-dim">Sem permissões personalizadas · Usando configuração padrão do papel.</p>
+              <p className="text-[12px] text-bento-dim leading-relaxed">
+                Personalizar por módulo (liberar acesso a um membro específico) é o próximo passo — grava e passa a
+                valer no controle de acesso mediante autorização.
+              </p>
             </div>
-          </Panel>
+          </div>
         )}
 
         {tab === 'remuneracao' && (
