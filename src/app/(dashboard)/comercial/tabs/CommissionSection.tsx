@@ -917,7 +917,8 @@ export function CommissionSection({ sellerId, sellerName }: { sellerId: string; 
           <div className="space-y-2.5">
             {deals.map(d => {
               const dt = dealTotal(d, weeks)
-              const meta = CLIENT_STATUS[d.status]
+              // Fallback defensivo: status fora do enum conhecido não derruba a tela (HOTFIX-REMUNERACAO-CRASH).
+              const meta = CLIENT_STATUS[d.status] ?? CLIENT_STATUS.em_andamento
               const pct = d.tetoSemanas > 0 ? Math.min(100, (dt.semanasPagas / d.tetoSemanas) * 100) : 0
               return (
                 <div key={d.id} className="bg-bento-bg border border-bento-border/60 rounded-btn p-3">

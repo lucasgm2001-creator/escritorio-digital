@@ -85,7 +85,7 @@ function Avatar({ name, photoUrl, size = 'md' }: { name: string; photoUrl?: stri
   }
   return (
     <div className={cn('bg-lime/15 border border-lime/30 flex items-center justify-center flex-none', dim)}>
-      <span className="font-bold text-lime-fg">{name[0]?.toUpperCase() ?? '?'}</span>
+      <span className="font-bold text-lime-fg">{name?.[0]?.toUpperCase() ?? '?'}</span>
     </div>
   )
 }
