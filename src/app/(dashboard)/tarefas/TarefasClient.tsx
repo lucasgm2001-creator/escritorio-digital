@@ -7,6 +7,7 @@ import { createClient } from '@/lib/supabase/client'
 import { updateTaskAction, deleteTaskAction } from './task-write-actions'
 import { cn } from '@/lib/utils'
 import { TaskModal, type TaskPrefill } from './TaskModal'
+import { SituationDrawer } from '../comercial/SituationDrawer'
 import { copyText } from '@/lib/clipboard'
 import { ymd } from '@/lib/format'
 import type { Task, LinkOption, ParsedTask } from './types'
@@ -205,6 +206,8 @@ export function TarefasClient({ tasks, setTasks, deletedIds, linkOptions, curren
 
   // ── Celular + iPad (<1280): abas horizontais. Computador usa as SECTIONS acima (inalterado). ──
   const [mobileChip, setMobileChip] = useState<MobileChip>('hoje')
+  // RADAR-COMERCIAL-001: fluxo "atualizar situação do lead" ao concluir uma tarefa de lead (pode pular).
+  const [situationLead, setSituationLead] = useState<{ id: string; name: string } | null>(null)
   const proximas = useMemo(() => [...groups.amanha, ...groups.semana, ...groups.depois]
     .sort((a, b) => (a.due_date ?? '9999-99-99') < (b.due_date ?? '9999-99-99') ? -1 : 1), [groups])
   const weekStartISO = useMemo(() => {
@@ -227,6 +230,10 @@ export function TarefasClient({ tasks, setTasks, deletedIds, linkOptions, curren
       setActionError(`Não foi possível ${nowDone ? 'concluir' : 'reabrir'} a tarefa: ${error.message}`)
     } else {
       router.refresh()                                          // reconcilia com o server
+      // Ao CONCLUIR uma tarefa vinculada a lead, oferece atualizar a situação (incentiva, não obriga).
+      if (nowDone && t.linked_type === 'lead' && t.linked_id && t.linked_name) {
+        setSituationLead({ id: t.linked_id, name: t.linked_name })
+      }
     }
   }
   // Criar/editar: update OTIMISTA (aparece na hora) + router.refresh() reconcilia com o server
@@ -764,6 +771,15 @@ export function TarefasClient({ tasks, setTasks, deletedIds, linkOptions, curren
           task={editing}
           prefill={modalPrefill}
           aiFilled={modalAiFilled}
+        />
+      )}
+
+      {situationLead && (
+        <SituationDrawer
+          lead={situationLead}
+          onClose={() => setSituationLead(null)}
+          onSkip={() => setSituationLead(null)}
+          onSaved={() => { setSituationLead(null); router.refresh() }}
         />
       )}
     </div>
