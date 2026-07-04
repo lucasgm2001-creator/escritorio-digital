@@ -16,6 +16,7 @@ import { COLLABORATOR_STATUS, MODULE_LEVEL_BADGE, TEAM_ROLE_BADGE, formatJoinedA
 import { ROLE_CATALOG, ROLE_LEVEL_LABEL, COMP_MODEL_LABEL } from '@/lib/people/catalog'
 import { InfoTile } from './InfoTile'
 import { ModuleAccessEditor } from './ModuleAccessEditor'
+import { RoleEditor } from './RoleEditor'
 
 // Perfil profissional do colaborador (PEOPLE-001, Part 5) — estilo RH, em abas. Reusa header/InfoTile/Panel/
 // EmptyState (DS). Enriquece com o catálogo de cargos (nível/remuneração padrão) quando o cargo casa por
@@ -35,7 +36,7 @@ const TABS: { key: TabKey; label: string; icon: LucideIcon }[] = [
   { key: 'avaliacoes', label: 'Avaliações', icon: Star },
 ]
 
-export function CollaboratorDetail({ collaborator, teamName, canEditPermissions }: { collaborator: CollaboratorDetailVM; teamName: string | null; canEditPermissions: boolean }) {
+export function CollaboratorDetail({ collaborator, teamName, canEditPermissions, canManageRole }: { collaborator: CollaboratorDetailVM; teamName: string | null; canEditPermissions: boolean; canManageRole: boolean }) {
   const [tab, setTab] = useState<TabKey>('resumo')
   const status = COLLABORATOR_STATUS[collaborator.status]
   const role = TEAM_ROLE_BADGE[collaborator.teamRole]   // papel de acesso REAL (team_members)
@@ -122,6 +123,7 @@ export function CollaboratorDetail({ collaborator, teamName, canEditPermissions 
                 <div><dt className="text-bento-dim">Nível</dt><dd className="text-bento-muted">{blueprint ? ROLE_LEVEL_LABEL[blueprint.level] : 'Não configurado'}</dd></div>
                 <div><dt className="text-bento-dim">Remuneração padrão</dt><dd className="text-bento-muted">{blueprint ? COMP_MODEL_LABEL[blueprint.defaultComp] : 'Não configurado'}</dd></div>
               </dl>
+              {canManageRole && <RoleEditor userId={collaborator.userId} currentRoleKey={blueprint?.key ?? null} />}
             </div>
           </Panel>
         )}
@@ -162,10 +164,10 @@ export function CollaboratorDetail({ collaborator, teamName, canEditPermissions 
         {tab === 'remuneracao' && (
           <Panel label="Remuneração">
             <div className="space-y-2">
-              <p className="text-[13px] text-bento-text">Template: <span className="text-bento-muted">{collaborator.templateName ?? 'Sem remuneração definida'}</span></p>
-              <p className="text-[13px] text-bento-text">Modelo padrão do cargo: <span className="text-bento-muted">{blueprint ? COMP_MODEL_LABEL[blueprint.defaultComp] : 'Requer configuração'}</span></p>
+              <p className="text-[13px] text-bento-text">Configuração: <span className="text-bento-muted">{collaborator.templateName ?? 'Utilizando configuração padrão'}</span></p>
+              <p className="text-[13px] text-bento-text">Modelo padrão do cargo: <span className="text-bento-muted">{blueprint ? COMP_MODEL_LABEL[blueprint.defaultComp] : 'Não configurado'}</span></p>
               <p className="text-[12px] text-bento-dim leading-relaxed">
-                {collaborator.templateName ? 'Utilizando template padrão do cargo.' : 'Requer configuração.'} O cálculo usa a Compensation Engine; histórico não é recalculado.
+                {collaborator.templateName ? 'Configuração específica ativa.' : 'Sem configuração específica — usa o padrão do cargo.'} O cálculo usa a Compensation Engine (collaborator_compensation_settings); o histórico não é recalculado.
               </p>
             </div>
             <div className="mt-4 pt-4 border-t border-bento-border">
