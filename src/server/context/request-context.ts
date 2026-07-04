@@ -4,6 +4,8 @@ import { cache } from 'react'
 import type { User } from '@supabase/supabase-js'
 import { getActiveTeam, type TeamMembership } from '@/lib/supabase/team'
 import { getProfile, getSessionUser } from '@/lib/supabase/session'
+import type { ModuleLevel, PermissionModule } from '@/lib/permissions/types'
+import { parseModuleOverride, permissionLevels, resolveModuleAccess } from '@/lib/people/module-access'
 
 export type RequestContextRole = 'guest' | 'member' | 'admin' | 'owner'
 
@@ -21,6 +23,11 @@ export type RequestContext = {
   membership: TeamMembership | null
   memberships: TeamMembership[]
   role: RequestContextRole
+  // Autoridade de acesso (PERMISSIONS-002), resolvida NO SERVIDOR (papel → override → efetivo):
+  //   moduleAccess  — nível efetivo por CHAVE de módulo (13 módulos) → navegação e guardas de rota
+  //   moduleLevels  — projeção por PermissionModule → consumido pelo can() como autoridade
+  moduleAccess: Record<string, ModuleLevel>
+  moduleLevels: Partial<Record<PermissionModule, ModuleLevel>>
 }
 
 function toRequestContextRole(membership: TeamMembership | null): RequestContextRole {
@@ -41,6 +48,14 @@ export const getRequestContext = cache(async (): Promise<RequestContext | null> 
     activeTeam.memberships.find(item => item.team_id === activeTeam.activeTeamId)
     ?? null
 
+  const role = toRequestContextRole(membership)
+  // Autoridade de acesso resolvida uma única vez por request (cache do getRequestContext): papel + override
+  // individual (team_members.permissions.modules) → níveis efetivos. owner/admin = admin em tudo; member =
+  // override ?? leitura; guest = sem acesso. Nunca confia na UI — isto é a fonte que o can() aplica.
+  const moduleOverride = parseModuleOverride(membership?.permissions)
+  const moduleAccess = resolveModuleAccess(role, moduleOverride)
+  const moduleLevels = permissionLevels(moduleAccess)
+
   return {
     user,
     profile: profile as RequestContextProfile | null,
@@ -48,7 +63,9 @@ export const getRequestContext = cache(async (): Promise<RequestContext | null> 
     activeTeamName: activeTeam.activeTeamName,
     membership,
     memberships: activeTeam.memberships,
-    role: toRequestContextRole(membership),
+    role,
+    moduleAccess,
+    moduleLevels,
   }
 })
 
