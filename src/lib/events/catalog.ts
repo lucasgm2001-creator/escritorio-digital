@@ -66,6 +66,10 @@ export const EVENT_CATALOG: EventDefinition[] = [
   { type: 'employee.salary.changed',      category: 'people', priority: 'high',   description: 'A remuneração de um colaborador foi alterada (vigência futura; histórico não recalcula).', source: 'Colaboradores', targets: ['Auditoria', 'Notificações', 'Timeline'] },
   { type: 'employee.goal.changed',        category: 'people', priority: 'normal', description: 'Uma meta de um colaborador foi definida/alterada.', source: 'Colaboradores', targets: ['Auditoria', 'Timeline'] },
   { type: 'employee.archived',            category: 'people', priority: 'normal', description: 'Um colaborador foi arquivado/desativado.', source: 'Colaboradores', targets: ['Auditoria', 'Notificações', 'Timeline'] },
+  // Ciclo de vida nomeado (COLLABORATORS-REAL-001, Part 7; só contrato — nada é publicado ainda).
+  { type: 'employee.hired',               category: 'people', priority: 'normal', description: 'Um colaborador foi contratado / entrou na equipe.', source: 'Colaboradores', targets: ['Auditoria', 'Notificações', 'Timeline'] },
+  { type: 'employee.manager.changed',     category: 'people', priority: 'normal', description: 'O gestor (líder direto) de um colaborador mudou.', source: 'Colaboradores', targets: ['Auditoria', 'Timeline'] },
+  { type: 'employee.compensation.changed',category: 'people', priority: 'high',   description: 'A remuneração de um colaborador mudou (vigência futura; histórico não recalcula).', source: 'Colaboradores', targets: ['Auditoria', 'Notificações', 'Timeline'] },
   // Permissões granulares por módulo (PEOPLE-002, Part 8; só contrato).
   { type: 'employee.permission.changed',   category: 'people', priority: 'high', description: 'As permissões de um colaborador mudaram (visão geral).', source: 'Colaboradores', targets: ['Auditoria', 'Notificações', 'Timeline'] },
   { type: 'employee.module.granted',       category: 'people', priority: 'high', description: 'Acesso a um módulo foi concedido a um colaborador.', source: 'Colaboradores', targets: ['Auditoria', 'Timeline'] },
