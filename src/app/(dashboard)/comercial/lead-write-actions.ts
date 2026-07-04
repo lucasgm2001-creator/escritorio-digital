@@ -7,6 +7,12 @@ import { getStages } from '@/lib/funnelStages.server'
 import { markMilestones } from '@/lib/leadMilestones'
 import { logStageEvent } from '@/lib/stageEvents'
 import { moveLead, type ActionNote, type MovableLead } from './leadActions'
+import { eventBus, createDomainEvent } from '@/lib/events/runtime'
+import {
+  LAST_ACTION_LABEL, NEXT_ACTION_LABEL, deriveFollowupState, nextContactFromWhen,
+  isLastAction, isNextAction, isTemperature,
+  type LastAction, type NextAction, type Temperature, type LeadResponse, type WhenChoice,
+} from '@/lib/commercial/situation'
 import type { Lead, LeadStatus } from './types'
 
 // Escritas do Comercial roteadas pelo SERVIDOR (PERMISSIONS-003): UI → action → can()/requirePermission →
@@ -177,4 +183,83 @@ export async function setLeadTaskDoneAction(taskId: string, done: boolean): Prom
     .eq('id', taskId)
   if (error) return { ok: false, error: error.message }
   return { ok: true }
+}
+
+// ── RADAR-COMERCIAL-001: atualiza a SITUAÇÃO do lead (fluxo rápido ao concluir tarefa ou edição no Radar) ──
+// Autoridade no servidor (commercial.edit). Grava os campos de situação (migration 045) + registra histórico
+// em lead_interactions (NÃO duplica timeline) + cria a próxima tarefa quando há próxima ação + publica eventos.
+// current_situation vazio → usa o rótulo do resultado (honesto, não fake). next_action_at reusa next_contact.
+export async function updateLeadSituationAction(input: {
+  leadId: string
+  currentSituation?: string | null
+  lastAction: LastAction
+  nextAction: NextAction
+  when?: WhenChoice | null
+  explicitDate?: string | null
+  temperature?: Temperature | null
+  response?: LeadResponse | null
+  note?: string | null
+}): Promise<Res<{ nextTask: Record<string, unknown> | null }>> {
+  const g = await guard('edit', DENY_EDIT)
+  if (!g.context) return { ok: false, error: g.error }
+  if (!isLastAction(input.lastAction)) return { ok: false, error: 'Resultado inválido.' }
+  if (!isNextAction(input.nextAction)) return { ok: false, error: 'Próxima ação inválida.' }
+  if (input.temperature != null && !isTemperature(input.temperature)) return { ok: false, error: 'Temperatura inválida.' }
+
+  const supabase = createClient()
+  const teamId = g.context.activeTeamId
+  const now = new Date()
+  const when = input.when ?? null
+  const followupState = deriveFollowupState(input.lastAction, input.nextAction, when)
+  const situation = input.currentSituation?.trim() || LAST_ACTION_LABEL[input.lastAction]
+
+  // next_contact (= data da próxima ação): 'nenhuma' limpa; com "quando" define; senão não mexe.
+  let nextContact: string | null | undefined = undefined
+  if (input.nextAction === 'nenhuma') nextContact = null
+  else if (when) nextContact = nextContactFromWhen(when, input.explicitDate ?? null, now)
+
+  // 1) campos de situação do lead
+  const patch: Record<string, unknown> = {
+    current_situation: situation,
+    last_action: input.lastAction,
+    next_action: input.nextAction,
+    followup_state: followupState,
+    situation_updated_at: now.toISOString(),
+    last_contact_at: now.toISOString(),
+  }
+  if (input.temperature != null) patch.temperature = input.temperature
+  if (nextContact !== undefined) patch.next_contact = nextContact
+  const { data: lead, error } = await supabase.from('leads').update(patch).eq('id', input.leadId).select('id, name').single()
+  if (error || !lead) return { ok: false, error: error?.message ?? 'Não foi possível atualizar a situação.' }
+
+  // 2) histórico (reusa lead_interactions — sem duplicar timeline)
+  await supabase.from('lead_interactions').insert({
+    lead_id: input.leadId, type: 'situacao', note: input.note?.trim() || situation, score_delta: 0,
+    created_by: g.context.user.id, created_by_name: g.context.profile?.name ?? null,
+    ...(teamId ? { team_id: teamId } : {}),
+  })
+
+  // 3) próxima tarefa (quando há ação concreta a fazer — 'aguardar'/'nenhuma' não geram tarefa)
+  let nextTask: Record<string, unknown> | null = null
+  if (input.nextAction !== 'nenhuma' && input.nextAction !== 'aguardar') {
+    const { data: task } = await supabase.from('tasks').insert({
+      user_id: g.context.user.id, title: `${NEXT_ACTION_LABEL[input.nextAction]}: ${lead.name}`, done: false,
+      linked_type: 'lead', linked_id: input.leadId, linked_name: lead.name,
+      ...(input.nextAction === 'ligar' ? { add_call: true } : {}),
+      ...(nextContact ? { due_date: nextContact } : {}),
+      ...(teamId ? { team_id: teamId } : {}),
+    }).select('id, title, due_date, done').single()
+    nextTask = (task as Record<string, unknown>) ?? null
+  }
+
+  // 4) Event Bus (best-effort — barramento em memória; contratos prontos)
+  try {
+    const ctx = { teamId: teamId ?? '', userId: g.context.user.id, requestId: null }
+    await eventBus.publish(createDomainEvent('lead.situation.updated', 'lead', { leadId: input.leadId, followupState }, ctx, { source: 'Comercial', entity: { kind: 'lead', id: input.leadId } }))
+    if (input.response) await eventBus.publish(createDomainEvent('lead.response.recorded', 'lead', { leadId: input.leadId, response: input.response }, ctx, { source: 'Comercial' }))
+    if (nextTask) await eventBus.publish(createDomainEvent('lead.next_action.created', 'lead', { leadId: input.leadId, nextAction: input.nextAction }, ctx, { source: 'Comercial' }))
+    if (nextContact && input.nextAction !== 'aguardar') await eventBus.publish(createDomainEvent('lead.followup.scheduled', 'lead', { leadId: input.leadId, when: nextContact }, ctx, { source: 'Comercial' }))
+  } catch { /* barramento em memória — não bloqueia a ação */ }
+
+  return { ok: true, nextTask }
 }
