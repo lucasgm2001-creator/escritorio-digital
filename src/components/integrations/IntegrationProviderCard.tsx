@@ -1,10 +1,8 @@
-import type { IntegrationCategory, IntegrationProvider } from '@/lib/integrations/types'
+import type { IntegrationProvider } from '@/lib/integrations/types'
+import { CATEGORY_LABELS } from '@/lib/integrations/catalog'
 
-// Card ÚNICO de conexão de integração (PREINTEGRATION-001). Reutilizado em Administração, Tráfego > Contas
-// e Cliente > Integrações. Visual apenas — status desconectado, botão Conectar DESATIVADO, nada real.
-const CATEGORY_LABEL: Record<IntegrationCategory, string> = {
-  payments: 'Pagamentos', ads: 'Anúncios', analytics: 'Analytics', messaging: 'Mensagens', automation: 'Automação',
-}
+// Card ÚNICO de conexão de integração (INT-001). Reutilizado em Administração, Tráfego > Contas e Cliente >
+// Integrações. Visual apenas — status desconectado, botão Conectar DESATIVADO, nada real.
 const envLabel = (env: string): string => (env === 'production' ? 'Produção' : 'Sandbox')
 
 export function IntegrationProviderCard({ provider }: { provider: IntegrationProvider }) {
@@ -16,7 +14,7 @@ export function IntegrationProviderCard({ provider }: { provider: IntegrationPro
         </div>
         <div className="min-w-0 flex-1">
           <p className="text-sm font-semibold text-bento-text truncate">{provider.name}</p>
-          <p className="text-[10px] text-bento-dim">{CATEGORY_LABEL[provider.category]}</p>
+          <p className="text-[10px] text-bento-dim">{CATEGORY_LABELS[provider.category]}</p>
         </div>
         <span className="text-[9px] font-tech uppercase tracking-wide text-bento-dim border border-bento-border rounded-full px-1.5 py-0.5 shrink-0">desconectado</span>
       </div>
