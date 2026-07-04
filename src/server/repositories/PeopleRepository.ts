@@ -1,60 +1,51 @@
 import 'server-only'
 
+import { createClient } from '@/lib/supabase/server'
 import type { CompensationTemplate, Department, Role } from '@/lib/people/types'
+import { DEPARTMENT_CATALOG, ROLE_CATALOG } from '@/lib/people/catalog'
 
-// Camada de dados do domínio Pessoas (ARCH-001). Nesta fase serve um CATÁLOGO/PRÉVIA em memória —
-// NÃO toca o banco. Quando o schema existir, só o corpo de cada método passa a consultar o Supabase
-// por team_id; as assinaturas não mudam (zero retrabalho em Service/UI). Multi-tenant (TEAM-001).
+// Camada de dados do domínio Pessoas (ARCH-001). PEOPLE-002A: o SEED em memória foi eliminado. A ESTRUTURA
+// (departamentos/cargos) vem do catálogo OFICIAL de código (lib/people/catalog) e os fatos de RH do colaborador
+// (cargo/depto/gestor/entrada/status) vêm do BANCO (team_members, migration 044). Nada fictício.
 
-function seedDepartments(teamId: string): Department[] {
-  const d = (id: string, name: string, description: string): Department => ({ id: `dept-${id}`, teamId, name, description })
-  return [
-    d('comercial', 'Comercial', 'Aquisição, funil e fechamento de vendas.'),
-    d('financeiro', 'Financeiro', 'Receita, pagamentos e controle financeiro.'),
-    d('marketing', 'Marketing', 'Conteúdo, campanhas e geração de demanda.'),
-    d('operacoes', 'Operações', 'Entrega, processos e eficiência operacional.'),
-    d('administrativo', 'Administrativo', 'Rotinas administrativas e suporte interno.'),
-    d('tecnologia', 'Tecnologia', 'Produto, engenharia e infraestrutura.'),
-    d('atendimento', 'Atendimento', 'Sucesso do cliente e suporte pós-venda.'),
-    d('rh', 'RH', 'Pessoas, cultura e desenvolvimento.'),
-  ]
-}
-
-function seedRoles(teamId: string): Role[] {
-  const r = (
-    id: string, departmentId: string | null, name: string, description: string,
-    suggestedTemplateId: string | null = null, isCustom = false,
-  ): Role => ({ id: `role-${id}`, teamId, departmentId, name, description, isCustom, suggestedTemplateId })
-  return [
-    r('closer', 'dept-comercial', 'Closer', 'Conduz e fecha as vendas.', 'tmpl-closer'),
-    r('sdr', 'dept-comercial', 'SDR', 'Qualifica e agenda oportunidades.', 'tmpl-sdr'),
-    r('manager', 'dept-comercial', 'Manager', 'Lidera o time e acompanha metas.'),
-    r('analista', 'dept-financeiro', 'Analista', 'Analisa dados e processos.'),
-    r('designer', 'dept-marketing', 'Designer', 'Cria peças e experiências visuais.'),
-    r('gestor', 'dept-administrativo', 'Gestor', 'Coordena rotinas e recursos.'),
-    r('assistente', 'dept-atendimento', 'Assistente', 'Apoia a operação e o cliente.'),
-    r('custom', null, 'Custom', 'Cargo personalizado da empresa.', null, true),
-  ]
-}
-
-function seedTemplates(teamId: string): CompensationTemplate[] {
-  return [
-    { id: 'tmpl-closer', teamId, name: 'Closer DR Growth', roleId: 'role-closer' },
-    { id: 'tmpl-sdr', teamId, name: 'SDR DR Growth', roleId: 'role-sdr' },
-  ]
-}
-
-// PEOPLE-002: colaboradores fictícios REMOVIDOS — os colaboradores reais vêm de team_members + profiles
-// (PeopleService.getActiveTeamMembers). Departamentos/cargos/templates seguem como catálogo/estrutura.
-
+// Estrutura oficial projetada nos VMs do domínio (id = chave do catálogo; não há tabela de estrutura).
 export async function listDepartments(teamId: string): Promise<Department[]> {
-  return seedDepartments(teamId)
+  return DEPARTMENT_CATALOG.map(d => ({ id: d.key, teamId, name: d.name, description: d.description }))
 }
 
 export async function listRoles(teamId: string): Promise<Role[]> {
-  return seedRoles(teamId)
+  return ROLE_CATALOG.map(r => ({
+    id: r.key, teamId, departmentId: r.department, name: r.name, description: r.description,
+    isCustom: false, suggestedTemplateId: null,
+  }))
 }
 
-export async function listTemplates(teamId: string): Promise<CompensationTemplate[]> {
-  return seedTemplates(teamId)
+// Templates de remuneração NÃO são catálogo de estrutura: vivem na engine de compensação
+// (collaborator_compensation_settings / CompensationRepository). Aqui é sempre vazio — honesto.
+export async function listTemplates(): Promise<CompensationTemplate[]> {
+  return []
+}
+
+// ── Fatos de RH por colaborador (team_members, migration 044) ──────────────────────────────────────────
+// Leitura escopada à equipe. Client do usuário + RLS (a tela é gated a owner/admin nos callers), mesmo
+// padrão do getTeamMembers. NÃO altera TeamService/TeamRepository — leitura própria do domínio Pessoas.
+export type MemberRhFields = {
+  user_id: string
+  role_key: string | null
+  department_key: string | null
+  manager_user_id: string | null
+  joined_at: string | null
+  status: string | null
+}
+
+export async function getMemberRhFields(teamId: string): Promise<Map<string, MemberRhFields>> {
+  const supabase = createClient()
+  const { data, error } = await supabase
+    .from('team_members')
+    .select('user_id, role_key, department_key, manager_user_id, joined_at, status')
+    .eq('team_id', teamId)
+  if (error) throw error
+  const map = new Map<string, MemberRhFields>()
+  for (const row of (data ?? []) as MemberRhFields[]) map.set(row.user_id, row)
+  return map
 }

@@ -1,40 +1,53 @@
 import 'server-only'
 
 import type { RequestContext } from '@/server/context/request-context'
-import type { CollaboratorCardVM, CollaboratorDetailVM, DepartmentSummary, PeopleOverview, RoleSummary } from '@/lib/people/types'
-import { listDepartments, listRoles, listTemplates } from '@/server/repositories/PeopleRepository'
+import type { CollaboratorCardVM, CollaboratorDetailVM, CollaboratorStatus, DepartmentSummary, PeopleOverview, RoleSummary } from '@/lib/people/types'
+import { listDepartments, listRoles, listTemplates, getMemberRhFields, type MemberRhFields } from '@/server/repositories/PeopleRepository'
 import { effectiveModuleMatrix, parseModuleOverride } from '@/lib/people/module-access'
 import { getActiveTeamMembers } from '@/server/services/TeamService'
 import type { TeamMember } from '@/server/repositories/TeamRepository'
+import { roleByKey, departmentByKey, type DepartmentKey } from '@/lib/people/catalog'
 import * as Compensation from '@/server/services/CompensationEngineService'
 import type { CompensationAssignment, CompensationEvent, CompensationPreview, CompensationTemplateDefinition } from '@/core/compensation/types'
 
-// Service do domínio Pessoas (ARCH-001). PEOPLE-002: os COLABORADORES são REAIS — vêm de team_members +
-// profiles (via getActiveTeamMembers, 2 queries, sem N+1). Departamentos/cargos/templates seguem do catálogo
-// (estrutura). Cargo/depto/gestor/template do colaborador ainda não são persistidos no RH → honestos (null).
+// Service do domínio Pessoas (ARCH-001). PEOPLE-002A: os COLABORADORES são REAIS — vêm de team_members +
+// profiles (getActiveTeamMembers) e os fatos de RH (cargo/depto/gestor/entrada/status) da própria team_members
+// (migration 044), resolvidos contra o catálogo OFICIAL de código. Sem seed, sem prévia, sem dado fictício.
 
-// Colaborador REAL = membro da equipe. Nome: profile.name → email → fallback. Cargo/depto/etc. honestos.
 function displayName(m: TeamMember): string {
   return m.profile?.name || m.profile?.email || 'Usuário sem nome'
 }
-function memberToCard(m: TeamMember): CollaboratorCardVM {
+
+// Projeta um membro real + seus fatos de RH no card. Cargo/depto vêm do catálogo (roleByKey/departmentByKey);
+// gestor é resolvido pelo nome do membro correspondente. Campos ainda não configurados ficam null (honesto).
+function memberToCard(m: TeamMember, rh: MemberRhFields | undefined, nameById: Map<string, string>): CollaboratorCardVM {
+  const role = rh?.role_key ? roleByKey(rh.role_key) : undefined
+  const deptKey = (rh?.department_key ?? role?.department) as DepartmentKey | undefined
+  const dept = deptKey ? departmentByKey(deptKey) : undefined
   return {
     id: m.user_id, userId: m.user_id, name: displayName(m), email: m.profile?.email ?? null,
-    avatarUrl: m.profile?.avatar_url ?? null, teamRole: m.role, joinedAt: m.created_at, status: 'ativo',
-    departmentName: null, roleName: null, templateName: null, managerName: null,
+    avatarUrl: m.profile?.avatar_url ?? null, teamRole: m.role,
+    joinedAt: rh?.joined_at ?? m.created_at,
+    status: (rh?.status ?? 'ativo') as CollaboratorStatus,
+    departmentName: dept?.name ?? null,
+    roleName: role?.name ?? null,
+    templateName: null,   // remuneração real vem da engine (aba Remuneração) — não é campo de RH aqui
+    managerName: rh?.manager_user_id ? (nameById.get(rh.manager_user_id) ?? null) : null,
   }
 }
 
 async function loadScope(context: RequestContext) {
   const teamId = context.activeTeamId
   if (!teamId) return null
-  const [departments, roles, templates, members] = await Promise.all([
+  const [departments, roles, templates, members, rhFields] = await Promise.all([
     listDepartments(teamId),
     listRoles(teamId),
-    listTemplates(teamId),
+    listTemplates(),
     getActiveTeamMembers(context),   // COLABORADORES REAIS (team_members + profiles)
+    getMemberRhFields(teamId),       // fatos de RH reais (migration 044)
   ])
-  return { departments, roles, templates, members }
+  const nameById = new Map(members.map(m => [m.user_id, displayName(m)]))
+  return { departments, roles, templates, members, rhFields, nameById }
 }
 
 export async function getPeopleOverview(context: RequestContext): Promise<PeopleOverview> {
@@ -51,29 +64,30 @@ export async function getPeopleOverview(context: RequestContext): Promise<People
 export async function listDepartmentSummaries(context: RequestContext): Promise<DepartmentSummary[]> {
   const scope = await loadScope(context)
   if (!scope) return []
+  const rh = Array.from(scope.rhFields.values())
   return scope.departments.map(department => ({
     ...department,
     roleCount: scope.roles.filter(role => role.departmentId === department.id).length,
-    // Colaboradores reais ainda não têm departamento de RH atribuído (sem persistência) → honesto: 0.
-    collaboratorCount: 0,
+    collaboratorCount: rh.filter(r => r.department_key === department.id).length,   // real
   }))
 }
 
 export async function listRoleSummaries(context: RequestContext): Promise<RoleSummary[]> {
   const scope = await loadScope(context)
   if (!scope) return []
+  const rh = Array.from(scope.rhFields.values())
   return scope.roles.map(role => ({
     ...role,
     departmentName: scope.departments.find(department => department.id === role.departmentId)?.name ?? null,
-    collaboratorCount: 0,   // sem cargo de RH atribuído aos membros reais ainda → honesto
-    suggestedTemplateName: scope.templates.find(template => template.id === role.suggestedTemplateId)?.name ?? null,
+    collaboratorCount: rh.filter(r => r.role_key === role.id).length,   // real
+    suggestedTemplateName: null,
   }))
 }
 
 export async function listCollaboratorCards(context: RequestContext): Promise<CollaboratorCardVM[]> {
   const scope = await loadScope(context)
   if (!scope) return []
-  return scope.members.map(memberToCard)
+  return scope.members.map(m => memberToCard(m, scope.rhFields.get(m.user_id), scope.nameById))
 }
 
 export async function getCollaboratorDetail(context: RequestContext, id: string): Promise<CollaboratorDetailVM | null> {
@@ -81,12 +95,12 @@ export async function getCollaboratorDetail(context: RequestContext, id: string)
   if (!scope) return null
   const member = scope.members.find(m => m.user_id === id)
   if (!member) return null
-  // Cargo/depto de RH ainda não persistidos → honestos (null); papel/entrada/foto/email são reais.
-  // Matriz de acesso por módulo RESOLVIDA NO SERVIDOR (PERMISSIONS-002): papel → override individual
-  // (team_members.permissions.modules) → efetivo. owner/admin = admin sempre; member = override ?? leitura.
+  const rh = scope.rhFields.get(member.user_id)
+  const role = rh?.role_key ? roleByKey(rh.role_key) : undefined
+  // Matriz de acesso por módulo RESOLVIDA NO SERVIDOR (PERMISSIONS-002): papel → override → efetivo.
   return {
-    ...memberToCard(member),
-    roleDescription: null,
+    ...memberToCard(member, rh, scope.nameById),
+    roleDescription: role?.description ?? null,
     moduleMatrix: effectiveModuleMatrix(member.role, parseModuleOverride(member.permissions)),
   }
 }
