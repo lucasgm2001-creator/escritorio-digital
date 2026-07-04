@@ -1,11 +1,11 @@
 'use client'
 
 import { useToast } from '@/components/ui/toast'
-import type { PostgrestError } from '@supabase/supabase-js'
 
 interface SaveOpts<T> {
-  /** A chamada ao banco — DEVE ser await-ável (o builder do supabase já é). */
-  run: () => PromiseLike<{ data?: T | null; error: PostgrestError | null }>
+  /** A chamada ao banco OU a uma server action gated — await-ável. O erro só precisa expor `.message`
+   *  (o builder do supabase e as actions do PERMISSIONS-004 satisfazem isso). */
+  run: () => PromiseLike<{ data?: T | null; error: { message: string } | null }>
   /** Atualização otimista da UI, aplicada ANTES da chamada. */
   optimistic?: () => void
   /** Desfaz a otimista se o banco recusar. */

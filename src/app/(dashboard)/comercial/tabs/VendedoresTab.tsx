@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useToast } from '@/components/ui/toast'
-import { useActiveTeamId } from '@/components/auth/RoleProvider'
+import { createSellerAction, updateSellerAction, deleteSellerAction } from '../seller-write-actions'
 import { useSave } from '@/lib/useSave'
 import { cn, formatDate } from '@/lib/utils'
 import { CommissionSection } from './CommissionSection'
@@ -178,7 +178,7 @@ function SellerProfile({ seller, onClose, onUpdated, onDeleted }: {
     setUploading(true)
     try {
       const photo_url = await uploadSellerPhoto(seller.id, file)
-      const { error } = await supabase.from('sellers').update({ photo_url }).eq('id', seller.id)
+      const { error } = await updateSellerAction(seller.id, { photo_url })
       if (error) { toast({ type: 'error', message: `Falha ao salvar a foto: ${error.message}` }); return }
       const updated = { ...current, photo_url }
       setCurrent(updated); onUpdated(updated)
@@ -207,7 +207,7 @@ function SellerProfile({ seller, onClose, onUpdated, onDeleted }: {
     }
     await save({
       optimistic: () => { setCurrent(u); onUpdated(u) },
-      run: () => supabase.from('sellers').update(patch).eq('id', seller.id),
+      run: () => updateSellerAction(seller.id, patch),
       rollback: () => { setCurrent(prev); onUpdated(prev) },
       success: 'Remuneração & metas salvas.',
       error: 'Não foi possível salvar',
@@ -220,7 +220,7 @@ function SellerProfile({ seller, onClose, onUpdated, onDeleted }: {
     const prev = current
     await save({
       optimistic: () => { const u = { ...current, status: next as 'ativo' | 'inativo' }; setCurrent(u); onUpdated(u) },
-      run: () => supabase.from('sellers').update({ status: next }).eq('id', seller.id),
+      run: () => updateSellerAction(seller.id, { status: next }),
       rollback: () => { setCurrent(prev); onUpdated(prev) },
       error: 'Não foi possível mudar o status',
     })
@@ -228,7 +228,7 @@ function SellerProfile({ seller, onClose, onUpdated, onDeleted }: {
 
   const handleDelete = async () => {
     setDeleting(true)
-    const { error } = await supabase.from('sellers').delete().eq('id', seller.id)
+    const { error } = await deleteSellerAction(seller.id)
     if (error) {
       const msg = error.code === '23503'
         ? 'Não é possível excluir: este vendedor tem vendas/comissões registradas. Desative-o em vez de excluir.'
@@ -255,7 +255,7 @@ function SellerProfile({ seller, onClose, onUpdated, onDeleted }: {
     const u: SellerRow = { ...current, name: patch.name, cargo: patch.cargo ?? undefined, email: patch.email ?? undefined, phone: patch.phone ?? undefined }
     await save({
       optimistic: () => { setCurrent(u); onUpdated(u) },
-      run: () => supabase.from('sellers').update(patch).eq('id', seller.id),
+      run: () => updateSellerAction(seller.id, patch),
       rollback: () => { setCurrent(prev); onUpdated(prev) },
       success: 'Dados atualizados.',
       error: 'Não foi possível salvar os dados',
@@ -458,8 +458,7 @@ function SellerProfile({ seller, onClose, onUpdated, onDeleted }: {
 export function VendedoresTab() {
   const { toast } = useToast()
   const save = useSave()
-  const supabase = createClient()
-  const teamId = useActiveTeamId()   // FIX-P0-TEAMID-WRITES: carimba a equipe ativa ao criar vendedor
+  const supabase = createClient()   // leitura da lista de vendedores. ESCRITAS vão por server action.
 
   const [sellers, setSellers] = useState<SellerRow[]>([])
   const [loading, setLoading] = useState(true)
@@ -519,24 +518,22 @@ export function VendedoresTab() {
     if (form.monthly_goal && (isNaN(goal) || goal < 0)) { toast({ type: 'error', message: 'Meta mensal inválida' }); return }
 
     setSaving(true)
-    const { ok, data } = await save<SellerRow>({
-      run: () => supabase.from('sellers').insert({
+    const { ok, data } = await save({
+      run: () => createSellerAction({
         name: form.name.trim(), email: form.email.trim() || null, phone: form.telefone.trim() || null,
         cargo: form.cargo.trim() || null, monthly_goal: goal,
-        status: 'ativo', total_sales: 0, total_commissions: 0, leads_assigned: 0, conversion_rate: 0,
-        ...(teamId ? { team_id: teamId } : {}),
-      }).select(SELLER_COLS).single(),
+      }),
       success: 'Vendedor criado.',
       error: 'Não foi possível criar o vendedor',
     })
 
     if (ok && data) {
-      let created = data
+      let created = data as unknown as SellerRow
       // Foto (se escolhida): sobe agora que já temos o id.
       if (photoFile) {
         try {
           const photo_url = await uploadSellerPhoto(created.id, photoFile)
-          await supabase.from('sellers').update({ photo_url }).eq('id', created.id)
+          await updateSellerAction(created.id, { photo_url })
           created = { ...created, photo_url }
         } catch {
           toast({ type: 'error', message: 'Vendedor criado, mas a foto falhou ao subir.' })

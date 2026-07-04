@@ -11,7 +11,7 @@ import { SortableContext, useSortable, arrayMove, verticalListSortingStrategy } 
 import { CSS } from '@dnd-kit/utilities'
 import { ChevronUp, ChevronDown, ChevronRight, GripVertical, Plus, Lock, Trash2, X, Pencil, Check } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
-import { useActiveTeamId } from '@/components/auth/RoleProvider'
+import { updateStagesAction, renameStageGroupAction, createStageAction, deleteStageAction } from '../funnel-stage-actions'
 import { useToast } from '@/components/ui/toast'
 import { isStageProtected, stageRole, type FunnelStage, type StageRole } from '@/lib/funnelStages'
 import { cn } from '@/lib/utils'
@@ -77,8 +77,7 @@ type StagePatch = Partial<Pick<FunnelStage, 'nome' | 'cor' | 'dias_esfriamento' 
 // explícita: criar fase é RASCUNHO (botão Adicionar), editar fase tem "Salvar alterações", renomear grupo
 // tem ✓/Enter, excluir tem modal. (Reordenar/mover-de-grupo = o próprio gesto é a confirmação.)
 export function FasesTab() {
-  const supabase = createClient()
-  const teamId = useActiveTeamId()   // FIX-P0-TEAMID-WRITES: carimba a equipe ativa ao criar fase
+  const supabase = createClient()   // leitura das fases + contagem de leads. ESCRITAS vão por server action.
   const { toast } = useToast()
   const router = useRouter()
   const [stages, setStages] = useState<FunnelStage[]>([])
@@ -123,7 +122,7 @@ export function FasesTab() {
       })
       return ordered.map((o, i) => ({ ...prev.find(p => p.slug === o.slug)!, posicao: i + 1, grupo: o.grupo }))
     })
-    await Promise.all(updates.map(u => supabase.from('funnel_stages').update({ posicao: u.posicao, grupo: u.grupo }).eq('slug', u.slug)))
+    await updateStagesAction(updates.map(u => ({ slug: u.slug, patch: { posicao: u.posicao, grupo: u.grupo } })))
     router.refresh()   // Funil reflete reordenação/grupo sem refresh manual
   }
 
@@ -170,7 +169,7 @@ export function FasesTab() {
     const hasStages = stages.some(s => groupKeyOf(s) === oldName)
     if (hasStages) {
       setBusy(true)
-      const { error } = await supabase.from('funnel_stages').update({ grupo: nn }).eq('grupo', oldName)
+      const { error } = await renameStageGroupAction(oldName, nn)
       setBusy(false)
       if (error) { toast({ type: 'error', message: `Não foi possível renomear: ${error.message}` }); return }
       setEmptyGroups(p => p.filter(n => n !== oldName)); load(); router.refresh()
@@ -212,8 +211,7 @@ export function FasesTab() {
       // Abre espaço: tudo com posicao >= alvo sobe +1 (o grupo cresce no lugar; demais mantêm a ordem).
       const bump = stages.filter(s => s.posicao >= insertPos)
       if (bump.length) {
-        const results = await Promise.all(bump.map(s => supabase.from('funnel_stages').update({ posicao: s.posicao + 1 }).eq('slug', s.slug)))
-        const bErr = results.find(r => r.error)?.error
+        const { error: bErr } = await updateStagesAction(bump.map(s => ({ slug: s.slug, patch: { posicao: s.posicao + 1 } })))
         if (bErr) { toast({ type: 'error', message: `Não foi possível abrir espaço pra fase: ${bErr.message}` }); return }
       }
 
@@ -230,7 +228,7 @@ export function FasesTab() {
       }
       let lastErr: { message: string } | null = null
       for (let attempt = 0; attempt < 8; attempt++) {
-        const { error } = await supabase.from('funnel_stages').insert({ ...row, slug, ...(teamId ? { team_id: teamId } : {}) })
+        const { error } = await createStageAction({ ...row, slug })
         if (!error) { lastErr = null; break }
         lastErr = error
         if (error.code === '23505') { slug = `${baseSlug}_${n++}`; continue }   // UNIQUE (slug) → próximo sufixo
@@ -251,7 +249,7 @@ export function FasesTab() {
     if (!Object.keys(patch).length) return
     setBusy(true)
     setStages(prev => prev.map(s => s.slug === slug ? { ...s, ...patch } : s))
-    const { error } = await supabase.from('funnel_stages').update(patch).eq('slug', slug)
+    const { error } = await updateStagesAction([{ slug, patch }])
     setBusy(false)
     if (error) { toast({ type: 'error', message: `Não foi possível salvar: ${error.message}` }); load() }
     else { router.refresh(); toast({ type: 'success', message: 'Fase atualizada.' }) }
@@ -290,12 +288,9 @@ export function FasesTab() {
     if (count > 0 && (!dest || dest === stage.slug)) { toast({ type: 'error', message: 'Escolha pra qual fase mover os leads.' }); return }
     setBusy(true)
     try {
-      if (count > 0) {
-        const { error: e1 } = await supabase.from('leads').update({ status: dest }).eq('status', stage.slug)
-        if (e1) { toast({ type: 'error', message: `Falha ao mover leads: ${e1.message}` }); return }
-      }
-      const { error: e2 } = await supabase.from('funnel_stages').delete().eq('slug', stage.slug)
-      if (e2) { toast({ type: 'error', message: `Falha ao excluir: ${e2.message}` }); return }
+      // Servidor: can(commercial,manage). Reatribui os leads da fase ANTES de apagá-la (nunca orfana).
+      const { error } = await deleteStageAction(stage.slug, dest, count > 0)
+      if (error) { toast({ type: 'error', message: `Falha ao excluir: ${error.message}` }); return }
       setDelState(null); setSelSlug(null); await load(); router.refresh()
       toast({ type: 'success', message: count > 0 ? 'Fase excluída e leads movidos.' : 'Fase excluída.' })
     } finally {
