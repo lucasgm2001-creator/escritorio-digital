@@ -1,18 +1,16 @@
-import type { PermissionModule } from '@/lib/permissions/types'
+import type { ModuleLevel, PermissionModule } from '@/lib/permissions/types'
+import { MODULE_LEVELS, MODULE_LEVEL_LABEL } from '@/lib/permissions/levels'
 import type { TeamRoleDefault } from './catalog'
 
-// Acesso GRANULAR por módulo (PEOPLE-002, Parts 4/6). NÃO é uma 2ª engine — é uma camada de RESOLUÇÃO por
-// cima do modelo existente (papel → padrão → override → efetivo). Puro e determinístico (server E client
-// podem ler), mas a AUTORIDADE é o servidor: a página compõe a matriz efetiva e toda mudança passa por uma
-// action validada (Part 7). Cada módulo mapeia (quando existe) a um PermissionModule do catálogo oficial —
-// reuso do can()/PERMISSION_CATALOG, sem duplicar. Módulos sem mapeamento ainda não têm ações no catálogo;
-// o nível vale como contrato até PERMISSION-001 os incorporar.
+// Acesso GRANULAR por módulo (PEOPLE-002 / PERMISSIONS-002). NÃO é uma 2ª engine — é a camada de RESOLUÇÃO
+// (papel → padrão → override → efetivo) por cima do can()/PERMISSION_CATALOG. Puro e determinístico (server E
+// client leem), mas a AUTORIDADE é o servidor: o RequestContext compõe os níveis efetivos e o can() os aplica.
+// Cada módulo mapeia (quando existe) a um PermissionModule do catálogo oficial — reuso, sem duplicar.
 
-export type ModuleLevel = 'none' | 'read' | 'edit' | 'admin'
-export const MODULE_LEVELS: ModuleLevel[] = ['none', 'read', 'edit', 'admin']
-export const MODULE_LEVEL_LABEL: Record<ModuleLevel, string> = {
-  none: 'Sem acesso', read: 'Somente leitura', edit: 'Editar', admin: 'Administrador',
-}
+// Vocabulário de níveis vem da camada base de permissões (fonte única). Reexportado aqui para os consumidores
+// do domínio Pessoas seguirem importando destes nomes sem saber da mudança.
+export type { ModuleLevel }
+export { MODULE_LEVELS, MODULE_LEVEL_LABEL }
 
 export type AppModule = {
   key: string
@@ -36,28 +34,70 @@ export const APP_MODULES: AppModule[] = [
   { key: 'relatorios',    label: 'Relatórios',    permission: 'reports' },
 ]
 
-// Nível PADRÃO por papel de acesso (Part 4): owner/admin → admin em tudo; member → leitura em tudo.
+// Nível PADRÃO por papel de acesso: owner/admin → admin em tudo; member → leitura em tudo.
 export function baseLevelForRole(teamRole: TeamRoleDefault): ModuleLevel {
   return teamRole === 'owner' || teamRole === 'admin' ? 'admin' : 'read'
 }
 
-// Override por colaborador (nível específico por módulo). SEM persistência nesta fase — a UI/action fornece;
-// onde salvar fica para a migration proposta (não aplicada).
+// Override por colaborador (nível específico por módulo). Persistido em team_members.permissions.modules
+// (jsonb já existente — sem migration). A UI/action fornece; a leitura passa por parseModuleOverride.
 export type ModuleOverride = Partial<Record<string, ModuleLevel>>
 
-// Nível EFETIVO de um módulo = override[módulo] ?? padrão do papel.
+// Papel de acesso da equipe INCLUINDO guest/sem-equipe — usado na resolução da autoridade.
+export type AccessRole = 'owner' | 'admin' | 'member' | 'guest' | null | undefined
+
+// Nível EFETIVO de UM módulo (autoridade). owner/admin = admin SEMPRE (override ignorado — invariante
+// "owner/admin podem tudo"); member = override ?? leitura; guest/nulo = sem acesso. Fonte única da resolução.
+export function resolveLevel(role: AccessRole, moduleKey: string, override: ModuleOverride = {}): ModuleLevel {
+  if (role === 'owner' || role === 'admin') return 'admin'
+  if (role === 'member') return override[moduleKey] ?? 'read'
+  return 'none'
+}
+
+// Compat (assinatura antiga por TeamRoleDefault): delega para resolveLevel.
 export function effectiveModuleLevel(teamRole: TeamRoleDefault, moduleKey: string, override: ModuleOverride = {}): ModuleLevel {
-  return override[moduleKey] ?? baseLevelForRole(teamRole)
+  return resolveLevel(teamRole, moduleKey, override)
+}
+
+// Lê o override individual de team_members.permissions (`{ modules: { chave: nível } }`). Só níveis VÁLIDOS
+// entram; qualquer lixo é ignorado (a resolução nunca quebra por dado ruim no jsonb).
+export function parseModuleOverride(permissions: Record<string, unknown> | null | undefined): ModuleOverride {
+  const out: ModuleOverride = {}
+  const raw = permissions && typeof permissions === 'object' ? (permissions as Record<string, unknown>).modules : null
+  if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
+    for (const [key, value] of Object.entries(raw as Record<string, unknown>)) {
+      if (typeof value === 'string' && (MODULE_LEVELS as string[]).includes(value)) {
+        out[key] = value as ModuleLevel
+      }
+    }
+  }
+  return out
+}
+
+// Mapa EFETIVO por CHAVE de módulo (todos os 13) — navegação e guardas de rota leem por chave.
+export function resolveModuleAccess(role: AccessRole, override: ModuleOverride = {}): Record<string, ModuleLevel> {
+  const out: Record<string, ModuleLevel> = {}
+  for (const m of APP_MODULES) out[m.key] = resolveLevel(role, m.key, override)
+  return out
+}
+
+// Projeção por PermissionModule (o que o can() consome) — só os módulos já vinculados no catálogo oficial.
+export function permissionLevels(access: Record<string, ModuleLevel>): Partial<Record<PermissionModule, ModuleLevel>> {
+  const out: Partial<Record<PermissionModule, ModuleLevel>> = {}
+  for (const m of APP_MODULES) {
+    if (m.permission) out[m.permission] = access[m.key]
+  }
+  return out
 }
 
 export type ModuleAccessRow = { key: string; label: string; level: ModuleLevel; overridden: boolean }
 
 // Matriz EFETIVA completa (todos os módulos) — a página compõe no servidor e a UI só renderiza.
-export function effectiveModuleMatrix(teamRole: TeamRoleDefault, override: ModuleOverride = {}): ModuleAccessRow[] {
+export function effectiveModuleMatrix(role: AccessRole, override: ModuleOverride = {}): ModuleAccessRow[] {
   return APP_MODULES.map(m => ({
     key: m.key,
     label: m.label,
-    level: effectiveModuleLevel(teamRole, m.key, override),
+    level: resolveLevel(role, m.key, override),
     overridden: override[m.key] != null,
   }))
 }

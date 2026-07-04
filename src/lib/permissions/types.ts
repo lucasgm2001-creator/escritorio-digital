@@ -36,7 +36,16 @@ export type Permission = {
   action: PermissionAction
 }
 
+// Nível de acesso por módulo (autoridade da matriz — PERMISSIONS-002). Vocabulário único: sem acesso →
+// leitura → editar → administrador. Definido aqui (camada base, sem dependências) para o can() e o domínio
+// Pessoas consumirem sem ciclo de import.
+export type ModuleLevel = 'none' | 'read' | 'edit' | 'admin'
+
 export type PermissionContext = {
   role: PermissionRole | null | undefined
   permissions?: Partial<Record<PermissionModule, PermissionAction[]>>
+  // Níveis EFETIVOS por módulo já resolvidos NO SERVIDOR (papel → padrão → override individual → efetivo).
+  // Quando presente para um módulo, é a AUTORIDADE: decide o acesso. Ausente → fallback por papel (legado,
+  // para módulos ainda fora da matriz e contextos sem resolução).
+  moduleLevels?: Partial<Record<PermissionModule, ModuleLevel>>
 }
