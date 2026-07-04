@@ -1,6 +1,7 @@
 'use server'
 
 import { getRequestContext } from '@/server/context/request-context'
+import { can } from '@/lib/permissions/can'
 import { buildCommercialReport } from '@/server/services/ReportingService'
 import { getCommercialDashboard } from '@/server/services/DashboardMetricsService'
 import type { CommercialReport, ReportPeriod } from '@/core/reporting/types'
@@ -15,6 +16,8 @@ export type ReportResult =
 export async function getCommercialReportAction(period: ReportPeriod): Promise<ReportResult> {
   const context = await getRequestContext()
   if (!context) return { ok: false, error: 'Sessão expirada. Entre novamente.' }
+  // Autoridade de acesso (PERMISSIONS-002): o relatório comercial exige nível ≥ Somente leitura no Comercial.
+  if (!can(context, 'commercial', 'view')) return { ok: false, error: 'Você não tem acesso ao relatório comercial.' }
   try {
     const [report, dashboard] = await Promise.all([
       buildCommercialReport(context, period),
