@@ -46,7 +46,7 @@ export function MinhaRemuneracao({ vm, workspace }: { vm: MyCompensationView; wo
   const cur = vm.currentMonth
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 min-w-0">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <h2 className="font-display font-bold text-lg text-bento-text">Minha Remuneração</h2>
@@ -101,8 +101,8 @@ export function MinhaRemuneracao({ vm, workspace }: { vm: MyCompensationView; wo
                   className="w-full flex items-center justify-between gap-2 p-3.5 text-left">
                   <div className="flex items-center gap-2 min-w-0">
                     <ChevronDown className={cn('w-4 h-4 text-bento-muted transition-transform shrink-0', isOpen && 'rotate-180')} />
-                    <span className="text-sm font-semibold text-bento-text capitalize">{mo.label}</span>
-                    <span className="text-[11px] text-bento-dim">· {mo.summary.weeksCount} semana(s) · {mo.summary.meetingsCount} reunião(ões)</span>
+                    <span className="text-sm font-semibold text-bento-text capitalize shrink-0">{mo.label}</span>
+                    <span className="text-[11px] text-bento-dim truncate">· {mo.summary.weeksCount} semana(s) · {mo.summary.meetingsCount} reunião(ões)</span>
                   </div>
                   <span className="text-sm font-semibold text-bento-text tabular-nums shrink-0">{usd(mo.summary.totalUsd)}</span>
                 </button>
@@ -140,9 +140,9 @@ export function MinhaRemuneracao({ vm, workspace }: { vm: MyCompensationView; wo
 
 function Row({ label, value, sub }: { label: string; value: string | number; sub?: string }) {
   return (
-    <div className="flex items-center justify-between gap-3 py-1.5 border-b border-bento-border/40 last:border-0">
-      <span className="text-bento-muted">{label}</span>
-      <span className="text-bento-text font-medium text-right tabular-nums">{value}{sub && <span className="block text-[11px] text-bento-dim font-normal">{sub}</span>}</span>
+    <div className="flex items-baseline justify-between gap-3 py-1.5 border-b border-bento-border/40 last:border-0">
+      <span className="text-bento-muted shrink-0">{label}</span>
+      <span className="text-bento-text font-medium text-right min-w-0 break-words tabular-nums">{value}{sub && <span className="block text-[11px] text-bento-dim font-normal">{sub}</span>}</span>
     </div>
   )
 }
