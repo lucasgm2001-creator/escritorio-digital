@@ -3,7 +3,7 @@ import 'server-only'
 import type { RequestContext } from '@/server/context/request-context'
 import type { CollaboratorCardVM, CollaboratorDetailVM, DepartmentSummary, PeopleOverview, RoleSummary } from '@/lib/people/types'
 import { listDepartments, listRoles, listTemplates } from '@/server/repositories/PeopleRepository'
-import { effectiveModuleMatrix } from '@/lib/people/module-access'
+import { effectiveModuleMatrix, parseModuleOverride } from '@/lib/people/module-access'
 import { getActiveTeamMembers } from '@/server/services/TeamService'
 import type { TeamMember } from '@/server/repositories/TeamRepository'
 import * as Compensation from '@/server/services/CompensationEngineService'
@@ -82,12 +82,12 @@ export async function getCollaboratorDetail(context: RequestContext, id: string)
   const member = scope.members.find(m => m.user_id === id)
   if (!member) return null
   // Cargo/depto de RH ainda não persistidos → honestos (null); papel/entrada/foto/email são reais.
-  // Matriz de acesso por módulo RESOLVIDA NO SERVIDOR (Part 6): nível efetivo = padrão do papel real. Sem
-  // override individual nesta fase (personalização/persistência é passo autorizado à parte) → matriz honesta.
+  // Matriz de acesso por módulo RESOLVIDA NO SERVIDOR (PERMISSIONS-002): papel → override individual
+  // (team_members.permissions.modules) → efetivo. owner/admin = admin sempre; member = override ?? leitura.
   return {
     ...memberToCard(member),
     roleDescription: null,
-    moduleMatrix: effectiveModuleMatrix(member.role),
+    moduleMatrix: effectiveModuleMatrix(member.role, parseModuleOverride(member.permissions)),
   }
 }
 

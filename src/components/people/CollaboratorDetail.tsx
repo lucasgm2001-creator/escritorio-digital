@@ -12,9 +12,10 @@ import { EmptyState } from '@/components/ui/EmptyState'
 import { CompensationFlow } from '@/components/admin/CompensationFlow'
 import type { CollaboratorDetailVM } from '@/lib/people/types'
 import { cn } from '@/lib/utils'
-import { COLLABORATOR_STATUS, MODULE_LEVEL_BADGE, TEAM_ROLE_BADGE, formatJoinedAt, initials } from '@/lib/people/presentation'
+import { COLLABORATOR_STATUS, TEAM_ROLE_BADGE, formatJoinedAt, initials } from '@/lib/people/presentation'
 import { ROLE_CATALOG, ROLE_LEVEL_LABEL, COMP_MODEL_LABEL } from '@/lib/people/catalog'
 import { InfoTile } from './InfoTile'
+import { ModuleAccessEditor } from './ModuleAccessEditor'
 
 // Perfil profissional do colaborador (PEOPLE-001, Part 5) — estilo RH, em abas. Reusa header/InfoTile/Panel/
 // EmptyState (DS). Enriquece com o catálogo de cargos (nível/remuneração padrão) quando o cargo casa por
@@ -34,7 +35,7 @@ const TABS: { key: TabKey; label: string; icon: LucideIcon }[] = [
   { key: 'avaliacoes', label: 'Avaliações', icon: Star },
 ]
 
-export function CollaboratorDetail({ collaborator, teamName }: { collaborator: CollaboratorDetailVM; teamName: string | null }) {
+export function CollaboratorDetail({ collaborator, teamName, canEditPermissions }: { collaborator: CollaboratorDetailVM; teamName: string | null; canEditPermissions: boolean }) {
   const [tab, setTab] = useState<TabKey>('resumo')
   const status = COLLABORATOR_STATUS[collaborator.status]
   const role = TEAM_ROLE_BADGE[collaborator.teamRole]   // papel de acesso REAL (team_members)
@@ -121,19 +122,7 @@ export function CollaboratorDetail({ collaborator, teamName }: { collaborator: C
         {tab === 'permissoes' && (
           <div className="space-y-4">
             <Panel label="Acesso por módulo">
-              <ul className="-my-1 divide-y divide-bento-border">
-                {collaborator.moduleMatrix.map(mod => {
-                  const lvl = MODULE_LEVEL_BADGE[mod.level]
-                  return (
-                    <li key={mod.key} className="flex items-center justify-between gap-3 py-2.5">
-                      <span className="text-sm text-bento-text">{mod.label}</span>
-                      <span className={cn('text-[10px] font-tech uppercase tracking-wide px-2 py-0.5 rounded-full border shrink-0', lvl.cls)}>
-                        {lvl.label}
-                      </span>
-                    </li>
-                  )
-                })}
-              </ul>
+              <ModuleAccessEditor userId={collaborator.userId} rows={collaborator.moduleMatrix} editable={canEditPermissions} />
             </Panel>
 
             <div className="rounded-frame border border-bento-border bg-bento-panel/40 p-4 space-y-1.5">
@@ -144,8 +133,9 @@ export function CollaboratorDetail({ collaborator, teamName }: { collaborator: C
                 têm acesso total; membro começa com leitura em tudo.
               </p>
               <p className="text-[12px] text-bento-dim leading-relaxed">
-                Personalizar por módulo (liberar acesso a um membro específico) é o próximo passo — grava e passa a
-                valer no controle de acesso mediante autorização.
+                {canEditPermissions
+                  ? 'Como dono, você pode liberar acesso por módulo para este membro. A mudança passa a valer imediatamente — a autoridade é sempre o servidor, nunca a tela.'
+                  : 'A personalização por módulo é feita pelo dono da equipe. Owner e administrador mantêm acesso total.'}
               </p>
             </div>
           </div>

@@ -4,6 +4,9 @@ import { requirePermission } from '@/lib/permissions/require-permission'
 import { createServiceClient } from '@/lib/supabase/service'
 import type { RequestContext } from '@/server/context/request-context'
 import type { TeamRole } from '@/lib/supabase/team'
+import type { ModuleLevel } from '@/lib/permissions/types'
+import { MODULE_LEVELS } from '@/lib/permissions/levels'
+import { APP_MODULES } from '@/lib/people/module-access'
 import {
   createTeamInvite,
   getTeamInvites,
@@ -282,4 +285,62 @@ export async function removeMember(
   const { error } = await svc.from('team_members').delete().eq('id', target.id)
   if (error) throw error
   return { ok: true, memberName }
+}
+
+// ── PERMISSIONS-002: personalização de acesso por módulo (o EDITOR é só cliente disto) ────────────────
+// Define o NÍVEL efetivo de um módulo para um MEMBER (owner "libera individualmente"). Persiste em
+// team_members.permissions.modules (jsonb já existente — sem migration). A AUTORIDADE continua no servidor:
+// esta função valida tudo (nunca confia na UI) e o can()/RequestContext aplicam o resultado.
+//   • EXCLUSIVO do owner (Part: "owner libera individualmente").
+//   • Só se aplica a MEMBER — owner/admin têm acesso total (invariante), nunca personalizados.
+//   • Só chaves de módulo e níveis VÁLIDOS entram; 'read' (padrão do member) limpa o override.
+export type ModulePermDeny =
+  | 'no-active-team' | 'not-authorized' | 'target-not-found' | 'target-is-self'
+  | 'target-not-member' | 'invalid-module' | 'invalid-level'
+export type ModulePermOutcome = { ok: false; reason: ModulePermDeny } | { ok: true }
+
+function isAppModuleKey(key: string): boolean {
+  return APP_MODULES.some(m => m.key === key)
+}
+
+export async function setMemberModuleLevel(
+  context: RequestContext,
+  targetUserId: string,
+  moduleKey: string,
+  level: ModuleLevel,
+): Promise<ModulePermOutcome> {
+  const teamId = context.activeTeamId
+  if (!teamId) return { ok: false, reason: 'no-active-team' }
+  if (context.role !== 'owner') return { ok: false, reason: 'not-authorized' }
+  if (targetUserId === context.user.id) return { ok: false, reason: 'target-is-self' }   // owner já tem tudo
+  if (!isAppModuleKey(moduleKey)) return { ok: false, reason: 'invalid-module' }
+  if (!(MODULE_LEVELS as string[]).includes(level)) return { ok: false, reason: 'invalid-level' }
+
+  const svc = createServiceClient()
+  // Revalida no banco (nunca confia na UI): alvo existe nesta equipe e É member.
+  const { data, error } = await svc
+    .from('team_members')
+    .select('id, user_id, role, permissions')
+    .eq('team_id', teamId)
+    .eq('user_id', targetUserId)
+    .maybeSingle()
+  if (error) throw error
+  if (!data) return { ok: false, reason: 'target-not-found' }
+  if ((data.role as string) !== 'member') return { ok: false, reason: 'target-not-member' }
+
+  const current = data.permissions && typeof data.permissions === 'object' && !Array.isArray(data.permissions)
+    ? (data.permissions as Record<string, unknown>) : {}
+  const modules = current.modules && typeof current.modules === 'object' && !Array.isArray(current.modules)
+    ? { ...(current.modules as Record<string, unknown>) } : {}
+
+  // 'read' é o padrão do member → remover o override (mantém o jsonb mínimo). Demais níveis gravam.
+  if (level === 'read') delete modules[moduleKey]
+  else modules[moduleKey] = level
+
+  const { error: upErr } = await svc
+    .from('team_members')
+    .update({ permissions: { ...current, modules } })
+    .eq('id', data.id as string)
+  if (upErr) throw upErr
+  return { ok: true }
 }
