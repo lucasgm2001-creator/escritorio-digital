@@ -1,6 +1,8 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
-import { PerfilClient } from './PerfilClient'
+import { getRequestContext } from '@/server/context/request-context'
+import { getMyCompensationView, type MyCompensationView } from '@/server/services/MyCompensationService'
+import { PerfilShell } from './PerfilShell'
 
 export default async function PerfilPage() {
   const supabase = createClient()
@@ -14,14 +16,26 @@ export default async function PerfilPage() {
     .eq('id', user.id)
     .single()
 
+  // "Minha Remuneração" (Parte 2): visão do PRÓPRIO colaborador. Resolvida no servidor por sellers.user_id =
+  // usuário logado (ninguém abre a de outro). Reusa o motor real (MyCompensationService → monthlySummary).
+  const context = await getRequestContext()
+  const EMPTY: MyCompensationView = {
+    hasComp: false, sellerName: profile?.name ?? '', cargo: null, department: null, rule: null,
+    currentMonth: null, nextPayout: null, yearReceivedUsd: 0, totalReceivedUsd: 0, dealsCount: 0, months: [],
+  }
+  const comp = context ? await getMyCompensationView(context) : EMPTY
+
   return (
-    <PerfilClient
-      userId={user.id}
-      email={user.email ?? ''}
-      initialName={profile?.name ?? ''}
-      initialPhone={profile?.phone ?? ''}
-      initialCargo={profile?.cargo ?? ''}
-      initialAvatarUrl={profile?.avatar_url ?? null}
+    <PerfilShell
+      profile={{
+        userId: user.id,
+        email: user.email ?? '',
+        initialName: profile?.name ?? '',
+        initialPhone: profile?.phone ?? '',
+        initialCargo: profile?.cargo ?? '',
+        initialAvatarUrl: profile?.avatar_url ?? null,
+      }}
+      comp={comp}
     />
   )
 }
