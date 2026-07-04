@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createHash, timingSafeEqual } from 'crypto'
 import { createServiceClient } from '@/lib/supabase/service'
+import type { SupabaseClient } from '@supabase/supabase-js'
 import { stateToFuso } from '@/lib/fuso'
 import { logStageEvent } from '@/lib/stageEvents'
 import { US_STATES } from '@/lib/usStates'
@@ -29,6 +30,16 @@ export const runtime = 'nodejs'
 // Vendedor responsável padrão dos leads do Magnetic (perfil "Lucas"; FK profiles validada).
 const ASSIGNED_TO = '623dd724-ddeb-426c-956a-4c71f6653fa5'
 const ASSIGNED_NAME = 'Lucas'
+
+// TENANCY do webhook (BUGFIX-MAGNETIC-FUNNEL-STAGE): sem sessão não há activeTeamId, então a equipe dona dos
+// leads de entrada é resolvida AQUI, explicitamente. Prioridade: env INBOUND_TEAM_ID (config por deploy — o
+// "provider connection com team_id" de hoje); sem ela, o default DOCUMENTADO é a DR Growth (para onde 100% do
+// inbound sempre foi — operação interna). NUNCA gravamos team_id null. Antes, o insert não setava team_id e
+// dependia do trigger set_team_id_default(), que só carimba a equipe quando existe UMA no sistema; ao surgir a
+// 2ª equipe (multi-tenant/TEAM-001) o fallback parou, os leads passaram a nascer órfãos (team_id null) e
+// sumiram do funil/Hall/Comercial (toda query é .eq('team_id', ...)). Config: setar INBOUND_TEAM_ID no Vercel.
+const DEFAULT_INBOUND_TEAM_ID = '7cf9b5d3-e42f-48d7-bfdf-575736e72827'   // DR Growth
+const INBOUND_TEAM_ID = process.env.INBOUND_TEAM_ID?.trim() || DEFAULT_INBOUND_TEAM_ID
 
 const AREA_CODES = (usMap as { areaCodes: Record<string, { st: string; city: string }> }).areaCodes
 const US_CODE = new Set(US_STATES.map(s => s.code))
@@ -109,6 +120,22 @@ function looksLikeAddress(s: string): boolean {
   return /\b(st|street|ave|avenue|rd|road|dr|drive|blvd|way|lane|ln|court|ct|hwy)\b/i.test(s)
 }
 
+// Fase INICIAL oficial do funil DA EQUIPE (fonte de verdade = funnel_stages): menor posição entre as fases
+// não-ganhas / não-perdidas / não-arquivadas. Fallback seguro 'novo' (fase de sistema) se a leitura falhar ou
+// a equipe ainda não tiver funil próprio. Assim o lead nasce SEMPRE numa coluna real do Kanban (nunca invisível).
+async function resolveInitialStage(supabase: SupabaseClient, teamId: string): Promise<string> {
+  const { data } = await supabase
+    .from('funnel_stages')
+    .select('slug')
+    .eq('team_id', teamId)
+    .eq('is_won', false)
+    .eq('is_lost', false)
+    .eq('arquivada', false)
+    .order('posicao', { ascending: true })
+    .limit(1)
+  return data?.[0]?.slug || 'novo'
+}
+
 export async function POST(req: Request) {
   // 1) SEGURANÇA antes de qualquer acesso ao banco.
   if (!secretOk(req)) {
@@ -183,6 +210,9 @@ export async function POST(req: Request) {
     const fuso = stateToFuso(state ?? '')
 
     const supabase = createServiceClient()
+    // Tenancy explícita + fase inicial oficial (o webhook não tem sessão). NUNCA team_id null → nunca órfão.
+    const teamId = INBOUND_TEAM_ID
+    const initialStage = await resolveInitialStage(supabase, teamId)
 
     // 12) Dedup: já existe lead com o MESMO email OU o MESMO phone? (o que vier). Se a checagem FALHAR
     //     (erro de query), NÃO inserir às cegas — aborta com 500, senão arriscaria duplicar.
@@ -212,7 +242,8 @@ export async function POST(req: Request) {
         area_code,
         value,
         notes,
-        status: 'novo',
+        status: initialStage,     // fase inicial oficial do funil da equipe (nunca null/inválida → entra em "Novo Lead")
+        team_id: teamId,          // BUGFIX-MAGNETIC-FUNNEL-STAGE: carimba a equipe (o trigger não cobre >1 equipe)
         operation: 'eua',
         origem: 'magnetic',       // constraint leads_origem_check liberada p/ 'magnetic' (fonte real tb em raw_payload)
         prioridade: 'media',
@@ -233,12 +264,12 @@ export async function POST(req: Request) {
     }
     if (!data) return NextResponse.json({ ok: false, error: 'insert_failed' }, { status: 500 })
 
-    // Histórico de movimentação: entrada no funil (ADITIVO/best-effort).
+    // Histórico de movimentação: entrada no funil (ADITIVO/best-effort). Carimba a equipe resolvida.
     await logStageEvent(supabase, {
       leadId: data.id, leadName: name || 'Sem nome',
-      fromStage: null, toStage: 'novo',
+      fromStage: null, toStage: initialStage,
       sellerId: null, sellerName: ASSIGNED_NAME,
-    })
+    }, teamId)
 
     return NextResponse.json({ ok: true, leadId: data.id })
   } catch (e) {
