@@ -4,7 +4,7 @@ import { useMemo, useState } from 'react'
 import Link from 'next/link'
 import { Search, ChevronDown, Check, Trash2, SlidersHorizontal, ArrowRight } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { createClient } from '@/lib/supabase/client'
+import { deleteLeadsAction } from '../lead-write-actions'
 import { useToast } from '@/components/ui/toast'
 import { CollapsibleSection } from '@/components/mobile/CollapsibleSection'
 import { PeriodChips } from '../PeriodChips'
@@ -98,7 +98,6 @@ export function ContatosTab({ leads, clients, onOpenLead, onClientUpdated }: Pro
   const [deleting, setDeleting] = useState(false)
   const confirmDialog = useDialog<HTMLDivElement>(() => { if (!deleting) setConfirm(null) }, !!confirm)
   const { toast } = useToast()
-  const supabase = createClient()
 
   const toggle = (set: Set<string>, setSet: (s: Set<string>) => void) => (v: string) => {
     const next = new Set(set)
@@ -218,10 +217,10 @@ export function ContatosTab({ leads, clients, onOpenLead, onClientUpdated }: Pro
     const idArr = Array.from(ids)
 
     setDeleting(true)
-    const { error } = await supabase.from('leads').delete().in('id', idArr)
+    const res = await deleteLeadsAction(idArr)   // servidor: can(commercial,delete)
     setDeleting(false)
-    if (error) {
-      toast({ type: 'error', message: `Não foi possível excluir: ${error.message}` })
+    if (!res.ok) {
+      toast({ type: 'error', message: `Não foi possível excluir: ${res.error}` })
       return
     }
     setRemovedIds(prev => { const n = new Set(prev); for (const id of idArr) n.add(id); return n })   // otimista: somem da lista

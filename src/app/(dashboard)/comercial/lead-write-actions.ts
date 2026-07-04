@@ -110,6 +110,17 @@ export async function deleteLeadAction(leadId: string): Promise<Res> {
   return { ok: true }
 }
 
+// Exclusão em lote (ex.: contatos duplicados) — mesma exigência: 'delete'.
+export async function deleteLeadsAction(ids: string[]): Promise<Res> {
+  const g = await guard('delete', DENY_DELETE)
+  if (!g.context) return { ok: false, error: g.error }
+  if (ids.length === 0) return { ok: true }
+  const supabase = createClient()
+  const { error } = await supabase.from('leads').delete().in('id', ids)
+  if (error) return { ok: false, error: error.message }
+  return { ok: true }
+}
+
 // Registra uma interação (contato) + aplica o score/marco. Mesma regra do funil/diário, agora no servidor.
 export async function addLeadInteractionAction(input: {
   leadId: string
