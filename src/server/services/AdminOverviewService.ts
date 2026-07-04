@@ -14,6 +14,21 @@ export type AdminOverview = { groups: AdminMetricGroup[] }
 
 const EMPTY: AdminOverview = { groups: [] }
 
+// Timeline REAL de auditoria = tabela `activities` (o feed que o app já grava). Só leitura, team-scoped.
+export type ActivityEntry = { id: string; type: string; description: string; user_name: string | null; created_at: string | null }
+
+export async function getRecentActivities(context: RequestContext, limit = 50): Promise<ActivityEntry[]> {
+  const teamId = context.activeTeamId
+  if (!teamId) return []
+  const supabase = createClient()
+  const { data } = await supabase.from('activities')
+    .select('id, type, description, user_name, created_at')
+    .eq('team_id', teamId)
+    .order('created_at', { ascending: false })
+    .limit(limit)
+  return (data ?? []) as ActivityEntry[]
+}
+
 // Contagem team-scoped (head:true → não transfere linhas). eqFilter = 1 filtro extra opcional (coluna, valor).
 async function countTeam(
   supabase: ReturnType<typeof createClient>,
