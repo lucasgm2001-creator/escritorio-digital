@@ -36,20 +36,10 @@ export type CompensationTemplate = {
   roleId: string | null
 }
 
-// Colaborador — a pessoa. Muito além de "vendedor": qualquer papel de qualquer empresa.
-export type Collaborator = {
-  id: string
-  teamId: string
-  userId: string | null       // vínculo com acesso/login (TEAM-001) quando existir
-  name: string
-  email: string | null
-  departmentId: string | null
-  roleId: string | null
-  templateId: string | null   // atribuição de remuneração (COMPENSATION-001, futuro)
-  managerId: string | null    // gestor (auto-relação)
-  status: CollaboratorStatus
-  // Futuro: histórico, documentos, integrações.
-}
+// PEOPLE-002: o tipo `Collaborator` (entidade fictícia do seed) foi REMOVIDO. O colaborador REAL é um
+// membro da equipe (team_members + profiles), projetado direto nos view-models abaixo. `CollaboratorStatus`
+// segue vivo (usado pelos VMs e pela apresentação). A forma persistida de RH será definida pela migration
+// real quando os campos (cargo/depto/gestor/template) forem ao banco — não por um tipo especulativo.
 
 // ---- View-models (compostos no Service; a UI recebe pronto, sem fazer joins) ----
 
