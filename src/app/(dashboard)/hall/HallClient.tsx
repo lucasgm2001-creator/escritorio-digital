@@ -24,7 +24,6 @@ import { type CalendarEvent } from './calendarShared'
 import { dayBR } from './dateBR'
 import dynamic from 'next/dynamic'
 import { getHallSettings, DEFAULT_HALL_SETTINGS, HALL_SETTINGS_EVENT, type HallSettings } from '@/lib/hallSettings'
-import { funnelConversionLabel } from '@/lib/funnelMetrics'
 import { useMapPrefs } from '@/lib/mapPrefs'
 import { toLeadMarkers } from '@/lib/leadMarkers'
 // LeadMap (mapa de leads 3D/vidro, geografia us-atlas) — só no client, sob demanda. A config (Vista/Modo/
@@ -295,19 +294,6 @@ export function HallClient({ initialActivities, initialTasks, linkOptions, userN
   // Resumo do cabecalho executivo — contagem de dados JA carregados (sem query/metrica nova).
   const reunioesHoje = eventosHoje.filter(e => e.type === 'reuniao').length
 
-  // Métricas da Visão Geral — do banco (leads/clientes). Conversão coerente com o funil.
-  const clientesAtivos = mapClients.filter(c => c.status === 'ativo').length
-  const leadsAbertos = mapLeads.filter(l => l.origem !== 'cliente_existente' && !['fechado', 'perdido', 'lixeira'].includes(l.status)).length
-  const leadsNovos = mapLeads.filter(l => l.origem !== 'cliente_existente' && l.created_at && new Date(l.created_at).getTime() >= Date.now() - 7 * 86400000).length
-  // Conversão GERAL — MESMA definição/número do rodapé do Funil (fechados ÷ não-Lixeira), via util.
-  const conversao = funnelConversionLabel(mapLeads)
-  const METRICS: { key: keyof HallSettings['metrics']; label: string; value: string; mobile: boolean }[] = [
-    { key: 'clientesAtivos', label: 'Clientes ativos', value: String(clientesAtivos), mobile: true },
-    { key: 'leadsAbertos', label: 'Leads em aberto', value: String(leadsAbertos), mobile: true },
-    { key: 'leadsNovos', label: 'Leads novos', value: String(leadsNovos), mobile: false },
-    { key: 'conversao', label: 'Conversão', value: `${conversao}%`, mobile: false },
-  ]
-
   const TABS = [
     {
       id: 'activities' as Tab, label: 'Visão Geral',
@@ -460,15 +446,18 @@ export function HallClient({ initialActivities, initialTasks, linkOptions, userN
               </button>
             )}
 
-            {/* ══ PULSO DA EMPRESA ══ KPIs executivos reais (leads/clientes). Gate por hallCfg.metrics. */}
-            {METRICS.some(m => hallCfg.metrics[m.key]) && <SectionLabel>Pulso da empresa</SectionLabel>}
-            {METRICS.some(m => hallCfg.metrics[m.key]) && (
-              <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-                {METRICS.filter(m => hallCfg.metrics[m.key]).map(m => (
-                  <MetricCard key={m.key} title={m.label} value={m.value} />
-                ))}
+            {/* ══ INDICADORES ══ Comercial/Financeiro/Operação — do DashboardService (mesma fonte do /comercial),
+                cartões ACIONÁVEIS que abrem o módulo. Substitui o pulso client-side: fonte única, sem recomputar. */}
+            {dashboard.kpiGroups.map(group => (
+              <div key={group.title} className="space-y-2">
+                <SectionLabel>{group.title}</SectionLabel>
+                <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+                  {group.kpis.map(k => (
+                    <MetricCard key={k.label} title={k.label} value={k.value} size="sm" href={k.href} />
+                  ))}
+                </div>
               </div>
-            )}
+            ))}
 
             {/* ══ ATIVIDADES RECENTES ══ movimentações reais (realtime). Secundário — colapsa no mobile. */}
             {hallCfg.blocks.atividade && <SectionLabel>Atividades recentes</SectionLabel>}
