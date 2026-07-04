@@ -12,13 +12,16 @@ export default async function HallPage() {
   const context = await getRequestContext()
   const activeTeamId = context?.activeTeamId ?? null
 
-  // Atividades/leads/clients são dados da equipe ativa. Tarefas seguem pessoais por user_id. O cockpit
+  // Atividades/leads/clients são dados da equipe ativa. Tarefas são PESSOAIS: user_id do logado + equipe ativa
+  // (PERSONAL-WORK-001 — cada colaborador só vê as suas; novo membro entra zerado). O cockpit
   // (prioridades/KPIs/alertas) vem do DashboardService (reusa getCommercialDashboard — mesma fonte do Comercial).
   const [{ data: activities }, tasksRes, leadsRes, clientsRes, dashboard] = await Promise.all([
     activeTeamId
       ? supabase.from('activities').select('*').eq('team_id', activeTeamId).order('created_at', { ascending: false }).limit(20)
       : Promise.resolve({ data: [] }),
-    supabase.from('tasks').select('*').eq('user_id', context?.user.id ?? '').order('due_date', { ascending: true }),
+    activeTeamId
+      ? supabase.from('tasks').select('*').eq('user_id', context?.user.id ?? '').eq('team_id', activeTeamId).order('due_date', { ascending: true })
+      : Promise.resolve({ data: [] }),
     activeTeamId
       ? supabase.from('leads').select('id, name, phone, company, nicho').eq('team_id', activeTeamId).order('name')
       : Promise.resolve({ data: [] }),
