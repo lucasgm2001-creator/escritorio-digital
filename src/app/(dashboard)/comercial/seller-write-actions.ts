@@ -50,7 +50,11 @@ export async function updateSellerAction(id: string, patch: Record<string, unkno
   const clean = pick(patch, SELLER_UPDATE_COLS)
   if (Object.keys(clean).length === 0) return { error: null }
   const supabase = createClient()
-  const { error } = await supabase.from('sellers').update(clean).eq('id', id)
+  const teamId = g.context.activeTeamId
+  // Defense-in-depth (SECURITY-ACTIONS-001): filtra por team_id no servidor — nunca muta vendedor de outra equipe.
+  let q = supabase.from('sellers').update(clean).eq('id', id)
+  if (teamId) q = q.eq('team_id', teamId)
+  const { error } = await q
   return { error: error ? { message: error.message } : null }
 }
 
@@ -58,7 +62,10 @@ export async function deleteSellerAction(id: string): Promise<{ error: WriteErro
   const g = await guardManage()
   if (!g.context) return { error: g.error }
   const supabase = createClient()
-  const { error } = await supabase.from('sellers').delete().eq('id', id)
+  const teamId = g.context.activeTeamId
+  let q = supabase.from('sellers').delete().eq('id', id)
+  if (teamId) q = q.eq('team_id', teamId)
+  const { error } = await q
   // Preserva o code (23503 = FK) para a mensagem amigável do handler.
   return { error: error ? { message: error.message, code: error.code } : null }
 }

@@ -38,10 +38,15 @@ export async function updateStagesAction(updates: { slug: string; patch: Record<
   const g = await guardManage()
   if (!g.context) return { error: g.error }
   const supabase = createClient()
+  // Defense-in-depth (SECURITY-ACTIONS-001): mutações por slug/grupo/status podem colidir entre equipes → o
+  // filtro por team_id no servidor garante que só a fase da equipe ativa é tocada (mesmo sem RLS).
+  const teamId = g.context.activeTeamId
   for (const u of updates) {
     const clean = pick(u.patch, STAGE_UPDATE_COLS)
     if (Object.keys(clean).length === 0) continue
-    const { error } = await supabase.from('funnel_stages').update(clean).eq('slug', u.slug)
+    let q = supabase.from('funnel_stages').update(clean).eq('slug', u.slug)
+    if (teamId) q = q.eq('team_id', teamId)
+    const { error } = await q
     if (error) return { error: { message: error.message, code: error.code } }
   }
   return { error: null }
@@ -52,7 +57,10 @@ export async function renameStageGroupAction(oldName: string, newName: string): 
   const g = await guardManage()
   if (!g.context) return { error: g.error }
   const supabase = createClient()
-  const { error } = await supabase.from('funnel_stages').update({ grupo: newName }).eq('grupo', oldName)
+  const teamId = g.context.activeTeamId
+  let q = supabase.from('funnel_stages').update({ grupo: newName }).eq('grupo', oldName)
+  if (teamId) q = q.eq('team_id', teamId)
+  const { error } = await q
   return { error: error ? { message: error.message } : null }
 }
 
@@ -72,10 +80,15 @@ export async function deleteStageAction(slug: string, destStatus: string, hasLea
   const g = await guardManage()
   if (!g.context) return { error: g.error }
   const supabase = createClient()
+  const teamId = g.context.activeTeamId
   if (hasLeads) {
-    const { error: e1 } = await supabase.from('leads').update({ status: destStatus }).eq('status', slug)
+    let q1 = supabase.from('leads').update({ status: destStatus }).eq('status', slug)
+    if (teamId) q1 = q1.eq('team_id', teamId)
+    const { error: e1 } = await q1
     if (e1) return { error: { message: e1.message } }
   }
-  const { error: e2 } = await supabase.from('funnel_stages').delete().eq('slug', slug)
+  let q2 = supabase.from('funnel_stages').delete().eq('slug', slug)
+  if (teamId) q2 = q2.eq('team_id', teamId)
+  const { error: e2 } = await q2
   return { error: e2 ? { message: e2.message } : null }
 }

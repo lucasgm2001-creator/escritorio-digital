@@ -48,7 +48,11 @@ export async function updateMaterialAction(id: string, patch: Record<string, unk
   const clean = pick(patch, MATERIAL_UPDATE_COLS)
   if (Object.keys(clean).length === 0) return { error: null }
   const supabase = createClient()
-  const { error } = await supabase.from('presentation_materials').update(clean).eq('id', id)
+  // Defense-in-depth (SECURITY-ACTIONS-001): filtra por team_id no servidor — nunca muta material de outra equipe.
+  const teamId = g.context.activeTeamId
+  let q = supabase.from('presentation_materials').update(clean).eq('id', id)
+  if (teamId) q = q.eq('team_id', teamId)
+  const { error } = await q
   return { error: error ? { message: error.message } : null }
 }
 
@@ -56,7 +60,10 @@ export async function deleteMaterialAction(id: string): Promise<{ error: WriteEr
   const g = await guardEdit()
   if (!g.context) return { error: g.error }
   const supabase = createClient()
-  const { error } = await supabase.from('presentation_materials').delete().eq('id', id)
+  const teamId = g.context.activeTeamId
+  let q = supabase.from('presentation_materials').delete().eq('id', id)
+  if (teamId) q = q.eq('team_id', teamId)
+  const { error } = await q
   return { error: error ? { message: error.message } : null }
 }
 
@@ -76,9 +83,11 @@ export async function updatePresentationAction(id: string, patch: Record<string,
   const g = await guardEdit()
   if (!g.context) return { data: null, error: g.error }
   const supabase = createClient()
-  const { data, error } = await supabase.from('presentations')
+  const teamId = g.context.activeTeamId
+  let q = supabase.from('presentations')
     .update({ ...pick(patch, PRESENTATION_COLS), updated_at: new Date().toISOString() }).eq('id', id)
-    .select('*').single()
+  if (teamId) q = q.eq('team_id', teamId)
+  const { data, error } = await q.select('*').single()
   return { data: (data as Row) ?? null, error: error ? { message: error.message } : null }
 }
 
@@ -86,6 +95,9 @@ export async function deletePresentationAction(id: string): Promise<{ error: Wri
   const g = await guardEdit()
   if (!g.context) return { error: g.error }
   const supabase = createClient()
-  const { error } = await supabase.from('presentations').delete().eq('id', id)
+  const teamId = g.context.activeTeamId
+  let q = supabase.from('presentations').delete().eq('id', id)
+  if (teamId) q = q.eq('team_id', teamId)
+  const { error } = await q
   return { error: error ? { message: error.message } : null }
 }

@@ -48,7 +48,12 @@ export async function updateTaskAction(id: string, patch: Record<string, unknown
   const clean = pick(patch, TASK_UPDATE_COLS)
   if (Object.keys(clean).length === 0) return { data: null, error: null }
   const supabase = createClient()
-  const { data, error } = await supabase.from('tasks').update(clean).eq('id', id).select().single()
+  // Defense-in-depth (SECURITY-ACTIONS-001): filtra por team_id no servidor — nunca muta tarefa de outra equipe
+  // (o RLS pessoal own-or-admin segue valendo por baixo). teamId garantido pelo guard().
+  const teamId = g.context.activeTeamId
+  let q = supabase.from('tasks').update(clean).eq('id', id)
+  if (teamId) q = q.eq('team_id', teamId)
+  const { data, error } = await q.select().single()
   return { data: (data as Row) ?? null, error: error ? { message: error.message } : null }
 }
 
@@ -56,6 +61,9 @@ export async function deleteTaskAction(id: string): Promise<{ error: WriteError 
   const g = await guard()
   if (!g.context) return { error: g.error }
   const supabase = createClient()
-  const { error } = await supabase.from('tasks').delete().eq('id', id)
+  const teamId = g.context.activeTeamId
+  let q = supabase.from('tasks').delete().eq('id', id)
+  if (teamId) q = q.eq('team_id', teamId)
+  const { error } = await q
   return { error: error ? { message: error.message } : null }
 }

@@ -40,7 +40,11 @@ export async function updateClientAction(clientId: string, patch: Record<string,
   const clean = pick(patch, CLIENT_COLS)
   if (Object.keys(clean).length === 0) return { ok: true }
   const supabase = createClient()
-  const { error } = await supabase.from('clients').update(clean).eq('id', clientId)
+  const teamId = g.context.activeTeamId
+  // Defense-in-depth (SECURITY-ACTIONS-001): filtra por team_id no servidor — nunca muta cliente de outra equipe.
+  let q = supabase.from('clients').update(clean).eq('id', clientId)
+  if (teamId) q = q.eq('team_id', teamId)
+  const { error } = await q
   if (error) return { ok: false, error: error.message }
   return { ok: true }
 }
@@ -65,7 +69,10 @@ export async function updateNichoAction(id: string, patch: Record<string, unknow
   const clean = pick(patch, NICHO_COLS)
   if (Object.keys(clean).length === 0) return { ok: true }
   const supabase = createClient()
-  const { error } = await supabase.from('nichos').update(clean).eq('id', id)
+  const teamId = g.context.activeTeamId
+  let q = supabase.from('nichos').update(clean).eq('id', id)
+  if (teamId) q = q.eq('team_id', teamId)
+  const { error } = await q
   if (error) return { ok: false, error: error.message }
   return { ok: true }
 }

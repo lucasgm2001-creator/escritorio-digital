@@ -91,9 +91,13 @@ export async function updateLeadAction(leadId: string, patch: Record<string, unk
   const g = await guard('edit', DENY_EDIT)
   if (!g.context) return { ok: false, error: g.error }
   const supabase = createClient()
+  const teamId = g.context.activeTeamId
   const clean = pick(patch, LEAD_COLS)
   if (Object.keys(clean).length === 0) return { ok: true }
-  const { error } = await supabase.from('leads').update(clean).eq('id', leadId)
+  // Defense-in-depth (SECURITY-ACTIONS-001): filtra por team_id no servidor — nunca muta lead de outra equipe.
+  let q = supabase.from('leads').update(clean).eq('id', leadId)
+  if (teamId) q = q.eq('team_id', teamId)
+  const { error } = await q
   if (error) return { ok: false, error: error.message }
   return { ok: true }
 }
@@ -114,7 +118,10 @@ export async function deleteLeadAction(leadId: string): Promise<Res> {
   const g = await guard('delete', DENY_DELETE)
   if (!g.context) return { ok: false, error: g.error }
   const supabase = createClient()
-  const { error } = await supabase.from('leads').delete().eq('id', leadId)
+  const teamId = g.context.activeTeamId
+  let q = supabase.from('leads').delete().eq('id', leadId)
+  if (teamId) q = q.eq('team_id', teamId)
+  const { error } = await q
   if (error) return { ok: false, error: error.message }
   return { ok: true }
 }
@@ -125,7 +132,10 @@ export async function deleteLeadsAction(ids: string[]): Promise<Res> {
   if (!g.context) return { ok: false, error: g.error }
   if (ids.length === 0) return { ok: true }
   const supabase = createClient()
-  const { error } = await supabase.from('leads').delete().in('id', ids)
+  const teamId = g.context.activeTeamId
+  let q = supabase.from('leads').delete().in('id', ids)
+  if (teamId) q = q.eq('team_id', teamId)
+  const { error } = await q
   if (error) return { ok: false, error: error.message }
   return { ok: true }
 }
@@ -153,7 +163,9 @@ export async function addLeadInteractionAction(input: {
 
   if (input.type === 'atendeu' || input.type === 'mensagem') await markMilestones(supabase, input.leadId, ['interagiu'], teamId)
   const newScore = Math.max(0, Math.min(1000, (input.currentScore ?? 0) + delta))
-  await supabase.from('leads').update({ score: newScore, last_contact_at: nowIso }).eq('id', input.leadId)
+  let lq = supabase.from('leads').update({ score: newScore, last_contact_at: nowIso }).eq('id', input.leadId)
+  if (teamId) lq = lq.eq('team_id', teamId)   // defense-in-depth (teamId já resolvido acima)
+  await lq
   return { ok: true, newScore, interaction: (interaction as Record<string, unknown>) ?? null }
 }
 
@@ -178,9 +190,12 @@ export async function setLeadTaskDoneAction(taskId: string, done: boolean): Prom
   const g = await guard('edit', DENY_EDIT)
   if (!g.context) return { ok: false, error: g.error }
   const supabase = createClient()
-  const { error } = await supabase.from('tasks')
+  const teamId = g.context.activeTeamId
+  let q = supabase.from('tasks')
     .update({ done, completed_at: done ? new Date().toISOString() : null })
     .eq('id', taskId)
+  if (teamId) q = q.eq('team_id', teamId)
+  const { error } = await q
   if (error) return { ok: false, error: error.message }
   return { ok: true }
 }
@@ -229,7 +244,9 @@ export async function updateLeadSituationAction(input: {
   }
   if (input.temperature != null) patch.temperature = input.temperature
   if (nextContact !== undefined) patch.next_contact = nextContact
-  const { data: lead, error } = await supabase.from('leads').update(patch).eq('id', input.leadId).select('id, name').single()
+  let lq = supabase.from('leads').update(patch).eq('id', input.leadId)
+  if (teamId) lq = lq.eq('team_id', teamId)   // defense-in-depth (teamId já resolvido acima)
+  const { data: lead, error } = await lq.select('id, name').single()
   if (error || !lead) return { ok: false, error: error?.message ?? 'Não foi possível atualizar a situação.' }
 
   // 2) histórico (reusa lead_interactions — sem duplicar timeline)

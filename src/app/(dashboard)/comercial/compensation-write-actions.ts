@@ -69,7 +69,12 @@ export async function updateDealStatusAction(id: string, status: string): Promis
   const g = await guardFinanceAdmin()
   if (!g.context) return { error: g.error }
   const supabase = createClient()
-  const { error } = await supabase.from('deals').update({ status }).eq('id', id)
+  // Defense-in-depth (SECURITY-ACTIONS-001): filtra por team_id no servidor — NUNCA muta linha de outra equipe,
+  // mesmo que a RLS seja alterada no futuro. Comportamento inalterado (a linha legítima é da equipe ativa).
+  const teamId = g.context.activeTeamId
+  let q = supabase.from('deals').update({ status }).eq('id', id)
+  if (teamId) q = q.eq('team_id', teamId)
+  const { error } = await q
   return { error: error ? { message: error.message } : null }
 }
 
@@ -77,7 +82,10 @@ export async function deleteDealAction(id: string): Promise<{ error: WriteError 
   const g = await guardFinanceAdmin()
   if (!g.context) return { error: g.error }
   const supabase = createClient()
-  const { error } = await supabase.from('deals').delete().eq('id', id)   // semanas caem por FK cascade
+  const teamId = g.context.activeTeamId
+  let q = supabase.from('deals').delete().eq('id', id)   // semanas caem por FK cascade
+  if (teamId) q = q.eq('team_id', teamId)
+  const { error } = await q
   return { error: error ? { message: error.message } : null }
 }
 
@@ -90,10 +98,12 @@ export async function updateDealAction(id: string, input: {
   const teamId = g.context.activeTeamId
   const clientId = await ensureClient(supabase, input.client, { assignedName: input.sellerName }, teamId)
   if (!clientId) return { clientId: null, error: { message: 'Não foi possível vincular/criar o cliente.' } }
-  const { error } = await supabase.from('deals').update({
+  let q = supabase.from('deals').update({
     client_id: clientId, client_name: input.client.trim(),
     valor_total_usd: input.total, teto_semanas: input.semanas, valor_por_semana_usd: input.vps, data_fechamento: input.dataFechamento,
   }).eq('id', id)
+  if (teamId) q = q.eq('team_id', teamId)   // defense-in-depth (teamId já resolvido acima p/ ensureClient)
+  const { error } = await q
   return { clientId, error: error ? { message: error.message } : null }
 }
 
@@ -112,7 +122,10 @@ export async function deleteWeekAction(id: string): Promise<{ error: WriteError 
   const g = await guardFinanceAdmin()
   if (!g.context) return { error: g.error }
   const supabase = createClient()
-  const { error } = await supabase.from('weekly_payments').delete().eq('id', id)
+  const teamId = g.context.activeTeamId
+  let q = supabase.from('weekly_payments').delete().eq('id', id)
+  if (teamId) q = q.eq('team_id', teamId)
+  const { error } = await q
   return { error: error ? { message: error.message } : null }
 }
 
@@ -120,7 +133,10 @@ export async function updateWeekDateAction(id: string, paidOn: string): Promise<
   const g = await guardFinanceAdmin()
   if (!g.context) return { error: g.error }
   const supabase = createClient()
-  const { error } = await supabase.from('weekly_payments').update({ paid_on: paidOn }).eq('id', id)
+  const teamId = g.context.activeTeamId
+  let q = supabase.from('weekly_payments').update({ paid_on: paidOn }).eq('id', id)
+  if (teamId) q = q.eq('team_id', teamId)
+  const { error } = await q
   return { error: error ? { message: error.message } : null }
 }
 
@@ -144,7 +160,10 @@ export async function deleteMeetingAction(id: string): Promise<{ error: WriteErr
   const g = await guardFinanceAdmin()
   if (!g.context) return { error: g.error }
   const supabase = createClient()
-  const { error } = await supabase.from('meetings').delete().eq('id', id)
+  const teamId = g.context.activeTeamId
+  let q = supabase.from('meetings').delete().eq('id', id)
+  if (teamId) q = q.eq('team_id', teamId)
+  const { error } = await q
   return { error: error ? { message: error.message } : null }
 }
 
@@ -152,7 +171,10 @@ export async function updateMeetingAction(id: string, patch: { metOn: string; va
   const g = await guardFinanceAdmin()
   if (!g.context) return { error: g.error }
   const supabase = createClient()
-  const { error } = await supabase.from('meetings')
+  const teamId = g.context.activeTeamId
+  let q = supabase.from('meetings')
     .update({ met_on: patch.metOn, valor_usd: patch.valorUsd, client_id: patch.clientId, client_name: patch.clientName }).eq('id', id)
+  if (teamId) q = q.eq('team_id', teamId)
+  const { error } = await q
   return { error: error ? { message: error.message } : null }
 }

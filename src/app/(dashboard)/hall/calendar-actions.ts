@@ -34,6 +34,10 @@ export async function deleteCalendarEventAction(id: string): Promise<{ error: Wr
   if (!context) return { error: { message: 'Sessão expirada. Entre novamente.' } }
   if (!can(context, 'calendar', 'delete')) return { error: { message: 'Você não tem permissão para excluir eventos.' } }
   const supabase = createClient()
-  const { error } = await supabase.from('calendar_events').delete().eq('id', id)
+  // Defense-in-depth (SECURITY-ACTIONS-001): filtra por team_id no servidor — nunca exclui evento de outra equipe.
+  const teamId = context.activeTeamId
+  let q = supabase.from('calendar_events').delete().eq('id', id)
+  if (teamId) q = q.eq('team_id', teamId)
+  const { error } = await q
   return { error: error ? { message: error.message } : null }
 }
