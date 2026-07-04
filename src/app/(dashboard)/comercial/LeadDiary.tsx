@@ -3,9 +3,8 @@
 import { useState, useEffect, useRef, useMemo, memo } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useToast } from '@/components/ui/toast'
-import { useActiveTeamId } from '@/components/auth/RoleProvider'
+import { updateLeadAction, deleteLeadAction, addLeadInteractionAction } from './lead-write-actions'
 import { getScoreInfo } from '@/lib/utils/score'
-import { markMilestones } from '@/lib/leadMilestones'
 import { cn } from '@/lib/utils'
 import { TimeAgo } from '@/components/system/TimeAgo'
 import { ALL_COLUMNS, FUSO_OPTIONS, type Lead, type LeadStatus, type ColumnTone } from './types'
@@ -186,8 +185,7 @@ export function LeadDiary({ lead, onClose, onUpdated, onMoveStage, onDeleted, cu
   })
   const [draft, setDraft] = useState(emptyDraft)
 
-  const supabase = createClient()
-  const teamId = useActiveTeamId()   // FIX-P0-TEAMID-WRITES: carimba a equipe ativa na interação/marco
+  const supabase = createClient()   // leituras (interações, vendedores). ESCRITAS de lead vão por server action.
   const { toast } = useToast()
   const scoreInfo = getScoreInfo(currentLead.score)
   // Opções de fase = fases ATIVAS de funnel_stages (data-driven, igual ao board) → fase NOVA aparece aqui sem
@@ -257,10 +255,10 @@ export function LeadDiary({ lead, onClose, onUpdated, onMoveStage, onDeleted, cu
     const updated = { ...currentLead, assigned_to: assignedTo ?? undefined, assigned_name: name }
     setSavingResp(true)
     setCurrentLead(updated)
-    const { error } = await supabase.from('leads').update({ assigned_to: assignedTo, assigned_name: name }).eq('id', lead.id)
-    if (error) {
+    const res = await updateLeadAction(lead.id, { assigned_to: assignedTo, assigned_name: name })
+    if (!res.ok) {
       setCurrentLead(c => ({ ...c, assigned_to: prev.to, assigned_name: prev.name }))
-      toast({ type: 'error', message: `Não foi possível trocar o responsável: ${error.message}` })
+      toast({ type: 'error', message: `Não foi possível trocar o responsável: ${res.error}` })
     } else {
       onUpdated(updated)
       toast({ type: 'success', message: `Responsável: ${name}.` })
@@ -283,10 +281,10 @@ export function LeadDiary({ lead, onClose, onUpdated, onMoveStage, onDeleted, cu
     const prev = currentLead.received_at
     const updated = { ...currentLead, received_at: next ?? undefined }
     setCurrentLead(updated)
-    const { error } = await supabase.from('leads').update({ received_at: next }).eq('id', lead.id)
-    if (error) {
+    const res = await updateLeadAction(lead.id, { received_at: next })
+    if (!res.ok) {
       setCurrentLead(c => ({ ...c, received_at: prev }))
-      toast({ type: 'error', message: `Não foi possível mudar a data de chegada: ${error.message}` })
+      toast({ type: 'error', message: `Não foi possível mudar a data de chegada: ${res.error}` })
     } else {
       onUpdated(updated)
       toast({ type: 'success', message: next ? 'Data de chegada atualizada.' : 'Data de chegada removida.' })
@@ -299,10 +297,10 @@ export function LeadDiary({ lead, onClose, onUpdated, onMoveStage, onDeleted, cu
     const next = currentLead.incluir_no_relatorio === false   // estava off → liga; senão desliga
     const updated = { ...currentLead, incluir_no_relatorio: next }
     setCurrentLead(updated)
-    const { error } = await supabase.from('leads').update({ incluir_no_relatorio: next }).eq('id', lead.id)
-    if (error) {
+    const res = await updateLeadAction(lead.id, { incluir_no_relatorio: next })
+    if (!res.ok) {
       setCurrentLead(c => ({ ...c, incluir_no_relatorio: !next }))
-      toast({ type: 'error', message: `Não foi possível mudar: ${error.message}` })
+      toast({ type: 'error', message: `Não foi possível mudar: ${res.error}` })
     } else {
       onUpdated(updated)
       toast({ type: 'success', message: next ? 'Incluído no relatório.' : 'Fora do relatório.' })
@@ -316,10 +314,10 @@ export function LeadDiary({ lead, onClose, onUpdated, onMoveStage, onDeleted, cu
     const prev = currentLead.fuso
     const updated = { ...currentLead, fuso: next }
     setCurrentLead(updated)
-    const { error } = await supabase.from('leads').update({ fuso: next }).eq('id', lead.id)
-    if (error) {
+    const res = await updateLeadAction(lead.id, { fuso: next })
+    if (!res.ok) {
       setCurrentLead(c => ({ ...c, fuso: prev }))
-      toast({ type: 'error', message: `Não foi possível mudar o fuso: ${error.message}` })
+      toast({ type: 'error', message: `Não foi possível mudar o fuso: ${res.error}` })
     } else {
       onUpdated(updated)
       toast({ type: 'success', message: 'Fuso atualizado.' })
@@ -335,10 +333,10 @@ export function LeadDiary({ lead, onClose, onUpdated, onMoveStage, onDeleted, cu
     const prev = currentLead.value
     const updated = { ...currentLead, value: next }
     setCurrentLead(updated)
-    const { error } = await supabase.from('leads').update({ value: next }).eq('id', lead.id)
-    if (error) {
+    const res = await updateLeadAction(lead.id, { value: next })
+    if (!res.ok) {
       setCurrentLead(c => ({ ...c, value: prev }))
-      toast({ type: 'error', message: `Não foi possível salvar o valor: ${error.message}` })
+      toast({ type: 'error', message: `Não foi possível salvar o valor: ${res.error}` })
     } else {
       onUpdated(updated)
       toast({ type: 'success', message: 'Valor atualizado.' })
@@ -367,9 +365,9 @@ export function LeadDiary({ lead, onClose, onUpdated, onMoveStage, onDeleted, cu
       state: draft.state.trim().toUpperCase() || null,
       area_code: draft.area_code.trim() || null,
     }
-    const { error } = await supabase.from('leads').update(patch).eq('id', lead.id)
+    const res = await updateLeadAction(lead.id, patch)
     setSavingEdit(false)
-    if (error) { toast({ type: 'error', message: `Não foi possível salvar: ${error.message}` }); return }
+    if (!res.ok) { toast({ type: 'error', message: `Não foi possível salvar: ${res.error}` }); return }
     const updated = { ...currentLead, ...patch } as Lead   // patch usa null p/ limpar; Lead aceita (campos opcionais)
     setCurrentLead(updated); onUpdated(updated); setEditing(false)
     toast({ type: 'success', message: 'Lead atualizado.' })
@@ -377,9 +375,9 @@ export function LeadDiary({ lead, onClose, onUpdated, onMoveStage, onDeleted, cu
 
   const handleDelete = async () => {
     setDeleting(true)
-    const { error } = await supabase.from('leads').delete().eq('id', lead.id)
-    if (error) {
-      toast({ type: 'error', message: `Não foi possível excluir o lead: ${error.message}` })
+    const res = await deleteLeadAction(lead.id)
+    if (!res.ok) {
+      toast({ type: 'error', message: `Não foi possível excluir o lead: ${res.error}` })
       setDeleting(false)
       return
     }
@@ -400,49 +398,23 @@ export function LeadDiary({ lead, onClose, onUpdated, onMoveStage, onDeleted, cu
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [lead.id])
 
-  const handleInteraction = async (type: string, delta: number) => {
+  // delta é derivado no servidor (mesmos pesos: atendeu 80 · mensagem 20 · nao_atendeu -30 · nota 0).
+  const handleInteraction = async (type: string) => {
     if (type === 'nota' && !noteText.trim()) { setActiveBtn('nota'); return }
     setLoadingInteraction(true)
 
-    const newScore = Math.max(0, Math.min(1000, currentLead.score + delta))
-    const updatedLead = { ...currentLead, score: newScore, last_contact_at: new Date().toISOString() }
-
-    const { data: interaction, error: interErr } = await supabase
-      .from('lead_interactions')
-      .insert({
-        lead_id: lead.id,
-        type,
-        note: noteText || null,
-        score_delta: delta,
-        created_by: currentUser.id,
-        created_by_name: currentUser.name,
-        ...(teamId ? { team_id: teamId } : {}),
-      })
-      .select()
-      .single()
-
-    if (interErr) {
-      toast({ type: 'error', message: `Não foi possível registrar a interação: ${interErr.message}` })
+    // Servidor: can(commercial,edit) + interação + score/marco (mesma regra, agora enforçada). O action
+    // devolve a interação criada (p/ o estado local) e o novo score já calculado no servidor.
+    const res = await addLeadInteractionAction({ leadId: lead.id, type, note: noteText || null, currentScore: currentLead.score })
+    if (!res.ok) {
+      toast({ type: 'error', message: `Não foi possível registrar a interação: ${res.error}` })
       setLoadingInteraction(false)
       return
     }
-
-    // Marco do relatório: contato real = interagiu (nao_atendeu/nota não contam). Idempotente.
-    if (type === 'atendeu' || type === 'mensagem') await markMilestones(supabase, lead.id, ['interagiu'], teamId)
-
-    const { error: scoreErr } = await supabase
-      .from('leads')
-      .update({ score: newScore, last_contact_at: updatedLead.last_contact_at })
-      .eq('id', lead.id)
-
-    if (scoreErr) {
-      toast({ type: 'error', message: `Interação salva, mas falhou ao atualizar o score: ${scoreErr.message}` })
-      setLoadingInteraction(false)
-      return
-    }
+    const updatedLead = { ...currentLead, score: res.newScore, last_contact_at: new Date().toISOString() }
 
     // Persistiu tudo → aplica no estado local.
-    if (interaction) setInteractions(prev => [interaction, ...prev])
+    if (res.interaction) setInteractions(prev => [res.interaction as unknown as (typeof prev)[number], ...prev])
     setCurrentLead(updatedLead)
     onUpdated(updatedLead)
     setNoteText('')
@@ -815,7 +787,7 @@ export function LeadDiary({ lead, onClose, onUpdated, onMoveStage, onDeleted, cu
             {INTERACTION_BUTTONS.map(btn => (
               <button
                 key={btn.type}
-                onClick={() => btn.type === 'nota' ? setActiveBtn('nota') : handleInteraction(btn.type, btn.delta)}
+                onClick={() => btn.type === 'nota' ? setActiveBtn('nota') : handleInteraction(btn.type)}
                 disabled={loadingInteraction}
                 className={`flex items-center gap-2 px-3 py-2 rounded-lg border text-xs font-medium transition-colors ${btn.color} disabled:opacity-50`}
               >
@@ -841,7 +813,7 @@ export function LeadDiary({ lead, onClose, onUpdated, onMoveStage, onDeleted, cu
               />
               <div className="flex gap-2">
                 <button onClick={() => setActiveBtn(null)} className="flex-1 border border-border text-sm py-1.5 rounded-lg hover:bg-muted transition-colors">Cancelar</button>
-                <button onClick={() => handleInteraction('nota', 0)} disabled={!noteText.trim()} className="bento-btn flex-1 text-sm py-1.5 rounded-btn disabled:opacity-50">Salvar</button>
+                <button onClick={() => handleInteraction('nota')} disabled={!noteText.trim()} className="bento-btn flex-1 text-sm py-1.5 rounded-btn disabled:opacity-50">Salvar</button>
               </div>
             </div>
           )}

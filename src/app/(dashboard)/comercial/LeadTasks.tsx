@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { Plus, Check, Clock } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
-import { useActiveTeamId } from '@/components/auth/RoleProvider'
+import { createLeadTaskAction, setLeadTaskDoneAction } from './lead-write-actions'
 import { cn } from '@/lib/utils'
 
 // Tarefa vinculada a um lead (tasks.linked_type='lead' + linked_id). Só os campos
@@ -37,14 +37,15 @@ function fmtWhen(date?: string | null, time?: string | null): string {
 
 // Seção "Tarefas" do lead — caixinha contida (mesmo padrão do "Mover para").
 // Reutilizada no card estreito do funil (compact) e no painel de detalhe (LeadDiary).
-export function LeadTasks({ leadId, leadName, userId, compact = true }: {
+// userId segue no tipo (compat dos callers) mas NÃO é usado: as escritas vão por server action, que resolve
+// o usuário/equipe no contexto do servidor (PERMISSIONS-003). A leitura (load) continua client-side (RLS).
+export function LeadTasks({ leadId, leadName, compact = true }: {
   leadId: string
   leadName: string
   userId: string
   compact?: boolean
 }) {
   const supabase = createClient()
-  const teamId = useActiveTeamId()   // FIX-P0-TEAMID-WRITES: carimba a equipe ativa ao criar tarefa
   const [tasks, setTasks] = useState<LeadTask[]>([])
   const [loading, setLoading] = useState(true)
   const [adding, setAdding] = useState(false)
@@ -69,25 +70,18 @@ export function LeadTasks({ leadId, leadName, userId, compact = true }: {
   const toggleDone = async (t: LeadTask) => {
     const next = !t.done
     setTasks(prev => sortTasks(prev.map(x => x.id === t.id ? { ...x, done: next } : x)))
-    const { error } = await supabase
-      .from('tasks')
-      .update({ done: next, completed_at: next ? new Date().toISOString() : null })
-      .eq('id', t.id)
-    if (error) setTasks(prev => sortTasks(prev.map(x => x.id === t.id ? { ...x, done: t.done } : x)))
+    const res = await setLeadTaskDoneAction(t.id, next)
+    if (!res.ok) setTasks(prev => sortTasks(prev.map(x => x.id === t.id ? { ...x, done: t.done } : x)))
   }
 
   const addTask = async () => {
     const title = newTitle.trim()
     if (!title || saving) return
     setSaving(true)
-    const { data, error } = await supabase
-      .from('tasks')
-      .insert({ user_id: userId, title, done: false, linked_type: 'lead', linked_id: leadId, linked_name: leadName, ...(teamId ? { team_id: teamId } : {}) })
-      .select('id, title, due_date, due_time, done')
-      .single()
+    const res = await createLeadTaskAction({ leadId, leadName, title })
     setSaving(false)
-    if (!error && data) {
-      setTasks(prev => sortTasks([...prev, data]))
+    if (res.ok) {
+      setTasks(prev => sortTasks([...prev, res.task as unknown as LeadTask]))
       setNewTitle('')
       setAdding(false)
     }

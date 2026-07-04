@@ -4,9 +4,8 @@ import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { FUSO_OPTIONS, type Lead } from './types'
 import { US_STATES, sanitizeAreaCode } from '@/lib/usStates'
-import { logStageEvent } from '@/lib/stageEvents'
+import { createLeadAction } from './lead-write-actions'
 import { useToast } from '@/components/ui/toast'
-import { useActiveTeamId } from '@/components/auth/RoleProvider'
 import { ymd } from '@/lib/format'
 import { wonSlug, type FunnelStage } from '@/lib/funnelStages'
 import type { Client } from '../clientes/types'
@@ -98,8 +97,7 @@ export function LeadModal({ onClose, onCreated, currentUser, stages, clients }: 
     ).slice(0, 8)
   })()
 
-  const supabase = createClient()
-  const teamId = useActiveTeamId()   // FIX-P0-TEAMID-WRITES: carimba a equipe ativa na criação de lead
+  const supabase = createClient()   // leitura de vendedores (sellers). As ESCRITAS de lead vão por server action.
 
   useEffect(() => {
     supabase.from('sellers').select('id, name').eq('status', 'ativo').order('name').then(({ data }) => {
@@ -144,7 +142,8 @@ export function LeadModal({ onClose, onCreated, currentUser, stages, clients }: 
     setSubmitError('')
     const c = selectedClient
     const stageSlug = clientStageSlug || wonSlug(stages)
-    const { data, error } = await supabase.from('leads').insert({
+    // Servidor: can(commercial,create). É só um INSERT — NÃO dispara won-flow (só MOVER um lead dispara).
+    const res = await createLeadAction({
       name: c.name,
       company: c.company || null,
       email: c.email || null,
@@ -163,27 +162,18 @@ export function LeadModal({ onClose, onCreated, currentUser, stages, clients }: 
       score: 500,
       created_manually: true,             // criado à mão → trigger gera contact_code (C-XXXX). NÃO setar o código aqui.
       status: stageSlug,                  // fase escolhida (default Venda Concluída)
-      ...(teamId ? { team_id: teamId } : {}),
-    }).select().single()
+    }, { activity: `Cliente existente adicionado ao funil: ${c.name}`, logStage: false })
 
-    if (error || !data) {
+    if (!res.ok) {
       // Se o CHECK de origem ainda não foi ampliado no banco, avisa de forma clara.
-      const friendly = error?.message?.includes('leads_origem_check')
+      const friendly = res.error.includes('leads_origem_check')
         ? 'Falta aplicar a migration 038 (origem cliente_existente) no banco.'
-        : (error?.message ?? 'Não foi possível adicionar ao funil. Tente novamente.')
+        : res.error
       setSubmitError(friendly)
       setLoading(false)
       return
     }
-    // Feed de atividades (NÃO é dinheiro). NÃO loga "fechou"/stage-event nem dispara won-flow.
-    await supabase.from('activities').insert({
-      type: 'lead',
-      description: `Cliente existente adicionado ao funil: ${c.name}`,
-      user_name: currentUser.name,
-      entity_id: data.id,
-      ...(teamId ? { team_id: teamId } : {}),
-    })
-    onCreated(data as Lead)
+    onCreated(res.lead)
     onClose()
   }
 
@@ -197,7 +187,8 @@ export function LeadModal({ onClose, onCreated, currentUser, stages, clients }: 
     // Só o nome é obrigatório. Os opcionais viram null; campos com NOT NULL/CHECK
     // recebem defaults sensatos. assigned_to é nullable → null evita violar a FK
     // de profiles quando não há vendedor escolhido.
-    const { data, error: insertError } = await supabase.from('leads').insert({
+    // Servidor: can(commercial,create). O action carimba team_id, registra entrada no funil + atividade.
+    const res = await createLeadAction({
       name: form.name.trim(),
       company: form.company.trim() || null,
       email: form.email.trim() || null,
@@ -222,31 +213,14 @@ export function LeadModal({ onClose, onCreated, currentUser, stages, clients }: 
       score: 500,
       created_manually: true,   // criado à mão → trigger gera contact_code (C-XXXX). NÃO setar o código aqui.
       status: 'novo',
-      ...(teamId ? { team_id: teamId } : {}),
-    }).select().single()
+    }, { activity: `Novo lead cadastrado: ${form.name.trim()}`, logStage: true })
 
-    if (insertError || !data) {
-      setSubmitError(insertError?.message ?? 'Não foi possível criar o lead. Tente novamente.')
+    if (!res.ok) {
+      setSubmitError(res.error || 'Não foi possível criar o lead. Tente novamente.')
       setLoading(false)
       return
     }
-
-    // Histórico de movimentação: entrada no funil (fromStage=null → toStage='novo'). ADITIVO/best-effort.
-    await logStageEvent(supabase, {
-      leadId: data.id, leadName: data.name,
-      fromStage: null, toStage: data.status ?? 'novo',
-      sellerId: data.assigned_to ?? null, sellerName: data.assigned_name ?? null,
-    }, teamId)
-
-    // Registrar atividade é best-effort: não bloqueia o sucesso do lead.
-    await supabase.from('activities').insert({
-      type: 'lead',
-      description: `Novo lead cadastrado: ${form.name.trim()}`,
-      user_name: currentUser.name,
-      entity_id: data.id,
-      ...(teamId ? { team_id: teamId } : {}),
-    })
-    onCreated(data as Lead)
+    onCreated(res.lead)
     onClose()
   }
 
