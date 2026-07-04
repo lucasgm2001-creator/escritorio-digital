@@ -17,8 +17,10 @@ export function ClientWorkspaceShell({ clientId, clientName, subtitle, userName,
   teams?: SwitcherTeam[]
   children: React.ReactNode
 }) {
+  // hideGlobalRail: o Workspace do Cliente vive sob o grupo (dashboard) → o DashboardShell já renderiza o rail
+  // global. Sem isto, o DomainShell desenhava um 2º rail idêntico (menu lateral duplicado no desktop).
   return (
-    <DomainShell config={buildClientConfig(clientId, clientName)} subtitle={subtitle} userName={userName} role={role} userEmail={userEmail} avatarUrl={avatarUrl} teams={teams}>
+    <DomainShell config={buildClientConfig(clientId, clientName)} subtitle={subtitle} userName={userName} role={role} userEmail={userEmail} avatarUrl={avatarUrl} teams={teams} hideGlobalRail>
       {children}
     </DomainShell>
   )

@@ -13,7 +13,7 @@ import type { DomainConfig, DomainKey } from '@/lib/domain/nav'
 // Casca GENÉRICA de domínio (Administração, Tráfego, Workspace do Cliente, ...). Uma implementação p/ todos.
 // Mobile: cabeçalho fixo (← back / seção / Seções) + bottom sheet. iPad/Desktop: rail + contexto.
 // Aceita configKey (registro estático) OU um config resolvido (ex.: Cliente, com hrefs por id).
-export function DomainShell({ configKey, config: configProp, subtitle, userName, role, userEmail = null, avatarUrl = null, teams = [], children }: {
+export function DomainShell({ configKey, config: configProp, subtitle, userName, role, userEmail = null, avatarUrl = null, teams = [], hideGlobalRail = false, children }: {
   configKey?: DomainKey
   config?: DomainConfig
   subtitle: string | null
@@ -22,6 +22,10 @@ export function DomainShell({ configKey, config: configProp, subtitle, userName,
   userEmail?: string | null
   avatarUrl?: string | null
   teams?: SwitcherTeam[]
+  // Quando a casca já está aninhada sob o DashboardShell (Workspace do Cliente, sob o grupo (dashboard)),
+  // o rail global JÁ é renderizado pelo DashboardShell — aqui ele é omitido p/ não duplicar. Tráfego/Admin
+  // usam o DomainShell como raiz (fora de (dashboard)), então mantêm o rail (prop fica false).
+  hideGlobalRail?: boolean
   children: React.ReactNode
 }) {
   const [sheetOpen, setSheetOpen] = useState(false)
@@ -37,10 +41,14 @@ export function DomainShell({ configKey, config: configProp, subtitle, userName,
     <div className="flex h-[100dvh] overflow-hidden bg-bento-bg text-bento-text">
       {/* Rail GLOBAL persistente (IPAD-003) — a MESMA Sidebar/NAV_MODULES do DashboardShell, nunca some.
           Em Tráfego/Administração dá pra trocar de módulo SEM voltar ao Hall. Só md+ (iPad/desktop); no
-          celular a navegação segue pelo cabeçalho + sheet. Reuso total: nenhuma 2ª navegação/config. */}
-      <div className="hidden md:flex shrink-0">
-        <Sidebar open={railOpen} onToggle={() => setRailOpen(o => !o)} activeTeamName={subtitle} />
-      </div>
+          celular a navegação segue pelo cabeçalho + sheet. Reuso total: nenhuma 2ª navegação/config.
+          hideGlobalRail: no Workspace do Cliente a casca já está sob o DashboardShell (que renderiza o rail),
+          então aqui ele é omitido p/ não duplicar o menu lateral no desktop. */}
+      {!hideGlobalRail && (
+        <div className="hidden md:flex shrink-0">
+          <Sidebar open={railOpen} onToggle={() => setRailOpen(o => !o)} activeTeamName={subtitle} />
+        </div>
+      )}
       <DomainNav
         config={config}
         subtitle={subtitle}
