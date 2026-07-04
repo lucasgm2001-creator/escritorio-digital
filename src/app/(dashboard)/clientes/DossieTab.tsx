@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { createClient } from '@/lib/supabase/client'
+import { updateClientAction } from './client-write-actions'
 import { useToast } from '@/components/ui/toast'
 import { cn } from '@/lib/utils'
 import { ChevronDown, ExternalLink, FolderOpen, Pencil, Plus } from 'lucide-react'
@@ -43,7 +43,6 @@ const saveBtn = 'bento-btn flex items-center justify-center gap-1.5 px-4 py-2 ro
 const ghostBtn = 'flex items-center gap-1.5 px-3 py-1.5 rounded-btn text-xs font-medium border border-bento-border text-bento-dim hover:border-lime hover:text-bento-text transition-colors min-h-[36px]'
 
 export function DossieTab({ client, onSaved }: { client: Client; onSaved: (c: Client) => void }) {
-  const supabase = createClient()
   const { toast } = useToast()
 
   // Estado LOCAL (evita merge em cima de prop desatualizada dentro do modal).
@@ -71,9 +70,9 @@ export function DossieTab({ client, onSaved }: { client: Client; onSaved: (c: Cl
     const v = driveUrl.trim()
     if (v && !isValidUrl(v)) { toast({ type: 'error', message: 'Link inválido — use uma URL (http/https).' }); return }
     setSavingDrive(true)
-    const { error } = await supabase.from('clients').update({ drive_folder_url: v || null }).eq('id', client.id)
+    const res = await updateClientAction(client.id, { drive_folder_url: v || null })
     setSavingDrive(false)
-    if (error) { toast({ type: 'error', message: `Não foi possível salvar: ${error.message}` }); return }
+    if (!res.ok) { toast({ type: 'error', message: `Não foi possível salvar: ${res.error}` }); return }
     setDriveUrl(v)
     setEditingDrive(false)
     onSaved({ ...client, drive_folder_url: v || null })
@@ -87,9 +86,9 @@ export function DossieTab({ client, onSaved }: { client: Client; onSaved: (c: Cl
     if (url && !isValidUrl(url)) { toast({ type: 'error', message: 'Link inválido — use uma URL (http/https).' }); return }
     const merged: Dossie = { ...dossie, [k]: { url, notas } }
     setSavingKey(k)
-    const { error } = await supabase.from('clients').update({ dossie: merged }).eq('id', client.id)
+    const res = await updateClientAction(client.id, { dossie: merged })
     setSavingKey(null)
-    if (error) { toast({ type: 'error', message: `Não foi possível salvar: ${error.message}` }); return }
+    if (!res.ok) { toast({ type: 'error', message: `Não foi possível salvar: ${res.error}` }); return }
     setDossie(merged)
     cancelEdit(k)
     onSaved({ ...client, dossie: merged })

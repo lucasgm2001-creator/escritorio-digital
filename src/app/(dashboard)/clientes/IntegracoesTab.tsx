@@ -2,7 +2,7 @@
 
 import { useState, useMemo } from 'react'
 import { ChevronDown, X, Plus, MessageCircle } from 'lucide-react'
-import { createClient } from '@/lib/supabase/client'
+import { upsertClientIntegrationAction } from './client-write-actions'
 import { useToast } from '@/components/ui/toast'
 import { cn } from '@/lib/utils'
 import type { Client, ClientIntegration } from './types'
@@ -12,7 +12,6 @@ export function IntegracoesTab({ clients, integrations, onChange }: {
   integrations: ClientIntegration[]
   onChange: (i: ClientIntegration) => void
 }) {
-  const supabase = createClient()
   const { toast } = useToast()
   const [openId, setOpenId] = useState<string | null>(null)
   const [busyId, setBusyId] = useState<string | null>(null)
@@ -46,10 +45,10 @@ export function IntegracoesTab({ clients, integrations, onChange }: {
       ...patch,
       updated_at: new Date().toISOString(),
     }
-    const { data, error } = await supabase.from('client_integrations').upsert(row, { onConflict: 'client_id' }).select('*').single()
+    const res = await upsertClientIntegrationAction(row)
     setBusyId(null)
-    if (error || !data) { toast({ type: 'error', message: `Não foi possível salvar: ${error?.message ?? 'erro'}` }); return false }
-    onChange(data as ClientIntegration)
+    if (!res.ok) { toast({ type: 'error', message: `Não foi possível salvar: ${res.error}` }); return false }
+    onChange(res.integration as unknown as ClientIntegration)
     return true
   }
 

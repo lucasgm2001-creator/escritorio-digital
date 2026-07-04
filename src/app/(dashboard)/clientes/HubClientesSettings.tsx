@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { ChevronUp, ChevronDown, Plus } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { useToast } from '@/components/ui/toast'
-import { useActiveTeamId } from '@/components/auth/RoleProvider'
+import { createNichoAction, updateNichoAction } from './client-write-actions'
 import { Panel } from '@/components/bento/Panel'
 import { cn } from '@/lib/utils'
 import type { Nicho } from './types'
@@ -13,8 +13,7 @@ const COLORS = ['#38bdf8', '#fbbf24', '#C2F73A', '#22C55E', '#10B981', '#A855F7'
 
 // Gestão das prateleiras (tabela `nichos`): criar / renomear / cor / ordem / ativar-desativar.
 export function HubClientesSettings() {
-  const supabase = createClient()
-  const teamId = useActiveTeamId()   // FIX-P0-TEAMID-WRITES: carimba a equipe ativa ao criar nicho
+  const supabase = createClient()   // leitura das prateleiras. ESCRITAS vão por server action (can(clients,edit)).
   const { toast } = useToast()
   const [nichos, setNichos] = useState<Nicho[]>([])
   const [loading, setLoading] = useState(true)
@@ -35,9 +34,9 @@ export function HubClientesSettings() {
   const patch = async (id: string, p: Partial<Nicho>) => {
     setBusy(true)
     setNichos(prev => prev.map(n => n.id === id ? { ...n, ...p } : n))
-    const { error } = await supabase.from('nichos').update(p).eq('id', id)
+    const res = await updateNichoAction(id, p as Record<string, unknown>)
     setBusy(false)
-    if (error) { toast({ type: 'error', message: `Não foi possível salvar: ${error.message}` }); load() }
+    if (!res.ok) { toast({ type: 'error', message: `Não foi possível salvar: ${res.error}` }); load() }
   }
 
   const rename = async (n: Nicho) => {
@@ -57,11 +56,11 @@ export function HubClientesSettings() {
     setBusy(true)
     setNichos(prev => { const c = [...prev];[c[idx], c[j]] = [c[j], c[idx]]; return c })
     const r = await Promise.all([
-      supabase.from('nichos').update({ posicao: b.posicao }).eq('id', a.id),
-      supabase.from('nichos').update({ posicao: a.posicao }).eq('id', b.id),
+      updateNichoAction(a.id, { posicao: b.posicao }),
+      updateNichoAction(b.id, { posicao: a.posicao }),
     ])
     setBusy(false)
-    if (r.some(x => x.error)) { toast({ type: 'error', message: 'Falha ao reordenar.' }); load() }
+    if (r.some(x => !x.ok)) { toast({ type: 'error', message: 'Falha ao reordenar.' }); load() }
   }
 
   const add = async () => {
@@ -70,9 +69,9 @@ export function HubClientesSettings() {
     if (nichos.some(n => n.nome === nome)) { toast({ type: 'error', message: 'Já existe.' }); return }
     setBusy(true)
     const posicao = Math.max(0, ...nichos.map(n => n.posicao)) + 1
-    const { error } = await supabase.from('nichos').insert({ nome, cor: COLORS[nichos.length % COLORS.length], posicao, ativo: true, ...(teamId ? { team_id: teamId } : {}) })
+    const res = await createNichoAction({ nome, cor: COLORS[nichos.length % COLORS.length], posicao })
     setBusy(false)
-    if (error) { toast({ type: 'error', message: `Não foi possível criar: ${error.message}` }); return }
+    if (!res.ok) { toast({ type: 'error', message: `Não foi possível criar: ${res.error}` }); return }
     setNewName(''); setAdding(false); load()
   }
 
