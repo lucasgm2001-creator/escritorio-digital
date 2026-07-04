@@ -79,8 +79,10 @@ export function ClientResumo({ client, finance, lastActivityAt, lastMeetingAt, l
         </span>
       </header>
 
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
-        {cards.map(card => <MetricCard key={card.title} title={card.title} value={card.value} tone={card.tone} size="lg" />)}
+      {/* KPIs do cliente — size md (calmo/consistente) num grid que respira e usa a largura recuperada
+          (CLIENT-SHELL-001 P5). Cor = significado (tone), não peso; datas/números não estouram nem cortam. */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+        {cards.map(card => <MetricCard key={card.title} title={card.title} value={card.value} tone={card.tone} size="md" />)}
       </div>
 
       <Panel label="Histórico comercial">
