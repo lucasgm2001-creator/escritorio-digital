@@ -6,12 +6,14 @@ import { AiInsightsPanel } from '@/components/ai/AiInsightsPanel'
 import { Sparkles } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { useActiveTeamId } from '@/components/auth/RoleProvider'
-import { moveLead, type MovableLead } from '../comercial/leadActions'
+import { type MovableLead } from '../comercial/leadActions'
+import { createLeadAction, moveLeadAction, setLeadTaskDoneAction } from '../comercial/lead-write-actions'
+import { updateClientAction } from '../clientes/client-write-actions'
+import { createAgentTaskAction } from './agent-actions'
 import { type LeadStatus } from '../comercial/types'
 import { loadStages } from '@/lib/funnelStages'
-import { payWeek, payWeekMessage, registerMeeting, updateClient } from '@/lib/commission/actions'
+import { payWeek, payWeekMessage, registerMeeting } from '@/lib/commission/actions'
 import { markMilestones } from '@/lib/leadMilestones'
-import { logStageEvent } from '@/lib/stageEvents'
 import { ymd } from '@/lib/format'
 
 interface Message {
@@ -77,7 +79,8 @@ export function AgentChat({ userId, userName }: { userId: string; userName: stri
     if (action.tool === 'create_lead') {
       const name = String(p.name ?? '').trim()
       if (!name) return 'Não consegui criar: faltou o nome do lead.'
-      const { data, error } = await supabase.from('leads').insert({
+      // Servidor: can(commercial,create) + histórico de entrada no funil. team_id carimbado no servidor.
+      const res = await createLeadAction({
         name,
         company: p.company ? String(p.company) : null,
         phone: p.phone ? String(p.phone) : null,
@@ -87,15 +90,8 @@ export function AgentChat({ userId, userName }: { userId: string; userName: stri
         status: 'novo',
         assigned_to: userId,
         assigned_name: userName,
-        ...(teamId ? { team_id: teamId } : {}),
-      }).select('id').single()
-      if (error || !data) return `Não consegui criar o lead: ${error?.message ?? 'erro'}`
-      // Histórico de movimentação: entrada no funil (ADITIVO/best-effort).
-      await logStageEvent(supabase, {
-        leadId: data.id, leadName: name,
-        fromStage: null, toStage: 'novo',
-        sellerId: userId, sellerName: userName,
-      }, teamId)
+      }, { logStage: true })
+      if (!res.ok) return `Não consegui criar o lead: ${res.error}`
       return `Pronto! Lead "${name}" criado no funil (status Novo).`
     }
     if (action.tool === 'create_task') {
@@ -103,29 +99,17 @@ export function AgentChat({ userId, userName }: { userId: string; userName: stri
       if (!title) return 'Não consegui criar: faltou o título da tarefa.'
       const dueDate = p.due_date ? String(p.due_date) : null
       const dueTime = dueDate && p.due_time ? String(p.due_time).slice(0, 5) : null
-      // Vínculo opcional: casa por nome com um lead existente.
-      let link: { linked_type: string; linked_id: string; linked_name: string } | null = null
-      if (p.linked_lead_name) {
-        const { data } = await supabase
-          .from('leads')
-          .select('id, name')
-          .ilike('name', `%${String(p.linked_lead_name)}%`)
-          .limit(1)
-        if (data && data[0]) link = { linked_type: 'lead', linked_id: data[0].id, linked_name: data[0].name }
-      }
-      const { data: created, error } = await supabase.from('tasks').insert({
-        user_id: userId, title, due_date: dueDate, due_time: dueTime, done: false, ...(link ?? {}),
-        ...(teamId ? { team_id: teamId } : {}),
-      }).select('id').single()
-      if (error) return `Não consegui criar a tarefa: ${error.message}`
+      // Servidor: can(commercial,edit) + resolve o vínculo do lead + carimba team_id.
+      const res = await createAgentTaskAction({ title, dueDate, dueTime, linkedLeadName: p.linked_lead_name ? String(p.linked_lead_name) : null })
+      if (!res.ok) return `Não consegui criar a tarefa: ${res.error}`
       // Sincroniza com o Google Agenda (best-effort, fire-and-forget) — só se tiver data.
-      if (created?.id && dueDate) {
+      if (res.taskId && dueDate) {
         fetch('/api/tasks/calendar-sync', {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ taskId: created.id }), keepalive: true,
+          body: JSON.stringify({ taskId: res.taskId }), keepalive: true,
         }).catch(() => {})
       }
-      return `Pronto! Tarefa "${title}" criada${link ? ` e vinculada ao lead ${link.linked_name}` : ''}.`
+      return `Pronto! Tarefa "${title}" criada${res.linkedName ? ` e vinculada ao lead ${res.linkedName}` : ''}.`
     }
     if (action.tool === 'complete_task') {
       const title = String(p.task_title ?? '').trim()
@@ -141,9 +125,9 @@ export function AgentChat({ userId, userName }: { userId: string; userName: stri
         if (exact.length === 1) task = exact[0]
         else return `Achei mais de uma tarefa pendente com "${title}": ${matches.map(m => m.title).join(', ')}. Qual delas?`
       }
-      // MESMO update do TarefasClient (concluir): done + completed_at.
-      const { error } = await supabase.from('tasks').update({ done: true, completed_at: new Date().toISOString() }).eq('id', task.id)
-      if (error) return `Não consegui concluir a tarefa: ${error.message}`
+      // Servidor: can(commercial,edit). Mesmo efeito do TarefasClient (done + completed_at).
+      const res = await setLeadTaskDoneAction(task.id, true)
+      if (!res.ok) return `Não consegui concluir a tarefa: ${res.error}`
       return `Pronto! Tarefa "${task.title}" marcada como concluída.`
     }
     if (action.tool === 'mover_lead') {
@@ -171,7 +155,8 @@ export function AgentChat({ userId, userName }: { userId: string; userName: stri
       // MESMA função do funil → dispara o won-flow pela flag is_won da fase. planoId (Fase 2A) vem do
       // prepMoverLead no fechamento; nas outras fases é null. Só FORNECE o id (mesmo caminho do modal do funil).
       const planoId = p.planoId ? String(p.planoId) : null
-      const res = await moveLead(supabase, lead as MovableLead, destino as LeadStatus, userName, stages, planoId, userId, teamId)
+      // Servidor: can(commercial,edit) + MESMO won-flow/comissão (moveLead reusado dentro da action).
+      const res = await moveLeadAction(lead as MovableLead, destino as LeadStatus, planoId)
       if (!res.ok) return `Não consegui mover o ${lead.name}: ${res.error}`
       let msg = `Pronto! Movi o ${lead.name} pra ${label}.`
       for (const n of res.notes) if (n.message) msg += `\n${n.message}`
@@ -182,8 +167,9 @@ export function AgentChat({ userId, userName }: { userId: string; userName: stri
       const clientName = String(p.clientName ?? 'cliente')
       const patch = (p.patch ?? {}) as Record<string, string>
       if (!clientId || Object.keys(patch).length === 0) return 'Não consegui editar: faltou o cliente ou o que mudar.'
-      const { error } = await updateClient(supabase, clientId, patch)
-      if (error) return `Não consegui editar o ${clientName}: ${error.message}`
+      // Servidor: can(clients,edit) + allowlist de colunas.
+      const res = await updateClientAction(clientId, patch)
+      if (!res.ok) return `Não consegui editar o ${clientName}: ${res.error}`
       return `Pronto! Cliente ${clientName} atualizado.`
     }
     if (action.tool === 'registrar_pagamento') {

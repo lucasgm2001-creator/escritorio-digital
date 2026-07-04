@@ -51,7 +51,7 @@ async function guard(action: 'create' | 'edit' | 'delete', deny: string) {
 // registramos entrada no funil (opcional) + atividade. Devolve o lead criado para o estado otimista.
 export async function createLeadAction(
   input: Record<string, unknown>,
-  opts: { activity: string; logStage: boolean },
+  opts: { activity?: string; logStage: boolean },
 ): Promise<Res<{ lead: Lead }>> {
   const g = await guard('create', DENY_CREATE)
   if (!g.context) return { ok: false, error: g.error }
@@ -69,10 +69,13 @@ export async function createLeadAction(
       sellerId: data.assigned_to ?? null, sellerName: data.assigned_name ?? null,
     }, teamId)
   }
-  await supabase.from('activities').insert({
-    type: 'lead', description: opts.activity, user_name: g.context.profile?.name ?? null,
-    entity_id: data.id, ...(teamId ? { team_id: teamId } : {}),
-  })
+  // Atividade no feed é opcional (o funil registra; o agente não registrava — preserva o comportamento).
+  if (opts.activity) {
+    await supabase.from('activities').insert({
+      type: 'lead', description: opts.activity, user_name: g.context.profile?.name ?? null,
+      entity_id: data.id, ...(teamId ? { team_id: teamId } : {}),
+    })
+  }
   return { ok: true, lead: data as Lead }
 }
 
