@@ -3,6 +3,7 @@ import { capitalizeName } from '@/lib/utils'
 import { can } from '@/lib/permissions/can'
 import { getRequestContext, switcherTeamsFromContext } from '@/server/context/request-context'
 import { AdminShell } from '@/components/admin/AdminShell'
+import { ModuleAccessProvider } from '@/components/auth/ModuleAccessProvider'
 
 export const metadata = { title: 'Administração · Escritório Digital' }
 
@@ -18,15 +19,17 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   const teams = switcherTeamsFromContext(context)
 
   return (
-    <AdminShell
-      activeTeamName={context.activeTeamName}
-      userName={userName}
-      role={context.role}
-      userEmail={context.user.email ?? null}
-      avatarUrl={context.profile?.avatar_url ?? null}
-      teams={teams}
-    >
-      {children}
-    </AdminShell>
+    <ModuleAccessProvider access={context.moduleAccess} canManageTeam={can(context, 'teams', 'manage')}>
+      <AdminShell
+        activeTeamName={context.activeTeamName}
+        userName={userName}
+        role={context.role}
+        userEmail={context.user.email ?? null}
+        avatarUrl={context.profile?.avatar_url ?? null}
+        teams={teams}
+      >
+        {children}
+      </AdminShell>
+    </ModuleAccessProvider>
   )
 }

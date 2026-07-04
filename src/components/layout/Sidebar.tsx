@@ -4,7 +4,8 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { cn } from '@/lib/utils'
 import { BrandMark } from '@/components/brand/BrandMark'
-import { MAIN_MODULES, SYSTEM_MODULES, type NavModule } from '@/lib/navigation'
+import { MAIN_MODULES, SYSTEM_MODULES, visibleNavModules, type NavModule } from '@/lib/navigation'
+import { useModuleAccess } from '@/components/auth/ModuleAccessProvider'
 
 interface SidebarProps {
   open: boolean
@@ -18,7 +19,11 @@ export function Sidebar({ open, onToggle, mobileClose, activeTeamName }: Sidebar
   const pathname = usePathname()
   const isMobileDrawer = !!mobileClose
 
-  // Itens derivam da FONTE ÚNICA (@/lib/navigation) — mesma lista/ordem/grupos que a BottomNav usa.
+  // Filtra pela AUTORIDADE de acesso (PERMISSIONS-002): "Sem acesso → nem aparece". Sem provider = mostra
+  // tudo (fail-open; a proteção real é a guarda de rota no servidor). Itens seguem da FONTE ÚNICA.
+  const ma = useModuleAccess()
+  const mainModules = ma ? visibleNavModules(MAIN_MODULES, ma.access, ma.canManageTeam) : MAIN_MODULES
+  const systemModules = ma ? visibleNavModules(SYSTEM_MODULES, ma.access, ma.canManageTeam) : SYSTEM_MODULES
   return (
     <aside
       className={cn(
@@ -59,11 +64,11 @@ export function Sidebar({ open, onToggle, mobileClose, activeTeamName }: Sidebar
 
       {/* Nav */}
       <nav className="flex-1 py-3 px-2 space-y-0.5 overflow-hidden overflow-y-auto">
-        {MAIN_MODULES.map(item => (
+        {mainModules.map(item => (
           <NavLink key={item.href} item={item} pathname={pathname} open={open || isMobileDrawer} />
         ))}
 
-        {SYSTEM_MODULES.length > 0 && (
+        {systemModules.length > 0 && (
           <>
             {(open || isMobileDrawer) && (
               <div className="px-2 pt-4 pb-1">
@@ -71,7 +76,7 @@ export function Sidebar({ open, onToggle, mobileClose, activeTeamName }: Sidebar
               </div>
             )}
             {!(open || isMobileDrawer) && <div className="my-2 mx-2 border-t border-sidebar-border/10" />}
-            {SYSTEM_MODULES.map(item => (
+            {systemModules.map(item => (
               <NavLink key={item.href} item={item} pathname={pathname} open={open || isMobileDrawer} />
             ))}
           </>

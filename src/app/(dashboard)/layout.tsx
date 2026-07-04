@@ -2,9 +2,11 @@ import { redirect } from 'next/navigation'
 import { DashboardShell } from '@/components/layout/DashboardShell'
 import { ToastProvider } from '@/components/ui/toast'
 import { capitalizeName } from '@/lib/utils'
+import { can } from '@/lib/permissions/can'
 import { getRequestContext, switcherTeamsFromContext } from '@/server/context/request-context'
 import { CommissionLockProvider } from '@/components/commission/CommissionLock'
 import { RoleProvider } from '@/components/auth/RoleProvider'
+import { ModuleAccessProvider } from '@/components/auth/ModuleAccessProvider'
 
 const PAGE_TITLES: Record<string, string> = {
   '/hall':           'Hall',
@@ -35,16 +37,18 @@ export default async function DashboardLayout({ children }: { children: React.Re
   const teams = switcherTeamsFromContext(context)
 
   return (
-    <DashboardShell
-      userName={capitalizeName(context.profile?.name ?? context.user.email?.split('@')[0] ?? 'Usuário')}
-      userId={context.user.id}
-      avatarUrl={avatarUrl}
-      pageTitles={PAGE_TITLES}
-      activeTeamName={context.activeTeamName}
-      userEmail={context.user.email ?? null}
-      teams={teams}
-    >
-      <ToastProvider><CommissionLockProvider><RoleProvider role={context.role} activeTeamId={context.activeTeamId}>{children}</RoleProvider></CommissionLockProvider></ToastProvider>
-    </DashboardShell>
+    <ModuleAccessProvider access={context.moduleAccess} canManageTeam={can(context, 'teams', 'manage')}>
+      <DashboardShell
+        userName={capitalizeName(context.profile?.name ?? context.user.email?.split('@')[0] ?? 'Usuário')}
+        userId={context.user.id}
+        avatarUrl={avatarUrl}
+        pageTitles={PAGE_TITLES}
+        activeTeamName={context.activeTeamName}
+        userEmail={context.user.email ?? null}
+        teams={teams}
+      >
+        <ToastProvider><CommissionLockProvider><RoleProvider role={context.role} activeTeamId={context.activeTeamId}>{children}</RoleProvider></CommissionLockProvider></ToastProvider>
+      </DashboardShell>
+    </ModuleAccessProvider>
   )
 }

@@ -1,7 +1,9 @@
 import { redirect } from 'next/navigation'
 import { capitalizeName } from '@/lib/utils'
+import { can } from '@/lib/permissions/can'
 import { getRequestContext, switcherTeamsFromContext } from '@/server/context/request-context'
 import { DomainShell } from '@/components/domain/DomainShell'
+import { ModuleAccessProvider } from '@/components/auth/ModuleAccessProvider'
 
 export const metadata = { title: 'Tráfego · Escritório Digital' }
 
@@ -15,16 +17,18 @@ export default async function TrafegoLayout({ children }: { children: React.Reac
   const teams = switcherTeamsFromContext(context)
 
   return (
-    <DomainShell
-      configKey="traffic"
-      subtitle={context.activeTeamName}
-      userName={userName}
-      role={context.role}
-      userEmail={context.user.email ?? null}
-      avatarUrl={context.profile?.avatar_url ?? null}
-      teams={teams}
-    >
-      {children}
-    </DomainShell>
+    <ModuleAccessProvider access={context.moduleAccess} canManageTeam={can(context, 'teams', 'manage')}>
+      <DomainShell
+        configKey="traffic"
+        subtitle={context.activeTeamName}
+        userName={userName}
+        role={context.role}
+        userEmail={context.user.email ?? null}
+        avatarUrl={context.profile?.avatar_url ?? null}
+        teams={teams}
+      >
+        {children}
+      </DomainShell>
+    </ModuleAccessProvider>
   )
 }
