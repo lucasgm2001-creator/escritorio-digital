@@ -209,6 +209,7 @@ export function LeadDiary({ lead, onClose, onUpdated, onMoveStage, onDeleted, cu
   }
   const [visibleInteractions, setVisibleInteractions] = useState(15)
   const [moreOpen, setMoreOpen] = useState(false)   // "Mais informações" FECHADA por padrão
+  const [detalhesOpen, setDetalhesOpen] = useState(false)   // "Detalhes" (config técnica) FECHADO por padrão (UX-LEAD-002)
   const shownInteractions = useMemo(() => interactions.slice(0, visibleInteractions), [interactions, visibleInteractions])
   // Extras do raw_payload (sem coluna própria) — calculado fora do corpo do render (só muda com o payload).
   const payloadExtras = useMemo(
@@ -698,68 +699,78 @@ export function LeadDiary({ lead, onClose, onUpdated, onMoveStage, onDeleted, cu
           )}
         </div>
 
-        {/* Restaurar lead da Lixeira → volta pra "Novo Lead" (slug 'novo') reusando o move (changePhase
-            → onMoveStage → moveLead), que já registra a atividade. Só aparece quando está na Lixeira. */}
-        {currentLead.status === 'lixeira' && (
-          <div className="px-5 py-3 border-b border-border">
-            {confirmingRestore ? (
-              <div className="flex items-center gap-2">
-                <span className="text-sm text-bento-dim flex-1">Restaurar este lead para Novo Lead?</span>
-                <button onClick={() => { setConfirmingRestore(false); changePhase('novo') }} disabled={movingPhase}
-                  className="bento-btn px-3 py-1.5 rounded-btn text-xs font-semibold disabled:opacity-50">Restaurar</button>
-                <button onClick={() => setConfirmingRestore(false)} className="text-xs text-bento-muted px-2 hover:text-bento-text">não</button>
-              </div>
-            ) : (
-              <button onClick={() => setConfirmingRestore(true)}
-                className="w-full flex items-center justify-center gap-2 border border-bento-border rounded-btn py-2 min-h-[44px] text-sm font-medium text-bento-dim hover:border-lime hover:text-lime-fg transition-colors">
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
-                Restaurar lead
-              </button>
-            )}
-          </div>
-        )}
-
-        {/* Data de chegada — editável (separa de quando foi cadastrado; usada no relatório por período) */}
+        {/* Detalhes — config técnica secundária (data/fuso/valor/relatório/restaurar), COLAPSADA por padrão.
+            Não compete com situação/próxima ação/observações/histórico (UX-LEAD-002, Parte 1). */}
         <div className="px-5 py-3 border-b border-border">
-          <span className="text-xs text-muted-foreground">Data de chegada</span>
-          <input type="date" value={(currentLead.received_at ?? '').slice(0, 10)}
-            onChange={e => changeReceivedAt(e.target.value)}
-            className="mt-1 w-full bg-bento-bg border border-bento-border rounded-btn px-3 py-2 text-sm text-bento-text focus:outline-none focus:border-lime min-h-[44px]" />
-          {/* Incluir no Relatório — Resumo (default ligado). Desligar tira das contas, NÃO apaga o lead. */}
-          <button type="button" onClick={toggleIncluir} className="mt-3 flex items-center justify-between w-full text-sm text-bento-text">
-            <span className="flex flex-col items-start">
-              Incluir no relatório
-              <span className="text-[11px] text-muted-foreground">{currentLead.incluir_no_relatorio === false ? 'Fora das contas do relatório' : 'Conta no Relatório — Resumo'}</span>
-            </span>
-            <span className={cn('relative w-10 h-6 rounded-full flex-none transition-colors', currentLead.incluir_no_relatorio === false ? 'bg-bento-border' : 'bg-lime')}>
-              <span className={cn('absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white transition-transform', currentLead.incluir_no_relatorio !== false && 'translate-x-4')} />
-            </span>
+          <button type="button" onClick={() => setDetalhesOpen(o => !o)} aria-expanded={detalhesOpen}
+            className="w-full flex items-center justify-between gap-2">
+            <span className="text-xs text-muted-foreground">Detalhes</span>
+            <ChevronDown className={cn('w-4 h-4 text-bento-muted transition-transform flex-none', detalhesOpen && 'rotate-180')} />
           </button>
-        </div>
+          {detalhesOpen && (
+            <div className="mt-3 space-y-4">
+              {/* Data de chegada + Incluir no relatório */}
+              <div>
+                <span className="text-xs text-muted-foreground">Data de chegada</span>
+                <input type="date" value={(currentLead.received_at ?? '').slice(0, 10)}
+                  onChange={e => changeReceivedAt(e.target.value)}
+                  className="mt-1 w-full bg-bento-bg border border-bento-border rounded-btn px-3 py-2 text-sm text-bento-text focus:outline-none focus:border-lime min-h-[44px]" />
+                <button type="button" onClick={toggleIncluir} className="mt-3 flex items-center justify-between w-full text-sm text-bento-text">
+                  <span className="flex flex-col items-start">
+                    Incluir no relatório
+                    <span className="text-[11px] text-muted-foreground">{currentLead.incluir_no_relatorio === false ? 'Fora das contas do relatório' : 'Conta no Relatório — Resumo'}</span>
+                  </span>
+                  <span className={cn('relative w-10 h-6 rounded-full flex-none transition-colors', currentLead.incluir_no_relatorio === false ? 'bg-bento-border' : 'bg-lime')}>
+                    <span className={cn('absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white transition-transform', currentLead.incluir_no_relatorio !== false && 'translate-x-4')} />
+                  </span>
+                </button>
+              </div>
 
-        {/* Fuso horário (EUA) — editável */}
-        <div className="px-5 py-3 border-b border-border">
-          <span className="text-xs text-muted-foreground">Fuso horário</span>
-          <select value={currentLead.fuso ?? ''} onChange={e => changeFuso(e.target.value)}
-            className="mt-1 w-full bg-bento-bg border border-bento-border rounded-btn px-3 py-2 text-sm text-bento-text focus:outline-none focus:border-lime min-h-[44px]">
-            <option value="">Sem fuso</option>
-            {FUSO_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-          </select>
-        </div>
+              {/* Fuso horário (EUA) */}
+              <div>
+                <span className="text-xs text-muted-foreground">Fuso horário</span>
+                <select value={currentLead.fuso ?? ''} onChange={e => changeFuso(e.target.value)}
+                  className="mt-1 w-full bg-bento-bg border border-bento-border rounded-btn px-3 py-2 text-sm text-bento-text focus:outline-none focus:border-lime min-h-[44px]">
+                  <option value="">Sem fuso</option>
+                  {FUSO_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                </select>
+              </div>
 
-        {/* Valor do plano (leads.value) — editável SÓ depois de "Reunião Agendada" (por posicao).
-            Fases bloqueadas: input some; se já houver valor salvo, mostra só leitura (NUNCA apaga). */}
-        <div className="px-5 py-3 border-b border-border">
-          <span className="text-xs text-muted-foreground">Valor do plano</span>
-          {valueEditable ? (
-            <input type="number" min="0" step="1" inputMode="decimal"
-              value={valueDraft} onChange={e => setValueDraft(e.target.value)} onBlur={changeValue}
-              placeholder="0"
-              className="mt-1 w-full bg-bento-bg border border-bento-border rounded-btn px-3 py-2 text-sm text-bento-text focus:outline-none focus:border-lime min-h-[44px]" />
-          ) : (currentLead.value || 0) > 0 ? (
-            <p className="mt-1 font-tech text-sm text-bento-text tabular-nums">{usdCompact(currentLead.value || 0)} <span className="text-[10px] text-bento-muted">· somente leitura</span></p>
-          ) : (
-            <p className="mt-1 text-xs text-bento-muted/70">Disponível após Reunião Agendada</p>
+              {/* Valor do plano — editável só depois de "Reunião Agendada"; senão leitura (NUNCA apaga). */}
+              <div>
+                <span className="text-xs text-muted-foreground">Valor do plano</span>
+                {valueEditable ? (
+                  <input type="number" min="0" step="1" inputMode="decimal"
+                    value={valueDraft} onChange={e => setValueDraft(e.target.value)} onBlur={changeValue}
+                    placeholder="0"
+                    className="mt-1 w-full bg-bento-bg border border-bento-border rounded-btn px-3 py-2 text-sm text-bento-text focus:outline-none focus:border-lime min-h-[44px]" />
+                ) : (currentLead.value || 0) > 0 ? (
+                  <p className="mt-1 font-tech text-sm text-bento-text tabular-nums">{usdCompact(currentLead.value || 0)} <span className="text-[10px] text-bento-muted">· somente leitura</span></p>
+                ) : (
+                  <p className="mt-1 text-xs text-bento-muted/70">Disponível após Reunião Agendada</p>
+                )}
+              </div>
+
+              {/* Restaurar da Lixeira → volta pra "Novo Lead" (reusa changePhase). Só quando na Lixeira. */}
+              {currentLead.status === 'lixeira' && (
+                <div>
+                  {confirmingRestore ? (
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm text-bento-dim flex-1">Restaurar este lead para Novo Lead?</span>
+                      <button onClick={() => { setConfirmingRestore(false); changePhase('novo') }} disabled={movingPhase}
+                        className="bento-btn px-3 py-1.5 rounded-btn text-xs font-semibold disabled:opacity-50">Restaurar</button>
+                      <button onClick={() => setConfirmingRestore(false)} className="text-xs text-bento-muted px-2 hover:text-bento-text">não</button>
+                    </div>
+                  ) : (
+                    <button onClick={() => setConfirmingRestore(true)}
+                      className="w-full flex items-center justify-center gap-2 border border-bento-border rounded-btn py-2 min-h-[44px] text-sm font-medium text-bento-dim hover:border-lime hover:text-lime-fg transition-colors">
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
+                      Restaurar lead
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
           )}
         </div>
 
@@ -824,51 +835,54 @@ export function LeadDiary({ lead, onClose, onUpdated, onMoveStage, onDeleted, cu
           <LeadTasks leadId={currentLead.id} leadName={currentLead.name} userId={currentUser.id} compact={false} />
         </div>
 
-        {/* Briefing IA — resumo das conversas + próximo passo + status SUGERIDO (não move o lead). */}
-        <div className="px-5 py-3 border-b border-border">
-          <div className="flex items-center justify-between gap-2 mb-2">
-            <p className="text-xs font-medium text-muted-foreground">Briefing IA</p>
-            <button onClick={handleBriefing} disabled={briefingLoading}
-              className="bento-btn flex items-center gap-1.5 px-3 py-1.5 rounded-btn text-xs font-semibold disabled:opacity-50 min-h-0">
-              <Sparkles className="w-3.5 h-3.5" />
-              {briefingLoading ? 'Gerando...' : 'Gerar briefing'}
-            </button>
-          </div>
-          {briefing && (
-            <div className="rounded-btn border border-lime/30 bg-lime/5 p-3 space-y-2">
-              {briefing.resumo && <p className="text-xs text-bento-dim leading-relaxed whitespace-pre-wrap break-words">{briefing.resumo}</p>}
-              {Array.isArray(briefing.pontos_chave) && briefing.pontos_chave.length > 0 && (
-                <ul className="text-xs text-bento-dim list-disc pl-4 space-y-0.5">
-                  {briefing.pontos_chave.map((p, i) => <li key={i} className="break-words">{p}</li>)}
-                </ul>
-              )}
-              {briefing.proximo_passo && (
-                <p className="text-xs text-bento-text break-words"><span className="font-semibold">Próximo passo:</span> {briefing.proximo_passo}</p>
-              )}
-              {briefing.status_sugerido && (
-                <p className="text-xs text-bento-muted leading-relaxed break-words">
-                  <span className="font-tech uppercase tracking-wide text-[10px]">Status sugerido:</span>{' '}
-                  <span className="text-bento-text font-semibold">{ALL_COLUMNS.find(c => c.key === briefing.status_sugerido)?.label ?? briefing.status_sugerido}</span>
-                  {briefing.justificativa_status ? ` — ${briefing.justificativa_status}` : ''}
-                  <span className="text-bento-muted/70"> (sugestão — não muda o status sozinho)</span>
-                </p>
-              )}
-            </div>
-          )}
-        </div>
+        {/* Inteligência — Briefing + Análise num ÚNICO ponto de leitura, rebaixado (UX-LEAD-002, Parte 5).
+            Ações discretas (text-link); nada de dois blocos competindo. Sem remover funcionalidade. */}
+        <div className="px-5 py-3 border-b border-border space-y-3">
+          <p className="text-xs font-medium text-muted-foreground">Inteligência</p>
 
-        {/* IA */}
-        <div className="px-5 py-3 border-b border-border">
-          <div className="flex items-center justify-between mb-2">
-            <p className="text-xs font-medium text-muted-foreground">Análise com IA</p>
-            <button onClick={handleAiAnalysis} disabled={aiLoading}
-              className="font-tech text-xs text-lime-fg hover:text-lime disabled:opacity-50">
-              {aiLoading ? 'Analisando...' : 'Gerar análise'}
-            </button>
+          <div>
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-xs text-bento-muted">Briefing IA</span>
+              <button onClick={handleBriefing} disabled={briefingLoading}
+                className="font-tech text-xs text-lime-fg hover:text-lime disabled:opacity-50 inline-flex items-center gap-1.5">
+                <Sparkles className="w-3.5 h-3.5" />{briefingLoading ? 'Gerando...' : 'Gerar briefing'}
+              </button>
+            </div>
+            {briefing && (
+              <div className="mt-2 rounded-btn border border-lime/30 bg-lime/5 p-3 space-y-2">
+                {briefing.resumo && <p className="text-xs text-bento-dim leading-relaxed whitespace-pre-wrap break-words">{briefing.resumo}</p>}
+                {Array.isArray(briefing.pontos_chave) && briefing.pontos_chave.length > 0 && (
+                  <ul className="text-xs text-bento-dim list-disc pl-4 space-y-0.5">
+                    {briefing.pontos_chave.map((p, i) => <li key={i} className="break-words">{p}</li>)}
+                  </ul>
+                )}
+                {briefing.proximo_passo && (
+                  <p className="text-xs text-bento-text break-words"><span className="font-semibold">Próximo passo:</span> {briefing.proximo_passo}</p>
+                )}
+                {briefing.status_sugerido && (
+                  <p className="text-xs text-bento-muted leading-relaxed break-words">
+                    <span className="font-tech uppercase tracking-wide text-[10px]">Status sugerido:</span>{' '}
+                    <span className="text-bento-text font-semibold">{ALL_COLUMNS.find(c => c.key === briefing.status_sugerido)?.label ?? briefing.status_sugerido}</span>
+                    {briefing.justificativa_status ? ` — ${briefing.justificativa_status}` : ''}
+                    <span className="text-bento-muted/70"> (sugestão — não muda o status sozinho)</span>
+                  </p>
+                )}
+              </div>
+            )}
           </div>
-          {aiSuggestion && (
-            <p className="text-xs text-bento-dim bg-bento-bg border border-bento-border rounded-btn p-3 leading-relaxed">{aiSuggestion}</p>
-          )}
+
+          <div>
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-xs text-bento-muted">Análise com IA</span>
+              <button onClick={handleAiAnalysis} disabled={aiLoading}
+                className="font-tech text-xs text-lime-fg hover:text-lime disabled:opacity-50">
+                {aiLoading ? 'Analisando...' : 'Gerar análise'}
+              </button>
+            </div>
+            {aiSuggestion && (
+              <p className="mt-2 text-xs text-bento-dim bg-bento-bg border border-bento-border rounded-btn p-3 leading-relaxed">{aiSuggestion}</p>
+            )}
+          </div>
         </div>
 
         {/* Timeline — SEM scroll próprio (flui no scroll único). Renderiza incremental: 15 + "ver mais". */}
@@ -886,7 +900,7 @@ export function LeadDiary({ lead, onClose, onUpdated, onMoveStage, onDeleted, cu
                     <div className="flex items-center gap-2">
                       <span className="text-xs font-medium text-foreground">{INTERACTION_LABEL[i.type] ?? i.type.replace('_', ' ')}</span>
                       {i.score_delta !== 0 && (
-                        <span className={`text-xs font-mono ${i.score_delta > 0 ? 'text-green-400' : 'text-red-400'}`}>
+                        <span className="text-xs font-mono text-bento-dim">
                           {i.score_delta > 0 ? '+' : ''}{i.score_delta}
                         </span>
                       )}
