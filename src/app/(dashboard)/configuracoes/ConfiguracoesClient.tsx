@@ -13,6 +13,8 @@ import {
 import { Panel } from '@/components/bento/Panel'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { createClient } from '@/lib/supabase/client'
+import { updateOwnProfileAction } from '../perfil/profile-actions'
+import { updateSystemLogoAction } from './settings-actions'
 import { cn } from '@/lib/utils'
 import { ymd, usd } from '@/lib/format'
 import { SYSTEM_LOGO_BUCKET, SYSTEM_LOGO_PATH } from '@/lib/logo'
@@ -204,7 +206,8 @@ function ContaSection() {
   const salvarCall = async () => {
     if (!uid) return
     setCallBusy(true); setCallMsg(null)
-    const { error } = await supabase.from('profiles').update({ call_link: callLink.trim() || null }).eq('id', uid)
+    // Servidor: configuração PESSOAL do próprio perfil (id do contexto, nunca da UI).
+    const { error } = await updateOwnProfileAction({ call_link: callLink.trim() || null })
     setCallBusy(false)
     if (error) setCallMsg({ t: 'err', m: `Não foi possível salvar: ${error.message}` })
     else setCallMsg({ t: 'ok', m: 'Link salvo.' })
@@ -643,7 +646,9 @@ function LogoUploadSection({ userId }: { userId: string }) {
       if (upErr) throw upErr
       const { data: { publicUrl } } = supabase.storage.from(SYSTEM_LOGO_BUCKET).getPublicUrl(SYSTEM_LOGO_PATH)
       const urlWithBust = `${publicUrl}?t=${Date.now()}`
-      await supabase.from('profiles').update({ logo_url: urlWithBust }).eq('id', userId)
+      // Servidor: branding do workspace → exige owner/admin (settings.manage). id do contexto.
+      const { error: logoErr } = await updateSystemLogoAction(urlWithBust)
+      if (logoErr) throw new Error(logoErr.message)
       setLogoUrl(urlWithBust)
       setSuccess('Logo atualizada. Recarregue a página para vê-la no menu lateral.')
     } catch (err) {

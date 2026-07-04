@@ -8,7 +8,9 @@ import { createClient } from '@/lib/supabase/server'
 // então é impossível editar o perfil de outro usuário, mesmo chamando a action manualmente. Allowlist de campos.
 type WriteError = { message: string } | null
 
-const PROFILE_COLS = ['name', 'phone', 'cargo', 'avatar_url'] as const
+// Campos PESSOAIS do próprio perfil (inclui call_link, editado em Configurações). logo_url NÃO entra aqui:
+// é branding do workspace (owner/admin) → vai por action gated própria (updateSystemLogoAction).
+const PROFILE_COLS = ['name', 'phone', 'cargo', 'avatar_url', 'call_link'] as const
 
 function pick(input: Record<string, unknown>, cols: readonly string[]): Record<string, unknown> {
   const out: Record<string, unknown> = {}
