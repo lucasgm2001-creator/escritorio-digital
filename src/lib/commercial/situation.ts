@@ -65,3 +65,96 @@ export function nextContactFromWhen(when: WhenChoice, explicitDate: string | nul
   else if (when === 'esta_semana') d.setDate(d.getDate() + 3)
   return d.toISOString().slice(0, 10)
 }
+
+// ─── Derivação HONESTA da situação para o Radar (PRODUCT-SPRINT-003, PARTE EXTRA) ────────────────
+// O Radar é uma FILA OPERACIONAL: quando não há situação/ação MANUAL, deriva uma leitura fiel a partir dos dados
+// reais (fase do funil, última interação, next_contact, reunião/proposta/venda/desistência) — nunca inventa,
+// nunca esconde. Puro (client+server). Recebe uma visão mínima da fase (resolvida de funnel_stages pela UI) para
+// não acoplar aqui a tabela de fases.
+export type LeadSituationInput = {
+  status?: string | null
+  score?: number | null
+  current_situation?: string | null
+  last_action?: string | null
+  next_action?: string | null
+  next_contact?: string | null
+  last_contact_at?: string | null
+  temperature?: string | null
+  followup_state?: string | null
+  received_at?: string | null
+}
+export type StageFacts = { name: string; isWon: boolean; isLost: boolean; isMeeting: boolean; isProposal: boolean }
+export type LeadSituationView = {
+  state: FollowupState
+  temp: Temperature | null
+  situation: string          // "por que está nessa situação" (manual OU derivada)
+  situationDerived: boolean   // true = não veio de campo manual
+  nextText: string           // o que fazer (nunca vazio quando há ação possível)
+  nextWhen: string | null    // quando (YYYY-MM-DD), se houver
+  urgency: number            // ordenação da fila: MENOR = mais no topo (atrasado primeiro)
+}
+
+const dayMs = 86_400_000
+const toDays = (ymd: string): number => { const [y, m, d] = ymd.slice(0, 10).split('-').map(Number); return Date.UTC(y, (m ?? 1) - 1, d ?? 1) / dayMs }
+// Rótulo relativo honesto: "hoje" / "ontem" / "há N dias" / "em N dias".
+export function relativeDayLabel(iso: string | null | undefined, today: string): string | null {
+  if (!iso) return null
+  const diff = toDays(String(iso)) - toDays(today)
+  if (diff === 0) return 'hoje'
+  if (diff === -1) return 'ontem'
+  if (diff === 1) return 'amanhã'
+  return diff < 0 ? `há ${-diff} dias` : `em ${diff} dias`
+}
+const tempRank = (t: Temperature | null): number => (t === 'muito_quente' ? 3 : t === 'quente' ? 2 : t === 'morno' ? 1 : 0)
+
+export function deriveLeadSituation(l: LeadSituationInput, stage: StageFacts, today: string): LeadSituationView {
+  const temp = (isTemperature(l.temperature) ? l.temperature : null) ?? temperatureFromScore(l.score)
+  const overdue = !!l.next_contact && l.next_contact.slice(0, 10) <= today
+  const scheduled = !!l.next_contact && l.next_contact.slice(0, 10) > today
+
+  // ── ESTADO (o bucket da fila) — manual se existir, senão derivado dos dados reais ──
+  let state: FollowupState
+  if (l.followup_state && (FOLLOWUP_STATES as string[]).includes(l.followup_state)) state = l.followup_state as FollowupState
+  else if (stage.isWon) state = 'fechado'
+  else if (stage.isLost) state = l.last_action === 'desistiu' ? 'desistiu' : 'perdido'
+  else if (overdue) state = 'precisa_agir'
+  else if (scheduled) state = 'agendado'
+  else if (l.last_contact_at) state = 'aguardando'
+  else state = 'sem_atualizacao'
+
+  // ── SITUAÇÃO (por quê) — manual OU derivada honesta ──
+  let situation: string, situationDerived = false
+  if (l.current_situation && l.current_situation.trim()) situation = l.current_situation.trim()
+  else {
+    situationDerived = true
+    if (stage.isWon) situation = 'Venda fechada — cliente ativo.'
+    else if (stage.isLost) situation = l.last_action === 'desistiu' ? 'Lead desistiu.' : 'Lead perdido.'
+    else {
+      const bits = [stage.name]
+      const rel = relativeDayLabel(l.last_contact_at, today)
+      if (rel) bits.push(`último contato ${rel}`)
+      else { const chegou = relativeDayLabel(l.received_at, today); bits.push(chegou ? `sem contato (chegou ${chegou})` : 'ainda sem contato') }
+      situation = bits.join(' · ')
+    }
+  }
+
+  // ── PRÓXIMA AÇÃO (o quê) + QUANDO — manual OU derivada ──
+  let nextText: string, nextWhen: string | null = l.next_contact ? l.next_contact.slice(0, 10) : null
+  if (l.next_action && l.next_action !== 'nenhuma' && (NEXT_ACTIONS as string[]).includes(l.next_action)) nextText = NEXT_ACTION_LABEL[l.next_action as NextAction]
+  else if (stage.isWon || stage.isLost) { nextText = '—'; nextWhen = null }
+  else if (overdue) nextText = 'Follow-up atrasado'
+  else if (scheduled) nextText = 'Follow-up agendado'
+  else if (stage.isMeeting) nextText = 'Realizar / confirmar reunião'
+  else if (stage.isProposal) nextText = 'Cobrar retorno da proposta'
+  else if (l.last_contact_at) nextText = 'Retomar contato'
+  else nextText = 'Fazer primeiro contato'
+
+  // ── URGÊNCIA (fila): MENOR sobe. Atrasado (dias negativos) no topo; futuro desce; fechados/perdidos no fim.
+  //    Quente desempata dentro do mesmo nível. "Sem atualização" fica atrás de quem tem data, à frente do futuro distante.
+  let urgency: number
+  if (stage.isWon || stage.isLost) urgency = 100_000
+  else if (l.next_contact) urgency = toDays(l.next_contact) - toDays(today)   // <0 atrasado, 0 hoje, >0 futuro
+  else if (state === 'sem_atualizacao') urgency = 30
+  else urgency = 20
+  return { state, temp, situation, situationDerived, nextText, nextWhen, urgency: urgency - tempRank(temp) * 0.1 }
+}

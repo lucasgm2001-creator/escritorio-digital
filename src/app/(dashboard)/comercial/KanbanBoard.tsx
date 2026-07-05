@@ -392,7 +392,12 @@ export function KanbanBoard({ initialLeads, initialStages, initialClients, curre
           </div>
         )}
 
-        {tab === 'radar'        && <RadarTab leads={leads} />}
+        {/* Radar rola por conta própria — o pai é overflow-hidden (senão a lista fica cortada). PARTE EXTRA. */}
+        {tab === 'radar'        && (
+          <div className="h-full overflow-y-auto overscroll-contain bg-bento-bg">
+            <RadarTab leads={leads} stages={liveStages} />
+          </div>
+        )}
         {tab === 'contatos'     && <ContatosTab leads={leads} clients={clients} onOpenLead={setSelectedLead} onClientUpdated={c => setClients(prev => prev.map(x => x.id === c.id ? c : x))} />}
         {tab === 'metricas'     && <MetricasTab />}
       </div>
