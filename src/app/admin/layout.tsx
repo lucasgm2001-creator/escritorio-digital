@@ -6,7 +6,6 @@ import { AdminShell } from '@/components/admin/AdminShell'
 import { ModuleAccessProvider } from '@/components/auth/ModuleAccessProvider'
 import { ToastProvider } from '@/components/ui/toast'
 import { RoleProvider } from '@/components/auth/RoleProvider'
-import { DOMAIN_CONFIGS } from '@/lib/domain/registry'
 
 export const metadata = { title: 'Administração · Escritório Digital' }
 
@@ -25,10 +24,10 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   const userName = capitalizeName(context.profile?.name ?? context.user.email?.split('@')[0] ?? 'Usuário')
   const teams = switcherTeamsFromContext(context)
 
-  // Nav filtrada por permissão (sem tocar na casca genérica): owner/dev veem todas as seções; quem só tem
-  // Clientes vê apenas essa. Reusa o registro estático e filtra as sections — o DomainShell aceita config pronto.
-  const base = DOMAIN_CONFIGS.admin
-  const config = canManage ? base : { ...base, sections: base.sections.filter(s => s.key === 'clientes') }
+  // Nav filtrada por permissão — passa só as CHAVES das seções visíveis (serializável). owner/dev = undefined (vê
+  // tudo); quem só tem o módulo Clientes = ['clientes']. O DomainShell (client) resolve os ícones do registro e
+  // filtra — NUNCA serializamos o config com ícones do servidor (HOTFIX-ADMIN-001 / digest 4189986675).
+  const visibleSectionKeys = canManage ? undefined : ['clientes']
 
   return (
     <ModuleAccessProvider access={context.moduleAccess} canManageTeam={canManage}>
@@ -39,7 +38,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
         userEmail={context.user.email ?? null}
         avatarUrl={context.profile?.avatar_url ?? null}
         teams={teams}
-        config={config}
+        visibleSectionKeys={visibleSectionKeys}
       >
         {/* HOTFIX/FIX-REMUNERACAO-PROVIDER: a Administração herda componentes client do Comercial
             (VendedoresTab/CommissionSection) que dependem destes contextos — mesmo padrão do

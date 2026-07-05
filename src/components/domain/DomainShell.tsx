@@ -13,9 +13,10 @@ import type { DomainConfig, DomainKey } from '@/lib/domain/nav'
 // Casca GENÉRICA de domínio (Administração, Tráfego, Workspace do Cliente, ...). Uma implementação p/ todos.
 // Mobile: cabeçalho fixo (← back / seção / Seções) + bottom sheet. iPad/Desktop: rail + contexto.
 // Aceita configKey (registro estático) OU um config resolvido (ex.: Cliente, com hrefs por id).
-export function DomainShell({ configKey, config: configProp, subtitle, userName, role, userEmail = null, avatarUrl = null, teams = [], children }: {
+export function DomainShell({ configKey, config: configProp, visibleSectionKeys, subtitle, userName, role, userEmail = null, avatarUrl = null, teams = [], children }: {
   configKey?: DomainKey
   config?: DomainConfig
+  visibleSectionKeys?: string[]   // filtro de seções por permissão (só as CHAVES — serializável server→client)
   subtitle: string | null
   userName: string
   role: string
@@ -27,7 +28,13 @@ export function DomainShell({ configKey, config: configProp, subtitle, userName,
   const [sheetOpen, setSheetOpen] = useState(false)
   const [railOpen, setRailOpen] = useState(false)   // rail global colapsada por padrão (60px); expande no toggle
   const pathname = usePathname()
-  const config = configProp ?? DOMAIN_CONFIGS[configKey!]
+  const resolved = configProp ?? DOMAIN_CONFIGS[configKey!]
+  // Filtro de seções por PERMISSÃO (HOTFIX-ADMIN-001): recebe só as CHAVES (serializável) e resolve/filtra AQUI, no
+  // client — os ícones (lucide, funções) nunca cruzam a fronteira server→client. Passar o config PRONTO com ícones
+  // quebrava /admin ("Functions cannot be passed directly to Client Components", digest 4189986675).
+  const config = visibleSectionKeys && visibleSectionKeys.length
+    ? { ...resolved, sections: resolved.sections.filter(s => visibleSectionKeys.includes(s.key)) }
+    : resolved
   const current = config.sections.find(section =>
     pathname === section.href || (section.href !== config.homePath && pathname.startsWith(section.href + '/')),
   )
