@@ -360,7 +360,7 @@ export async function applyPlanUpgrade(
   // Responsável sem comissão (Parte 3): Daniel & cia. NÃO recebem bônus de upgrade. O plano ainda muda (billing)
   // e o evento é auditado (plan_changes) — só o BÔNUS na comissão não é lançado. Resolve pelo RESPONSÁVEL do
   // cliente (não pelo vendedor de fallback), senão um cliente do Daniel sem deal cairia no 1º ativo e ganharia bônus.
-  const { geraComissao } = await resolveSellerForCommission(supabase, (cli as { assigned_name?: string | null }).assigned_name ?? null)
+  const { geraComissao } = await resolveSellerForCommission(supabase, (cli as { assigned_name?: string | null }).assigned_name ?? null, teamId)
 
   // Bônus a partir da config JÁ EXISTENTE do vendedor (nada de regra nova; só é lida e aplicada).
   let bonus = 0
@@ -445,17 +445,24 @@ const atNoon = (ymd: string): string => `${ymd}T12:00:00.000Z` // timestamp est�
 // Vendedor + se GERA COMISSÃO (PRODUCT-SPRINT-003, Parte 3). Resolve por nome (assigned_name → 1º ativo, mesma
 // regra do won-flow) e devolve a flag gera_comissao. Um vendedor com gera_comissao=false (ex.: Daniel, o dono)
 // NUNCA gera comissão: o chamador PULA a criação de deal/reunião/upgrade. A RECEITA (client_payments) continua.
+// TEAM-SCOPE (FIX-CLIENTS-AUDIT-001): filtra por team_id quando informado. A RLS de sellers já é team_scope, mas
+// os caminhos service-role (saveClientHistory/saveLeadHistory) IGNORAM a RLS — sem este filtro, o fallback
+// "1º ativo" podia pegar vendedor de OUTRA equipe. Com teamId, nunca cruza equipe. NÃO muda a regra de comissão.
 export async function resolveSellerForCommission(
-  supabase: SupaClient, assignedName?: string | null,
+  supabase: SupaClient, assignedName: string | null | undefined, teamId?: string | null,
 ): Promise<{ sellerId: string | null; geraComissao: boolean }> {
   const flagOf = (row: { id: string; gera_comissao?: boolean } | undefined) =>
     row ? { sellerId: row.id, geraComissao: row.gera_comissao !== false } : null
   const nm = (assignedName ?? '').trim()
   if (nm) {
-    const { data } = await supabase.from('sellers').select('id, gera_comissao').eq('status', 'ativo').ilike('name', `%${nm}%`).limit(1)
+    let q = supabase.from('sellers').select('id, gera_comissao').eq('status', 'ativo').ilike('name', `%${nm}%`)
+    if (teamId) q = q.eq('team_id', teamId)
+    const { data } = await q.limit(1)
     const hit = flagOf(data?.[0]); if (hit) return hit
   }
-  const { data } = await supabase.from('sellers').select('id, gera_comissao').eq('status', 'ativo').order('created_at').limit(1)
+  let q2 = supabase.from('sellers').select('id, gera_comissao').eq('status', 'ativo')
+  if (teamId) q2 = q2.eq('team_id', teamId)
+  const { data } = await q2.order('created_at').limit(1)
   return flagOf(data?.[0]) ?? { sellerId: null, geraComissao: true }
 }
 
@@ -490,7 +497,7 @@ async function reconstructLeadPipelineEvents(
     { const { data } = await supabase.from('meetings').select('id').eq('lead_id', leadId).limit(1); mid = data?.[0]?.id ?? null }
     if (!mid && clientId) { const { data } = await supabase.from('meetings').select('id').eq('client_id', clientId).limit(1); mid = data?.[0]?.id ?? null }
     if (mid) { let mq = supabase.from('meetings').update({ met_on: meetingDate }).eq('id', mid); if (teamId) mq = mq.eq('team_id', teamId); await mq }
-    else { const { error } = await registerMeeting(supabase, sellerId, { metOn: meetingDate, valorUsd: 15, clientId: clientId ?? null, clientName: leadName, leadId }, rate, teamId); if (!error) createdMeeting = true }
+    else { const { error } = await registerMeeting(supabase, sellerId, { metOn: meetingDate, valorUsd: 15, clientId: clientId ?? null, clientName: leadName, leadId }, rate, teamId); if (!error) createdMeeting = true; else console.warn('[reconstructLeadPipelineEvents] falha ao criar reunião histórica (best-effort):', error.message) }
   }
 
   // STAGE EVENTS históricos — reconstrói a jornada do funil (→reunião →proposta →final) nas datas reais, para
@@ -505,7 +512,7 @@ async function reconstructLeadPipelineEvents(
     if (meetingDate) { ev(prev, 'reuniao', meetingDate); prev = 'reuniao' }
     if (proposalDate) { ev(prev, 'proposta', proposalDate); prev = 'proposta' }
     if (finalStage && finalDate && finalStage !== prev) ev(prev, finalStage, finalDate)
-    if (rows.length > 0) { const { error } = await supabase.from('stage_events').insert(rows); if (!error) stageEvents = rows.length }
+    if (rows.length > 0) { const { error } = await supabase.from('stage_events').insert(rows); if (!error) stageEvents = rows.length; else console.warn('[reconstructLeadPipelineEvents] falha ao gravar stage_events históricos (best-effort):', error.message) }
   }
 
   // PRIMEIRO CONTATO como interação (created_at histórico) — só se o lead ainda não tem interações. Aparece na
@@ -513,10 +520,11 @@ async function reconstructLeadPipelineEvents(
   if (firstContact) {
     const { data: existingInt } = await supabase.from('lead_interactions').select('id').eq('lead_id', leadId).limit(1)
     if (!existingInt || existingInt.length === 0) {
-      await supabase.from('lead_interactions').insert({
+      const { error } = await supabase.from('lead_interactions').insert({
         lead_id: leadId, type: 'atendeu', note: 'Primeiro contato', score_delta: 0,
         created_by_name: sellerName, created_at: atNoon(firstContact), ...withTeam(teamId),
       })
+      if (error) console.warn('[reconstructLeadPipelineEvents] falha ao gravar 1º contato histórico (best-effort):', error.message)
     }
   }
   return { stageEvents, createdMeeting }
@@ -553,7 +561,7 @@ export async function saveClientHistory(
   let sellerId: string | null = (deal?.seller_id as string | null) ?? null
   let geraComissao: boolean
   if (sellerId) { geraComissao = await sellerGeraComissao(supabase, sellerId) }
-  else { const r = await resolveSellerForCommission(supabase, sellerName); sellerId = r.sellerId; geraComissao = r.geraComissao }
+  else { const r = await resolveSellerForCommission(supabase, sellerName, teamId); sellerId = r.sellerId; geraComissao = r.geraComissao }
 
   // LEAD: via deal.lead_id → por nome → cria (won, received_at histórico). NÃO marca origem='cliente_existente'
   // (esse valor é EXCLUÍDO das métricas de período): é um lead ganho real e deve contar no funil/relatórios.
@@ -650,7 +658,7 @@ export async function saveLeadHistory(
   const sellerName = (lead.assigned_name as string | null) ?? null
 
   // Vendedor + gera comissão? (Parte 3). Responsável sem comissão (Daniel) → reunião não vira comissão.
-  const { sellerId, geraComissao } = await resolveSellerForCommission(supabase, sellerName)
+  const { sellerId, geraComissao } = await resolveSellerForCommission(supabase, sellerName, teamId)
 
   // Update NÃO-destrutivo do lead: só o que foi informado. Se vendido, status=won + fechamento.
   const leadPatch: Record<string, string> = {}

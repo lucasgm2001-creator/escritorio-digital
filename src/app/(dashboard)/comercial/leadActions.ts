@@ -98,7 +98,7 @@ export async function runWonFlow(supabase: SupaClient, lead: MovableLead, userNa
 
   // Vendedor + GERA COMISSÃO? (Parte 3). Resolve pelo RESPONSÁVEL do lead (não mais "1º ativo fixo"): Daniel
   // (dono, gera_comissao=false) = cliente + receita, SEM comissão. Sem vendedor ativo → não cria deal.
-  const { sellerId, geraComissao } = await resolveSellerForCommission(supabase, lead.assigned_name)
+  const { sellerId, geraComissao } = await resolveSellerForCommission(supabase, lead.assigned_name, teamId)
   if (!sellerId) {
     notes.push({ message: 'Cliente cadastrado, mas não lancei a comissão: nenhum vendedor ativo configurado.', type: 'error' })
     return notes
@@ -198,7 +198,7 @@ export async function moveLead(
       const { data: jaTem } = await supabase.from('meetings').select('id').eq('lead_id', lead.id).limit(1)
       if (!jaTem || jaTem.length === 0) {
         // Parte 3: responsável sem comissão (Daniel) não gera reunião. Resolve vendedor + flag pelo responsável.
-        const { sellerId, geraComissao } = await resolveSellerForCommission(supabase, lead.assigned_name)
+        const { sellerId, geraComissao } = await resolveSellerForCommission(supabase, lead.assigned_name, teamId)
         if (sellerId && geraComissao) {
           const { data: fx } = await supabase.from('fx_config').select('cotacao_manual, cotacao_travada').eq('id', 1).maybeSingle()
           const manual = fx?.cotacao_manual != null ? Number(fx.cotacao_manual) : null

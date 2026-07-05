@@ -492,7 +492,7 @@ export function TarefasClient({ tasks, setTasks, deletedIds, linkOptions, curren
             </div>
             <div className="flex items-center gap-2 flex-wrap mt-1.5">
               {t.linked_id && t.linked_name && (
-                <Link href={t.linked_type === 'lead' ? '/comercial' : '/clientes'} onClick={e => e.stopPropagation()}
+                <Link href={t.linked_type === 'lead' ? '/comercial' : '/admin/clientes'} onClick={e => e.stopPropagation()}
                   className="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded bg-bento-bg border border-bento-border text-bento-dim max-w-[180px]">
                   <span className={cn('w-1 h-1 rounded-full flex-none', t.linked_type === 'lead' ? 'bg-blue-400' : 'bg-lime')} />
                   <span className="truncate">{t.linked_name}</span>
