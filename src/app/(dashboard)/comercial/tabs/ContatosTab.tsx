@@ -32,6 +32,9 @@ type Row = {
   company: string
   phone: string
   email: string
+  city: string        // geografia — busca por cidade/estado/DDD (LEAD-GEO-001)
+  state: string
+  area_code: string
   faseKey: string     // slug do status (lead) ou 'cliente'
   faseLabel: string
   faseDot: string     // classe de cor do ponto
@@ -121,6 +124,7 @@ export function ContatosTab({ leads, clients, onOpenLead, onClientUpdated }: Pro
     for (const c of periodClients) {
       out.push({
         id: c.id, origem: 'client', name: c.name, company: c.company ?? '', phone: c.phone ?? '', email: c.email ?? '',
+        city: c.city ?? '', state: c.state ?? '', area_code: c.area_code ?? '',
         faseKey: 'cliente', faseLabel: 'Cliente', faseDot: 'bg-lime',
         nicho: (c.nicho ?? '').trim(), fuso: (c.fuso ?? '') || '', chegada: c.start_date ?? '',
       })
@@ -133,6 +137,7 @@ export function ContatosTab({ leads, clients, onOpenLead, onClientUpdated }: Pro
         // linha. Só fica VISÍVEL quando o filtro "Lixeira" está ligado (ver `visible`).
         out.push({
           id: l.id, origem: 'lead', name: l.name, company: l.company ?? '', phone: l.phone ?? '', email: l.email ?? '',
+          city: l.city ?? '', state: l.state ?? '', area_code: l.area_code ?? '',
           faseKey: 'lixeira', faseLabel: st?.label ?? 'Lixeira', faseDot: st?.dotColor ?? 'bg-bento-muted',
           nicho: (l.nicho ?? '').trim(), fuso: (l.fuso ?? '') || '', chegada: l.received_at ?? '',
         })
@@ -141,6 +146,7 @@ export function ContatosTab({ leads, clients, onOpenLead, onClientUpdated }: Pro
       if ((p && clientKeys.has('p:' + p)) || (e && clientKeys.has('e:' + e))) continue   // já é cliente
       out.push({
         id: l.id, origem: 'lead', name: l.name, company: l.company ?? '', phone: l.phone ?? '', email: l.email ?? '',
+        city: l.city ?? '', state: l.state ?? '', area_code: l.area_code ?? '',
         faseKey: l.status, faseLabel: st?.label ?? l.status, faseDot: st?.dotColor ?? 'bg-bento-muted',
         nicho: (l.nicho ?? '').trim(), fuso: (l.fuso ?? '') || '', chegada: l.received_at ?? '',
       })
@@ -163,7 +169,8 @@ export function ContatosTab({ leads, clients, onOpenLead, onClientUpdated }: Pro
   // Os demais (ativos/cliente) seguem com busca + Fase + Nicho + Fuso (e a dedup de hoje).
   const { visibleMain, visibleLixeira } = useMemo(() => {
     const q = search.trim().toLowerCase()
-    const matchText = (r: Row) => !q || [r.name, r.company, r.phone, r.email].some(v => v.toLowerCase().includes(q))
+    // Busca por texto: nome, empresa, telefone, e-mail + GEOGRAFIA (cidade, estado, DDD) — LEAD-GEO-001.
+    const matchText = (r: Row) => !q || [r.name, r.company, r.phone, r.email, r.city, r.state, r.area_code].some(v => v.toLowerCase().includes(q))
     const matchNichoFuso = (r: Row) =>
       (!nichoSel.size || nichoSel.has(r.nicho)) && (!fusoSel.size || fusoSel.has(r.fuso || '__none__'))
     const main: Row[] = []

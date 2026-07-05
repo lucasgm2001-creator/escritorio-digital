@@ -39,22 +39,36 @@ export type PhoneGeo = {
   label: string              // texto de sugestão pronto: "Massachusetts · região 774" / "Rio de Janeiro · RJ"
 }
 
+// ── Extração PURA e sync do código de área (FONTE ÚNICA da regra) ──────────────────────────────
+// EUA: 11+ díg começando com 1 → [1..4]; 10 díg → [0..3]. Fora disso → ''. Reusado pelo webhook
+// (leadIntake/inbound) e pela UI — ninguém mais reimplementa o slice (LEAD-GEO-001).
+export function usAreaCodeFromDigits(digits: string): string {
+  if (digits.length >= 11 && digits[0] === '1') return digits.slice(1, 4)
+  if (digits.length === 10) return digits.slice(0, 3)
+  return ''
+}
+export function usAreaCodeFromPhone(phone: string | null | undefined): string {
+  return usAreaCodeFromDigits((phone ?? '').replace(/\D/g, ''))
+}
+// Brasil: +55 + DDD(2) + número(8–9 díg) → DDD; fora disso → ''.
+export function brazilDddFromDigits(digits: string): string {
+  return digits.startsWith('55') && digits.length >= 12 && digits.length <= 13 ? digits.slice(2, 4) : ''
+}
+
 // Detecta a geografia a partir do telefone. async: o mapa dos EUA (grande) é carregado sob demanda.
 export async function resolvePhoneGeo(phone: string | null | undefined): Promise<PhoneGeo | null> {
   const digits = (phone ?? '').replace(/\D/g, '')
   if (!digits) return null
 
-  // BRASIL: +55 + DDD(2) + número(8–9 díg). Ex.: 5521999998888 → DDD 21.
-  if (digits.startsWith('55') && digits.length >= 12 && digits.length <= 13) {
-    const ddd = digits.slice(2, 4)
+  // BRASIL primeiro (55 + DDD): DDD reconhecido → sugere; DDD inválido → null.
+  const ddd = brazilDddFromDigits(digits)
+  if (ddd) {
     const br = BRAZIL_DDD[ddd]
     return br ? { areaCode: ddd, city: br.city, state: br.uf, country: 'BR', label: `${br.city} · ${br.uf}` } : null
   }
 
-  // EUA: 11 díg começando com 1 → area code = [1..4]; 10 díg → [0..3].
-  let ac = ''
-  if (digits.length >= 11 && digits[0] === '1') ac = digits.slice(1, 4)
-  else if (digits.length === 10) ac = digits.slice(0, 3)
+  // EUA (mesma extração do webhook via usAreaCodeFromDigits).
+  const ac = usAreaCodeFromDigits(digits)
   if (!ac) return null
 
   const mod = await import('@/data/us-map.json')

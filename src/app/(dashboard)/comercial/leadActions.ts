@@ -26,6 +26,9 @@ export interface MovableLead {
   company?: string | null
   assigned_to?: string | null
   assigned_name?: string | null
+  city?: string | null        // geografia herdada pelo cliente ao fechar (LEAD-GEO-001) — mesmas colunas
+  state?: string | null
+  area_code?: string | null
 }
 
 // Fluxo de "ganhou" (lead → Venda Fechada): atividade + cliente (idempotente, reativa
@@ -78,6 +81,8 @@ export async function runWonFlow(supabase: SupaClient, lead: MovableLead, userNa
     }
     const { data: newClient, error: clientErr } = await supabase.from('clients').insert({
       name: lead.name, email: lead.email ?? null, phone: lead.phone ?? null, company: lead.company ?? null,
+      // Geografia HERDADA do lead (LEAD-GEO-001) — MESMAS colunas; o cliente nasce no mesmo local, sem re-detecção.
+      city: lead.city ?? null, state: lead.state ?? null, area_code: lead.area_code ?? null,
       plano_id: novoPlanoId, plan_weekly: novoPlanWeekly, status: 'ativo',
       dia_pagamento_semana: diaPagamentoSemana,
       assigned_to: lead.assigned_to ?? null, assigned_name: lead.assigned_name ?? null,

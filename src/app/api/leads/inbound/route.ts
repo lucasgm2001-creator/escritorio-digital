@@ -6,6 +6,7 @@ import { stateToFuso } from '@/lib/fuso'
 import { logStageEvent } from '@/lib/stageEvents'
 import { US_STATES } from '@/lib/usStates'
 import usMap from '@/data/us-map.json'
+import { areaCodeFromPhone } from '@/lib/leadIntake'
 
 // Webhook PÚBLICO — o Magnetic (GoHighLevel) chama a cada lead novo e nós inserimos no funil
 // (tabela `leads`), com os MESMOS defaults de um lead criado à mão. Sem sessão de usuário → usamos
@@ -92,14 +93,8 @@ function normalizeUsState(raw: string): string {
   return US_NAME_TO_CODE.get(s.toLowerCase()) ?? ''
 }
 
-// DDD a partir do telefone US (+1). 11+ díg. começando com 1 → [1..3]; 10 díg. → [0..2]. (Mesma
-// regra do ClienteModal/PROMPT 17.)
-function areaCodeFromPhone(phone: string): string {
-  const digits = phone.replace(/\D/g, '')
-  if (digits.length >= 11 && digits[0] === '1') return digits.slice(1, 4)
-  if (digits.length === 10) return digits.slice(0, 3)
-  return ''
-}
+// (DDD do telefone US: areaCodeFromPhone importado de @/lib/leadIntake, que DELEGA à fonte única
+//  lib/geo/phone-geo — LEAD-GEO-001. Sem cópia inline aqui.)
 
 // Valor/orçamento: aceita US ("1,234.56") E BR ("1.234,56"). O ÚLTIMO separador é o decimal;
 // os demais são milhar. Sem número → 0.

@@ -1,5 +1,6 @@
 import { US_STATES } from '@/lib/usStates'
 import usMap from '@/data/us-map.json'
+import { usAreaCodeFromPhone } from '@/lib/geo/phone-geo'
 
 // Funções PURAS + listas de chaves de parsing de formulário → lead. Cópia EXATA da lógica do
 // /api/leads/inbound (comportamento idêntico) p/ ser reaproveitada pelo /api/leads/enrich. O inbound segue
@@ -42,12 +43,10 @@ export function normalizeUsState(raw: string): string {
   return US_NAME_TO_CODE.get(s.toLowerCase()) ?? ''
 }
 
-// DDD a partir do telefone US (+1). 11+ díg. começando com 1 → [1..3]; 10 díg. → [0..2].
+// DDD a partir do telefone US (+1) — DELEGA para a FONTE ÚNICA (lib/geo/phone-geo). Sem reimplementar o slice
+// (LEAD-GEO-001). Mantido como export para não quebrar os consumidores (/api/leads/enrich).
 export function areaCodeFromPhone(phone: string): string {
-  const digits = phone.replace(/\D/g, '')
-  if (digits.length >= 11 && digits[0] === '1') return digits.slice(1, 4)
-  if (digits.length === 10) return digits.slice(0, 3)
-  return ''
+  return usAreaCodeFromPhone(phone)
 }
 
 // Valor/orçamento: aceita US ("1,234.56") E BR ("1.234,56"). O ÚLTIMO separador é o decimal. Sem número → 0.

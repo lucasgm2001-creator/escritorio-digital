@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { FUSO_OPTIONS, type Lead } from './types'
 import { US_STATES, sanitizeAreaCode } from '@/lib/usStates'
+import { resolvePhoneGeo, type PhoneGeo } from '@/lib/geo/phone-geo'
 import { createLeadAction, saveLeadHistoryAction } from './lead-write-actions'
 import { useToast } from '@/components/ui/toast'
 import { ymd } from '@/lib/format'
@@ -82,6 +83,7 @@ export function LeadModal({ onClose, onCreated, currentUser, stages, clients }: 
   const [aiLoading, setAiLoading] = useState(false)
   const [sellers, setSellers] = useState<Seller[]>([])
   const [submitError, setSubmitError] = useState('')
+  const [geoSug, setGeoSug] = useState<PhoneGeo | null>(null)   // sugestão de cidade/estado pelo telefone (LEAD-GEO-001)
 
   // ── Modo "Já é cliente": adiciona ao funil um CLIENTE existente (INSERT simples, FORA do fluxo de
   //    fechamento — sem runWonFlow/WonPlanModal/registerMeeting/payWeek, sem comissão, sem novo cliente). ──
@@ -110,6 +112,22 @@ export function LeadModal({ onClose, onCreated, currentUser, stages, clients }: 
   }, [])
 
   const set = (k: string, v: string) => setForm(prev => ({ ...prev, [k]: v }))
+  // Telefone → SUGESTÃO de geografia (LEAD-GEO-001): REUSA resolvePhoneGeo (a MESMA inteligência do Cliente, EUA+
+  // Brasil). Não preenche sozinho — sugere; o usuário aplica ou fecha. Nunca sobrescreve city/state manual sem confirmar.
+  const onPhoneChange = (phone: string) => {
+    set('phone', phone)
+    resolvePhoneGeo(phone).then(geo => setGeoSug(geo)).catch(() => setGeoSug(null))
+  }
+  const geoDiffers = !!geoSug && (
+    geoSug.areaCode !== (form.area_code || '') ||
+    (!!geoSug.state && geoSug.state !== (form.state || '')) ||
+    (!!geoSug.city && geoSug.city !== (form.city || ''))
+  )
+  const applyGeo = () => {
+    if (!geoSug) return
+    setForm(p => ({ ...p, area_code: geoSug.areaCode, ...(geoSug.state ? { state: geoSug.state } : {}), ...(geoSug.city ? { city: geoSug.city } : {}) }))
+    setGeoSug(null)
+  }
 
   const handleAiParse = async () => {
     if (!rawText.trim()) return
@@ -428,8 +446,15 @@ export function LeadModal({ onClose, onCreated, currentUser, stages, clients }: 
           {/* Linha 2: Telefone + Email */}
           <div className="grid grid-cols-2 gap-3">
             <Field label="Telefone">
-              <input value={form.phone} onChange={e => set('phone', e.target.value)}
+              <input value={form.phone} onChange={e => onPhoneChange(e.target.value)}
                 className={inputCls} placeholder="+1 (555) 123-4567" />
+              {geoDiffers && (
+                <div className="mt-1.5 flex items-center gap-2 rounded-btn border border-lime/30 bg-lime/10 px-2.5 py-1.5">
+                  <span className="text-[11px] text-bento-text flex-1 min-w-0 truncate">Detectamos: <span className="font-medium">{geoSug!.label}</span></span>
+                  <button type="button" onClick={applyGeo} className="text-[11px] font-semibold text-lime-fg hover:underline shrink-0">Aplicar</button>
+                  <button type="button" onClick={() => setGeoSug(null)} className="text-[11px] text-bento-muted hover:text-bento-text shrink-0">Fechar</button>
+                </div>
+              )}
             </Field>
             <Field label="E-mail">
               <input type="email" value={form.email} onChange={e => set('email', e.target.value)}
