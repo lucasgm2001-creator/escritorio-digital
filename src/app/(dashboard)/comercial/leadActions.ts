@@ -5,7 +5,7 @@ import { ALL_COLUMNS, type LeadStatus } from './types'
 import { ymd } from '@/lib/format'
 import { markMilestones } from '@/lib/leadMilestones'
 import { wonSlug, marcosForSlug, type FunnelStage } from '@/lib/funnelStages'
-import { payClientWeek, registerMeeting } from '@/lib/commission/actions'
+import { payClientWeek, registerMeeting, resolveSellerForCommission } from '@/lib/commission/actions'
 import { weeklyCommissionUsd, hasCommissionPct, LEGACY_VPS_USD, DEFAULT_TETO_SEMANAS } from '@/lib/commission/planCommission'
 import { meetingCommissionCounts } from '@/lib/commission/constants'
 import { logStageEvent } from '@/lib/stageEvents'
@@ -96,76 +96,60 @@ export async function runWonFlow(supabase: SupaClient, lead: MovableLead, userNa
     return notes
   }
 
-  // Dono do deal = vendedor ativo (decisão: hoje só há 1). Resolve dinamicamente,
-  // sem id de fallback fixo. Sem vendedor ativo → não cria deal com id inventado.
-  const { data: activeSellers } = await supabase.from('sellers').select('id').eq('status', 'ativo').order('created_at')
-  if (!activeSellers || activeSellers.length === 0) {
+  // Vendedor + GERA COMISSÃO? (Parte 3). Resolve pelo RESPONSÁVEL do lead (não mais "1º ativo fixo"): Daniel
+  // (dono, gera_comissao=false) = cliente + receita, SEM comissão. Sem vendedor ativo → não cria deal.
+  const { sellerId, geraComissao } = await resolveSellerForCommission(supabase, lead.assigned_name)
+  if (!sellerId) {
     notes.push({ message: 'Cliente cadastrado, mas não lancei a comissão: nenhum vendedor ativo configurado.', type: 'error' })
     return notes
   }
-  // TODO(multi-vendedor): hoje usamos o primeiro ativo. Quando houver vários, atribuir
-  // ao responsável do lead (lead.assigned_to) em vez do primeiro.
-  const sellerId = activeSellers[0].id
 
-  // 2) Deal idempotente: não cria se já existe deal deste lead (lead_id) ou mesmo
-  //    client_name+seller (cobre deals antigos sem lead_id). Evita comissão dobrada.
-  const { data: deals } = await supabase.from('deals').select('id, lead_id, client_name').eq('seller_id', sellerId)
-  if ((deals ?? []).some(x => x.lead_id === lead.id || x.client_name === lead.name)) return notes
+  // 2) DEAL (comissão) — SÓ se o responsável gera comissão. Daniel: pula o deal (a RECEITA da 1ª semana abaixo
+  //    continua; sem deal → deriveCommission = no_deal → zero comissão). Idempotente (dedup por lead_id/nome).
+  if (geraComissao) {
+    const { data: deals } = await supabase.from('deals').select('id, lead_id, client_name').eq('seller_id', sellerId)
+    if ((deals ?? []).some(x => x.lead_id === lead.id || x.client_name === lead.name)) return notes
 
-  // 2.5) Plano escolhido no fechamento (Fase 2A): grava no cliente + calcula a comissão/semana
-  //      pelo % do plano. Sem plano OU plano sem % → LEGADO (US$25/sem). NÃO mexe em payWeek/calc.
-  let vps = LEGACY_VPS_USD
-  let pctUsed: number | null = null
-  if (planoId) {
-    await supabase.from('clients').update({ plano_id: planoId }).eq('id', clientId)
-    const { data: pl } = await supabase.from('plans').select('valor_semanal, comissao_percentual').eq('id', planoId).maybeSingle()
-    const pct = pl?.comissao_percentual != null ? Number(pl.comissao_percentual) : null
-    if (pl && hasCommissionPct(pct)) {
-      pctUsed = pct
-      vps = weeklyCommissionUsd(Number(pl.valor_semanal), pct)
+    // Plano do fechamento (Fase 2A): grava no cliente + comissão/semana pelo % do plano; sem % → LEGADO US$25/sem.
+    let vps = LEGACY_VPS_USD
+    let pctUsed: number | null = null
+    if (planoId) {
+      await supabase.from('clients').update({ plano_id: planoId }).eq('id', clientId)
+      const { data: pl } = await supabase.from('plans').select('valor_semanal, comissao_percentual').eq('id', planoId).maybeSingle()
+      const pct = pl?.comissao_percentual != null ? Number(pl.comissao_percentual) : null
+      if (pl && hasCommissionPct(pct)) { pctUsed = pct; vps = weeklyCommissionUsd(Number(pl.valor_semanal), pct) }
     }
-  }
-  const tetoSemanas = DEFAULT_TETO_SEMANAS
-  const valorTotalUsd = Math.round(vps * tetoSemanas * 100) / 100
+    const tetoSemanas = DEFAULT_TETO_SEMANAS
+    const valorTotalUsd = Math.round(vps * tetoSemanas * 100) / 100
 
-  const dealIns = await supabase.from('deals').insert({
-    seller_id: sellerId, client_id: clientId, client_name: lead.name, lead_id: lead.id,
-    valor_total_usd: valorTotalUsd, teto_semanas: tetoSemanas, valor_por_semana_usd: vps,
-    comissao_percentual: pctUsed,
-    status: 'em_andamento', data_fechamento: today,
-    ...(teamId ? { team_id: teamId } : {}),
-  }).select('id').single()
-  let deal = dealIns.data
-  if (dealIns.error) {
-    // A2: UNIQUE deals(lead_id) → corrida de 2 "fechar". RE-LÊ o deal já existente DESTE lead e segue o fluxo
-    // com ele (sem criar 2º deal / 2ª comissão) — idempotente. A semana 1 abaixo vira no-op (dup).
-    if ((dealIns.error as { code?: string }).code === '23505') {
-      const { data: ex } = await supabase.from('deals').select('id').eq('lead_id', lead.id).maybeSingle()
-      deal = ex ?? null
+    const dealIns = await supabase.from('deals').insert({
+      seller_id: sellerId, client_id: clientId, client_name: lead.name, lead_id: lead.id,
+      valor_total_usd: valorTotalUsd, teto_semanas: tetoSemanas, valor_por_semana_usd: vps, comissao_percentual: pctUsed,
+      status: 'em_andamento', data_fechamento: today, ...(teamId ? { team_id: teamId } : {}),
+    }).select('id').single()
+    let deal = dealIns.data
+    if (dealIns.error) {
+      if ((dealIns.error as { code?: string }).code === '23505') {
+        const { data: ex } = await supabase.from('deals').select('id').eq('lead_id', lead.id).maybeSingle()
+        deal = ex ?? null
+      }
+      if (!deal) { notes.push({ message: `Cliente ok, mas não foi possível lançar a comissão: ${dealIns.error.message}`, type: 'error' }); return notes }
     }
-    if (!deal) {
-      notes.push({ message: `Cliente ok, mas não foi possível lançar a comissão: ${dealIns.error.message}`, type: 'error' })
-      return notes
-    }
-  }
-  if (!deal) {
-    notes.push({ message: 'Cliente ok, mas não foi possível lançar a comissão.', type: 'error' })
-    return notes
+    if (!deal) { notes.push({ message: 'Cliente ok, mas não foi possível lançar a comissão.', type: 'error' }); return notes }
   }
 
-  // 3) 1ª semana já paga ROTEADA por payClientWeek (M2): grava a RECEITA (client_payments) e DERIVA a comissão
-  //    (weekly_payments via payWeek) — as duas pontas com guarda de unique/23505 (idempotente). Mesma cotação
-  //    vigente e mesmos valores de antes; só roteamento, sem mudar a regra de dinheiro.
+  // 3) 1ª semana de RECEITA (client_payments) + deriva a comissão (só se houver deal). Idempotente (unique 23505).
+  //    Daniel (sem deal): grava só a receita — comissão não deriva. Mesma cotação/regra de dinheiro de sempre.
   const { data: fx } = await supabase.from('fx_config').select('cotacao_manual, cotacao_travada').eq('id', 1).maybeSingle()
   const manual = fx?.cotacao_manual != null ? Number(fx.cotacao_manual) : null
   const fxc: FxConfig = { cotacaoManual: manual, cotacaoTravada: !!fx?.cotacao_travada }
   const wk1 = await payClientWeek(supabase, clientId, 1, today, resolveRate(fxc, manual ?? 0), teamId)
   if (!wk1.ok && wk1.reason === 'db') {
-    notes.push({ message: `Deal criado, mas falhou a 1ª semana: ${wk1.message ?? 'erro'}`, type: 'error' })
+    notes.push({ message: `Cliente ok, mas falhou a 1ª semana: ${wk1.message ?? 'erro'}`, type: 'error' })
     return notes
   }
 
-  notes.push({ message: 'Venda registrada: comissão lançada', type: 'success' })
+  notes.push({ message: geraComissao ? 'Venda registrada: comissão lançada' : 'Cliente registrado (responsável sem comissão — receita sim, comissão não).', type: 'success' })
   return notes
 }
 
@@ -175,16 +159,8 @@ export async function runWonFlow(supabase: SupaClient, lead: MovableLead, userNa
 // Comissão de reunião (mesmo valor padrão do registro manual em Comissões).
 const MEETING_USD = 15
 
-// Vendedor responsável (tabela sellers) p/ a comissão de reunião: casa por NOME (assigned_name) entre
-// os ativos; fallback = 1º vendedor ativo (mesma atribuição que o runWonFlow usa neste app 1-vendedor).
-async function resolveMeetingSellerId(supabase: SupaClient, assignedName?: string | null): Promise<string | null> {
-  if (assignedName && assignedName.trim()) {
-    const { data } = await supabase.from('sellers').select('id').eq('status', 'ativo').ilike('name', `%${assignedName.trim()}%`).limit(1)
-    if (data?.[0]) return data[0].id as string
-  }
-  const { data } = await supabase.from('sellers').select('id').eq('status', 'ativo').order('created_at').limit(1)
-  return (data?.[0]?.id as string) ?? null
-}
+// (resolveMeetingSellerId removido — a resolução de vendedor + flag gera_comissao agora é única em
+//  resolveSellerForCommission, lib/commission/actions. Parte 3.)
 
 export async function moveLead(
   supabase: SupaClient, lead: MovableLead, newStatus: LeadStatus, userName: string, stages: FunnelStage[], planoId: string | null = null, userId: string | null = null, teamId: string | null = null,
@@ -221,8 +197,9 @@ export async function moveLead(
     try {
       const { data: jaTem } = await supabase.from('meetings').select('id').eq('lead_id', lead.id).limit(1)
       if (!jaTem || jaTem.length === 0) {
-        const sellerId = await resolveMeetingSellerId(supabase, lead.assigned_name)
-        if (sellerId) {
+        // Parte 3: responsável sem comissão (Daniel) não gera reunião. Resolve vendedor + flag pelo responsável.
+        const { sellerId, geraComissao } = await resolveSellerForCommission(supabase, lead.assigned_name)
+        if (sellerId && geraComissao) {
           const { data: fx } = await supabase.from('fx_config').select('cotacao_manual, cotacao_travada').eq('id', 1).maybeSingle()
           const manual = fx?.cotacao_manual != null ? Number(fx.cotacao_manual) : null
           const fxc: FxConfig = { cotacaoManual: manual, cotacaoTravada: !!fx?.cotacao_travada }

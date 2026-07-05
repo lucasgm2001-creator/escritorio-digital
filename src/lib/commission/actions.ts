@@ -337,7 +337,7 @@ export async function applyPlanUpgrade(
 ): Promise<{ ok: boolean; reason?: string; bonus: number; deltaMensal: number; sellerId: string | null }> {
   const { clientId, newPlanId, changedAt, rate, teamId } = args
   const base0 = { bonus: 0, deltaMensal: 0, sellerId: null as string | null }
-  const { data: cli } = await supabase.from('clients').select('name, plano_id, plan_weekly, status').eq('id', clientId).is('deleted_at', null).maybeSingle()
+  const { data: cli } = await supabase.from('clients').select('name, plano_id, plan_weekly, status, assigned_name').eq('id', clientId).is('deleted_at', null).maybeSingle()
   if (!cli) return { ok: false, reason: 'nao_encontrado', ...base0 }
   if (cli.status !== 'ativo') return { ok: false, reason: 'inativo', ...base0 }
   if (cli.plano_id === newPlanId) return { ok: false, reason: 'mesmo_plano', ...base0 }
@@ -357,9 +357,14 @@ export async function applyPlanUpgrade(
   let sellerId: string | null = deals?.[0]?.seller_id ?? null
   if (!sellerId) { const { data: s } = await supabase.from('sellers').select('id').eq('status', 'ativo').order('created_at').limit(1); sellerId = s?.[0]?.id ?? null }
 
+  // Responsável sem comissão (Parte 3): Daniel & cia. NÃO recebem bônus de upgrade. O plano ainda muda (billing)
+  // e o evento é auditado (plan_changes) — só o BÔNUS na comissão não é lançado. Resolve pelo RESPONSÁVEL do
+  // cliente (não pelo vendedor de fallback), senão um cliente do Daniel sem deal cairia no 1º ativo e ganharia bônus.
+  const { geraComissao } = await resolveSellerForCommission(supabase, (cli as { assigned_name?: string | null }).assigned_name ?? null)
+
   // Bônus a partir da config JÁ EXISTENTE do vendedor (nada de regra nova; só é lida e aplicada).
   let bonus = 0
-  if (sellerId) {
+  if (sellerId && geraComissao) {
     const { data: cfg } = await supabase.from('collaborator_compensation_settings')
       .select('upgrade_commission_enabled, upgrade_commission_type, upgrade_commission_value, upgrade_commission_base').eq('seller_id', sellerId).maybeSingle()
     if (cfg?.upgrade_commission_enabled) {
@@ -437,6 +442,30 @@ const ymdOnly = (s?: string | null): string | null => {
 }
 const atNoon = (ymd: string): string => `${ymd}T12:00:00.000Z` // timestamp estável (meio-dia UTC não vira o dia)
 
+// Vendedor + se GERA COMISSÃO (PRODUCT-SPRINT-003, Parte 3). Resolve por nome (assigned_name → 1º ativo, mesma
+// regra do won-flow) e devolve a flag gera_comissao. Um vendedor com gera_comissao=false (ex.: Daniel, o dono)
+// NUNCA gera comissão: o chamador PULA a criação de deal/reunião/upgrade. A RECEITA (client_payments) continua.
+export async function resolveSellerForCommission(
+  supabase: SupaClient, assignedName?: string | null,
+): Promise<{ sellerId: string | null; geraComissao: boolean }> {
+  const flagOf = (row: { id: string; gera_comissao?: boolean } | undefined) =>
+    row ? { sellerId: row.id, geraComissao: row.gera_comissao !== false } : null
+  const nm = (assignedName ?? '').trim()
+  if (nm) {
+    const { data } = await supabase.from('sellers').select('id, gera_comissao').eq('status', 'ativo').ilike('name', `%${nm}%`).limit(1)
+    const hit = flagOf(data?.[0]); if (hit) return hit
+  }
+  const { data } = await supabase.from('sellers').select('id, gera_comissao').eq('status', 'ativo').order('created_at').limit(1)
+  return flagOf(data?.[0]) ?? { sellerId: null, geraComissao: true }
+}
+
+// Um vendedor específico (por id) gera comissão? (default true se não achar/sem flag).
+async function sellerGeraComissao(supabase: SupaClient, sellerId: string | null): Promise<boolean> {
+  if (!sellerId) return true
+  const { data } = await supabase.from('sellers').select('gera_comissao').eq('id', sellerId).maybeSingle()
+  return (data as { gera_comissao?: boolean } | null)?.gera_comissao !== false
+}
+
 // Reconstrói os EVENTOS de pipeline de um lead (reunião, jornada de fases, 1º contato) nas DATAS reais.
 // COMPARTILHADO por saveClientHistory (cliente) e saveLeadHistory (lead) — sem duplicar. Idempotente: só cria o
 // que falta (meeting por lead/cliente; stage_events e 1º contato só se o lead ainda não tem nenhum). A etapa
@@ -444,17 +473,19 @@ const atNoon = (ymd: string): string => `${ymd}T12:00:00.000Z` // timestamp est�
 async function reconstructLeadPipelineEvents(
   supabase: SupaClient,
   a: { leadId: string; leadName: string; sellerId: string | null; sellerName: string | null; clientId?: string | null;
+    geraComissao: boolean;
     leadDate: string; firstContact: string | null; meetingDate: string | null; proposalDate: string | null;
     finalStage: string | null; finalDate: string | null },
   rate: number, teamId?: string | null,
 ): Promise<{ stageEvents: number; createdMeeting: boolean }> {
-  const { leadId, leadName, sellerId, sellerName, clientId, leadDate, firstContact, meetingDate, proposalDate, finalStage, finalDate } = a
+  const { leadId, leadName, sellerId, sellerName, clientId, geraComissao, leadDate, firstContact, meetingDate, proposalDate, finalStage, finalDate } = a
 
   // MEETING (met_on = data REAL): atualiza a existente (por lead/cliente) ou cria uma via registerMeeting.
-  // CORTE (Parte 6): reunião com competência ≥ JUL/2026 não vira comissão → não cria a linha. A jornada de fases
-  // abaixo (stage_event 'reuniao') registra a reunião no funil/timeline mesmo assim.
+  // CORTE (Parte 6): reunião com competência ≥ JUL/2026 não vira comissão → não cria a linha. RESPONSÁVEL SEM
+  // COMISSÃO (Parte 3): Daniel & cia. também não geram reunião. A jornada de fases abaixo (stage_event 'reuniao')
+  // registra a reunião no funil/timeline de qualquer forma.
   let createdMeeting = false
-  if (meetingDate && sellerId && meetingCommissionCounts(meetingDate)) {
+  if (meetingDate && sellerId && geraComissao && meetingCommissionCounts(meetingDate)) {
     let mid: string | null = null
     { const { data } = await supabase.from('meetings').select('id').eq('lead_id', leadId).limit(1); mid = data?.[0]?.id ?? null }
     if (!mid && clientId) { const { data } = await supabase.from('meetings').select('id').eq('client_id', clientId).limit(1); mid = data?.[0]?.id ?? null }
@@ -517,10 +548,12 @@ export async function saveClientHistory(
   const { data: deals } = await supabase.from('deals').select('id, lead_id, seller_id').eq('client_id', clientId).eq('status', 'em_andamento').order('data_fechamento', { ascending: false }).limit(1)
   let deal = deals?.[0] ?? null
 
-  // Vendedor: dono do deal → casa por nome (assigned_name) → 1º ativo (mesma regra do won-flow).
+  // Vendedor + GERA COMISSÃO? (Parte 3). Deal existente manda no vendedor; senão resolve pelo responsável.
+  // Responsável sem comissão (Daniel) → geraComissao=false → NÃO cria deal (zero comissão); a RECEITA continua.
   let sellerId: string | null = (deal?.seller_id as string | null) ?? null
-  if (!sellerId && sellerName) { const { data } = await supabase.from('sellers').select('id').eq('status', 'ativo').ilike('name', `%${sellerName.trim()}%`).limit(1); sellerId = data?.[0]?.id ?? null }
-  if (!sellerId) { const { data } = await supabase.from('sellers').select('id').eq('status', 'ativo').order('created_at').limit(1); sellerId = data?.[0]?.id ?? null }
+  let geraComissao: boolean
+  if (sellerId) { geraComissao = await sellerGeraComissao(supabase, sellerId) }
+  else { const r = await resolveSellerForCommission(supabase, sellerName); sellerId = r.sellerId; geraComissao = r.geraComissao }
 
   // LEAD: via deal.lead_id → por nome → cria (won, received_at histórico). NÃO marca origem='cliente_existente'
   // (esse valor é EXCLUÍDO das métricas de período): é um lead ganho real e deve contar no funil/relatórios.
@@ -546,8 +579,9 @@ export async function saveClientHistory(
   }
 
   // DEAL: cria se não existe (reusa a comissão por plano do won-flow), senão realinha data_fechamento + lead_id.
+  // SÓ cria deal se o responsável gera comissão (Parte 3) — Daniel & cia. ficam sem deal → sem comissão semanal.
   let createdDeal = false
-  if (!deal && sellerId && leadId) {
+  if (!deal && sellerId && leadId && geraComissao) {
     let vps = LEGACY_VPS_USD; let pctUsed: number | null = null
     if (cli.plano_id) {
       const { data: pl } = await supabase.from('plans').select('valor_semanal, comissao_percentual').eq('id', cli.plano_id).maybeSingle()
@@ -577,7 +611,7 @@ export async function saveClientHistory(
   let createdMeeting = false, stageEvents = 0
   if (leadId) {
     const ev = await reconstructLeadPipelineEvents(supabase, {
-      leadId, leadName: clientName, sellerId, sellerName, clientId,
+      leadId, leadName: clientName, sellerId, sellerName, clientId, geraComissao,
       leadDate, firstContact, meetingDate, proposalDate, finalStage: wonSlugStr, finalDate: close,
     }, rate, teamId)
     createdMeeting = ev.createdMeeting; stageEvents = ev.stageEvents
@@ -615,10 +649,8 @@ export async function saveLeadHistory(
   const leadName = String(lead.name ?? '').trim()
   const sellerName = (lead.assigned_name as string | null) ?? null
 
-  // Vendedor p/ a reunião: casa por nome (assigned_name) → 1º ativo (mesma regra do won-flow).
-  let sellerId: string | null = null
-  if (sellerName) { const { data } = await supabase.from('sellers').select('id').eq('status', 'ativo').ilike('name', `%${sellerName.trim()}%`).limit(1); sellerId = data?.[0]?.id ?? null }
-  if (!sellerId) { const { data } = await supabase.from('sellers').select('id').eq('status', 'ativo').order('created_at').limit(1); sellerId = data?.[0]?.id ?? null }
+  // Vendedor + gera comissão? (Parte 3). Responsável sem comissão (Daniel) → reunião não vira comissão.
+  const { sellerId, geraComissao } = await resolveSellerForCommission(supabase, sellerName)
 
   // Update NÃO-destrutivo do lead: só o que foi informado. Se vendido, status=won + fechamento.
   const leadPatch: Record<string, string> = {}
@@ -632,7 +664,7 @@ export async function saveLeadHistory(
   if (!leadDateEff) return { ok: true, stageEvents: 0, createdMeeting: false }
 
   const ev = await reconstructLeadPipelineEvents(supabase, {
-    leadId, leadName, sellerId, sellerName, clientId: null,
+    leadId, leadName, sellerId, sellerName, clientId: null, geraComissao,
     leadDate: leadDateEff, firstContact, meetingDate, proposalDate,
     finalStage: saleRaw ? wonSlugStr : null, finalDate: saleRaw,
   }, rate, teamId)
