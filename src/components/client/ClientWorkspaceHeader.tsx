@@ -6,7 +6,7 @@ import { ChevronLeft } from 'lucide-react'
 // Cabeçalho de CONTEXTO do cliente — o nível "Cliente" em Global → Cliente → Seção → Conteúdo. NÃO é uma 2ª
 // topbar de navegação: é identidade/breadcrumb. O rail global + a topbar global (relógios/switcher/usuário) e a
 // BottomNav vêm do DashboardShell. Aqui só: voltar p/ Clientes + nome + empresa.
-export function ClientWorkspaceHeader({ clientName, subtitle, backHref = '/clientes', backLabel = 'Clientes' }: {
+export function ClientWorkspaceHeader({ clientName, subtitle, backHref = '/admin/clientes', backLabel = 'Clientes' }: {
   clientName: string
   subtitle?: string | null
   backHref?: string

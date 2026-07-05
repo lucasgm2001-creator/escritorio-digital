@@ -1,5 +1,6 @@
 import { ScrollText } from 'lucide-react'
 import { getRequestContext } from '@/server/context/request-context'
+import { requireAdminManage } from '@/server/security/module-guard'
 import { getRecentActivities } from '@/server/services/AdminOverviewService'
 import { WorkspaceHeader } from '@/components/ui/WorkspaceHeader'
 import { Panel } from '@/components/bento/Panel'
@@ -10,6 +11,7 @@ import { TimeAgo } from '@/components/system/TimeAgo'
 // app já grava). Só leitura, escopado à equipe ativa. Sem dados → estado vazio honesto.
 export default async function AuditoriaPage() {
   const context = await getRequestContext()
+  if (context) requireAdminManage(context)
   const activities = context ? await getRecentActivities(context, 60) : []
 
   return (

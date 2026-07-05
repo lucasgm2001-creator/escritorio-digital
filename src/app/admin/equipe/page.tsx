@@ -1,4 +1,5 @@
 import { getRequestContext } from '@/server/context/request-context'
+import { requireAdminManage } from '@/server/security/module-guard'
 import { getActiveTeamMembers, getActiveTeamInvites, getTeamsOverview } from '@/server/services/TeamService'
 import { WorkspaceCenter } from './WorkspaceCenter'
 
@@ -8,6 +9,7 @@ import { WorkspaceCenter } from './WorkspaceCenter'
 // como self-service do usuário (trocar/sair/entrar) — não é tocada.
 export default async function AdminEquipePage() {
   const context = await getRequestContext()
+  if (context) requireAdminManage(context)
   const [rawMembers, rawInvites, teams] = context
     ? await Promise.all([getActiveTeamMembers(context), getActiveTeamInvites(context), getTeamsOverview(context)])
     : [[], [], []]

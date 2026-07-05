@@ -1,5 +1,6 @@
 import { Wallet } from 'lucide-react'
 import { getRequestContext } from '@/server/context/request-context'
+import { requireAdminManage } from '@/server/security/module-guard'
 import { listTemplates } from '@/server/services/CompensationEngineService'
 import { PeopleHeader } from '@/components/people/PeopleHeader'
 import { CompensationTemplatesView } from '@/components/admin/CompensationTemplatesView'
@@ -10,6 +11,7 @@ import { VendedoresTab } from '@/app/(dashboard)/comercial/tabs/VendedoresTab'
 // templates por função da Compensation Engine (só leitura). /admin já garante owner/admin.
 export default async function RemuneracaoPage() {
   const context = await getRequestContext()
+  if (context) requireAdminManage(context)
   const templates = context ? await listTemplates(context) : []
 
   return (

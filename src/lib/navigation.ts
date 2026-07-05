@@ -1,4 +1,4 @@
-import { Home, TrendingUp, Briefcase, Building2, Presentation, ShieldCheck, Settings, type LucideIcon } from 'lucide-react'
+import { Home, TrendingUp, Briefcase, Presentation, ShieldCheck, Settings, type LucideIcon } from 'lucide-react'
 import type { ModuleLevel } from '@/lib/permissions/types'
 
 // FONTE ÚNICA da navegação de módulos (EXPERIENCE-005). Sidebar, Drawer (= Sidebar) e BottomNav derivam
@@ -21,10 +21,13 @@ export interface NavModule {
 export const NAV_MODULES: NavModule[] = [
   { href: '/hall',          label: 'Hall',                   Icon: Home,         group: 'main',   primary: true, moduleKey: 'hall' },
   { href: '/comercial',     label: 'Comercial',              Icon: Briefcase,    group: 'main',   primary: true, moduleKey: 'comercial' },
-  { href: '/clientes',      label: 'Clientes',               Icon: Building2,    group: 'main',   primary: true, moduleKey: 'clientes' },
   { href: '/trafego',       label: 'Tráfego',                Icon: TrendingUp,   group: 'main',   primary: true, moduleKey: 'trafego' },
   { href: '/studio',        label: 'Studio de Apresentação', shortLabel: 'Studio', Icon: Presentation, group: 'main' },
-  { href: '/admin',         label: 'Administração',          shortLabel: 'Admin',  Icon: ShieldCheck,  group: 'system', requiresManage: true },
+  // Clientes NÃO é mais andar principal (CLIENT-HISTORY-ADMIN-003): a lista vive em Administração → Clientes
+  // (/admin/clientes). A Administração abre também para quem tem o módulo 'clientes' (moduleKey abaixo): owner/dev
+  // veem tudo; membro operacional entra e enxerga só Clientes (nav filtrada no /admin/layout). O Workspace do
+  // cliente (/clientes/[id]) segue com requireModuleEntry('clientes').
+  { href: '/admin',         label: 'Administração',          shortLabel: 'Admin',  Icon: ShieldCheck,  group: 'system', requiresManage: true, moduleKey: 'clientes' },
   { href: '/configuracoes', label: 'Configurações',          shortLabel: 'Config', Icon: Settings,     group: 'system', moduleKey: 'configuracoes' },
 ]
 
@@ -41,7 +44,13 @@ export function isNavModuleVisible(
   access: Record<string, ModuleLevel>,
   canManageTeam: boolean,
 ): boolean {
-  if (item.requiresManage) return canManageTeam
+  if (item.requiresManage) {
+    if (canManageTeam) return true
+    // Área de gestão que HOSPEDA um módulo interno (Administração hospeda Clientes): abre também para quem
+    // tem esse módulo, mesmo sem gestão de equipe. O /admin/layout filtra a nav para mostrar só o que pode.
+    if (item.moduleKey) return (access[item.moduleKey] ?? 'none') !== 'none'
+    return false
+  }
   if (item.moduleKey) return (access[item.moduleKey] ?? 'none') !== 'none'
   return true
 }

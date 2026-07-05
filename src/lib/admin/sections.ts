@@ -8,7 +8,7 @@ import {
 // Isto é só o modelo de navegação/organização — nenhuma regra de negócio.
 
 export type AdminSectionKey =
-  | 'empresa' | 'equipe' | 'departamentos' | 'cargos' | 'colaboradores' | 'agenda' | 'remuneracao'
+  | 'empresa' | 'equipe' | 'departamentos' | 'cargos' | 'colaboradores' | 'clientes' | 'agenda' | 'remuneracao'
   | 'permissoes' | 'automacoes' | 'integracoes' | 'api' | 'inbound' | 'eventos' | 'auditoria'
   | 'billing' | 'logs'
 
@@ -80,6 +80,16 @@ export const ADMIN_SECTIONS: AdminSection[] = [
     tagline: 'As pessoas da empresa — departamento, cargo, template e gestor.',
     description: 'O domínio de Pessoas: colaboradores com departamento, cargo, template de remuneração, gestor, status e histórico. A base de permissões, remuneração e automações.',
     planned: ['Cadastro completo de colaboradores', 'Vínculo departamento · cargo · template · gestor', 'Status, histórico e documentos', 'Base para permissões e remuneração'],
+  },
+  {
+    key: 'clientes', label: 'Clientes', href: '/admin/clientes', group: 'organizacao', icon: Building2,
+    tagline: 'A carteira de clientes — cadastro, histórico e workspace por cliente.',
+    description: 'A lista de clientes da empresa vive aqui (CLIENT-HISTORY-ADMIN-003): cadastro com histórico completo, prateleiras por nicho e integrações. De cada cliente abre-se o Workspace (financeiro, tráfego, projetos, equipe, agenda, relatórios). Respeita a permissão do módulo — quem tem acesso operacional entra, owner/dev sempre.',
+    planned: ['Carteira e prateleiras por nicho', 'Cadastro com histórico automático (lead → contrato → cobrança)', 'Workspace por cliente', 'Integrações e timeline unificada'],
+    context: 'Clientes deixou de ser andar principal e passou a viver dentro da Administração. A lista é o ponto de entrada; o Workspace de cada cliente é a operação pós-venda. Datas históricas reconstroem timeline, receita, comissão e relatórios como se o cliente tivesse nascido na época.',
+    metrics: ['Clientes ativos', 'Receita mensal', 'Retenção'],
+    emptyTitle: 'Nenhum cliente nesta equipe',
+    emptyHint: 'Clientes entram automaticamente quando uma venda é fechada no Comercial — ou pelo cadastro histórico.',
   },
   {
     key: 'agenda', label: 'Agendas', href: '/admin/agenda', group: 'organizacao', icon: CalendarDays,

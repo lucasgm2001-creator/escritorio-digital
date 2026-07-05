@@ -1,5 +1,6 @@
 import { Users } from 'lucide-react'
 import { getRequestContext } from '@/server/context/request-context'
+import { requireAdminManage } from '@/server/security/module-guard'
 import { getPeopleOverview, listCollaboratorCards } from '@/server/services/PeopleService'
 import { Panel } from '@/components/bento/Panel'
 import { ModelBlueprint } from '@/components/admin/ModelBlueprint'
@@ -9,6 +10,7 @@ import { EmptyState } from '@/components/ui/EmptyState'
 
 export default async function ColaboradoresPage() {
   const context = await getRequestContext()
+  if (context) requireAdminManage(context)
   const [collaborators, overview] = context
     ? await Promise.all([listCollaboratorCards(context), getPeopleOverview(context)])
     : [[], { departments: 0, roles: 0, templates: 0, collaborators: 0 }]

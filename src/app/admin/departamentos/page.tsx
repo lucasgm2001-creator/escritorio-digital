@@ -1,5 +1,6 @@
 import { FolderOpen } from 'lucide-react'
 import { getRequestContext } from '@/server/context/request-context'
+import { requireAdminManage } from '@/server/security/module-guard'
 import { listDepartmentSummaries } from '@/server/services/PeopleService'
 import { Panel } from '@/components/bento/Panel'
 import { ModelBlueprint } from '@/components/admin/ModelBlueprint'
@@ -8,6 +9,7 @@ import { DepartmentCard } from '@/components/people/DepartmentCard'
 
 export default async function DepartamentosPage() {
   const context = await getRequestContext()
+  if (context) requireAdminManage(context)
   const departments = context ? await listDepartmentSummaries(context) : []
 
   return (

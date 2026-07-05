@@ -478,7 +478,7 @@ const FLOOR_META: Record<string, { route: string; section: string; desc: string 
   'andar-comercial': { route: '/comercial', section: 'comercial', desc: 'Funil de leads, clientes, métricas e fases.' },
   'andar-tarefas':   { route: '/tarefas',   section: 'tarefas',   desc: 'Tarefas e relatório do vendedor.' },
   'andar-studio':    { route: '/studio',    section: 'studio',    desc: 'Apresentações e materiais.' },
-  'andar-clientes':  { route: '/clientes',  section: 'clientes',  desc: 'Carteira de clientes.' },
+  'andar-clientes':  { route: '/admin/clientes',  section: 'clientes',  desc: 'Carteira de clientes.' },
 }
 
 // Linha de navegação (abre uma tela própria, NÃO sanfona pra baixo) — chevron pra direita.

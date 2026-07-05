@@ -1,5 +1,6 @@
 import { Briefcase } from 'lucide-react'
 import { getRequestContext } from '@/server/context/request-context'
+import { requireAdminManage } from '@/server/security/module-guard'
 import { listRoleSummaries } from '@/server/services/PeopleService'
 import type { RoleSummary } from '@/lib/people/types'
 import { PeopleHeader } from '@/components/people/PeopleHeader'
@@ -7,6 +8,7 @@ import { RoleCard } from '@/components/people/RoleCard'
 
 export default async function CargosPage() {
   const context = await getRequestContext()
+  if (context) requireAdminManage(context)
   const roles = context ? await listRoleSummaries(context) : []
 
   // Agrupa por departamento — ensina naturalmente a relação Departamento → Cargo.

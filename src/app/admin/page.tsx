@@ -1,5 +1,6 @@
 import Link from 'next/link'
 import { getRequestContext } from '@/server/context/request-context'
+import { requireAdminManage } from '@/server/security/module-guard'
 import { getAdminOverview } from '@/server/services/AdminOverviewService'
 import { ADMIN_SECTIONS } from '@/lib/admin/sections'
 import { WorkspaceHeader } from '@/components/ui/WorkspaceHeader'
@@ -7,10 +8,12 @@ import { MetricCard } from '@/components/ui/MetricCard'
 
 // Painel administrativo com DADOS REAIS (ADMIN-REAL-001): KPIs de Equipe/CRM/Financeiro/Sistema vindos do
 // banco (escopados à equipe ativa). Módulos ainda sem dado próprio seguem marcados como roadmap, honestos.
-const REAL = new Set(['equipe', 'departamentos', 'cargos', 'colaboradores', 'remuneracao', 'auditoria'])
+const REAL = new Set(['equipe', 'departamentos', 'cargos', 'colaboradores', 'clientes', 'remuneracao', 'auditoria'])
 
 export default async function AdminHomePage() {
   const context = await getRequestContext()
+  // O painel/grid é de GESTÃO: quem entrou só pelo módulo Clientes vai direto para /admin/clientes.
+  if (context) requireAdminManage(context)
   const overview = context ? await getAdminOverview(context) : { groups: [] }
 
   const quick = [

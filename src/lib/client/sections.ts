@@ -46,7 +46,9 @@ export function getClientSection(key: string): DomainSection | undefined {
 export function buildClientConfig(clientId: string, clientName: string): DomainConfig {
   return {
     title: clientName,
-    backHref: '/clientes',
+    // Volta para a LISTA, que agora vive em Administração → Clientes (CLIENT-HISTORY-ADMIN-003). Direto, sem o
+    // hop do redirect /clientes. O Workspace em si segue em /clientes/{id} (rota própria, casca leve).
+    backHref: '/admin/clientes',
     backLabel: 'Clientes',
     homePath: `/clientes/${clientId}`,
     groups: CLIENT_GROUPS,

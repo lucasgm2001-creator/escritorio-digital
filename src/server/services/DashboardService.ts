@@ -82,8 +82,8 @@ export async function getDashboardData(context: RequestContext): Promise<Dashboa
 
   // ── Alertas (só quando HÁ) ──
   const alerts: DashAlert[] = []
-  if (clientesEmAtraso > 0) alerts.push({ message: `${clientesEmAtraso} cliente(s) ativo(s) sem pagamento recente.`, href: '/clientes' })
-  if (integrationsOff > 0) alerts.push({ message: `${integrationsOff} integração(ões) desligada(s).`, href: '/clientes' })
+  if (clientesEmAtraso > 0) alerts.push({ message: `${clientesEmAtraso} cliente(s) ativo(s) sem pagamento recente.`, href: '/admin/clientes' })
+  if (integrationsOff > 0) alerts.push({ message: `${integrationsOff} integração(ões) desligada(s).`, href: '/admin/clientes' })
   if (canManage && expiredInvites > 0) alerts.push({ message: `${expiredInvites} convite(s) expirado(s).`, href: '/admin/equipe' })
   if (openTasks >= 10) alerts.push({ message: `${openTasks} tarefas pendentes acumuladas.`, href: '/tarefas' })
 
@@ -103,17 +103,17 @@ export async function getDashboardData(context: RequestContext): Promise<Dashboa
       {
         title: 'Financeiro',
         kpis: [
-          { label: 'Receita do mês', value: usd(receitaMes), href: '/clientes' },
+          { label: 'Receita do mês', value: usd(receitaMes), href: '/admin/clientes' },
           { label: 'Receita realizada', value: usd(commercial.revenueRealized), href: '/comercial' },
           { label: 'Pipeline previsto', value: usd(commercial.pipelineValue), href: '/comercial' },
-          { label: 'Clientes em atraso', value: clientesEmAtraso, href: '/clientes' },
+          { label: 'Clientes em atraso', value: clientesEmAtraso, href: '/admin/clientes' },
         ],
       },
       {
         title: 'Operação',
         kpis: [
-          { label: 'Clientes ativos', value: activeClients, href: '/clientes' },
-          { label: 'Integrações ativas', value: integrationsOn, href: '/clientes' },
+          { label: 'Clientes ativos', value: activeClients, href: '/admin/clientes' },
+          { label: 'Integrações ativas', value: integrationsOn, href: '/admin/clientes' },
           { label: 'Tarefas pendentes', value: openTasks, href: '/tarefas' },
         ],
       },
