@@ -3,7 +3,9 @@
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { updateClient } from '@/lib/commission/actions'
+import { reconstructClientHistoryAction } from './client-write-actions'
 import { useSave } from '@/lib/useSave'
+import { useToast } from '@/components/ui/toast'
 import { FUSO_OPTIONS } from '../comercial/types'
 import { US_STATES, sanitizeAreaCode } from '@/lib/usStates'
 import { cn } from '@/lib/utils'
@@ -37,12 +39,15 @@ export function ClienteModal({ client, onClose, onSaved, initialTab }: {
 }) {
   const supabase = createClient()
   const save = useSave()
+  const { toast } = useToast()
   const [view, setView] = useState<'editar' | 'dossie'>(initialTab ?? 'editar')
   const [plans, setPlans] = useState<Plan[]>([])
   const [loading, setLoading] = useState(false)
+  const [reconstructing, setReconstructing] = useState(false)
   const [form, setForm] = useState({
     name: client.name, company: client.company ?? '', email: client.email ?? '', phone: client.phone ?? '',
     plano_id: client.plano_id ?? '', dia_pagamento_semana: String(client.dia_pagamento_semana ?? weekdayOf(client.start_date)),
+    start_date: (client.start_date ?? '').slice(0, 10),
     fuso: client.fuso ?? '', nicho: client.nicho ?? '',
     city: client.city ?? '', state: client.state ?? '', area_code: client.area_code ?? '',
   })
@@ -69,10 +74,9 @@ export function ClienteModal({ client, onClose, onSaved, initialTab }: {
       : { ...p, area_code: ddd }))
   }
 
-  const handleSave = async () => {
-    setLoading(true)
+  const buildPatch = () => {
     const editPlan = plans.find(p => p.id === form.plano_id)
-    const patch = {
+    return {
       name: form.name || client.name,
       company: form.company || null,
       email: form.email || null,
@@ -80,12 +84,18 @@ export function ClienteModal({ client, onClose, onSaved, initialTab }: {
       plano_id: form.plano_id || client.plano_id || null,
       plan_weekly: editPlan?.valor_semanal ?? client.plan_weekly,
       dia_pagamento_semana: Number(form.dia_pagamento_semana),
+      start_date: form.start_date || null,   // editável/retroativo (CLIENT-HISTORY-F1)
       nicho: form.nicho.trim() || null,
       fuso: form.fuso || null,
       city: form.city.trim() || null,
       state: form.state || null,
       area_code: form.area_code || null,
     }
+  }
+
+  const handleSave = async () => {
+    setLoading(true)
+    const patch = buildPatch()
     const { ok } = await save({
       run: () => updateClient(supabase, client.id, patch),
       success: 'Cliente atualizado.',
@@ -93,6 +103,28 @@ export function ClienteModal({ client, onClose, onSaved, initialTab }: {
     })
     setLoading(false)
     if (ok) { onSaved({ ...client, ...patch } as Client); onClose() }
+  }
+
+  // Reconstrução histórica (CLIENT-HISTORY-F1): salva (persiste o start_date retroativo) e reconstrói as
+  // semanas + comissão nas DATAS históricas via o motor existente. Não fecha o modal — mostra o resultado.
+  const handleReconstruct = async () => {
+    if (reconstructing || loading) return
+    setReconstructing(true)
+    try {
+      const patch = buildPatch()
+      const { ok } = await save({
+        run: () => updateClient(supabase, client.id, patch),
+        success: 'Data salva.', error: 'Não foi possível salvar o cliente',
+      })
+      if (!ok) return
+      onSaved({ ...client, ...patch } as Client)
+      const res = await reconstructClientHistoryAction(client.id)
+      if (!res.ok) { toast({ type: 'error', message: res.error }); return }
+      const parts = [`${res.marked.length} semana(s) marcada(s)`]
+      if (res.redated > 0) parts.push(`${res.redated} corrigida(s) de data`)
+      if (!res.hadDeal) parts.push('sem venda vinculada → comissão não gerada')
+      toast({ type: 'success', message: `Histórico reconstruído: ${parts.join(' · ')}.` })
+    } finally { setReconstructing(false) }
   }
 
   const { ref, dialogProps } = useDialog(onClose)
@@ -148,6 +180,27 @@ export function ClienteModal({ client, onClose, onSaved, initialTab }: {
             <select value={form.dia_pagamento_semana} onChange={e => setForm(p => ({ ...p, dia_pagamento_semana: e.target.value }))} className={inputCls}>
               {WEEKDAYS.map(d => <option key={d.value} value={d.value}>{d.label}</option>)}
             </select>
+          </div>
+          {/* Data de início do contrato — pode ser RETROATIVA (cliente histórico). Alimenta "dias como
+              cliente", cronograma de cobrança e a competência da comissão (CLIENT-HISTORY-F1). */}
+          <div>
+            <label className="block text-xs font-medium text-bento-dim mb-1">Data de início do contrato</label>
+            <input type="date" value={form.start_date} max={new Date().toISOString().slice(0, 10)}
+              onChange={e => setForm(p => ({ ...p, start_date: e.target.value }))} className={inputCls} />
+            <p className="font-tech text-[10px] text-bento-muted/70 mt-1">Pode ser retroativa (cliente histórico) — alimenta dias como cliente, cobrança e comissão.</p>
+          </div>
+          {/* Reconstrução histórica — gera as semanas pagas + comissão nas DATAS reais desde o início,
+              pelo MESMO motor do agendador. Idempotente; não recalcula valores (só coloca cada semana no mês certo). */}
+          <div className="rounded-btn border border-bento-border/60 bg-bento-bg p-3 space-y-2">
+            <p className="text-xs font-medium text-bento-text">Reconstruir histórico</p>
+            <p className="font-tech text-[10px] text-bento-muted leading-relaxed">
+              Salva a data e gera as semanas pagas + comissão nas datas históricas (do início até hoje), pelo mesmo
+              motor do agendador. Não recalcula valores — só coloca cada semana no mês certo.
+            </p>
+            <button type="button" onClick={handleReconstruct} disabled={reconstructing || loading || !form.start_date}
+              className="w-full px-3 py-2 rounded-btn text-xs font-semibold border border-lime/40 text-lime-fg hover:bg-lime/10 transition-colors disabled:opacity-50">
+              {reconstructing ? 'Reconstruindo...' : 'Salvar e reconstruir histórico'}
+            </button>
           </div>
           <div>
             <label className="block text-xs font-medium text-bento-dim mb-1">Nicho</label>

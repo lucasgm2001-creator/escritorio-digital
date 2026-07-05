@@ -232,3 +232,69 @@ export async function ensureClient(
   if (error || !nc) { console.error('[ensureClient] falha ao criar cliente', { name: nm, error: error?.message }); return null }
   return nc.id
 }
+
+// ─── Reconstrução histórica (CLIENT-HISTORY-F1) ──────────────────────────────────────────────
+// Coloca TODAS as semanas do cliente na DATA HISTÓRICA real, a partir do start_date já gravado.
+// NÃO cria motor novo nem muda regra de dinheiro: reusa dueDateFor + payDueWeeks + payWeek/calc.
+//   (1) alinha data_fechamento do deal ao start_date (a "venda" fechou quando o cliente entrou);
+//   (2) RE-DATA semanas ativas já registradas cuja paid_on ≠ vencimento real — corrige a semana
+//       carimbada "hoje" na criação (won-flow). USD e cotação INTOCADOS: só a COMPETÊNCIA corrige,
+//       então nada é "recalculado" (o valor gravado é o mesmo; muda só o mês em que ele cai);
+//   (3) faz o backfill das semanas vencidas que faltam via payDueWeeks (receita + comissão derivada,
+//       teto do deal respeitado, paid_on = vencimento). Idempotente (repetir não duplica).
+// Comissão respeita o teto_semanas do deal (regra existente): recebe todas as semanas vencidas,
+// mas a comissão só é derivada dentro do teto — igual ao fluxo normal. Requer um deal em_andamento
+// para gerar comissão; sem deal, reconstrói só a receita e sinaliza (hadDeal=false).
+export async function reconstructClientHistory(
+  supabase: SupaClient, clientId: string, rate: number, teamId?: string | null,
+): Promise<{ ok: boolean; reason?: string; redated: number; marked: number[]; dueCount: number; hadDeal: boolean }> {
+  const empty = { redated: 0, marked: [] as number[], dueCount: 0, hadDeal: false }
+  const { data: cli } = await supabase.from('clients').select('status, start_date, dia_pagamento_semana').eq('id', clientId).maybeSingle()
+  if (!cli) return { ok: false, reason: 'nao_encontrado', ...empty }
+  if (cli.status !== 'ativo') return { ok: false, reason: 'inativo', ...empty }
+  if (!cli.start_date) return { ok: false, reason: 'sem_inicio', ...empty }
+  const start = String(cli.start_date).slice(0, 10)
+  const dia = cli.dia_pagamento_semana ?? dowOfYmd(start)
+  const today = spToday()
+
+  // Semanas vencidas de start_date até hoje (vencimentos monotônicos → para no 1º futuro).
+  let dueCount = 0
+  for (let n = 1; n <= 520; n++) { if (dueDateFor(start, dia, n) <= today) dueCount = n; else break }
+
+  // Deal atual (o MESMO que a derivação de comissão usa): alinha data_fechamento ao início histórico.
+  const { data: deals } = await supabase.from('deals')
+    .select('id, data_fechamento, status').eq('client_id', clientId).eq('status', 'em_andamento')
+    .order('data_fechamento', { ascending: false }).limit(1)
+  const deal = deals?.[0]
+  const hadDeal = !!deal
+  if (deal && String(deal.data_fechamento ?? '').slice(0, 10) > start) {
+    let dq = supabase.from('deals').update({ data_fechamento: start }).eq('id', deal.id)
+    if (teamId) dq = dq.eq('team_id', teamId)
+    await dq
+  }
+
+  // RE-DATA as semanas ATIVAS cuja data ≠ vencimento real (corrige a semana carimbada "hoje").
+  // USD/cotação preservados — muda só paid_on (a competência). Não mexe em anuladas.
+  const { data: cps } = await supabase.from('client_payments').select('numero_semana, paid_on, anulado').eq('client_id', clientId)
+  let redated = 0
+  for (const p of cps ?? []) {
+    if (p.anulado) continue
+    const n = Number(p.numero_semana)
+    const due = dueDateFor(start, dia, n)
+    if (String(p.paid_on ?? '').slice(0, 10) === due) continue
+    let uq = supabase.from('client_payments').update({ paid_on: due }).eq('client_id', clientId).eq('numero_semana', n)
+    if (teamId) uq = uq.eq('team_id', teamId)
+    const { error: e1 } = await uq
+    if (e1) continue
+    if (deal) {
+      let wq = supabase.from('weekly_payments').update({ paid_on: due }).eq('deal_id', deal.id).eq('numero_semana', n)
+      if (teamId) wq = wq.eq('team_id', teamId)
+      await wq
+    }
+    redated++
+  }
+
+  // Backfill das semanas vencidas que faltam (paid_on = vencimento; receita + comissão derivada).
+  const { marked } = await payDueWeeks(supabase, clientId, rate, Math.max(dueCount, 12), teamId)
+  return { ok: true, redated, marked, dueCount, hadDeal }
+}

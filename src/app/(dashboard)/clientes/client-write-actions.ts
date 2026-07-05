@@ -3,6 +3,11 @@
 import { getRequestContext } from '@/server/context/request-context'
 import { can } from '@/lib/permissions/can'
 import { createClient } from '@/lib/supabase/server'
+import { createServiceClient } from '@/lib/supabase/service'
+import { assertClientOwnership } from '@/server/security/team-ownership'
+import { reconstructClientHistory } from '@/lib/commission/actions'
+import { resolveRate } from '@/lib/commission/calc'
+import type { FxConfig } from '@/lib/commission/types'
 
 // Escritas do módulo Clientes roteadas pelo SERVIDOR (PERMISSIONS-003): UI → action → can('clients','edit') →
 // Supabase. Fecha a brecha read×edit das escritas que saíam direto do browser. RLS (team_scope) segue por
@@ -87,4 +92,36 @@ export async function upsertClientIntegrationAction(row: Record<string, unknown>
     .upsert(clean, { onConflict: 'client_id' }).select('*').single()
   if (error || !data) return { ok: false, error: error?.message ?? 'Não foi possível salvar a integração.' }
   return { ok: true, integration: data as Record<string, unknown> }
+}
+
+// Cotação efetiva p/ lançar receita/comissão no servidor (MESMA leitura do /api/commission/auto).
+async function resolveEditRate(supabase: ReturnType<typeof createServiceClient>): Promise<number> {
+  const { data: fx } = await supabase.from('fx_config').select('cotacao_manual, cotacao_travada, cotacao_referencia').eq('id', 1).maybeSingle()
+  const manual = fx?.cotacao_manual != null ? Number(fx.cotacao_manual) : null
+  const fxc: FxConfig = { cotacaoManual: manual, cotacaoTravada: !!fx?.cotacao_travada }
+  const auto = Number(fx?.cotacao_referencia) || manual || 5.40
+  const r = resolveRate(fxc, auto)
+  return r > 0 ? r : 5.40
+}
+
+// Reconstrução histórica do cliente (CLIENT-HISTORY-F1): a partir do start_date já gravado, coloca as
+// semanas/comissão nas DATAS HISTÓRICAS reais (alinha o deal, re-data a semana carimbada "hoje", faz o
+// backfill das vencidas) reusando o motor existente (reconstructClientHistory → payDueWeeks/payWeek/calc).
+// Sem migration, sem motor novo, sem mudar regra de dinheiro. Segurança: service-role só APÓS confirmar que
+// o cliente é da EQUIPE ATIVA (assertClientOwnership) — MESMO modelo do /api/commission/auto (P1-SERVICEROLE-001).
+export async function reconstructClientHistoryAction(clientId: string): Promise<Res<{ marked: number[]; redated: number; dueCount: number; hadDeal: boolean }>> {
+  const g = await guardEdit()
+  if (!g.context) return { ok: false, error: g.error }
+  const supabase = createServiceClient()
+  const owned = await assertClientOwnership(supabase, clientId, g.context.activeTeamId)
+  if (!owned.ok) return { ok: false, error: owned.status === 403 ? 'Cliente de outra equipe.' : 'Cliente não encontrado.' }
+  const rate = await resolveEditRate(supabase)
+  const r = await reconstructClientHistory(supabase as Parameters<typeof reconstructClientHistory>[0], clientId, rate, g.context.activeTeamId)
+  if (!r.ok) {
+    const msg = r.reason === 'inativo' ? 'Cliente inativo — congelado (reative para reconstruir).'
+      : r.reason === 'sem_inicio' ? 'Defina a data de início do contrato antes de reconstruir.'
+      : 'Cliente não encontrado.'
+    return { ok: false, error: msg }
+  }
+  return { ok: true, marked: r.marked, redated: r.redated, dueCount: r.dueCount, hadDeal: r.hadDeal }
 }
