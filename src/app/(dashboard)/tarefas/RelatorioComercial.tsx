@@ -1,131 +1,88 @@
 'use client'
 
-import { useState, useEffect, useMemo } from 'react'
-import { createClient } from '@/lib/supabase/client'
+import { useState, useEffect, type ReactNode } from 'react'
 import { cn } from '@/lib/utils'
-import { Download } from 'lucide-react'
+import { Download, Clock, Trophy, XCircle, TrendingUp } from 'lucide-react'
 import { rangeFor, type Mode, type Range } from '@/lib/period'
-import { getCommercialReportAction } from './report-actions'
-import type { ReportPeriod } from '@/core/reporting/types'
+import { getExecutiveReportAction, type ExecReportResult } from './report-actions'
+import { MetricCard } from '@/components/ui/MetricCard'
+import type { ReportInsight } from '@/core/reporting/types'
 
-// ── Relatório — Resumo. Fonte: lead_milestones (marcos FIXOS interagiu/reuniao/fechou) + leads.status
-//    + funnel_stages. Eixo = leads.received_at (chegada). Conta SÓ leads com incluir_no_relatorio=true
-//    e fora da Lixeira. NÃO é dinheiro (received_at/incluir não afetam comissão). ─────────────────────
+// Relatório — Resumo executivo (EXECUTIVE-METRICS-004). NÃO calcula nem consulta o banco: puxa o mesmo
+// { exec, report } do PDF via getExecutiveReportAction (exec = ExecutiveMetricsService, fonte única; report =
+// ReportingService, funil/insights). Tela e PDF batem 1:1. Sem DashboardVM antigo, sem métrica all-time.
 
 const REPORT_MODES: [Mode, string][] = [['semana', 'Semana'], ['mes', 'Mês'], ['semestre', 'Semestre'], ['ano', 'Ano']]
+const usd = (n: number): string => `US$ ${Math.round(n).toLocaleString('en-US')}`
+const toYmd = (d: Date): string => { const p = (n: number) => String(n).padStart(2, '0'); return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}` }
+const fmtBR = (ymd: string): string => { const [y, m, d] = ymd.split('-'); return `${d}/${m}/${y}` }
 
-interface LeadRow { id: string; name: string; company: string | null; status: string; received_at: string | null; created_at: string | null; incluir_no_relatorio: boolean | null; origem: string | null }
-interface MsRow { lead_id: string; marco: string }
-interface ClientRow { id: string; name: string; company: string | null; status: string }
-interface StageRow { slug: string; nome: string; posicao: number }
+const INSIGHT_STYLE: Record<ReportInsight['kind'], { Icon: typeof Clock; cls: string }> = {
+  gargalo: { Icon: Clock, cls: 'text-amber-400' },
+  melhor_etapa: { Icon: Trophy, cls: 'text-emerald-400' },
+  pior_etapa: { Icon: XCircle, cls: 'text-red-400' },
+  no_show: { Icon: XCircle, cls: 'text-red-400' },
+  queda_conversao: { Icon: TrendingUp, cls: 'text-red-400' },
+}
+
+function SectionLabel({ children }: { children: ReactNode }) {
+  return <p className="font-tech text-[10px] uppercase tracking-[0.18em] text-bento-muted mb-2.5 px-0.5">{children}</p>
+}
+
+function ListPanel({ title, rows }: { title: string; rows: { label: string; value: number; sub: string }[] }) {
+  return (
+    <div>
+      <SectionLabel>{title}</SectionLabel>
+      <div className="bento-fx p-3 space-y-1.5">
+        {rows.map(r => (
+          <div key={r.label} className="flex items-center justify-between gap-2 text-[13px]">
+            <span className="text-bento-text truncate">{r.label} <span className="text-bento-dim">· {r.sub}</span></span>
+            <span className="font-tech text-bento-text tabular-nums shrink-0">{usd(r.value)}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
 
 export function RelatorioComercial() {
-  const supabase = createClient()
   const [range, setRange] = useState<Range>(() => rangeFor('semana'))   // padrão: semana
+  const [res, setRes] = useState<Extract<ExecReportResult, { ok: true }> | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [leads, setLeads] = useState<LeadRow[]>([])
-  const [ms, setMs] = useState<MsRow[]>([])
-  const [clients, setClients] = useState<ClientRow[]>([])
-  const [stages, setStages] = useState<StageRow[]>([])
   const [pdfBusy, setPdfBusy] = useState(false)
-  // Janela PERSONALIZADA (de–até). Quando aplicada, vira o período (mode 'custom') — mesma contagem,
-  // só troca o intervalo. O PDF e o cabeçalho leem range.label, então refletem o personalizado também.
+
+  // Janela PERSONALIZADA (de–até).
   const [customOpen, setCustomOpen] = useState(false)
   const [fromDate, setFromDate] = useState('')
   const [toDate, setToDate] = useState('')
-  const toYmd = (d: Date) => { const p = (n: number) => String(n).padStart(2, '0'); return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}` }
-  const fmtBR = (ymd: string) => { const [y, m, d] = ymd.split('-'); return `${d}/${m}/${y}` }
   const selectPreset = (m: Mode) => { setCustomOpen(false); setRange(rangeFor(m)) }
   const openCustom = () => { setFromDate(toYmd(range.start)); setToDate(toYmd(range.end)); setCustomOpen(true) }
   const customInvalid = !fromDate || !toDate || fromDate > toDate
   const applyCustom = () => {
     if (customInvalid) return
-    // Datas no fuso LOCAL, inclusive nas duas pontas (00:00 do De até 23:59:59.999 do Até).
     setRange({ mode: 'custom', start: new Date(`${fromDate}T00:00:00`), end: new Date(`${toDate}T23:59:59.999`), label: `de ${fmtBR(fromDate)} a ${fmtBR(toDate)}` })
   }
 
+  // Carrega o relatório (mesma fonte do PDF) sempre que a janela muda.
   useEffect(() => {
     let active = true
     ;(async () => {
-      setLoading(true)
-      const [lr, mr, cr, sr] = await Promise.all([
-        supabase.from('leads').select('id, name, company, status, received_at, created_at, incluir_no_relatorio, origem'),
-        supabase.from('lead_milestones').select('lead_id, marco'),
-        supabase.from('clients').select('id, name, company, status').order('name'),
-        supabase.from('funnel_stages').select('slug, nome, posicao').order('posicao'),
-      ])
+      setLoading(true); setError(null)
+      const r = await getExecutiveReportAction({ fromYMD: toYmd(range.start), toYMD: toYmd(range.end), label: range.label })
       if (!active) return
-      if (lr.error) { setError(`Erro ao carregar o relatório: ${lr.error.message}`); setLoading(false); return }
-      setLeads((lr.data ?? []) as LeadRow[])
-      setMs((mr.data ?? []) as MsRow[])
-      setClients((cr.data ?? []) as ClientRow[])
-      setStages((sr.data ?? []) as StageRow[])
-      setError(null); setLoading(false)
+      if (!r.ok) { setError(r.error); setRes(null) } else setRes(r)
+      setLoading(false)
     })()
     return () => { active = false }
-  }, [supabase])
+  }, [range])
 
-  // Métricas + agrupamento por desfecho. Filtro: incluir_no_relatorio≠false, fora da Lixeira,
-  // received_at dentro do período (parse como meia-noite LOCAL p/ não escorregar de dia por fuso).
-  const r = useMemo(() => {
-    // Eixo = received_at; se null (lead manual/antigo), cai em created_at (como o MetricasTab) p/ não
-    // sumir do relatório. slice(0,10) = defensivo caso venha timestamp completo.
-    const inPeriod = (d?: string | null) => {
-      if (!d) return false
-      const t = new Date(`${String(d).slice(0, 10)}T00:00:00`).getTime()
-      if (Number.isNaN(t)) return false
-      return t >= range.start.getTime() && t <= range.end.getTime()
-    }
-    const byLead = new Map<string, Set<string>>()
-    for (const m of ms) { if (!byLead.has(m.lead_id)) byLead.set(m.lead_id, new Set()); byLead.get(m.lead_id)!.add(m.marco) }
-    const has = (id: string, marco: string) => byLead.get(id)?.has(marco) ?? false
-
-    // origem='cliente_existente' = cliente já existente jogado no funil: NÃO conta no relatório (não é venda/lead novo).
-    const inc = leads.filter(l => l.incluir_no_relatorio !== false && l.status !== 'lixeira' && l.origem !== 'cliente_existente' && inPeriod(l.received_at || l.created_at))
-    const chegaram = inc.length
-    const reunioes = inc.filter(l => has(l.id, 'reuniao')).length
-    const vendas = inc.filter(l => has(l.id, 'fechou')).length
-    const interagiu = inc.filter(l => has(l.id, 'interagiu')).length
-    const naoInteragiu = inc.filter(l => !has(l.id, 'interagiu')).length
-    const noShow = inc.filter(l => l.status === 'no_show').length
-    const perdido = inc.filter(l => l.status === 'perdido').length
-
-    const nomeBySlug = new Map(stages.map(s => [s.slug, s.nome]))
-    const posBySlug = new Map(stages.map(s => [s.slug, s.posicao]))
-    const gmap = new Map<string, LeadRow[]>()
-    for (const l of inc) { if (!gmap.has(l.status)) gmap.set(l.status, []); gmap.get(l.status)!.push(l) }
-    const groups = Array.from(gmap.entries())
-      .map(([slug, items]) => ({ slug, label: nomeBySlug.get(slug) ?? slug, pos: posBySlug.get(slug) ?? 999, items: [...items].sort((a, b) => a.name.localeCompare(b.name)) }))
-      .sort((a, b) => a.pos - b.pos)
-
-    return { chegaram, reunioes, vendas, interagiu, naoInteragiu, noShow, perdido, groups }
-  }, [leads, ms, stages, range])
-
-  const principais: { t: string; v: number }[] = [
-    { t: 'Chegaram', v: r.chegaram },
-    { t: 'Reuniões marcadas', v: r.reunioes },
-    { t: 'Vendas concluídas', v: r.vendas },
-  ]
-  const sub: { t: string; v: number }[] = [
-    { t: 'Interagiu', v: r.interagiu },
-    { t: 'Não interagiu', v: r.naoInteragiu },
-    { t: 'No-show', v: r.noShow },
-    { t: 'Venda perdida', v: r.perdido },
-  ]
-
-  // PDF EXECUTIVO: NÃO calcula nem consulta o banco aqui. Puxa o view-model pronto via Server Action
-  // (ReportingService — period-scoped, fonte única) e delega o desenho ao buildExecutivePdf. O PDF respeita
-  // exatamente a janela selecionada (só dados do período).
   const gerarPdf = async () => {
-    setPdfBusy(true)
-    setError(null)
+    if (!res) return
+    setPdfBusy(true); setError(null)
     try {
-      const period: ReportPeriod = { from: range.start.toISOString(), to: range.end.toISOString(), label: range.label }
-      const res = await getCommercialReportAction(period)
-      if (!res.ok) { setError(res.error); return }
       const { buildExecutivePdf } = await import('@/lib/commercial/executive-pdf')
-      await buildExecutivePdf({ report: res.report, workspace: res.workspace, user: res.user })
+      await buildExecutivePdf({ exec: res.exec, report: res.report, workspace: res.workspace, user: res.user })
     } catch {
       setError('Não foi possível gerar o PDF.')
     } finally {
@@ -133,21 +90,30 @@ export function RelatorioComercial() {
     }
   }
 
+  const exec = res?.exec
+  const k = res?.report.kpis
+  const funnel = (res?.report.funnel ?? []).filter(f => f.count > 0)
+  const insights = res?.report.insights ?? []
+  const porVendedor = exec?.receitaPorVendedor ?? []
+  const porPlano = exec?.receitaPorPlano ?? []
+  const maxFunnel = Math.max(1, ...funnel.map(f => f.count))
+  const dash = loading ? '—' : undefined
+
   return (
     <div className="space-y-5">
-      {/* Cabeçalho */}
+      {/* Cabeçalho + PDF */}
       <div className="flex items-start justify-between gap-3 flex-wrap">
         <div>
           <p className="font-tech text-[10px] uppercase tracking-[0.22em] text-bento-muted">DR Growth · Comercial</p>
           <h2 className="font-display font-bold text-bento-text text-lg mt-1">Relatório — Resumo</h2>
         </div>
-        <button onClick={gerarPdf} disabled={pdfBusy || loading}
+        <button onClick={gerarPdf} disabled={pdfBusy || loading || !res}
           className="flex items-center gap-2 px-3 py-2 min-h-[40px] rounded-btn text-sm font-medium border border-bento-border text-bento-dim hover:border-lime hover:text-bento-text transition-colors disabled:opacity-50">
           <Download className="w-4 h-4" />{pdfBusy ? 'Gerando...' : 'Baixar PDF'}
         </button>
       </div>
 
-      {/* Período: presets + Personalizado (de–até). O personalizado vira o período (mesma contagem). */}
+      {/* Período: presets + Personalizado (de–até) */}
       <div className="space-y-2">
         <div className="flex items-center justify-between gap-3 flex-wrap">
           <div className="flex bg-bento-bg border border-bento-border rounded-btn p-1 gap-1 max-w-full overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
@@ -167,7 +133,6 @@ export function RelatorioComercial() {
           <span className="font-tech text-xs text-bento-muted whitespace-nowrap">{range.label}</span>
         </div>
 
-        {/* De / Até — empilham no celular. Aplicar só com De ≤ Até. */}
         {customOpen && (
           <div className="flex items-end gap-2 flex-wrap bento-fx p-3">
             <label className="flex flex-col gap-1">
@@ -193,79 +158,79 @@ export function RelatorioComercial() {
 
       {error && <div className="bg-amber-900/20 border border-amber-800/40 rounded-btn px-4 py-3 text-xs text-amber-400">{error}</div>}
 
-      {/* 3 PRINCIPAIS */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-        {principais.map(k => (
-          <div key={k.t} className="bento-fx p-5">
-            <div className="font-display font-bold text-lime-fg tabular-nums leading-none text-5xl">{loading ? '—' : k.v}</div>
-            <div className="font-tech text-[11px] uppercase tracking-wide text-bento-muted mt-3">{k.t}</div>
-          </div>
-        ))}
-      </div>
+      {/* Comercial (funil do período) — mesma fonte do PDF */}
+      <section>
+        <SectionLabel>Comercial · {range.label}</SectionLabel>
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5">
+          <MetricCard title="Leads recebidos" value={dash ?? (k?.newLeads ?? 0)} size="sm" />
+          <MetricCard title="Interagiram" value={dash ?? (k?.interagiram ?? 0)} size="sm" />
+          <MetricCard title="Reuniões marcadas" value={dash ?? (k?.meetingsScheduled ?? 0)} size="sm" />
+          <MetricCard title="Propostas" value={dash ?? (k?.proposals ?? 0)} size="sm" />
+          <MetricCard title="Clientes fechados" value={dash ?? (k?.won ?? 0)} size="sm" tone="positive" />
+        </div>
+      </section>
 
-      {/* 4 SUB */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
-        {sub.map(k => (
-          <div key={k.t} className="bento-fx p-4">
-            <div className="font-display font-bold text-bento-text tabular-nums leading-none text-2xl">{loading ? '—' : k.v}</div>
-            <div className="font-tech text-[10px] uppercase tracking-wide text-bento-muted mt-2">{k.t}</div>
-          </div>
-        ))}
-      </div>
+      {/* Receita (dinheiro recebido × previsto × contrato × recorrência) */}
+      <section>
+        <SectionLabel>Receita · {range.label}</SectionLabel>
+        <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2.5">
+          <MetricCard title="Receita Recebida" value={dash ?? usd(exec?.receitaRecebida ?? 0)} size="sm" tone="emerald" />
+          <MetricCard title="Receita Prevista" value={dash ?? usd(exec?.receitaPrevista ?? 0)} size="sm" />
+          <MetricCard title="Valor Fechado" value={dash ?? usd(exec?.valorFechado ?? 0)} size="sm" />
+          <MetricCard title="MRR" value={dash ?? usd(exec?.mrr ?? 0)} size="sm" tone="positive" />
+          <MetricCard title="ARR" value={dash ?? usd(exec?.arr ?? 0)} size="sm" />
+          <MetricCard title="Ticket Médio" value={dash ?? usd(exec?.ticketMedio ?? 0)} size="sm" />
+          <MetricCard title="Conversão" value={dash ?? `${Math.round(exec?.conversao ?? 0)}%`} size="sm" />
+        </div>
+      </section>
 
-      {/* Leads agrupados por desfecho */}
-      <div>
-        <p className="font-tech text-[10px] uppercase tracking-[0.18em] text-bento-muted mb-2.5 px-0.5">Leads do período por desfecho</p>
-        {loading ? (
-          <p className="text-sm text-bento-muted">Carregando...</p>
-        ) : r.groups.length === 0 ? (
-          <p className="font-tech text-[11px] text-bento-muted/70">Nenhum lead no período.</p>
-        ) : (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
-            {r.groups.map(g => (
-              <div key={g.slug} className="bento-fx overflow-hidden">
-                <div className="flex items-center justify-between gap-2 px-4 py-2.5 border-b border-bento-border/60">
-                  <span className="font-display font-semibold text-bento-text text-sm">{g.label}</span>
-                  <span className="font-tech text-xs font-semibold tabular-nums px-2 py-0.5 rounded-full bg-bento-bg text-bento-muted min-w-[26px] text-center">{g.items.length}</span>
+      {/* Receita por vendedor / plano — só quando há receita */}
+      {!loading && (porVendedor.length > 0 || porPlano.length > 0) && (
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          {porVendedor.length > 0 && <ListPanel title="Receita por vendedor" rows={porVendedor.map(s => ({ label: s.name, value: s.value, sub: `${s.count} cliente(s)` }))} />}
+          {porPlano.length > 0 && <ListPanel title="Receita por plano" rows={porPlano.map(p => ({ label: p.plan, value: p.value, sub: `${p.count} cliente(s)` }))} />}
+        </div>
+      )}
+
+      {/* Funil por etapa + gargalo — só quando há leads no funil */}
+      {!loading && funnel.length > 0 && (
+        <section>
+          <SectionLabel>Funil por etapa</SectionLabel>
+          <div className="bento-fx p-3 space-y-2.5">
+            {funnel.map((f, i) => (
+              <div key={f.stage}>
+                <div className="flex items-center justify-between text-[12px] mb-1 gap-2">
+                  <span className="text-bento-text truncate">
+                    {f.stage}{i === 0 && <span className="ml-2 text-[9px] font-tech uppercase tracking-wide text-amber-400">gargalo</span>}
+                  </span>
+                  <span className="text-bento-muted shrink-0 tabular-nums">{f.count}{f.avgDays != null ? ` · ${f.avgDays}d` : ''}</span>
                 </div>
-                <div className="px-4 py-2">
-                  {g.items.map(l => (
-                    <div key={l.id} className="flex items-center justify-between gap-3 py-1.5 border-b border-dashed border-bento-border/50 last:border-0">
-                      <span className="text-sm text-bento-text truncate">{l.name}</span>
-                      {l.company && <span className="font-tech text-[10px] text-bento-muted truncate">{l.company}</span>}
-                    </div>
-                  ))}
+                <div className="h-1.5 rounded-full bg-bento-panel overflow-hidden">
+                  <div className={cn('h-full rounded-full', i === 0 ? 'bg-amber-400' : 'bg-lime')} style={{ width: `${Math.round((f.count / maxFunnel) * 100)}%` }} />
                 </div>
               </div>
             ))}
           </div>
-        )}
-      </div>
+        </section>
+      )}
 
-      {/* Clientes */}
-      <div>
-        <p className="font-tech text-[10px] uppercase tracking-[0.18em] text-bento-muted mb-2.5 px-0.5">Clientes <span className="text-bento-muted/60">· {clients.length}</span></p>
-        {loading ? (
-          <p className="text-sm text-bento-muted">Carregando...</p>
-        ) : clients.length === 0 ? (
-          <p className="font-tech text-[11px] text-bento-muted/70">Nenhum cliente.</p>
-        ) : (
-          <div className="bento-fx overflow-hidden divide-y divide-bento-border/60">
-            {clients.map(c => (
-              <div key={c.id} className="flex items-center justify-between gap-3 px-4 py-2.5">
-                <div className="min-w-0">
-                  <p className="text-sm text-bento-text truncate">{c.name}</p>
-                  {c.company && <p className="font-tech text-[10px] text-bento-muted truncate">{c.company}</p>}
-                </div>
-                <span className={cn('font-tech text-[10px] uppercase tracking-wide px-2 py-0.5 rounded-full border flex-none',
-                  c.status === 'ativo' ? 'text-green-400 border-green-800/50' : 'text-bento-muted border-bento-border')}>{c.status}</span>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-
-      <p className="font-tech text-[10.5px] text-bento-muted/70 text-center">Conta leads com “Incluir no relatório” ligado, fora da Lixeira, pela data de chegada no período.</p>
+      {/* Pontos de atenção (insights automáticos, sem IA) — só quando há */}
+      {!loading && insights.length > 0 && (
+        <section>
+          <SectionLabel>Pontos de atenção</SectionLabel>
+          <ul className="bento-fx p-3 space-y-2">
+            {insights.map((ins, i) => {
+              const { Icon, cls } = INSIGHT_STYLE[ins.kind]
+              return (
+                <li key={i} className="flex items-start gap-2.5">
+                  <Icon className={cn('w-4 h-4 mt-0.5 shrink-0', cls)} />
+                  <span className="text-[13px] text-bento-text leading-snug">{ins.message}</span>
+                </li>
+              )
+            })}
+          </ul>
+        </section>
+      )}
     </div>
   )
 }

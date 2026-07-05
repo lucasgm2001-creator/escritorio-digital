@@ -51,11 +51,15 @@ function forecastRevenue(
   return Math.round((total + Number.EPSILON) * 100) / 100
 }
 
-export async function getExecutiveMetrics(context: RequestContext, mode: Mode = 'mes'): Promise<ExecutiveMetricsVM> {
-  const range = rangeFor(mode)
-  const from = ymd(range.start), to = ymd(range.end)
+// Período: um preset (Mode → rangeFor) OU uma janela custom já em YMD (relatório personalizado). Mesma fonte.
+export type ExecutivePeriod = Mode | { from: string; to: string; label: string }
+
+export async function getExecutiveMetrics(context: RequestContext, period: ExecutivePeriod = 'mes'): Promise<ExecutiveMetricsVM> {
+  let from: string, to: string, label: string
+  if (typeof period === 'string') { const r = rangeFor(period); from = ymd(r.start); to = ymd(r.end); label = r.label }
+  else { from = period.from; to = period.to; label = period.label }
   const teamId = context.activeTeamId
-  if (!teamId) return EMPTY(range.label, from, to)
+  if (!teamId) return EMPTY(label, from, to)
 
   const [raw, revenue, carteira] = await Promise.all([
     getCommercialRaw(teamId),           // leads + deals (valor fechado / conversão)
@@ -76,7 +80,7 @@ export async function getExecutiveMetrics(context: RequestContext, mode: Mode = 
   const valorFechado = closedValue(raw.deals, from, to)
 
   return {
-    periodLabel: range.label, from, to,
+    periodLabel: label, from, to,
     receitaRecebida: receivedRevenueBetween(payments, from, to),
     valorFechado,
     receitaPrevista: forecastRevenue(carteira.clients, spToday(), to),

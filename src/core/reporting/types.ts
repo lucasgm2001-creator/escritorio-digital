@@ -6,6 +6,7 @@ export type ReportPeriod = { from: string; to: string; label: string }
 export type ReportKpis = {
   totalLeads: number
   newLeads: number
+  interagiram: number       // leads distintos que se moveram no funil no período (interagiram)
   meetingsScheduled: number
   meetingsHeld: number
   noShow: number

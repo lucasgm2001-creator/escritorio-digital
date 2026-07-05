@@ -25,7 +25,7 @@ const rate = (a: number, b: number): number => (b > 0 ? a / b : 0)
 export async function buildCommercialReport(context: RequestContext, period: ReportPeriod): Promise<CommercialReport> {
   const empty: CommercialReport = {
     period,
-    kpis: { totalLeads: 0, newLeads: 0, meetingsScheduled: 0, meetingsHeld: 0, noShow: 0, proposals: 0, proposalsInReview: 0, won: 0, lost: 0, conversionRate: 0, avgCycleDays: 0, avgTicket: 0, totalValue: 0 },
+    kpis: { totalLeads: 0, newLeads: 0, interagiram: 0, meetingsScheduled: 0, meetingsHeld: 0, noShow: 0, proposals: 0, proposalsInReview: 0, won: 0, lost: 0, conversionRate: 0, avgCycleDays: 0, avgTicket: 0, totalValue: 0 },
     movements: [], conversions: [], funnel: [], stuckLeads: 0, insights: [],
   }
   const teamId = context.activeTeamId
@@ -51,9 +51,11 @@ export async function buildCommercialReport(context: RequestContext, period: Rep
   const won = dealsP.length
   const lost = to(lostSlugs)
   const newLeads = raw.leads.filter(l => inPeriod(l.received_at ?? l.created_at, period)).length
+  const interagiram = new Set(events.map(e => e.lead_id).filter(Boolean)).size // leads distintos que se moveram no período
   const kpis: ReportKpis = {
     totalLeads: raw.leads.length,
     newLeads,
+    interagiram,
     meetingsScheduled: to(reuniaoSlugs), // reunião MARCADA = movimentação para etapa de reunião (no período)
     meetingsHeld: meetingsP.length,      // reunião registrada (meetings) no período
     noShow: to(noShowSlugs),
