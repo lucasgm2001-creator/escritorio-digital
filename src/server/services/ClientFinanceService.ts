@@ -14,6 +14,7 @@ export type ClientFinancePayment = { numeroSemana: number; valorUsd: number; pai
 export type ClientFinanceVM = {
   planWeekly: number
   status: string
+  periodicidade: 'semanal' | 'mensal'  // como o cliente paga → apresentação (semana × mês) na UI (Parte 4)
   totalRecebido: number
   semanasPagas: number
   semanasPendentes: number
@@ -64,6 +65,7 @@ export async function getClientFinance(context: RequestContext, clientId: string
   return {
     planWeekly: Number(client.plan_weekly ?? 0),
     status: client.status,
+    periodicidade: (client.periodicidade === 'mensal' ? 'mensal' : 'semanal'),
     totalRecebido,
     semanasPagas,
     semanasPendentes,
