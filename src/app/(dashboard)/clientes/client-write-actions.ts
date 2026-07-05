@@ -5,7 +5,7 @@ import { can } from '@/lib/permissions/can'
 import { createClient } from '@/lib/supabase/server'
 import { createServiceClient } from '@/lib/supabase/service'
 import { assertClientOwnership } from '@/server/security/team-ownership'
-import { reconstructClientHistory } from '@/lib/commission/actions'
+import { reconstructClientHistory, payMonth, nextUnpaidMonth } from '@/lib/commission/actions'
 import { resolveRate } from '@/lib/commission/calc'
 import type { FxConfig } from '@/lib/commission/types'
 
@@ -124,4 +124,22 @@ export async function reconstructClientHistoryAction(clientId: string): Promise<
     return { ok: false, error: msg }
   }
   return { ok: true, marked: r.marked, redated: r.redated, dueCount: r.dueCount, hadDeal: r.hadDeal }
+}
+
+// Pagamento MENSAL (F2): quita todas as semanas do mês de competência reusando o motor semanal (payMonth →
+// payClientWeek). Sem monthRef, cobra o PRÓXIMO mês não pago. Mesma segurança do reconstruct (service-role só
+// após assertClientOwnership). NÃO é 2º motor; a unidade continua a semana. Sem migration; sem mudar regra.
+export async function payMonthAction(clientId: string, monthRef?: string): Promise<Res<{ marked: number[]; monthRef: string }>> {
+  const g = await guardEdit()
+  if (!g.context) return { ok: false, error: g.error }
+  const supabase = createServiceClient()
+  const owned = await assertClientOwnership(supabase, clientId, g.context.activeTeamId)
+  if (!owned.ok) return { ok: false, error: owned.status === 403 ? 'Cliente de outra equipe.' : 'Cliente não encontrado.' }
+  const month = monthRef ?? (await nextUnpaidMonth(supabase as Parameters<typeof nextUnpaidMonth>[0], clientId))
+  if (!month) return { ok: false, error: 'Defina a data de início antes de cobrar o mês.' }
+  const rate = await resolveEditRate(supabase)
+  const r = await payMonth(supabase as Parameters<typeof payMonth>[0], clientId, month, rate, g.context.activeTeamId)
+  if (r.reason === 'inativo') return { ok: false, error: 'Cliente inativo — congelado.' }
+  if (r.reason === 'sem_inicio') return { ok: false, error: 'Defina a data de início antes de cobrar o mês.' }
+  return { ok: true, marked: r.marked, monthRef: r.monthRef }
 }

@@ -298,3 +298,50 @@ export async function reconstructClientHistory(
   const { marked } = await payDueWeeks(supabase, clientId, rate, Math.max(dueCount, 12), teamId)
   return { ok: true, redated, marked, dueCount, hadDeal }
 }
+
+// ─── Pagamento MENSAL (F2) ────────────────────────────────────────────────────────────────────
+// ORQUESTRADOR sobre o motor SEMANAL — NÃO é um 2º motor. Quita todas as semanas cujo VENCIMENTO cai
+// no mês `monthRef` (YYYY-MM), reusando payClientWeek para cada uma → receita (client_payments) +
+// comissão derivada (weekly_payments), com competência (paid_on = vencimento), câmbio congelado e teto
+// respeitados EXATAMENTE como no fluxo semanal. Diferente de payDueWeeks, NÃO trava em "hoje": pagar o
+// mês quita o mês inteiro (o cliente pagou tudo). Idempotente: semana já registrada é pulada.
+export async function payMonth(
+  supabase: SupaClient, clientId: string, monthRef: string, rate: number, teamId?: string | null,
+): Promise<{ marked: number[]; reason: string; monthRef: string }> {
+  const { data: cli } = await supabase.from('clients').select('status, start_date, dia_pagamento_semana').eq('id', clientId).maybeSingle()
+  if (!cli) return { marked: [], reason: 'nao_encontrado', monthRef }
+  if (cli.status !== 'ativo') return { marked: [], reason: 'inativo', monthRef }
+  if (!cli.start_date) return { marked: [], reason: 'sem_inicio', monthRef }
+  const start = String(cli.start_date).slice(0, 10)
+  const dia = cli.dia_pagamento_semana ?? dowOfYmd(start)
+
+  const { data: cps } = await supabase.from('client_payments').select('numero_semana').eq('client_id', clientId)
+  const registered = new Set((cps ?? []).map(r => r.numero_semana as number)) // inclui anuladas → não re-marca
+
+  const marked: number[] = []
+  for (let n = 1; n <= 520; n++) {
+    const due = dueDateFor(start, dia, n)
+    const m = due.slice(0, 7)
+    if (m < monthRef) continue      // vencimento antes do mês pedido
+    if (m > monthRef) break         // passou do mês (datas monotônicas → encerra)
+    if (registered.has(n)) continue // semana já paga/anulada
+    const res = await payClientWeek(supabase, clientId, n, due, rate, teamId) // MESMA escrita do semanal
+    if (res.ok) marked.push(n)
+    else if (res.reason !== 'dup') break
+  }
+  return { marked, reason: marked.length ? 'ok' : 'nada_no_mes', monthRef }
+}
+
+// Mês de competência da PRÓXIMA semana não paga (YYYY-MM) — usado pela UI p/ "pagar o próximo mês".
+export async function nextUnpaidMonth(
+  supabase: SupaClient, clientId: string,
+): Promise<string | null> {
+  const { data: cli } = await supabase.from('clients').select('start_date, dia_pagamento_semana').eq('id', clientId).maybeSingle()
+  if (!cli?.start_date) return null
+  const start = String(cli.start_date).slice(0, 10)
+  const dia = cli.dia_pagamento_semana ?? dowOfYmd(start)
+  const { data: cps } = await supabase.from('client_payments').select('numero_semana').eq('client_id', clientId)
+  const registered = new Set((cps ?? []).map(r => r.numero_semana as number))
+  let n = 1; while (registered.has(n)) n++
+  return dueDateFor(start, dia, n).slice(0, 7)
+}

@@ -7,6 +7,7 @@ import { useToast } from '@/components/ui/toast'
 import { Portal } from '@/components/ui/Portal'
 import { useDialog } from '@/components/ui/useDialog'
 import { payDueWeeks, voidClientWeek } from '@/lib/commission/actions'
+import { payMonthAction } from '@/app/(dashboard)/clientes/client-write-actions'
 import { useActiveTeamId } from '@/components/auth/RoleProvider'
 import { formatCurrency } from '@/lib/utils'
 import { formatDateBR } from '@/lib/date'
@@ -68,6 +69,20 @@ export function ClientPaymentsPanel({ clients }: { clients: { id: string; name: 
       const r = await payDueWeeks(supabase, clientId, await getRate(), max, teamId)
       if (r.marked.length === 0) { toast({ type: 'error', message: r.reason === 'inativo' ? 'Cliente inativo — congelado.' : 'Nenhuma semana vencida até hoje.' }); return }
       await reload(clientId)
+    } finally { busyRef.current = false; setBusyId(null) }
+  }
+
+  // Pagamento MENSAL por competência (F2): quita todas as semanas do próximo mês não pago via payMonthAction
+  // (orquestrador que reutiliza payClientWeek). Difere de "marcar 4 semanas vencidas": quita o MÊS inteiro.
+  const payWholeMonth = async (clientId: string) => {
+    if (busyRef.current) return
+    busyRef.current = true; setBusyId(clientId)
+    try {
+      const r = await payMonthAction(clientId)
+      if (!r.ok) { toast({ type: 'error', message: r.error }); return }
+      if (r.marked.length === 0) { toast({ type: 'error', message: `Nada a cobrar em ${r.monthRef}.` }); return }
+      await reload(clientId)
+      toast({ type: 'success', message: `Mês ${r.monthRef} quitado — ${r.marked.length} semana(s).` })
     } finally { busyRef.current = false; setBusyId(null) }
   }
 
@@ -155,9 +170,9 @@ export function ClientPaymentsPanel({ clients }: { clients: { id: string; name: 
                         className="bento-btn px-3 py-1.5 rounded-btn text-xs font-semibold disabled:opacity-50">
                         {busy ? 'Registrando...' : `Marcar semana ${nextUnpaid}`}
                       </button>
-                      <button onClick={() => markWeeks(c.id, 4)} disabled={busy}
+                      <button onClick={() => payWholeMonth(c.id)} disabled={busy} title="Quita todas as semanas do próximo mês de competência (reusa o motor semanal)"
                         className="px-3 py-1.5 rounded-btn text-xs border border-bento-border text-bento-dim hover:border-lime hover:text-bento-text transition-colors disabled:opacity-50">
-                        Pagar mês (4 semanas)
+                        Pagar mês (competência)
                       </button>
                       <button onClick={() => runAuto(c.id)} disabled={busy} title="Testa o agendador neste cliente (server-side)"
                         className="px-3 py-1.5 rounded-btn text-xs border border-bento-border text-bento-dim hover:border-lime hover:text-bento-text transition-colors disabled:opacity-50">
