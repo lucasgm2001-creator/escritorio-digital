@@ -56,6 +56,15 @@ const recentEnough = (iso: string | null): boolean => {
   return Number.isNaN(t) ? true : (Date.now() - t) <= MAX_AGE_DAYS * 86400000
 }
 
+// Anthropic sem crédito ("Your credit balance is too low…") NÃO é falha da nossa app — é conta a pagar.
+// Detecta pelo texto do erro (message / responseBody cru / data.error.message) p/ degradar em silêncio.
+function isInsufficientCredit(e: unknown): boolean {
+  if (!e || typeof e !== 'object') return false
+  const x = e as { message?: unknown; responseBody?: unknown; data?: { error?: { message?: unknown } } }
+  const parts = [x.message, x.responseBody, x.data?.error?.message].filter((v): v is string => typeof v === 'string')
+  return parts.some(s => /credit balance.*too low/i.test(s))
+}
+
 export async function POST(req: Request) {
   // Auth dupla: token do agendador OU usuário logado (fallback do Hall). Senão 401.
   if (!authorizedByToken(req)) {
@@ -136,7 +145,15 @@ export async function POST(req: Request) {
 
     return NextResponse.json({ ok: true, inserted: toInsert.length })
   } catch (e) {
-    // Timeout da IA (abort) → retorna RÁPIDO 504; outras falhas → 500. Nunca segura a função até os 60s.
+    // Anthropic sem crédito → DEGRADA EM SILÊNCIO: não lança erro de runtime, não polui o dashboard com
+    // stacktrace. As notícias já existentes ficam intactas (não tocamos no banco neste caminho). Log de 1
+    // linha (warn, não error) e resposta controlada 200 { skipped }. Isto é falta de crédito, não bug nosso.
+    if (isInsufficientCredit(e)) {
+      console.warn('[news/refresh] skipped: Anthropic sem crédito — mantendo notícias em cache')
+      return NextResponse.json({ ok: true, skipped: true, reason: 'insufficient_credit' })
+    }
+    // Timeout da IA (abort) → retorna RÁPIDO 504; outras falhas REAIS → 500 (seguem observáveis no runtime).
+    // Nunca segura a função até os 60s.
     const isTimeout = e instanceof Error && (e.name === 'TimeoutError' || e.name === 'AbortError')
     console.error('[news/refresh] failed', isTimeout ? `IA abortada após ${AI_TIMEOUT_MS}ms (guard de tempo)` : e)
     return NextResponse.json(
