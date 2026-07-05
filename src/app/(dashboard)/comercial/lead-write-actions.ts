@@ -4,8 +4,12 @@ import { getRequestContext } from '@/server/context/request-context'
 import { can } from '@/lib/permissions/can'
 import { createClient } from '@/lib/supabase/server'
 import { getStages } from '@/lib/funnelStages.server'
+import { wonSlug } from '@/lib/funnelStages'
 import { markMilestones } from '@/lib/leadMilestones'
 import { logStageEvent } from '@/lib/stageEvents'
+import { saveLeadHistory, type LeadHistoryInput } from '@/lib/commission/actions'
+import { resolveRate } from '@/lib/commission/calc'
+import type { FxConfig } from '@/lib/commission/types'
 import { moveLead, type ActionNote, type MovableLead } from './leadActions'
 import { eventBus, createDomainEvent } from '@/lib/events/runtime'
 import {
@@ -83,6 +87,25 @@ export async function createLeadAction(
     })
   }
   return { ok: true, lead: data as Lead }
+}
+
+// LEAD histórico (CLIENT-HISTORY-ADMIN-003, Parte 4): dado um lead, reconstrói a jornada (received_at, 1º
+// contato, reunião, proposta, [venda]) nas DATAS reais reusando saveLeadHistory (mesmo helper do cliente).
+// Usa a SESSÃO (RLS é a autoridade — sem service-role): as escritas são team-scoped e o created_at histórico
+// é só valor de coluna. Reflete no funil/Radar/Hall/relatórios/timeline sem reconstrução manual.
+export async function saveLeadHistoryAction(leadId: string, history: LeadHistoryInput): Promise<Res<{ stageEvents: number; createdMeeting: boolean }>> {
+  const g = await guard('edit', DENY_EDIT)
+  if (!g.context) return { ok: false, error: g.error }
+  const supabase = createClient()
+  const stages = await getStages()
+  const won = wonSlug(stages)
+  const { data: fx } = await supabase.from('fx_config').select('cotacao_manual, cotacao_travada, cotacao_referencia').eq('id', 1).maybeSingle()
+  const manual = fx?.cotacao_manual != null ? Number(fx.cotacao_manual) : null
+  const fxc: FxConfig = { cotacaoManual: manual, cotacaoTravada: !!fx?.cotacao_travada }
+  const rate = resolveRate(fxc, Number(fx?.cotacao_referencia) || manual || 5.4) || 5.4
+  const r = await saveLeadHistory(supabase as Parameters<typeof saveLeadHistory>[0], leadId, history, won, rate, g.context.activeTeamId)
+  if (!r.ok) return { ok: false, error: 'Lead não encontrado.' }
+  return { ok: true, stageEvents: r.stageEvents, createdMeeting: r.createdMeeting }
 }
 
 // Atualiza campos editáveis de um lead (responsável, datas, valor, edição completa…). Um único ponto para

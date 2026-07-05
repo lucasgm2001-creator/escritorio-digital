@@ -436,6 +436,58 @@ const ymdOnly = (s?: string | null): string | null => {
 }
 const atNoon = (ymd: string): string => `${ymd}T12:00:00.000Z` // timestamp estável (meio-dia UTC não vira o dia)
 
+// Reconstrói os EVENTOS de pipeline de um lead (reunião, jornada de fases, 1º contato) nas DATAS reais.
+// COMPARTILHADO por saveClientHistory (cliente) e saveLeadHistory (lead) — sem duplicar. Idempotente: só cria o
+// que falta (meeting por lead/cliente; stage_events e 1º contato só se o lead ainda não tem nenhum). A etapa
+// FINAL é opcional: cliente passa won@fechamento; lead ainda no funil pode parar na proposta (finalStage null).
+async function reconstructLeadPipelineEvents(
+  supabase: SupaClient,
+  a: { leadId: string; leadName: string; sellerId: string | null; sellerName: string | null; clientId?: string | null;
+    leadDate: string; firstContact: string | null; meetingDate: string | null; proposalDate: string | null;
+    finalStage: string | null; finalDate: string | null },
+  rate: number, teamId?: string | null,
+): Promise<{ stageEvents: number; createdMeeting: boolean }> {
+  const { leadId, leadName, sellerId, sellerName, clientId, leadDate, firstContact, meetingDate, proposalDate, finalStage, finalDate } = a
+
+  // MEETING (met_on = data REAL): atualiza a existente (por lead/cliente) ou cria uma via registerMeeting.
+  let createdMeeting = false
+  if (meetingDate && sellerId) {
+    let mid: string | null = null
+    { const { data } = await supabase.from('meetings').select('id').eq('lead_id', leadId).limit(1); mid = data?.[0]?.id ?? null }
+    if (!mid && clientId) { const { data } = await supabase.from('meetings').select('id').eq('client_id', clientId).limit(1); mid = data?.[0]?.id ?? null }
+    if (mid) { let mq = supabase.from('meetings').update({ met_on: meetingDate }).eq('id', mid); if (teamId) mq = mq.eq('team_id', teamId); await mq }
+    else { const { error } = await registerMeeting(supabase, sellerId, { metOn: meetingDate, valorUsd: 15, clientId: clientId ?? null, clientName: leadName, leadId }, rate, teamId); if (!error) createdMeeting = true }
+  }
+
+  // STAGE EVENTS históricos — reconstrói a jornada do funil (→reunião →proposta →final) nas datas reais, para
+  // funil/relatórios/timeline baterem. SÓ se o lead ainda não tem nenhum (não duplica em re-edições).
+  let stageEvents = 0
+  const { data: existing } = await supabase.from('stage_events').select('id').eq('lead_id', leadId).limit(1)
+  if (!existing || existing.length === 0) {
+    const rows: Record<string, string | null>[] = []
+    const ev = (from: string | null, to: string, ymd: string) => rows.push({ lead_id: leadId, lead_name: leadName, from_stage: from, to_stage: to, changed_at: atNoon(ymd), seller_id: sellerId, seller_name: sellerName, ...(teamId ? { team_id: teamId } : {}) })
+    ev(null, 'novo', leadDate)
+    let prev = 'novo'
+    if (meetingDate) { ev(prev, 'reuniao', meetingDate); prev = 'reuniao' }
+    if (proposalDate) { ev(prev, 'proposta', proposalDate); prev = 'proposta' }
+    if (finalStage && finalDate && finalStage !== prev) ev(prev, finalStage, finalDate)
+    if (rows.length > 0) { const { error } = await supabase.from('stage_events').insert(rows); if (!error) stageEvents = rows.length }
+  }
+
+  // PRIMEIRO CONTATO como interação (created_at histórico) — só se o lead ainda não tem interações. Aparece na
+  // timeline como "Contato" na data real (a timeline lê created_at). service-role pode gravar created_at.
+  if (firstContact) {
+    const { data: existingInt } = await supabase.from('lead_interactions').select('id').eq('lead_id', leadId).limit(1)
+    if (!existingInt || existingInt.length === 0) {
+      await supabase.from('lead_interactions').insert({
+        lead_id: leadId, type: 'atendeu', note: 'Primeiro contato', score_delta: 0,
+        created_by_name: sellerName, created_at: atNoon(firstContact), ...withTeam(teamId),
+      })
+    }
+  }
+  return { stageEvents, createdMeeting }
+}
+
 export async function saveClientHistory(
   supabase: SupaClient, clientId: string, input: ClientHistoryInput, wonSlugStr: string, rate: number, teamId?: string | null,
 ): Promise<{ ok: boolean; reason?: string; leadId: string | null; createdLead: boolean; createdDeal: boolean; createdMeeting: boolean; stageEvents: number; redated: number; marked: number[]; hadDeal: boolean }> {
@@ -518,47 +570,68 @@ export async function saveClientHistory(
     }
   }
 
-  // MEETING (met_on = data REAL): atualiza a existente (por lead/cliente) ou cria uma via registerMeeting.
-  let createdMeeting = false
-  if (meetingDate && sellerId) {
-    let mid: string | null = null
-    if (leadId) { const { data } = await supabase.from('meetings').select('id').eq('lead_id', leadId).limit(1); mid = data?.[0]?.id ?? null }
-    if (!mid) { const { data } = await supabase.from('meetings').select('id').eq('client_id', clientId).limit(1); mid = data?.[0]?.id ?? null }
-    if (mid) { let mq = supabase.from('meetings').update({ met_on: meetingDate }).eq('id', mid); if (teamId) mq = mq.eq('team_id', teamId); await mq }
-    else { const { error } = await registerMeeting(supabase, sellerId, { metOn: meetingDate, valorUsd: 15, clientId, clientName, leadId }, rate, teamId); if (!error) createdMeeting = true }
-  }
-
-  // STAGE EVENTS históricos — reconstrói a jornada do funil nas datas reais (→reunião, →proposta, →fechado),
-  // para funil/relatórios/timeline baterem. SÓ se o lead ainda não tem nenhum (não duplica em re-edições).
-  let stageEvents = 0
+  // Eventos de pipeline (reunião + jornada de fases + 1º contato) nas datas reais — HELPER compartilhado com leads.
+  let createdMeeting = false, stageEvents = 0
   if (leadId) {
-    const { data: existing } = await supabase.from('stage_events').select('id').eq('lead_id', leadId).limit(1)
-    if (!existing || existing.length === 0) {
-      const rows: Record<string, string | null>[] = []
-      const ev = (from: string | null, to: string, ymd: string) => rows.push({ lead_id: leadId, lead_name: clientName, from_stage: from, to_stage: to, changed_at: atNoon(ymd), seller_id: sellerId, seller_name: sellerName, ...(teamId ? { team_id: teamId } : {}) })
-      ev(null, 'novo', leadDate)
-      let prev = 'novo'
-      if (meetingDate) { ev(prev, 'reuniao', meetingDate); prev = 'reuniao' }
-      if (proposalDate) { ev(prev, 'proposta', proposalDate); prev = 'proposta' }
-      ev(prev, wonSlugStr, close)
-      const { error } = await supabase.from('stage_events').insert(rows)
-      if (!error) stageEvents = rows.length
-    }
-  }
-
-  // PRIMEIRO CONTATO como interação (created_at histórico) — só se o lead ainda não tem interações. Aparece
-  // na timeline como "Contato" na data real (a timeline lê created_at). service-role pode gravar created_at.
-  if (leadId && firstContact) {
-    const { data: existingInt } = await supabase.from('lead_interactions').select('id').eq('lead_id', leadId).limit(1)
-    if (!existingInt || existingInt.length === 0) {
-      await supabase.from('lead_interactions').insert({
-        lead_id: leadId, type: 'atendeu', note: 'Primeiro contato', score_delta: 0,
-        created_by_name: sellerName, created_at: atNoon(firstContact), ...withTeam(teamId),
-      })
-    }
+    const ev = await reconstructLeadPipelineEvents(supabase, {
+      leadId, leadName: clientName, sellerId, sellerName, clientId,
+      leadDate, firstContact, meetingDate, proposalDate, finalStage: wonSlugStr, finalDate: close,
+    }, rate, teamId)
+    createdMeeting = ev.createdMeeting; stageEvents = ev.stageEvents
   }
 
   // MOTOR FINANCEIRO: semanas + comissão + receita nas datas reais (paid_on por vencimento). Reuso puro.
   const r = await reconstructClientHistory(supabase, clientId, rate, teamId)
   return { ok: r.ok, reason: r.reason, leadId, createdLead, createdDeal, createdMeeting, stageEvents, redated: r.redated, marked: r.marked, hadDeal: r.hadDeal || createdDeal }
+}
+
+// ─── LEAD histórico (CLIENT-HISTORY-ADMIN-003, Parte 4) ─────────────────────────────────────────
+// MESMA ideia do cliente, para um LEAD (ainda no funil ou vendido). Grava received_at/1º contato/venda no lead
+// e reconstrói a jornada (reunião/proposta/[fechamento]) nas datas reais pelo HELPER compartilhado — sem motor
+// novo, sem duplicar. Se `saleDate` vier, o lead vira won (status + fechamento); senão para na proposta. Não há
+// deal/semanas aqui (isso é do CLIENTE): quando o lead vira cliente, o saveClientHistory cuida do financeiro.
+export interface LeadHistoryInput {
+  leadDate?: string | null      // data do lead (received_at)
+  firstContact?: string | null  // primeiro contato
+  meetingDate?: string | null   // reunião
+  proposalDate?: string | null  // proposta
+  saleDate?: string | null      // venda (se informado → lead vira won: status + stage_changed_at)
+}
+
+export async function saveLeadHistory(
+  supabase: SupaClient, leadId: string, input: LeadHistoryInput, wonSlugStr: string, rate: number, teamId?: string | null,
+): Promise<{ ok: boolean; reason?: string; stageEvents: number; createdMeeting: boolean }> {
+  const leadRaw = ymdOnly(input.leadDate)
+  const saleRaw = ymdOnly(input.saleDate)
+  const meetingDate = ymdOnly(input.meetingDate)
+  const firstContact = ymdOnly(input.firstContact)
+  const proposalDate = ymdOnly(input.proposalDate)
+
+  const { data: lead } = await supabase.from('leads').select('name, assigned_name, received_at').eq('id', leadId).maybeSingle()
+  if (!lead) return { ok: false, reason: 'nao_encontrado', stageEvents: 0, createdMeeting: false }
+  const leadName = String(lead.name ?? '').trim()
+  const sellerName = (lead.assigned_name as string | null) ?? null
+
+  // Vendedor p/ a reunião: casa por nome (assigned_name) → 1º ativo (mesma regra do won-flow).
+  let sellerId: string | null = null
+  if (sellerName) { const { data } = await supabase.from('sellers').select('id').eq('status', 'ativo').ilike('name', `%${sellerName.trim()}%`).limit(1); sellerId = data?.[0]?.id ?? null }
+  if (!sellerId) { const { data } = await supabase.from('sellers').select('id').eq('status', 'ativo').order('created_at').limit(1); sellerId = data?.[0]?.id ?? null }
+
+  // Update NÃO-destrutivo do lead: só o que foi informado. Se vendido, status=won + fechamento.
+  const leadPatch: Record<string, string> = {}
+  if (leadRaw) leadPatch.received_at = leadRaw
+  if (firstContact) leadPatch.last_contact_at = atNoon(firstContact)
+  if (saleRaw) { leadPatch.status = wonSlugStr; leadPatch.stage_changed_at = atNoon(saleRaw) }
+  if (Object.keys(leadPatch).length > 0) { let lq = supabase.from('leads').update(leadPatch).eq('id', leadId); if (teamId) lq = lq.eq('team_id', teamId); await lq }
+
+  // Data-âncora da jornada: a informada, senão o received_at atual do lead. Sem âncora válida → só fez o update.
+  const leadDateEff = leadRaw ?? ymdOnly(lead.received_at)
+  if (!leadDateEff) return { ok: true, stageEvents: 0, createdMeeting: false }
+
+  const ev = await reconstructLeadPipelineEvents(supabase, {
+    leadId, leadName, sellerId, sellerName, clientId: null,
+    leadDate: leadDateEff, firstContact, meetingDate, proposalDate,
+    finalStage: saleRaw ? wonSlugStr : null, finalDate: saleRaw,
+  }, rate, teamId)
+  return { ok: true, stageEvents: ev.stageEvents, createdMeeting: ev.createdMeeting }
 }

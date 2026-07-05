@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { FUSO_OPTIONS, type Lead } from './types'
 import { US_STATES, sanitizeAreaCode } from '@/lib/usStates'
-import { createLeadAction } from './lead-write-actions'
+import { createLeadAction, saveLeadHistoryAction } from './lead-write-actions'
 import { useToast } from '@/components/ui/toast'
 import { ymd } from '@/lib/format'
 import { wonSlug, type FunnelStage } from '@/lib/funnelStages'
@@ -28,6 +28,9 @@ const EMPTY_FORM = {
   nicho: '', origem: '', prioridade: 'media',
   next_contact: '', assigned_to: '', assigned_name: '', received_at: '', fuso: '',
   city: '', state: '', area_code: '',
+  // HISTÓRICO do lead (CLIENT-HISTORY-ADMIN-003, Parte 4) — datas reais além da chegada; ao criar, reconstrói
+  // a jornada (reunião/proposta/[venda]) nas datas informadas. Vazio = só a data de chegada (received_at).
+  firstContact: '', meetingDate: '', proposalDate: '', saleDate: '',
 }
 
 const ORIGENS = [
@@ -221,6 +224,16 @@ export function LeadModal({ onClose, onCreated, currentUser, stages, clients }: 
       setLoading(false)
       return
     }
+    // Histórico do lead (Parte 4): se datas de pipeline foram informadas, reconstrói a jornada nas datas reais
+    // (reunião/proposta/[venda]). O lead JÁ foi criado com a data de chegada — isto só enriquece o histórico.
+    if (form.firstContact || form.meetingDate || form.proposalDate || form.saleDate) {
+      const h = await saveLeadHistoryAction(res.lead.id, {
+        leadDate: form.received_at || null, firstContact: form.firstContact || null,
+        meetingDate: form.meetingDate || null, proposalDate: form.proposalDate || null, saleDate: form.saleDate || null,
+      })
+      if (!h.ok) toast({ type: 'error', message: h.error })
+      else toast({ type: 'success', message: 'Lead criado com histórico reconstruído.' })
+    }
     onCreated(res.lead)
     onClose()
   }
@@ -353,6 +366,25 @@ export function LeadModal({ onClose, onCreated, currentUser, stages, clients }: 
             <input type="date" value={form.received_at} onChange={e => set('received_at', e.target.value)}
               className={inputCls} />
           </Field>
+
+          {/* HISTÓRICO do lead (CLIENT-HISTORY-ADMIN-003, Parte 4) — datas reais da jornada. Ao criar, o sistema
+              reconstrói a timeline, o funil e o Radar nas datas informadas, como se o lead tivesse chegado então. */}
+          <div className="rounded-btn border border-bento-border/60 bg-bento-bg p-3 space-y-2.5">
+            <div>
+              <p className="text-xs font-medium text-bento-text">Histórico (opcional)</p>
+              <p className="font-tech text-[10px] text-bento-muted leading-relaxed">
+                Datas reais da jornada. Ao criar, reconstrói timeline, funil e Radar — como se o lead tivesse chegado naquela época.
+              </p>
+            </div>
+            <div className="grid grid-cols-2 gap-2.5">
+              {([['firstContact', 'Primeiro contato'], ['meetingDate', 'Reunião'], ['proposalDate', 'Proposta'], ['saleDate', 'Venda']] as const).map(([key, label]) => (
+                <div key={key}>
+                  <label className="block text-[11px] font-medium text-bento-dim mb-1">{label}</label>
+                  <input type="date" value={form[key]} max={ymd(new Date())} onChange={e => set(key, e.target.value)} className={inputCls} />
+                </div>
+              ))}
+            </div>
+          </div>
 
           {/* Fuso horário (EUA) — opcional */}
           <Field label="Fuso horário">
