@@ -456,7 +456,7 @@ export function HallClient({ initialActivities, initialTasks, linkOptions, userN
             {dashboard.kpiGroups.map(group => (
               <div key={group.title} className="space-y-2">
                 <SectionLabel>{group.title}</SectionLabel>
-                <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5">
                   {group.kpis.map(k => (
                     <MetricCard key={k.label} title={k.label} value={k.value} size="sm" href={k.href} />
                   ))}

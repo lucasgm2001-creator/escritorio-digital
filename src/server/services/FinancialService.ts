@@ -4,7 +4,7 @@ import type { RequestContext } from '@/server/context/request-context'
 import { getExecutiveMetrics } from '@/server/services/ExecutiveMetricsService'
 import { getClientRevenueForMetrics, getExecutiveClients } from '@/server/repositories/CommercialMetricsRepository'
 import { receivedRevenueBetween, receivedRevenueByForma, type PaymentRowWithClient } from '@/core/metrics/revenue'
-import { clientScheduleStatus } from '@/lib/commercial/schedule'
+import { clientScheduleStatus, clientChargesBetween, type ChargeState } from '@/lib/commercial/schedule'
 import { rangeFor } from '@/lib/period'
 
 // Visão Financeira executiva team-level (EXECUTIVE-METRICS-005). NÃO é motor novo: os KPIs núcleo vêm de
@@ -16,6 +16,7 @@ import { rangeFor } from '@/lib/period'
 export type RevenueRow = { label: string; value: number; count: number }
 export type EvolutionPoint = { label: string; value: number }
 export type UpcomingCharge = { client: string; dueYMD: string; valor: number }
+export type ChargeSummary = { state: ChargeState; count: number; valor: number }  // cobranças do mês por estado (Stripe-ready)
 
 export type FinancialViewVM = {
   hasData: boolean
@@ -36,6 +37,7 @@ export type FinancialViewVM = {
   clientesEmAtraso: number                // > 9 dias sem pagamento
   recebimentosPendentesUsd: number        // semanas vencidas sem registro × valor semanal
   proximosRecebimentos: UpcomingCharge[]  // próximas cobranças (top 8 por data)
+  cobrancasPorEstado: ChargeSummary[]     // cobranças do mês por estado: prevista/aguardando/recebida/atrasada
 }
 
 const MONTHS = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez']
@@ -48,6 +50,7 @@ const EMPTY: FinancialViewVM = {
   hasData: false, periodLabel: '', receitaRecebida: 0, receitaSemanal: 0, receitaPrevista: 0, valorFechado: 0,
   mrr: 0, arr: 0, ticketMedio: 0, clientesAtivos: 0, clientesNovos: 0, receitaPorVendedor: [], receitaPorPlano: [],
   receitaPorForma: [], evolucaoMensal: [], clientesEmAtraso: 0, recebimentosPendentesUsd: 0, proximosRecebimentos: [],
+  cobrancasPorEstado: [],
 }
 
 export async function getFinancialView(context: RequestContext): Promise<FinancialViewVM> {
@@ -98,15 +101,24 @@ export async function getFinancialView(context: RequestContext): Promise<Financi
   }
   const clientesEmAtraso = Array.from(lastPaidByClient.values()).filter(last => last < staleDay).length
 
+  const chargeAgg = new Map<ChargeState, { count: number; valor: number }>()
   let recebimentosPendentesUsd = 0
   const proximos: UpcomingCharge[] = []
   for (const c of carteira.clients) {
     if (c.status !== 'ativo') continue
-    const st = clientScheduleStatus(c, paidNumsByClient.get(c.id) ?? new Set<number>(), today)
+    const paidNums = paidNumsByClient.get(c.id) ?? new Set<number>()
+    const st = clientScheduleStatus(c, paidNums, today)
     recebimentosPendentesUsd += st.semanasVencidas * st.valorSemanal
     if (st.proximaCobranca && st.valorSemanal > 0) proximos.push({ client: c.name || 'Cliente', dueYMD: st.proximaCobranca, valor: st.valorSemanal })
+    // Estados das cobranças do MÊS corrente (prevista/aguardando/recebida/atrasada) — mesma régua dueDateFor.
+    for (const ch of clientChargesBetween(c, paidNums, today, mStart, mEnd)) {
+      const cur = chargeAgg.get(ch.state) ?? { count: 0, valor: 0 }
+      cur.count += 1; cur.valor += ch.valor; chargeAgg.set(ch.state, cur)
+    }
   }
   proximos.sort((a, b) => a.dueYMD.localeCompare(b.dueYMD))
+  const cobrancasPorEstado = (['prevista', 'aguardando', 'recebida', 'atrasada'] as ChargeState[])
+    .map(s => ({ state: s, count: chargeAgg.get(s)?.count ?? 0, valor: round2(chargeAgg.get(s)?.valor ?? 0) }))
 
   return {
     hasData: true,
@@ -127,5 +139,6 @@ export async function getFinancialView(context: RequestContext): Promise<Financi
     clientesEmAtraso,
     recebimentosPendentesUsd: round2(recebimentosPendentesUsd),
     proximosRecebimentos: proximos.slice(0, 8),
+    cobrancasPorEstado,
   }
 }

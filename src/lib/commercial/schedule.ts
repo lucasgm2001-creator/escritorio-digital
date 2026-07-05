@@ -23,3 +23,39 @@ export function clientScheduleStatus(c: ScheduleClient, paidNums: Set<number>, t
   const proximaCobranca = dueDateFor(start, dia, dueCount + 1)
   return { valorSemanal, semanasVencidas, proximaCobranca }
 }
+
+// ── Estado de cada COBRANÇA (OPERATION-CRM-002, Part 4 — Stripe-ready) ──
+// Hoje o estado é DERIVADO do cronograma (dueDateFor) + registro em client_payments. Quando o Stripe entrar,
+// só troca a origem do estado (webhook paid/upcoming/failed → estes mesmos 4 estados) — sem retrabalho.
+export type ChargeState = 'prevista' | 'aguardando' | 'recebida' | 'atrasada'
+export type Charge = { numeroSemana: number; dueYMD: string; valor: number; state: ChargeState }
+
+const ATRASO_GRACE_DAYS = 9 // mesma régua do "cliente em atraso" (gap > 9 dias)
+const minusDays = (ymd: string, days: number): string => {
+  const [y, m, d] = ymd.split('-').map(Number)
+  const dt = new Date(Date.UTC(y, m - 1, d)); dt.setUTCDate(dt.getUTCDate() - days)
+  return dt.toISOString().slice(0, 10)
+}
+
+// Cobranças do cliente com vencimento em [fromYMD, toYMD], cada uma com seu estado:
+//  recebida = tem pagamento · prevista = ainda vai vencer · aguardando = venceu há ≤9d sem pagar ·
+//  atrasada = venceu há >9d sem pagar.
+export function clientChargesBetween(c: ScheduleClient, paidNums: Set<number>, todayYMD: string, fromYMD: string, toYMD: string): Charge[] {
+  const valor = Number(c.plan_weekly) || 0
+  if (c.status !== 'ativo' || !c.start_date || valor <= 0) return []
+  const start = String(c.start_date).slice(0, 10)
+  const dia = c.dia_pagamento_semana ?? dow(start)
+  const graceCutoff = minusDays(todayYMD, ATRASO_GRACE_DAYS)
+  const out: Charge[] = []
+  for (let n = 1; n <= 520; n++) {
+    const due = dueDateFor(start, dia, n)
+    if (due > toYMD) break
+    if (due < fromYMD) continue
+    const state: ChargeState = paidNums.has(n) ? 'recebida'
+      : due > todayYMD ? 'prevista'
+        : due >= graceCutoff ? 'aguardando'
+          : 'atrasada'
+    out.push({ numeroSemana: n, dueYMD: due, valor, state })
+  }
+  return out
+}

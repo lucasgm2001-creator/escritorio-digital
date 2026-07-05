@@ -1,14 +1,22 @@
 import type { ReactNode } from 'react'
 import { Panel } from '@/components/bento/Panel'
-import { MetricCard } from '@/components/ui/MetricCard'
+import { MetricCard, type MetricTone } from '@/components/ui/MetricCard'
 import type { FinancialViewVM } from '@/server/services/FinancialService'
 
-// Painel Financeiro executivo (EXECUTIVE-METRICS-005). SÓ apresentação: todos os números vêm prontos do
-// FinancialService (fonte única). Hierarquia: destaque (Recebida ≠ Fechado) → recorrência/carteira →
-// recebíveis → evolução → quebras → próximos. Sem tabela gigante; cards com propósito.
+// Painel Financeiro executivo (EXECUTIVE-METRICS-005 + OPERATION-CRM-002 P3/P4). SÓ apresentação: todos os
+// números vêm prontos do FinancialService (fonte única). Layout premium responsivo (desktop → MacBook → iPad →
+// mobile): aproveita a largura, cards equilibrados, gráfico grande. Estados de cobrança (Stripe-ready).
 
 const usd = (v: number): string => `US$ ${Math.round(v).toLocaleString('en-US')}`
 const fmtBR = (ymd: string): string => { const [, m, d] = ymd.split('-'); return `${d}/${m}` }
+
+// Estados de cobrança → rótulo + tom (chave por string p/ não acoplar o client ao módulo server do schedule).
+const CHARGE_META: Record<string, { label: string; tone: MetricTone }> = {
+  prevista: { label: 'Prevista', tone: 'muted' },
+  aguardando: { label: 'Aguardando', tone: 'default' },
+  recebida: { label: 'Recebida', tone: 'positive' },
+  atrasada: { label: 'Atrasada', tone: 'negative' },
+}
 
 function SectionLabel({ children }: { children: ReactNode }) {
   return <p className="font-tech text-[10px] uppercase tracking-[0.12em] text-bento-muted">{children}</p>
@@ -40,30 +48,41 @@ export function FinanceiroExecutivo({ vm }: { vm: FinancialViewVM }) {
   const maxForma = Math.max(1, ...vm.receitaPorForma.map(f => f.value))
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       {/* Destaque — Receita Recebida ≠ Valor Fechado (nunca somados) */}
       <div>
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           <div className="bento-fx p-5">
             <p className="font-tech text-[10px] uppercase tracking-wide text-bento-muted">Receita Recebida · {vm.periodLabel}</p>
-            <p className="font-display text-3xl font-bold text-lime-fg tabular-nums leading-none mt-2">{usd(vm.receitaRecebida)}</p>
+            <p className="font-display text-3xl xl:text-4xl font-bold text-lime-fg tabular-nums leading-none mt-2">{usd(vm.receitaRecebida)}</p>
             <p className="text-[11px] text-bento-dim mt-1.5">dinheiro no caixa (client_payments)</p>
           </div>
           <div className="bento-fx p-5">
             <p className="font-tech text-[10px] uppercase tracking-wide text-bento-muted">Valor Fechado · {vm.periodLabel}</p>
-            <p className="font-display text-3xl font-bold text-bento-text tabular-nums leading-none mt-2">{usd(vm.valorFechado)}</p>
+            <p className="font-display text-3xl xl:text-4xl font-bold text-bento-text tabular-nums leading-none mt-2">{usd(vm.valorFechado)}</p>
             <p className="text-[11px] text-bento-dim mt-1.5">contratos fechados (deals) — não é caixa</p>
           </div>
           <div className="bento-fx p-5">
             <p className="font-tech text-[10px] uppercase tracking-wide text-bento-muted">Receita Prevista</p>
-            <p className="font-display text-3xl font-bold text-bento-text tabular-nums leading-none mt-2">{usd(vm.receitaPrevista)}</p>
+            <p className="font-display text-3xl xl:text-4xl font-bold text-bento-text tabular-nums leading-none mt-2">{usd(vm.receitaPrevista)}</p>
             <p className="text-[11px] text-bento-dim mt-1.5">cobranças agendadas até o fim do mês</p>
           </div>
         </div>
         <p className="text-[11px] text-bento-dim mt-2 px-0.5"><span className="text-bento-muted font-medium">Receita Recebida ≠ Valor Fechado.</span> Dinheiro recebido nunca é somado a contrato fechado.</p>
       </div>
 
-      {/* Recorrência & carteira */}
+      {/* Cobranças do mês por estado (Stripe-ready) */}
+      <section className="space-y-2">
+        <SectionLabel>Cobranças do mês · por estado</SectionLabel>
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5">
+          {vm.cobrancasPorEstado.map(c => {
+            const meta = CHARGE_META[c.state] ?? { label: c.state, tone: 'default' as MetricTone }
+            return <MetricCard key={c.state} title={meta.label} value={usd(c.valor)} subtitle={`${c.count} cobrança(s)`} size="sm" tone={meta.tone} />
+          })}
+        </div>
+      </section>
+
+      {/* Recorrência & carteira — enche a largura no MacBook/desktop (6 colunas) */}
       <section className="space-y-2">
         <SectionLabel>Recorrência & carteira</SectionLabel>
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5">
@@ -86,42 +105,47 @@ export function FinanceiroExecutivo({ vm }: { vm: FinancialViewVM }) {
         </div>
       </section>
 
-      {/* Evolução mensal — receita recebida (6 meses) */}
+      {/* Evolução mensal — gráfico ocupando toda a largura, maior */}
       <Panel label="Evolução mensal · receita recebida">
-        <div className="flex items-end gap-2 sm:gap-3 pt-2">
+        <div className="flex items-end gap-2 sm:gap-4 pt-2">
           {vm.evolucaoMensal.map(e => (
-            <div key={e.label} className="flex-1 flex flex-col items-center gap-1 min-w-0">
-              <span className="font-tech text-[9px] text-bento-muted tabular-nums">{Math.round(e.value).toLocaleString('en-US')}</span>
-              <div className="w-full max-w-[42px] bg-lime rounded-t-[3px]" style={{ height: `${Math.max(4, Math.round((e.value / maxEvo) * 120))}px` }} />
-              <span className="font-tech text-[9px] text-bento-dim whitespace-nowrap">{e.label}</span>
+            <div key={e.label} className="flex-1 flex flex-col items-center gap-1.5 min-w-0">
+              <span className="font-tech text-[10px] text-bento-muted tabular-nums">{Math.round(e.value).toLocaleString('en-US')}</span>
+              <div className="w-full max-w-[64px] bg-lime rounded-t-[4px]" style={{ height: `${Math.max(6, Math.round((e.value / maxEvo) * 150))}px` }} />
+              <span className="font-tech text-[10px] text-bento-dim whitespace-nowrap">{e.label}</span>
             </div>
           ))}
         </div>
       </Panel>
 
-      {/* Quebras de receita recebida (só as que têm dado) */}
-      {(vm.receitaPorVendedor.length > 0 || vm.receitaPorPlano.length > 0 || vm.receitaPorForma.length > 0) && (
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 items-start">
-          {vm.receitaPorVendedor.length > 0 && (
-            <Panel label="Por vendedor"><BarList rows={vm.receitaPorVendedor.map(s => ({ label: s.name, value: s.value, sub: `${s.count} cliente(s)` }))} max={maxSeller} /></Panel>
-          )}
-          {vm.receitaPorPlano.length > 0 && (
-            <Panel label="Por plano"><BarList rows={vm.receitaPorPlano.map(p => ({ label: p.plan, value: p.value, sub: `${p.count} cliente(s)` }))} max={maxPlan} /></Panel>
-          )}
-          {vm.receitaPorForma.length > 0 && (
-            <Panel label="Por forma de pagamento"><BarList rows={vm.receitaPorForma.map(f => ({ label: f.label, value: f.value, sub: `${f.count} cliente(s)` }))} max={maxForma} /></Panel>
-          )}
-        </div>
+      {/* Receita por vendedor / plano — lado a lado */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-start">
+        <Panel label="Por vendedor">
+          <BarList rows={vm.receitaPorVendedor.map(s => ({ label: s.name, value: s.value, sub: `${s.count} cliente(s)` }))} max={maxSeller} />
+        </Panel>
+        <Panel label="Por plano">
+          <BarList rows={vm.receitaPorPlano.map(p => ({ label: p.plan, value: p.value, sub: `${p.count} cliente(s)` }))} max={maxPlan} />
+        </Panel>
+      </div>
+
+      {/* Forma de pagamento — abaixo, largura total */}
+      {vm.receitaPorForma.length > 0 && (
+        <Panel label="Por forma de pagamento">
+          <BarList rows={vm.receitaPorForma.map(f => ({ label: f.label, value: f.value, sub: `${f.count} cliente(s)` }))} max={maxForma} />
+        </Panel>
       )}
 
-      {/* Próximos recebimentos (régua de cobrança) */}
+      {/* Próximos recebimentos — tabela limpa */}
       {vm.proximosRecebimentos.length > 0 && (
         <Panel label="Próximos recebimentos">
-          <div className="space-y-1.5">
+          <div className="divide-y divide-bento-border/60">
             {vm.proximosRecebimentos.map((p, i) => (
-              <div key={`${p.client}-${i}`} className="flex items-center justify-between gap-2 text-[13px]">
+              <div key={`${p.client}-${i}`} className="flex items-center justify-between gap-3 py-2 text-[13px]">
                 <span className="text-bento-text truncate">{p.client}</span>
-                <span className="text-bento-dim shrink-0 tabular-nums">{fmtBR(p.dueYMD)} · <span className="text-bento-text font-medium">{usd(p.valor)}</span></span>
+                <div className="flex items-center gap-4 shrink-0 tabular-nums">
+                  <span className="text-bento-dim">{fmtBR(p.dueYMD)}</span>
+                  <span className="text-bento-text font-medium w-20 text-right">{usd(p.valor)}</span>
+                </div>
               </div>
             ))}
           </div>
