@@ -5,7 +5,7 @@ import { can } from '@/lib/permissions/can'
 import { createClient } from '@/lib/supabase/server'
 import { createServiceClient } from '@/lib/supabase/service'
 import { assertClientOwnership } from '@/server/security/team-ownership'
-import { reconstructClientHistory, payMonth, nextUnpaidMonth } from '@/lib/commission/actions'
+import { reconstructClientHistory, payMonth, nextUnpaidMonth, applyPlanUpgrade } from '@/lib/commission/actions'
 import { resolveRate } from '@/lib/commission/calc'
 import type { FxConfig } from '@/lib/commission/types'
 
@@ -142,4 +142,27 @@ export async function payMonthAction(clientId: string, monthRef?: string): Promi
   if (r.reason === 'inativo') return { ok: false, error: 'Cliente inativo — congelado.' }
   if (r.reason === 'sem_inicio') return { ok: false, error: 'Defina a data de início antes de cobrar o mês.' }
   return { ok: true, marked: r.marked, monthRef: r.monthRef }
+}
+
+// Upgrade de plano (F3): registra o evento + bônus (só a diferença, config do vendedor) na competência do
+// upgrade e move o cliente para o novo plano. Reusa o motor vivo (applyPlanUpgrade). Mesma segurança do
+// reconstruct/payMonth (service-role só após assertClientOwnership). Sem 2º motor; regra financeira explicada.
+export async function registerPlanUpgradeAction(clientId: string, newPlanId: string, changedAt?: string): Promise<Res<{ bonus: number; deltaMensal: number }>> {
+  const g = await guardEdit()
+  if (!g.context) return { ok: false, error: g.error }
+  const supabase = createServiceClient()
+  const owned = await assertClientOwnership(supabase, clientId, g.context.activeTeamId)
+  if (!owned.ok) return { ok: false, error: owned.status === 403 ? 'Cliente de outra equipe.' : 'Cliente não encontrado.' }
+  const changed = (changedAt && /^\d{4}-\d{2}-\d{2}$/.test(changedAt)) ? changedAt : new Date().toISOString().slice(0, 10)
+  const rate = await resolveEditRate(supabase)
+  const r = await applyPlanUpgrade(supabase as Parameters<typeof applyPlanUpgrade>[0], { clientId, newPlanId, changedAt: changed, rate, teamId: g.context.activeTeamId })
+  if (!r.ok) {
+    const msg = r.reason === 'mesmo_plano' ? 'Selecione um plano diferente do atual.'
+      : r.reason === 'nao_e_upgrade' ? 'O novo plano precisa ser maior que o atual (upgrade).'
+      : r.reason === 'inativo' ? 'Cliente inativo — reative antes de fazer upgrade.'
+      : r.reason === 'plano_invalido' ? 'Plano inválido.'
+      : 'Cliente não encontrado.'
+    return { ok: false, error: msg }
+  }
+  return { ok: true, bonus: r.bonus, deltaMensal: r.deltaMensal }
 }

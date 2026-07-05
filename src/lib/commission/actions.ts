@@ -332,6 +332,79 @@ export async function payMonth(
   return { marked, reason: marked.length ? 'ok' : 'nada_no_mes', monthRef }
 }
 
+// ─── Upgrade de plano (F3) ────────────────────────────────────────────────────────────────────
+// CONECTA o upgrade ao motor VIVO (não cria 2º motor). O bônus = SÓ a diferença (config
+// upgrade_commission_* do vendedor, base=plan_difference), lançado UMA vez na competência do upgrade
+// como um weekly_payment num "deal-delta" (status 'upgrade_bonus' ≠ 'em_andamento' → a derivação semanal
+// o ignora; Minha Remuneração/PDF/relatórios somam por paid_on → aparece sozinho). Registra o evento em
+// plan_changes (auditoria) e move o cliente para o novo plano (billing futuro). NÃO duplica: só o incremento.
+const round2u = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100
+export async function applyPlanUpgrade(
+  supabase: SupaClient, args: { clientId: string; newPlanId: string; changedAt: string; rate: number; teamId?: string | null },
+): Promise<{ ok: boolean; reason?: string; bonus: number; deltaMensal: number; sellerId: string | null }> {
+  const { clientId, newPlanId, changedAt, rate, teamId } = args
+  const base0 = { bonus: 0, deltaMensal: 0, sellerId: null as string | null }
+  const { data: cli } = await supabase.from('clients').select('name, plano_id, plan_weekly, status').eq('id', clientId).maybeSingle()
+  if (!cli) return { ok: false, reason: 'nao_encontrado', ...base0 }
+  if (cli.status !== 'ativo') return { ok: false, reason: 'inativo', ...base0 }
+  if (cli.plano_id === newPlanId) return { ok: false, reason: 'mesmo_plano', ...base0 }
+
+  const ids = [cli.plano_id, newPlanId].filter(Boolean) as string[]
+  const { data: plans } = await supabase.from('plans').select('id, nome, valor_semanal, valor_mensal').in('id', ids)
+  const oldPlan = (plans ?? []).find(p => p.id === cli.plano_id) ?? null
+  const newPlan = (plans ?? []).find(p => p.id === newPlanId)
+  if (!newPlan) return { ok: false, reason: 'plano_invalido', ...base0 }
+  const oldMensal = Number(oldPlan?.valor_mensal ?? (Number(cli.plan_weekly) || 0) * 4)
+  const newMensal = Number(newPlan.valor_mensal ?? Number(newPlan.valor_semanal) * 4)
+  const deltaMensal = round2u(newMensal - oldMensal)
+  if (deltaMensal <= 0) return { ok: false, reason: 'nao_e_upgrade', bonus: 0, deltaMensal, sellerId: null }
+
+  // Vendedor = dono do deal ativo do cliente (fallback: 1º vendedor ativo — mesma regra do won-flow).
+  const { data: deals } = await supabase.from('deals').select('seller_id').eq('client_id', clientId).eq('status', 'em_andamento').order('data_fechamento', { ascending: false }).limit(1)
+  let sellerId: string | null = deals?.[0]?.seller_id ?? null
+  if (!sellerId) { const { data: s } = await supabase.from('sellers').select('id').eq('status', 'ativo').order('created_at').limit(1); sellerId = s?.[0]?.id ?? null }
+
+  // Bônus a partir da config JÁ EXISTENTE do vendedor (nada de regra nova; só é lida e aplicada).
+  let bonus = 0
+  if (sellerId) {
+    const { data: cfg } = await supabase.from('collaborator_compensation_settings')
+      .select('upgrade_commission_enabled, upgrade_commission_type, upgrade_commission_value, upgrade_commission_base').eq('seller_id', sellerId).maybeSingle()
+    if (cfg?.upgrade_commission_enabled) {
+      const cfgBase = cfg.upgrade_commission_base === 'full_value' ? newMensal : deltaMensal // padrão: só a diferença
+      const val = Number(cfg.upgrade_commission_value) || 0
+      bonus = cfg.upgrade_commission_type === 'fixed' ? round2u(val) : round2u(cfgBase * val / 100)
+    }
+  }
+
+  // Bônus na comissão (motor vivo) via deal-delta + weekly_payment — PRIMEIRO (se falhar, aborta limpo,
+  // nada gravado). Status 'concluido' (permitido pelo deals_status_check) ≠ 'em_andamento' → a derivação
+  // semanal e o "receber esta semana" IGNORAM este deal; Minha Remuneração/PDF/relatórios somam a semana
+  // por paid_on. teto=1, 1 semana = o bônus exato. Só se houver bônus e vendedor.
+  if (bonus > 0 && sellerId) {
+    const { data: dd, error: ddErr } = await supabase.from('deals').insert({
+      seller_id: sellerId, client_id: clientId, client_name: `${cli.name} (upgrade ${oldPlan?.nome ?? '—'}→${newPlan.nome})`,
+      valor_total_usd: bonus, teto_semanas: 1, valor_por_semana_usd: bonus, comissao_percentual: null,
+      status: 'concluido', data_fechamento: changedAt, ...withTeam(teamId),
+    }).select('id').single()
+    if (ddErr || !dd) return { ok: false, reason: 'bonus_deal', bonus, deltaMensal, sellerId }
+    const { error: wErr } = await supabase.from('weekly_payments').insert({
+      deal_id: dd.id, numero_semana: 1, valor_usd: bonus, paid_on: changedAt, cotacao_usd_brl: rate, ...withTeam(teamId),
+    })
+    if (wErr) { await supabase.from('deals').delete().eq('id', dd.id); return { ok: false, reason: 'bonus_week', bonus, deltaMensal, sellerId } }
+  }
+
+  // Evento auditável (grava depois do bônus estar garantido; grava mesmo com bônus 0 = config desligada).
+  await supabase.from('plan_changes').insert({
+    client_id: clientId, seller_id: sellerId, old_plan_id: cli.plano_id ?? null, new_plan_id: newPlanId,
+    old_valor_semanal: oldPlan?.valor_semanal ?? cli.plan_weekly, new_valor_semanal: newPlan.valor_semanal,
+    delta_mensal_usd: deltaMensal, bonus_usd: bonus, changed_at: changedAt, ...withTeam(teamId),
+  })
+
+  // Cliente passa a valer pelo novo plano (billing futuro = novo valor_semanal). Não altera semanas já pagas.
+  await supabase.from('clients').update({ plano_id: newPlanId, plan_weekly: newPlan.valor_semanal }).eq('id', clientId)
+  return { ok: true, bonus, deltaMensal, sellerId }
+}
+
 // Mês de competência da PRÓXIMA semana não paga (YYYY-MM) — usado pela UI p/ "pagar o próximo mês".
 export async function nextUnpaidMonth(
   supabase: SupaClient, clientId: string,

@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { updateClient } from '@/lib/commission/actions'
-import { reconstructClientHistoryAction } from './client-write-actions'
+import { reconstructClientHistoryAction, registerPlanUpgradeAction } from './client-write-actions'
 import { useSave } from '@/lib/useSave'
 import { useToast } from '@/components/ui/toast'
 import { FUSO_OPTIONS } from '../comercial/types'
@@ -44,6 +44,9 @@ export function ClienteModal({ client, onClose, onSaved, initialTab }: {
   const [plans, setPlans] = useState<Plan[]>([])
   const [loading, setLoading] = useState(false)
   const [reconstructing, setReconstructing] = useState(false)
+  const [upgradePlan, setUpgradePlan] = useState('')
+  const [upgradeDate, setUpgradeDate] = useState(new Date().toISOString().slice(0, 10))
+  const [upgrading, setUpgrading] = useState(false)
   const [form, setForm] = useState({
     name: client.name, company: client.company ?? '', email: client.email ?? '', phone: client.phone ?? '',
     plano_id: client.plano_id ?? '', dia_pagamento_semana: String(client.dia_pagamento_semana ?? weekdayOf(client.start_date)),
@@ -129,6 +132,21 @@ export function ClienteModal({ client, onClose, onSaved, initialTab }: {
     } finally { setReconstructing(false) }
   }
 
+  // Upgrade de plano (F3): move o cliente para um plano maior e lança o bônus (só a diferença) na comissão.
+  const handleUpgrade = async () => {
+    if (upgrading || !upgradePlan) return
+    setUpgrading(true)
+    try {
+      const res = await registerPlanUpgradeAction(client.id, upgradePlan, upgradeDate)
+      if (!res.ok) { toast({ type: 'error', message: res.error }); return }
+      const np = plans.find(p => p.id === upgradePlan)
+      onSaved({ ...client, plano_id: upgradePlan, plan_weekly: np?.valor_semanal ?? client.plan_weekly } as Client)
+      setForm(p => ({ ...p, plano_id: upgradePlan }))
+      setUpgradePlan('')
+      toast({ type: 'success', message: res.bonus > 0 ? `Upgrade registrado · bônus US$${res.bonus} (diferença US$${res.deltaMensal}/mês).` : `Upgrade registrado (sem bônus configurado).` })
+    } finally { setUpgrading(false) }
+  }
+
   const { ref, dialogProps } = useDialog(onClose)
   return (
     <Portal>
@@ -211,6 +229,23 @@ export function ClienteModal({ client, onClose, onSaved, initialTab }: {
             <button type="button" onClick={handleReconstruct} disabled={reconstructing || loading || !form.start_date}
               className="w-full px-3 py-2 rounded-btn text-xs font-semibold border border-lime/40 text-lime-fg hover:bg-lime/10 transition-colors disabled:opacity-50">
               {reconstructing ? 'Reconstruindo...' : 'Salvar e reconstruir histórico'}
+            </button>
+          </div>
+          {/* Upgrade de plano (F3) — muda o cliente p/ um plano MAIOR e lança o bônus (SÓ a diferença) na
+              comissão do mês, pela config do vendedor. Não duplica; competência = data do upgrade. */}
+          <div className="rounded-btn border border-bento-border/60 bg-bento-bg p-3 space-y-2">
+            <p className="text-xs font-medium text-bento-text">Upgrade de plano</p>
+            <p className="font-tech text-[10px] text-bento-muted leading-relaxed">Move o cliente para um plano maior e gera o bônus de upgrade (só a diferença) na comissão do mês.</p>
+            <div className="flex gap-2">
+              <select value={upgradePlan} onChange={e => setUpgradePlan(e.target.value)} className={cn(inputCls, 'flex-1')}>
+                <option value="">Novo plano…</option>
+                {plans.filter(p => p.id !== form.plano_id).map(p => <option key={p.id} value={p.id}>{p.nome} — ${p.valor_semanal}/sem</option>)}
+              </select>
+              <input type="date" value={upgradeDate} max={new Date().toISOString().slice(0, 10)} onChange={e => setUpgradeDate(e.target.value)} className={cn(inputCls, 'w-36')} />
+            </div>
+            <button type="button" onClick={handleUpgrade} disabled={upgrading || !upgradePlan}
+              className="w-full px-3 py-2 rounded-btn text-xs font-semibold border border-lime/40 text-lime-fg hover:bg-lime/10 transition-colors disabled:opacity-50">
+              {upgrading ? 'Registrando...' : 'Registrar upgrade'}
             </button>
           </div>
           <div>
