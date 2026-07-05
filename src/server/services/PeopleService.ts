@@ -21,8 +21,11 @@ function displayName(m: TeamMember): string {
 // Projeta um membro real + seus fatos de RH no card. Cargo/depto vêm do catálogo (roleByKey/departmentByKey);
 // gestor é resolvido pelo nome do membro correspondente. Campos ainda não configurados ficam null (honesto).
 function memberToCard(m: TeamMember, rh: MemberRhFields | undefined, nameById: Map<string, string>): CollaboratorCardVM {
-  const role = rh?.role_key ? roleByKey(rh.role_key) : undefined
-  const deptKey = (rh?.department_key ?? role?.department) as DepartmentKey | undefined
+  // Cargos (MULTI, ACCESS-ROLES-001): fonte = role_keys; fallback ao role_key legado (primário). Primário = [0].
+  const roleKeys = (Array.isArray(rh?.role_keys) && rh!.role_keys!.length ? rh!.role_keys! : (rh?.role_key ? [rh.role_key] : []))
+  const roleNames = roleKeys.map(k => roleByKey(k)?.name ?? k)
+  const primary = roleKeys[0] ? roleByKey(roleKeys[0]) : undefined
+  const deptKey = (rh?.department_key ?? primary?.department) as DepartmentKey | undefined
   const dept = deptKey ? departmentByKey(deptKey) : undefined
   return {
     id: m.user_id, userId: m.user_id, name: displayName(m), email: m.profile?.email ?? null,
@@ -30,7 +33,9 @@ function memberToCard(m: TeamMember, rh: MemberRhFields | undefined, nameById: M
     joinedAt: rh?.joined_at ?? m.created_at,
     status: (rh?.status ?? 'ativo') as CollaboratorStatus,
     departmentName: dept?.name ?? null,
-    roleName: role?.name ?? null,
+    roleName: primary?.name ?? (roleNames[0] ?? null),
+    roleKeys,
+    roleNames,
     templateName: null,   // remuneração real vem da engine (aba Remuneração) — não é campo de RH aqui
     managerName: rh?.manager_user_id ? (nameById.get(rh.manager_user_id) ?? null) : null,
   }

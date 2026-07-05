@@ -1,6 +1,6 @@
 import { redirect } from 'next/navigation'
 import { capitalizeName } from '@/lib/utils'
-import { can } from '@/lib/permissions/can'
+import { canAccessAdmin } from '@/lib/permissions/admin-access'
 import { getRequestContext, switcherTeamsFromContext } from '@/server/context/request-context'
 import { requireModuleEntry } from '@/server/security/module-guard'
 import { DomainShell } from '@/components/domain/DomainShell'
@@ -19,7 +19,7 @@ export default async function TrafegoLayout({ children }: { children: React.Reac
   const teams = switcherTeamsFromContext(context)
 
   return (
-    <ModuleAccessProvider access={context.moduleAccess} canManageTeam={can(context, 'teams', 'manage')}>
+    <ModuleAccessProvider access={context.moduleAccess} canManageTeam={canAccessAdmin(context)}>
       <DomainShell
         configKey="traffic"
         subtitle={context.activeTeamName}

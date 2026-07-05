@@ -27,9 +27,6 @@ export function useActiveTeamId(): string | null {
   return useContext(ActiveTeamContext)
 }
 
-// Só owner/admin veem configuração de comissão/remuneração. member/guest não.
-// (Guarda de UI — a proteção definitiva do DADO é RLS, etapa futura.)
-export function useCanManageTeam(): boolean {
-  const role = useRole()
-  return role === 'owner' || role === 'admin'
-}
+// (REMOVIDO em ACCESS-ROLES-001: useCanManageTeam era código MORTO — 0 callers — e duplicava a decisão de
+// acesso. O gate de Administração é canAccessAdmin (fonte única, owner|desenvolvedor); a navegação usa o
+// canManageTeam do ModuleAccessProvider, resolvido no servidor. Nada de papel derivado solto no client.)

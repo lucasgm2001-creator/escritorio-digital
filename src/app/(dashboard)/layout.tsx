@@ -2,7 +2,7 @@ import { redirect } from 'next/navigation'
 import { DashboardShell } from '@/components/layout/DashboardShell'
 import { ToastProvider } from '@/components/ui/toast'
 import { capitalizeName } from '@/lib/utils'
-import { can } from '@/lib/permissions/can'
+import { canAccessAdmin } from '@/lib/permissions/admin-access'
 import { getRequestContext, switcherTeamsFromContext } from '@/server/context/request-context'
 import { CommissionLockProvider } from '@/components/commission/CommissionLock'
 import { RoleProvider } from '@/components/auth/RoleProvider'
@@ -37,7 +37,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
   const teams = switcherTeamsFromContext(context)
 
   return (
-    <ModuleAccessProvider access={context.moduleAccess} canManageTeam={can(context, 'teams', 'manage')}>
+    <ModuleAccessProvider access={context.moduleAccess} canManageTeam={canAccessAdmin(context)}>
       <DashboardShell
         userName={capitalizeName(context.profile?.name ?? context.user.email?.split('@')[0] ?? 'Usuário')}
         userId={context.user.id}

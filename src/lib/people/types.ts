@@ -77,7 +77,9 @@ export type CollaboratorCardVM = {
   joinedAt: string | null    // entrada na equipe (real)
   status: CollaboratorStatus
   departmentName: string | null   // ainda não configurado no RH → honesto
-  roleName: string | null         // cargo/função → honesto até configurar
+  roleName: string | null         // cargo PRIMÁRIO (= role_keys[0]) — compat/exibição curta
+  roleKeys: string[]              // TODOS os cargos (multi) — fonte única team_members.role_keys (ACCESS-ROLES-001)
+  roleNames: string[]             // nomes resolvidos dos cargos (catálogo) para pills
   templateName: string | null
   managerName: string | null
 }
@@ -94,6 +96,8 @@ export type CollaboratorDetailVM = {
   status: CollaboratorStatus
   departmentName: string | null
   roleName: string | null
+  roleKeys: string[]
+  roleNames: string[]
   roleDescription: string | null
   templateName: string | null
   managerName: string | null

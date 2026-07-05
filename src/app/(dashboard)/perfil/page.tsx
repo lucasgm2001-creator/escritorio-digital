@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { getRequestContext } from '@/server/context/request-context'
 import { getMyCompensationView, type MyCompensationView } from '@/server/services/MyCompensationService'
+import { roleByKey } from '@/lib/people/catalog'
 import { PerfilShell } from './PerfilShell'
 
 export default async function PerfilPage() {
@@ -12,7 +13,7 @@ export default async function PerfilPage() {
 
   const { data: profile } = await supabase
     .from('profiles')
-    .select('id, name, avatar_url, phone, cargo')
+    .select('id, name, avatar_url, phone')
     .eq('id', user.id)
     .single()
 
@@ -25,6 +26,9 @@ export default async function PerfilPage() {
     thisWeekUsd: 0, status: 'ativo', lastUpdate: null, months: [],
   }
   const comp = context ? await getMyCompensationView(context) : EMPTY
+  // Cargos do colaborador (MÚLTIPLOS) — FONTE ÚNICA team_members.role_keys (via context). O Perfil só EXIBE
+  // (read-only); quem altera é Owner/Desenvolvedor em /admin/colaboradores. Sem texto livre (ACCESS-ROLES-001).
+  const cargos = (context?.roleKeys ?? []).map(k => ({ key: k, name: roleByKey(k)?.name ?? k }))
 
   return (
     <PerfilShell
@@ -33,7 +37,7 @@ export default async function PerfilPage() {
         email: user.email ?? '',
         initialName: profile?.name ?? '',
         initialPhone: profile?.phone ?? '',
-        initialCargo: profile?.cargo ?? '',
+        cargos,
         initialAvatarUrl: profile?.avatar_url ?? null,
       }}
       comp={comp}

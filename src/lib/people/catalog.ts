@@ -56,6 +56,8 @@ export type RoleBlueprint = {
   defaultComp: CompModel             // tipo de remuneração padrão (Part 6)
   commission: boolean                // participa de comissão?
   goalType: GoalType                 // tipo de meta padrão (PERSONAL-WORK-001)
+  adminAccess?: boolean              // cargo dá acesso à ADMINISTRAÇÃO (ACCESS-ROLES-001). Fonte ÚNICA do gate
+                                     // (junto com role='owner'); nada hardcoded fora do catálogo.
 }
 
 // Catálogo OFICIAL de cargos (PEOPLE-001, expandido em COLLABORATORS-REAL-001/PERSONAL-WORK-001). NÃO é seed:
@@ -98,8 +100,8 @@ export const ROLE_CATALOG: RoleBlueprint[] = [
   { key: 'operacoes',           name: 'Operações',           description: 'Processos, entrega e eficiência.',                  department: 'operacoes',     level: 'pleno',   icon: 'Cog',          color: '#F59E0B', defaultTeamRole: 'member', defaultComp: 'fixo',          commission: false, goalType: 'entregas'   },
   { key: 'gerente_operacional', name: 'Gerente Operacional', description: 'Lidera a operação e a eficiência do time.',         department: 'operacoes',     level: 'gestao',  icon: 'Cog',          color: '#F59E0B', defaultTeamRole: 'admin',  defaultComp: 'fixo_bonus',    commission: false, goalType: 'time'       },
   // ── Tecnologia ──
-  { key: 'desenvolvedor',       name: 'Desenvolvedor',       description: 'Desenvolve e mantém o produto.',                    department: 'tecnologia',    level: 'pleno',   icon: 'Code',         color: '#60A5FA', defaultTeamRole: 'member', defaultComp: 'fixo',          commission: false, goalType: 'entregas'   },
-  { key: 'dev_fullstack',       name: 'Desenvolvedor Full Stack', description: 'Front-end e back-end do produto.',             department: 'tecnologia',    level: 'senior',  icon: 'Code2',        color: '#60A5FA', defaultTeamRole: 'member', defaultComp: 'fixo',          commission: false, goalType: 'entregas'   },
+  { key: 'desenvolvedor',       name: 'Desenvolvedor',       description: 'Desenvolve e mantém o produto.',                    department: 'tecnologia',    level: 'pleno',   icon: 'Code',         color: '#60A5FA', defaultTeamRole: 'member', defaultComp: 'fixo',          commission: false, goalType: 'entregas',  adminAccess: true },
+  { key: 'dev_fullstack',       name: 'Desenvolvedor Full Stack', description: 'Front-end e back-end do produto.',             department: 'tecnologia',    level: 'senior',  icon: 'Code2',        color: '#60A5FA', defaultTeamRole: 'member', defaultComp: 'fixo',          commission: false, goalType: 'entregas',  adminAccess: true },
   { key: 'qa',                  name: 'QA',                  description: 'Qualidade, testes e confiabilidade.',              department: 'tecnologia',    level: 'pleno',   icon: 'Bug',          color: '#60A5FA', defaultTeamRole: 'member', defaultComp: 'fixo',          commission: false, goalType: 'entregas'   },
   { key: 'devops',              name: 'DevOps',              description: 'Infraestrutura, deploy e observabilidade.',         department: 'tecnologia',    level: 'senior',  icon: 'Server',       color: '#60A5FA', defaultTeamRole: 'member', defaultComp: 'fixo',          commission: false, goalType: 'entregas'   },
   { key: 'product_manager',     name: 'Product Manager',     description: 'Descoberta, roadmap e priorização do produto.',     department: 'tecnologia',    level: 'gestao',  icon: 'Compass',      color: '#60A5FA', defaultTeamRole: 'member', defaultComp: 'fixo_bonus',    commission: false, goalType: 'entregas'   },

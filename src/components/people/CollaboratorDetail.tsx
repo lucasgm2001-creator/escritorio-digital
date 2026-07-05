@@ -116,14 +116,22 @@ export function CollaboratorDetail({ collaborator, teamName, canEditPermissions,
         {tab === 'cargo' && (
           <Panel label="Cargo & função">
             <div className="space-y-3">
-              <p className="text-sm font-semibold text-bento-text">{collaborator.roleName ?? 'Não configurado'}</p>
+              {collaborator.roleNames.length > 0 ? (
+                <div className="flex flex-wrap gap-1.5">
+                  {collaborator.roleNames.map((n, i) => (
+                    <span key={n} className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full border border-bento-border bg-bento-panel text-[11px] font-tech uppercase tracking-wide text-bento-text">{n}{i === 0 && <span className="text-bento-dim normal-case tracking-normal">· primário</span>}</span>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-sm font-semibold text-bento-text">Não configurado</p>
+              )}
               <p className="text-[13px] text-bento-muted leading-relaxed">{collaborator.roleDescription ?? 'Sem descrição de cargo.'}</p>
               <dl className="grid grid-cols-2 sm:grid-cols-3 gap-x-4 gap-y-2 text-[12px] pt-1">
                 <div><dt className="text-bento-dim">Departamento</dt><dd className="text-bento-muted">{collaborator.departmentName ?? 'Não configurado'}</dd></div>
                 <div><dt className="text-bento-dim">Nível</dt><dd className="text-bento-muted">{blueprint ? ROLE_LEVEL_LABEL[blueprint.level] : 'Não configurado'}</dd></div>
                 <div><dt className="text-bento-dim">Remuneração padrão</dt><dd className="text-bento-muted">{blueprint ? COMP_MODEL_LABEL[blueprint.defaultComp] : 'Não configurado'}</dd></div>
               </dl>
-              {canManageRole && <RoleEditor userId={collaborator.userId} currentRoleKey={blueprint?.key ?? null} />}
+              {canManageRole && <RoleEditor userId={collaborator.userId} currentRoleKeys={collaborator.roleKeys} />}
             </div>
           </Panel>
         )}

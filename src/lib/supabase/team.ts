@@ -19,6 +19,7 @@ export type TeamMembership = {
   team_id: string
   user_id: string
   role: TeamRole
+  roleKeys: string[]   // cargos (chaves do catálogo) — FONTE ÚNICA multi-cargo (ACCESS-ROLES-001)
   permissions: Record<string, unknown>
   created_at: string | null
   team: TeamSummary | null

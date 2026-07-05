@@ -11,7 +11,7 @@ interface Props {
   email: string
   initialName: string
   initialPhone: string
-  initialCargo: string
+  cargos: { key: string; name: string }[]
   initialAvatarUrl: string | null
 }
 
@@ -51,10 +51,9 @@ async function resizeImage(file: File, maxKb = 200): Promise<Blob> {
   })
 }
 
-export function PerfilClient({ userId, email, initialName, initialPhone, initialCargo, initialAvatarUrl }: Props) {
+export function PerfilClient({ userId, email, initialName, initialPhone, cargos, initialAvatarUrl }: Props) {
   const [name, setName]       = useState(initialName)
   const [phone, setPhone]     = useState(initialPhone)
-  const [cargo, setCargo]     = useState(initialCargo)
   const [avatarUrl, setAvatarUrl] = useState<string | null>(initialAvatarUrl)
   const [saving, setSaving]   = useState(false)
   const [uploading, setUploading] = useState(false)
@@ -110,7 +109,6 @@ export function PerfilClient({ userId, email, initialName, initialPhone, initial
       const { error: err } = await updateOwnProfileAction({
         name: name.trim(),
         phone: phone.trim() || null,
-        cargo: cargo.trim() || null,
       })
 
       if (err) throw err
@@ -191,9 +189,20 @@ export function PerfilClient({ userId, email, initialName, initialPhone, initial
               <label className="block text-xs font-medium text-muted-foreground mb-1.5">Telefone</label>
               <input value={phone} onChange={e => setPhone(e.target.value)} className={inputCls} placeholder="(11) 99999-9999" type="tel" />
             </div>
-            <div>
-              <label className="block text-xs font-medium text-muted-foreground mb-1.5">Cargo</label>
-              <input value={cargo} onChange={e => setCargo(e.target.value)} className={inputCls} placeholder="Ex: Gestor de Tráfego" />
+            {/* Cargos — READ-ONLY (ACCESS-ROLES-001). Fonte única = team_members.role_keys. Pills premium; sem
+                texto livre. Quem altera é Owner/Desenvolvedor em Administração › Colaboradores. */}
+            <div className="sm:col-span-2">
+              <label className="block text-xs font-medium text-muted-foreground mb-1.5">Cargos</label>
+              {cargos.length > 0 ? (
+                <div className="flex flex-wrap gap-1.5 pt-0.5">
+                  {cargos.map(c => (
+                    <span key={c.key} className="inline-flex items-center px-2.5 py-1 rounded-full border border-bento-border bg-bento-panel text-[11px] font-tech uppercase tracking-wide text-bento-text">{c.name}</span>
+                  ))}
+                </div>
+              ) : (
+                <div className={`${inputCls} text-muted-foreground cursor-not-allowed`}>Definido pela Administração</div>
+              )}
+              <p className="font-tech text-[10px] text-muted-foreground/70 mt-1.5">Definido pelo Owner/Desenvolvedor em Administração › Colaboradores.</p>
             </div>
           </div>
 

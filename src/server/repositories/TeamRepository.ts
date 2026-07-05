@@ -30,9 +30,10 @@ export type TeamInvite = {
   created_at: string | null
 }
 
-type MembershipRow = Omit<TeamMembership, 'role' | 'permissions' | 'team'> & {
+type MembershipRow = Omit<TeamMembership, 'role' | 'permissions' | 'team' | 'roleKeys'> & {
   role: string | null
   permissions: unknown
+  role_keys: string[] | null
   team: TeamSummary | TeamSummary[] | null
 }
 
@@ -61,7 +62,7 @@ export async function getMembershipsByUserId(userId: string): Promise<TeamMember
 
   const { data, error } = await supabase
     .from('team_members')
-    .select('id, team_id, user_id, role, permissions, created_at, team:teams(id, name, owner_id)')
+    .select('id, team_id, user_id, role, role_keys, permissions, created_at, team:teams(id, name, owner_id)')
     .eq('user_id', userId)
     .order('created_at', { ascending: true })
 
@@ -72,6 +73,7 @@ export async function getMembershipsByUserId(userId: string): Promise<TeamMember
     team_id: row.team_id,
     user_id: row.user_id,
     role: toTeamRole(row.role),
+    roleKeys: Array.isArray(row.role_keys) ? row.role_keys : [],
     permissions: toPermissions(row.permissions),
     created_at: row.created_at,
     team: singleRelation(row.team),

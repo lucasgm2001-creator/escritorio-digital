@@ -10,7 +10,7 @@ import type { MyCompensationView } from '@/server/services/MyCompensationService
 // Casca do Perfil (COMPENSATION-REAL-001, Parte 2): duas abas — "Meu perfil" (o form existente, intacto) e
 // "Minha Remuneração" (visão do colaborador, só leitura, vinda pronta do servidor). Nunca usa Administração.
 type ProfileProps = {
-  userId: string; email: string; initialName: string; initialPhone: string; initialCargo: string; initialAvatarUrl: string | null
+  userId: string; email: string; initialName: string; initialPhone: string; cargos: { key: string; name: string }[]; initialAvatarUrl: string | null
 }
 const TABS: { key: 'perfil' | 'remuneracao'; label: string; icon: LucideIcon }[] = [
   { key: 'perfil', label: 'Meu perfil', icon: User },

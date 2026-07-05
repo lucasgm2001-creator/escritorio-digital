@@ -23,6 +23,7 @@ export type RequestContext = {
   membership: TeamMembership | null
   memberships: TeamMembership[]
   role: RequestContextRole
+  roleKeys: string[]   // CARGOS do membro na equipe ativa (chaves do catálogo) — fonte única multi-cargo + gate do /admin
   // Autoridade de acesso (PERMISSIONS-002), resolvida NO SERVIDOR (papel → override → efetivo):
   //   moduleAccess  — nível efetivo por CHAVE de módulo (13 módulos) → navegação e guardas de rota
   //   moduleLevels  — projeção por PermissionModule → consumido pelo can() como autoridade
@@ -64,6 +65,7 @@ export const getRequestContext = cache(async (): Promise<RequestContext | null> 
     membership,
     memberships: activeTeam.memberships,
     role,
+    roleKeys: membership?.roleKeys ?? [],
     moduleAccess,
     moduleLevels,
   }

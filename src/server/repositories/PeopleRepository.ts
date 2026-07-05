@@ -32,6 +32,7 @@ export async function listTemplates(): Promise<CompensationTemplate[]> {
 export type MemberRhFields = {
   user_id: string
   role_key: string | null
+  role_keys: string[] | null   // MULTI-cargo (ACCESS-ROLES-001) — fonte única
   department_key: string | null
   manager_user_id: string | null
   joined_at: string | null
@@ -42,7 +43,7 @@ export async function getMemberRhFields(teamId: string): Promise<Map<string, Mem
   const supabase = createClient()
   const { data, error } = await supabase
     .from('team_members')
-    .select('user_id, role_key, department_key, manager_user_id, joined_at, status')
+    .select('user_id, role_key, role_keys, department_key, manager_user_id, joined_at, status')
     .eq('team_id', teamId)
   if (error) throw error
   const map = new Map<string, MemberRhFields>()

@@ -1,6 +1,6 @@
 import { redirect } from 'next/navigation'
 import { capitalizeName } from '@/lib/utils'
-import { can } from '@/lib/permissions/can'
+import { canAccessAdmin } from '@/lib/permissions/admin-access'
 import { getRequestContext, switcherTeamsFromContext } from '@/server/context/request-context'
 import { AdminShell } from '@/components/admin/AdminShell'
 import { ModuleAccessProvider } from '@/components/auth/ModuleAccessProvider'
@@ -13,15 +13,15 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   const context = await getRequestContext()
   if (!context) redirect('/login')
   if (context.memberships.length === 0) redirect('/onboarding')
-  // Administração é área de owner/admin. Guarda no servidor (não só na UI); a proteção
-  // definitiva do DADO virá por RLS numa etapa futura (Constituição, Título 4/8).
-  if (!can(context, 'teams', 'manage')) redirect('/hall')
+  // Administração = OWNER ou cargo com adminAccess (Desenvolvedor). FONTE ÚNICA canAccessAdmin — nada
+  // hardcoded; nem 'admin' role sozinho nem override de módulo entram (ACCESS-ROLES-001, Parte 1).
+  if (!canAccessAdmin(context)) redirect('/hall')
 
   const userName = capitalizeName(context.profile?.name ?? context.user.email?.split('@')[0] ?? 'Usuário')
   const teams = switcherTeamsFromContext(context)
 
   return (
-    <ModuleAccessProvider access={context.moduleAccess} canManageTeam={can(context, 'teams', 'manage')}>
+    <ModuleAccessProvider access={context.moduleAccess} canManageTeam={canAccessAdmin(context)}>
       <AdminShell
         activeTeamName={context.activeTeamName}
         userName={userName}
