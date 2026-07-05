@@ -55,13 +55,13 @@ export async function getLeadMilestonesForMetrics(): Promise<MMilestone[]> {
   return (data ?? []) as MMilestone[]
 }
 
-export type MPayment = { client_id: string; valor_usd: number; paid_on: string; anulado?: boolean; numero_semana?: number }
+export type MPayment = { client_id: string; valor_usd: number; paid_on: string; anulado?: boolean; numero_semana?: number; plano_id?: string | null }
 export type MClientSeller = { id: string; assigned_name: string | null }
 
 export async function getClientRevenueForMetrics(): Promise<{ payments: MPayment[]; clients: MClientSeller[] }> {
   const supabase = createClient()
   const [pRes, cRes] = await Promise.all([
-    supabase.from('client_payments').select('client_id, valor_usd, paid_on, anulado, numero_semana'),
+    supabase.from('client_payments').select('client_id, valor_usd, paid_on, anulado, numero_semana, plano_id'),
     supabase.from('clients').select('id, assigned_name'),
   ])
   return {

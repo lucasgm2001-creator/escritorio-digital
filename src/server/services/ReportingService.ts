@@ -41,16 +41,16 @@ export async function buildCommercialReport(context: RequestContext, period: Rep
 
   // Eventos no PERÍODO — cada MOVIMENTAÇÃO conta (nunca substitui a anterior).
   const events = raw.stageEvents.filter(e => inPeriod(e.changed_at, period))
-  const dealsP = raw.deals.filter(d => inPeriod(d.data_fechamento ?? d.created_at, period))
-  // Reunião entra no período pela data REAL (met_on), não por quando a linha nasceu — senão reunião histórica
-  // (met_on retroativo, created_at = agora) cairia no mês errado (CLIENT-HISTORY-ADMIN-003). E a partir de
-  // JUL/2026 reunião não conta mais como comissão (Parte 6) — fora do Dashboard/Relatórios financeiros também.
-  const meetingsP = raw.meetings.filter(m => inPeriod(m.met_on ?? m.created_at, period) && meetingCommissionCounts(m.met_on ?? m.created_at))
+  // ESTRITO (OPERATION-CRM-002): fechamento = data_fechamento; NUNCA created_at (não vaza deal fora da janela).
+  const dealsP = raw.deals.filter(d => inPeriod(d.data_fechamento, period))
+  // Reunião entra pela data REAL (met_on), NUNCA created_at (reunião histórica cairia no mês errado). A partir
+  // de JUL/2026 reunião não conta mais como comissão (Parte 6) — fora do Dashboard/Relatórios financeiros também.
+  const meetingsP = raw.meetings.filter(m => inPeriod(m.met_on, period) && meetingCommissionCounts(m.met_on))
   const to = (set: Set<string>): number => events.filter(e => set.has(e.to_stage)).length
 
   const won = dealsP.length
   const lost = to(lostSlugs)
-  const newLeads = raw.leads.filter(l => inPeriod(l.received_at ?? l.created_at, period)).length
+  const newLeads = raw.leads.filter(l => inPeriod(l.received_at, period)).length // ESTRITO: chegada = received_at (nunca created_at)
   const interagiram = new Set(events.map(e => e.lead_id).filter(Boolean)).size // leads distintos que se moveram no período
   const kpis: ReportKpis = {
     totalLeads: raw.leads.length,

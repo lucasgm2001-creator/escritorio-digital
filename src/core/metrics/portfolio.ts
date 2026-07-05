@@ -37,11 +37,11 @@ export function activeClientsCount(clients: PortfolioClient[]): number {
   return clients.filter(isActiveClient).length
 }
 
-/** Clientes novos no período: viraram cliente (start_date, fallback created_at) dentro de [fromYMD, toYMD]. */
+/** Clientes novos no período: viraram cliente (start_date) dentro de [fromYMD, toYMD]. ESTRITO — nunca created_at. */
 export function newClientsCount(clients: PortfolioClient[], fromYMD: string, toYMD: string): number {
   return clients.filter(c => {
-    const d = ((c.start_date ?? c.created_at) ?? '').slice(0, 10)
-    return d >= fromYMD && d <= toYMD
+    const d = (c.start_date ?? '').slice(0, 10)
+    return !!d && d >= fromYMD && d <= toYMD
   }).length
 }
 

@@ -70,11 +70,11 @@ export async function getExecutiveMetrics(context: RequestContext, period: Execu
   // Mapas de dimensão (client_id → vendedor / nome do plano) a partir da carteira rica.
   const planName = new Map(carteira.plans.map(p => [p.id, p.nome]))
   const clientToSeller = new Map(carteira.clients.map(c => [c.id, c.assigned_name || 'Sem responsável']))
-  const clientToPlan = new Map(carteira.clients.map(c => [c.id, (c.plano_id && planName.get(c.plano_id)) || 'Sem plano']))
+  const clientToPlanId = new Map<string, string | null>(carteira.clients.map(c => [c.id, c.plano_id]))
   const payments = revenue.payments as PaymentRowWithClient[]
 
-  // Conversão do PERÍODO: leads que chegaram no intervalo (received_at, fallback created_at).
-  const periodLeads = raw.leads.filter(l => { const d = ((l.received_at ?? l.created_at) ?? '').slice(0, 10); return d >= from && d <= to })
+  // Conversão do PERÍODO: leads que CHEGARAM no intervalo — ESTRITO por received_at (nunca created_at).
+  const periodLeads = raw.leads.filter(l => { const d = (l.received_at ?? '').slice(0, 10); return !!d && d >= from && d <= to })
 
   const mrrValue = calcMrr(carteira.clients)
   const valorFechado = closedValue(raw.deals, from, to)
@@ -91,7 +91,7 @@ export async function getExecutiveMetrics(context: RequestContext, period: Execu
     clientesAtivos: activeClientsCount(carteira.clients),
     clientesNovos: newClientsCount(carteira.clients, from, to),
     receitaPorVendedor: receivedRevenueBySeller(payments, clientToSeller, from, to),
-    receitaPorPlano: receivedRevenueByPlan(payments, clientToPlan, from, to),
+    receitaPorPlano: receivedRevenueByPlan(payments, planName, clientToPlanId, from, to),
     mrrPorPlano: mrrByPlan(carteira.clients, planName),
   }
 }
