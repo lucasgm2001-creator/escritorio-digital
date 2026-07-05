@@ -107,36 +107,41 @@ export async function moveLeadAction(lead: MovableLead, newStatus: LeadStatus, p
   const g = await guard('edit', DENY_EDIT)
   if (!g.context) return { ok: false, error: g.error }
   const supabase = createClient()
+  // Unificação da Lixeira (F4): mover para 'lixeira' = EXCLUIR (soft_delete_lead, owner-only). deleted_at é a
+  // fonte OFICIAL de exclusão — não mais o status. Assim não há dois sistemas de "lixeira".
+  if (newStatus === 'lixeira') {
+    const { error } = await supabase.rpc('soft_delete_lead', { p_lead_id: lead.id })
+    if (error) return { ok: false, error: /owner/i.test(error.message) ? 'Apenas o owner da equipe pode excluir.' : error.message }
+    return { ok: true, notes: [{ message: 'Lead excluído (Lixeira).', type: 'success' }] }
+  }
   const stages = await getStages()
   const res = await moveLead(supabase, lead, newStatus, g.context.profile?.name ?? '—', stages, planoId, g.context.user.id, g.context.activeTeamId)
   if (!res.ok) return { ok: false, error: res.error ?? 'Não foi possível mover o lead.' }
   return { ok: true, notes: res.notes }
 }
 
-// Exclui um lead. Excluir é ação forte → exige 'delete' (nível admin no módulo).
+// Excluir lead (SOFT DELETE global, F4) — OWNER-ONLY (o RPC soft_delete_lead valida via require_owner). Não
+// apaga fisicamente: some de tudo (RLS) e é reversível na Lixeira. deleted_at é a fonte oficial (unifica a
+// lixeira antiga). O guard('delete') barra member; o RPC garante owner-only de fato.
 export async function deleteLeadAction(leadId: string): Promise<Res> {
   const g = await guard('delete', DENY_DELETE)
   if (!g.context) return { ok: false, error: g.error }
   const supabase = createClient()
-  const teamId = g.context.activeTeamId
-  let q = supabase.from('leads').delete().eq('id', leadId)
-  if (teamId) q = q.eq('team_id', teamId)
-  const { error } = await q
-  if (error) return { ok: false, error: error.message }
+  const { error } = await supabase.rpc('soft_delete_lead', { p_lead_id: leadId })
+  if (error) return { ok: false, error: /owner/i.test(error.message) ? 'Apenas o owner da equipe pode excluir.' : error.message }
   return { ok: true }
 }
 
-// Exclusão em lote (ex.: contatos duplicados) — mesma exigência: 'delete'.
+// Exclusão em lote (ex.: contatos duplicados) → soft delete de cada um (owner-only).
 export async function deleteLeadsAction(ids: string[]): Promise<Res> {
   const g = await guard('delete', DENY_DELETE)
   if (!g.context) return { ok: false, error: g.error }
   if (ids.length === 0) return { ok: true }
   const supabase = createClient()
-  const teamId = g.context.activeTeamId
-  let q = supabase.from('leads').delete().in('id', ids)
-  if (teamId) q = q.eq('team_id', teamId)
-  const { error } = await q
-  if (error) return { ok: false, error: error.message }
+  for (const id of ids) {
+    const { error } = await supabase.rpc('soft_delete_lead', { p_lead_id: id })
+    if (error) return { ok: false, error: /owner/i.test(error.message) ? 'Apenas o owner da equipe pode excluir.' : error.message }
+  }
   return { ok: true }
 }
 

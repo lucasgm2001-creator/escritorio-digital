@@ -67,11 +67,11 @@ export async function POST(req: Request) {
     // 4) Achar o lead por email OU phone (mesma lógica do /api/leads/inbound). NÃO cria lead.
     let leadId: string | null = null
     if (email) {
-      const { data } = await supabase.from('leads').select('id').eq('email', email).limit(1)
+      const { data } = await supabase.from('leads').select('id').eq('email', email).is('deleted_at', null).limit(1)
       if (data && data.length) leadId = data[0].id as string
     }
     if (!leadId && phone) {
-      const { data } = await supabase.from('leads').select('id').eq('phone', phone).limit(1)
+      const { data } = await supabase.from('leads').select('id').eq('phone', phone).is('deleted_at', null).limit(1)
       if (data && data.length) leadId = data[0].id as string
     }
     if (!leadId) {

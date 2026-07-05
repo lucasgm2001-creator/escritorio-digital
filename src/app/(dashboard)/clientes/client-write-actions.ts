@@ -94,6 +94,17 @@ export async function upsertClientIntegrationAction(row: Record<string, unknown>
   return { ok: true, integration: data as Record<string, unknown> }
 }
 
+// Excluir cliente (SOFT DELETE global, F4) — OWNER-ONLY (o RPC valida via require_owner). Usa a sessão do
+// usuário (auth.uid()) → o RPC checa o papel. Cascata + reversível + auditável no banco; nada físico.
+export async function softDeleteClientAction(clientId: string): Promise<Res> {
+  const context = await getRequestContext()
+  if (!context) return { ok: false, error: EXPIRED }
+  const supabase = createClient()   // SESSÃO (auth.uid()) → soft_delete_client valida owner
+  const { error } = await supabase.rpc('soft_delete_client', { p_client_id: clientId })
+  if (error) return { ok: false, error: /owner/i.test(error.message) ? 'Apenas o owner da equipe pode excluir.' : error.message }
+  return { ok: true }
+}
+
 // Cotação efetiva p/ lançar receita/comissão no servidor (MESMA leitura do /api/commission/auto).
 async function resolveEditRate(supabase: ReturnType<typeof createServiceClient>): Promise<number> {
   const { data: fx } = await supabase.from('fx_config').select('cotacao_manual, cotacao_travada, cotacao_referencia').eq('id', 1).maybeSingle()

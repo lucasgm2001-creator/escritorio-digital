@@ -44,7 +44,7 @@ export async function GET(req: Request) {
   // Clientes ATIVOS com dia de pagamento definido. dia null → pular; end_date passou → pular.
   const { data: clients, error } = await supabase.from('clients')
     .select('id, name, assigned_name, status, start_date, end_date, dia_pagamento_semana')
-    .eq('status', 'ativo')
+    .eq('status', 'ativo').is('deleted_at', null)   // SOFT-DELETE: nunca cobra cliente excluído (service-role ignora RLS)
   if (error) return NextResponse.json({ ok: false, error: error.message }, { status: 500 })
 
   const eligible = (clients ?? []).filter(c =>

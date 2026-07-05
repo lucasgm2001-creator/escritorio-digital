@@ -86,7 +86,7 @@ export function updateClient(
 export async function resolveClientPlan(
   supabase: SupaClient, clientId: string,
 ): Promise<{ planoId: string | null; valorUsd: number }> {
-  const { data: cli } = await supabase.from('clients').select('plano_id, plan_weekly').eq('id', clientId).maybeSingle()
+  const { data: cli } = await supabase.from('clients').select('plano_id, plan_weekly').eq('id', clientId).is('deleted_at', null).maybeSingle()
   const planoId: string | null = (cli?.plano_id as string | null) ?? null
   let valor = Number(cli?.plan_weekly) || 0
   if (planoId) {
@@ -173,7 +173,7 @@ export function dueDateFor(startYmd: string, diaPagamento: number, n: number): s
 export async function payDueWeeks(
   supabase: SupaClient, clientId: string, rate: number, maxWeeks = 12, teamId?: string | null,
 ): Promise<{ marked: number[]; reason: string }> {
-  const { data: cli } = await supabase.from('clients').select('status, start_date, dia_pagamento_semana').eq('id', clientId).maybeSingle()
+  const { data: cli } = await supabase.from('clients').select('status, start_date, dia_pagamento_semana').eq('id', clientId).is('deleted_at', null).maybeSingle()
   if (!cli) return { marked: [], reason: 'nao_encontrado' }
   if (cli.status !== 'ativo') return { marked: [], reason: 'inativo' }
   if (!cli.start_date) return { marked: [], reason: 'sem_inicio' }
@@ -219,7 +219,7 @@ export async function ensureClient(
 ): Promise<string | null> {
   const nm = (name ?? '').trim()
   if (!nm) return null
-  const { data: existing } = await supabase.from('clients').select('id, status').ilike('name', nm).limit(1)
+  const { data: existing } = await supabase.from('clients').select('id, status').ilike('name', nm).is('deleted_at', null).limit(1)
   if (existing && existing.length) {
     if (existing[0].status !== 'ativo') await supabase.from('clients').update({ status: 'ativo' }).eq('id', existing[0].id)
     return existing[0].id
@@ -249,7 +249,7 @@ export async function reconstructClientHistory(
   supabase: SupaClient, clientId: string, rate: number, teamId?: string | null,
 ): Promise<{ ok: boolean; reason?: string; redated: number; marked: number[]; dueCount: number; hadDeal: boolean }> {
   const empty = { redated: 0, marked: [] as number[], dueCount: 0, hadDeal: false }
-  const { data: cli } = await supabase.from('clients').select('status, start_date, dia_pagamento_semana').eq('id', clientId).maybeSingle()
+  const { data: cli } = await supabase.from('clients').select('status, start_date, dia_pagamento_semana').eq('id', clientId).is('deleted_at', null).maybeSingle()
   if (!cli) return { ok: false, reason: 'nao_encontrado', ...empty }
   if (cli.status !== 'ativo') return { ok: false, reason: 'inativo', ...empty }
   if (!cli.start_date) return { ok: false, reason: 'sem_inicio', ...empty }
@@ -308,7 +308,7 @@ export async function reconstructClientHistory(
 export async function payMonth(
   supabase: SupaClient, clientId: string, monthRef: string, rate: number, teamId?: string | null,
 ): Promise<{ marked: number[]; reason: string; monthRef: string }> {
-  const { data: cli } = await supabase.from('clients').select('status, start_date, dia_pagamento_semana').eq('id', clientId).maybeSingle()
+  const { data: cli } = await supabase.from('clients').select('status, start_date, dia_pagamento_semana').eq('id', clientId).is('deleted_at', null).maybeSingle()
   if (!cli) return { marked: [], reason: 'nao_encontrado', monthRef }
   if (cli.status !== 'ativo') return { marked: [], reason: 'inativo', monthRef }
   if (!cli.start_date) return { marked: [], reason: 'sem_inicio', monthRef }
@@ -344,7 +344,7 @@ export async function applyPlanUpgrade(
 ): Promise<{ ok: boolean; reason?: string; bonus: number; deltaMensal: number; sellerId: string | null }> {
   const { clientId, newPlanId, changedAt, rate, teamId } = args
   const base0 = { bonus: 0, deltaMensal: 0, sellerId: null as string | null }
-  const { data: cli } = await supabase.from('clients').select('name, plano_id, plan_weekly, status').eq('id', clientId).maybeSingle()
+  const { data: cli } = await supabase.from('clients').select('name, plano_id, plan_weekly, status').eq('id', clientId).is('deleted_at', null).maybeSingle()
   if (!cli) return { ok: false, reason: 'nao_encontrado', ...base0 }
   if (cli.status !== 'ativo') return { ok: false, reason: 'inativo', ...base0 }
   if (cli.plano_id === newPlanId) return { ok: false, reason: 'mesmo_plano', ...base0 }
@@ -409,7 +409,7 @@ export async function applyPlanUpgrade(
 export async function nextUnpaidMonth(
   supabase: SupaClient, clientId: string,
 ): Promise<string | null> {
-  const { data: cli } = await supabase.from('clients').select('start_date, dia_pagamento_semana').eq('id', clientId).maybeSingle()
+  const { data: cli } = await supabase.from('clients').select('start_date, dia_pagamento_semana').eq('id', clientId).is('deleted_at', null).maybeSingle()
   if (!cli?.start_date) return null
   const start = String(cli.start_date).slice(0, 10)
   const dia = cli.dia_pagamento_semana ?? dowOfYmd(start)

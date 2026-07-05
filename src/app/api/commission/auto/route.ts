@@ -66,7 +66,7 @@ export async function POST(req: Request) {
   if (process.env.COMMISSION_AUTO_ENABLED !== 'true') {
     return NextResponse.json({ ok: true, mode: 'all', disabled: true, note: 'COMMISSION_AUTO_ENABLED != "true"' })
   }
-  const { data: clients } = await supabase.from('clients').select('id').eq('status', 'ativo')
+  const { data: clients } = await supabase.from('clients').select('id').eq('status', 'ativo').is('deleted_at', null)
   const marked: Record<string, number[]> = {}
   for (const c of clients ?? []) {
     const r = await payDueWeeks(supabase, c.id as string, rate)

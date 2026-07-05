@@ -1,7 +1,10 @@
 'use client'
 
 import { useState } from 'react'
+import Link from 'next/link'
+import { Trash2 } from 'lucide-react'
 import { useRealtimeRows } from '@/lib/hooks/useRealtimeRows'
+import { useRole } from '@/components/auth/RoleProvider'
 import { cn } from '@/lib/utils'
 import { HubTab } from './HubTab'
 import { IntegracoesTab } from './IntegracoesTab'
@@ -21,6 +24,7 @@ export function ClientesFloor({ initialClients, initialNichos, initialIntegratio
   const [integrations, setIntegrations] = useState<ClientIntegration[]>(initialIntegrations)
   const [tab, setTab] = useState<Tab>('hub')
   const [detailId, setDetailId] = useState<string | null>(null)
+  const role = useRole()
 
   const upsertInteg = (i: ClientIntegration) =>
     setIntegrations(prev => [...prev.filter(x => x.client_id !== i.client_id), i])
@@ -50,7 +54,15 @@ export function ClientesFloor({ initialClients, initialNichos, initialIntegratio
   return (
     <div className="flex flex-col h-full bg-bento-bg font-body">
       <div className="flex-none bg-bento-bg border-b border-bento-border px-4 sm:px-6 pt-4">
-        <h1 className="font-display font-bold text-bento-text text-lg tracking-tight">Clientes</h1>
+        <div className="flex items-center justify-between gap-2">
+          <h1 className="font-display font-bold text-bento-text text-lg tracking-tight">Clientes</h1>
+          {/* Lixeira (F4) — só o owner. Restaurar / excluir definitivo dos clientes/leads excluídos. */}
+          {role === 'owner' && (
+            <Link href="/lixeira" className="inline-flex items-center gap-1.5 text-xs text-bento-muted hover:text-bento-text transition-colors">
+              <Trash2 className="w-3.5 h-3.5" /> Lixeira
+            </Link>
+          )}
+        </div>
         <div className="flex items-center gap-1 mt-3 -mb-px">
           {TABS.map(t => (
             <button key={t.key} onClick={() => setTab(t.key)}

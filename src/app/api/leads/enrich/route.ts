@@ -114,8 +114,9 @@ export async function POST(req: Request) {
       const { data: cur, error: selErr } = await supabase
         .from('leads')
         .select('nicho, company, value, notes, city, state, area_code, raw_payload')
-        .eq('id', leadId).single()
-      if (selErr || !cur) return NextResponse.json({ ok: false, error: 'falha ao ler lead' }, { status: 500 })
+        .eq('id', leadId).is('deleted_at', null).maybeSingle()   // SOFT-DELETE: casou lead excluído → não enriquece
+      if (selErr) return NextResponse.json({ ok: false, error: 'falha ao ler lead' }, { status: 500 })
+      if (!cur) return NextResponse.json({ ok: true, action: 'skipped_deleted', leadId })
 
       const c = cur as Record<string, unknown>
       const patch: Record<string, unknown> = {}

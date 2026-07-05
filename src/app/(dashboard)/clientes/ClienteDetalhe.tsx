@@ -2,9 +2,11 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
-import { ChevronLeft, MessageCircle, FolderOpen, FileDown, Power, ArrowRight } from 'lucide-react'
+import { ChevronLeft, MessageCircle, FolderOpen, FileDown, Power, ArrowRight, Trash2 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { useToast } from '@/components/ui/toast'
+import { useRole } from '@/components/auth/RoleProvider'
+import { softDeleteClientAction } from './client-write-actions'
 import { cn, formatCurrency } from '@/lib/utils'
 import { formatDateBR } from '@/lib/date'
 import { planLabel, healthOf, type Client, type Nicho, type ClientIntegration } from './types'
@@ -20,6 +22,7 @@ export function ClienteDetalhe({ client, nichos, integration, onBack, onUpdated 
 }) {
   const supabase = createClient()
   const { toast } = useToast()
+  const role = useRole()
   const [deact, setDeact] = useState(false)
   const [reason, setReason] = useState('')
   const [busy, setBusy] = useState(false)
@@ -66,6 +69,18 @@ export function ClienteDetalhe({ client, nichos, integration, onBack, onUpdated 
     onUpdated(data as Client)
     setDeact(false)
     toast({ type: 'success', message: 'Cliente desativado.' })
+  }
+
+  // Excluir (SOFT DELETE global, F4) — OWNER-ONLY. Diferente de Desativar (churn): "some de tudo" (receita,
+  // comissão, relatórios, métricas...) e vai para a Lixeira, reversível. O RPC valida o owner no servidor.
+  const excluir = async () => {
+    if (!confirm(`Excluir "${client.name}"? Some de tudo (receita, comissão, relatórios, métricas) mas fica na Lixeira para restaurar.`)) return
+    setBusy(true)
+    const r = await softDeleteClientAction(client.id)
+    setBusy(false)
+    if (!r.ok) { toast({ type: 'error', message: r.error }); return }
+    toast({ type: 'success', message: 'Cliente excluído (na Lixeira).' })
+    onBack()
   }
 
   return (
@@ -149,10 +164,19 @@ export function ClienteDetalhe({ client, nichos, integration, onBack, onUpdated 
       {/* Desativar (rescisão) — NÃO mexe em comissão, só status/end_date/end_reason do cliente. */}
       <div className="bento-fx p-4">
         {!deact ? (
-          <button onClick={() => setDeact(true)} disabled={client.status !== 'ativo'}
-            className="inline-flex items-center gap-1.5 text-sm text-red-400 hover:text-red-300 transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
-            <Power className="w-4 h-4" />{client.status === 'ativo' ? 'Desativar cliente' : 'Cliente já encerrado'}
-          </button>
+          <div className="flex items-center gap-4 flex-wrap">
+            <button onClick={() => setDeact(true)} disabled={client.status !== 'ativo'}
+              className="inline-flex items-center gap-1.5 text-sm text-red-400 hover:text-red-300 transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
+              <Power className="w-4 h-4" />{client.status === 'ativo' ? 'Desativar cliente' : 'Cliente já encerrado'}
+            </button>
+            {/* Excluir (F4) — só o OWNER. Some de tudo + Lixeira (reversível). Diferente de Desativar. */}
+            {role === 'owner' && (
+              <button onClick={excluir} disabled={busy}
+                className="inline-flex items-center gap-1.5 text-sm text-red-400 hover:text-red-300 transition-colors disabled:opacity-50">
+                <Trash2 className="w-4 h-4" /> Excluir (Lixeira)
+              </button>
+            )}
+          </div>
         ) : (
           <div className="space-y-2">
             <p className="text-sm text-bento-text font-medium">Desativar “{client.name}”?</p>

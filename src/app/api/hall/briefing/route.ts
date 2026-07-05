@@ -65,7 +65,7 @@ export async function POST() {
     let parados: { name: string; fase: string; dias: number }[] = []
     if (activeSlugs.length) {
       const { data: leads } = await supabase.from('leads').select('name, status, updated_at')
-        .eq('team_id', activeTeamId).in('status', activeSlugs).lte('updated_at', fiveDaysAgoISO)
+        .eq('team_id', activeTeamId).is('deleted_at', null).in('status', activeSlugs).lte('updated_at', fiveDaysAgoISO)
         .order('updated_at', { ascending: true }).limit(15)
       parados = (leads ?? []).map(l => ({
         name: str(l.name) || 'Sem nome',

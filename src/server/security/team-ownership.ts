@@ -21,9 +21,12 @@ export async function assertRowTeam<T extends Record<string, unknown>>(
   id: string | null | undefined,
   activeTeamId: string | null,
   columns = 'id, team_id',
+  liveOnly = false,   // SOFT-DELETE: leads/clients excluídos (deleted_at) tratados como inexistentes (404)
 ): Promise<Ownership<T>> {
   if (!id || !activeTeamId) return { ok: false, status: 403 }
-  const { data } = await svc.from(table).select(columns).eq('id', id).maybeSingle()
+  let q = svc.from(table).select(columns).eq('id', id)
+  if (liveOnly) q = q.is('deleted_at', null)
+  const { data } = await q.maybeSingle()
   if (!data) return { ok: false, status: 404 }
   // `data` vem como união (colunas dinâmicas) — normaliza via unknown antes de checar/retornar.
   const row = data as unknown as { team_id?: string | null }
@@ -36,11 +39,11 @@ export async function assertRowTeam<T extends Record<string, unknown>>(
 export function assertLeadOwnership<T extends Record<string, unknown>>(
   svc: SupaService, id: string | null | undefined, activeTeamId: string | null, columns = 'id, team_id',
 ): Promise<Ownership<T>> {
-  return assertRowTeam<T>(svc, 'leads', id, activeTeamId, columns)
+  return assertRowTeam<T>(svc, 'leads', id, activeTeamId, columns, true)   // excluído → 404
 }
 
 export function assertClientOwnership<T extends Record<string, unknown>>(
   svc: SupaService, id: string | null | undefined, activeTeamId: string | null, columns = 'id, team_id',
 ): Promise<Ownership<T>> {
-  return assertRowTeam<T>(svc, 'clients', id, activeTeamId, columns)
+  return assertRowTeam<T>(svc, 'clients', id, activeTeamId, columns, true)   // excluído → 404
 }
