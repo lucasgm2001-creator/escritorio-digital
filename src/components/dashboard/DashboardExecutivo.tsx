@@ -2,17 +2,13 @@ import { Clock, Trophy, XCircle, TrendingUp } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Panel } from '@/components/bento/Panel'
 import { MetricCard, type MetricTone } from '@/components/ui/MetricCard'
-import type { CommercialDashboardVM } from '@/core/metrics/types'
+import type { ExecutiveMetricsVM } from '@/core/metrics/types'
 import type { CommercialReport, ReportInsight } from '@/core/reporting/types'
 
-function usd(value: number): string {
-  return `US$ ${Number(value).toLocaleString('en-US')}`
-}
-function pct(rate: number): string {
-  return `${Math.round(rate * 100)}%`
-}
+const usd = (v: number): string => `US$ ${Math.round(Number(v)).toLocaleString('en-US')}`
+const pctWhole = (v: number): string => `${Math.round(v)}%`      // conversão do ExecutiveMetricsService já vem 0..100
+const pctRate = (r: number): string => `${Math.round(r * 100)}%` // report.conversions.rate vem 0..1
 
-// Ícones/cor por tipo de insight (auto-regras do ReportingService — sem IA).
 const INSIGHT_STYLE: Record<ReportInsight['kind'], { Icon: typeof Clock; cls: string }> = {
   gargalo: { Icon: Clock, cls: 'text-amber-400' },
   melhor_etapa: { Icon: Trophy, cls: 'text-emerald-400' },
@@ -21,40 +17,55 @@ const INSIGHT_STYLE: Record<ReportInsight['kind'], { Icon: typeof Clock; cls: st
   queda_conversao: { Icon: TrendingUp, cls: 'text-red-400' },
 }
 
-// Dashboard Executivo (CRM-ULTIMATE-001). KPIs vêm do DashboardMetricsService; insights/funil/conversões
-// vêm do ReportingService. DOIS serviços, ZERO cálculo na UI (ARCH-001) — só formatação e escala de barra.
-export function DashboardExecutivo({ vm, report }: { vm: CommercialDashboardVM; report: CommercialReport }) {
-  const hero: { title: string; value: string; tone: MetricTone }[] = [
-    { title: 'Conversão', value: pct(vm.conversionRate), tone: 'positive' },
-    { title: 'Pipeline', value: usd(vm.pipelineValue), tone: 'default' },
-    { title: 'Receita realizada', value: usd(vm.revenueRealized), tone: 'emerald' },
-    { title: 'Ticket médio', value: usd(vm.avgTicket), tone: 'default' },
-  ]
+// Lista de barras (receita por vendedor / plano) — só apresentação; os números vêm prontos do serviço.
+function BarList({ rows, max }: { rows: { label: string; value: number; sub: string }[]; max: number }) {
+  if (rows.length === 0) return <p className="text-[13px] text-bento-muted">Sem receita recebida no período.</p>
+  return (
+    <div className="space-y-2.5">
+      {rows.map(r => (
+        <div key={r.label}>
+          <div className="flex items-center justify-between text-[12px] mb-1 gap-2">
+            <span className="text-bento-text truncate">{r.label} <span className="text-bento-dim">· {r.sub}</span></span>
+            <span className="font-tech text-bento-text tabular-nums shrink-0">{usd(r.value)}</span>
+          </div>
+          <div className="h-1.5 rounded-full bg-bento-panel overflow-hidden">
+            <div className="h-full bg-lime rounded-full" style={{ width: `${Math.min(100, Math.round((r.value / max) * 100))}%` }} />
+          </div>
+        </div>
+      ))}
+    </div>
+  )
+}
 
-  const groups: { title: string; cards: { label: string; value: string | number; tone?: MetricTone }[] }[] = [
-    { title: 'Leads', cards: [
-      { label: 'Ativos', value: vm.leadsActive },
-      { label: 'Novos (7d)', value: vm.leadsNew, tone: 'positive' },
-      { label: 'Parados', value: vm.leadsStuck, tone: vm.leadsStuck > 0 ? 'negative' : 'default' },
-      { label: 'Tempo médio', value: `${vm.avgDaysAsLead}d` },
-      { label: 'Tempo médio/fase', value: `${vm.avgDaysPerStage}d` },
-    ] },
-    { title: 'Funil & conversão', cards: [
-      { label: 'Reuniões', value: vm.meetings },
-      { label: 'No-shows', value: vm.noShows, tone: vm.noShows > 0 ? 'negative' : 'default' },
-      { label: 'Propostas', value: vm.proposals },
-      { label: 'Fechamentos', value: vm.closes, tone: 'positive' },
-      { label: 'Conversão', value: pct(vm.conversionRate) },
-    ] },
-    { title: 'Receita', cards: [
-      { label: 'Pipeline', value: usd(vm.pipelineValue) },
-      { label: 'Prevista', value: usd(vm.revenueForecast) },
-      { label: 'Realizada', value: usd(vm.revenueRealized), tone: 'emerald' },
-      { label: 'Perdida', value: usd(vm.revenueLost), tone: vm.revenueLost > 0 ? 'negative' : 'default' },
-    ] },
+// Dashboard Executivo (EXECUTIVE-METRICS-002). TODOS os KPIs executivos vêm do ExecutiveMetricsService (vm);
+// funil por etapa + insights + conversões-por-etapa vêm do ReportingService (report). ZERO cálculo na UI.
+// Renomes canônicos: "Receita realizada" (=soma de deals) → "Valor Fechado"; a receita de verdade agora é
+// "Receita Recebida" (client_payments). Conversão/Ticket passam a ser period-aware (registry).
+export function DashboardExecutivo({ vm, weekReceita, report }: { vm: ExecutiveMetricsVM; weekReceita: number; report: CommercialReport }) {
+  const hero: { title: string; value: string; tone: MetricTone }[] = [
+    { title: 'Receita Recebida', value: usd(vm.receitaRecebida), tone: 'emerald' },
+    { title: 'MRR', value: usd(vm.mrr), tone: 'positive' },
+    { title: 'Conversão', value: pctWhole(vm.conversao), tone: 'default' },
+    { title: 'Ticket Médio', value: usd(vm.ticketMedio), tone: 'default' },
+  ]
+  const receita: { label: string; value: string; tone?: MetricTone }[] = [
+    { label: 'Recebida (mês)', value: usd(vm.receitaRecebida), tone: 'emerald' },
+    { label: 'Semanal', value: usd(weekReceita) },
+    { label: 'Prevista', value: usd(vm.receitaPrevista) },
+    { label: 'Valor Fechado', value: usd(vm.valorFechado) },
+    { label: 'MRR', value: usd(vm.mrr), tone: 'positive' },
+    { label: 'ARR', value: usd(vm.arr) },
+  ]
+  const carteira: { label: string; value: string | number; tone?: MetricTone }[] = [
+    { label: 'Conversão', value: pctWhole(vm.conversao) },
+    { label: 'Ticket Médio', value: usd(vm.ticketMedio) },
+    { label: 'Clientes Ativos', value: vm.clientesAtivos },
+    { label: 'Clientes Novos', value: vm.clientesNovos, tone: vm.clientesNovos > 0 ? 'positive' : 'default' },
   ]
 
   const maxFunnel = Math.max(1, ...report.funnel.map(stage => stage.count))
+  const maxSeller = Math.max(1, ...vm.receitaPorVendedor.map(s => s.value))
+  const maxPlan = Math.max(1, ...vm.receitaPorPlano.map(p => p.value))
 
   return (
     <div className="space-y-6">
@@ -63,17 +74,33 @@ export function DashboardExecutivo({ vm, report }: { vm: CommercialDashboardVM; 
         {hero.map(card => <MetricCard key={card.title} title={card.title} value={card.value} tone={card.tone} size="lg" />)}
       </div>
 
-      {/* KPIs por grupo */}
-      {groups.map(group => (
-        <section key={group.title} className="space-y-2">
-          <p className="font-tech text-[10px] uppercase tracking-[0.12em] text-bento-muted">{group.title}</p>
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5">
-            {group.cards.map(card => <MetricCard key={card.label} title={card.label} value={card.value} tone={card.tone} size="sm" />)}
-          </div>
-        </section>
-      ))}
+      {/* Receita (dinheiro recebido × previsto × contratos × recorrência) */}
+      <section className="space-y-2">
+        <p className="font-tech text-[10px] uppercase tracking-[0.12em] text-bento-muted">Receita · {vm.periodLabel}</p>
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5">
+          {receita.map(card => <MetricCard key={card.label} title={card.label} value={card.value} tone={card.tone} size="sm" />)}
+        </div>
+      </section>
 
-      {/* Insights + Conversões */}
+      {/* Comercial & carteira */}
+      <section className="space-y-2">
+        <p className="font-tech text-[10px] uppercase tracking-[0.12em] text-bento-muted">Comercial & carteira</p>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+          {carteira.map(card => <MetricCard key={card.label} title={card.label} value={card.value} tone={card.tone} size="sm" />)}
+        </div>
+      </section>
+
+      {/* Receita por vendedor / plano (recebida no período) */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-start">
+        <Panel label={`Receita por vendedor · ${vm.periodLabel}`}>
+          <BarList rows={vm.receitaPorVendedor.map(s => ({ label: s.name, value: s.value, sub: `${s.count} cliente(s)` }))} max={maxSeller} />
+        </Panel>
+        <Panel label={`Receita por plano · ${vm.periodLabel}`}>
+          <BarList rows={vm.receitaPorPlano.map(p => ({ label: p.plan, value: p.value, sub: `${p.count} cliente(s)` }))} max={maxPlan} />
+        </Panel>
+      </div>
+
+      {/* Insights + Conversões por etapa (ReportingService) */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-start">
         <Panel label={`Insights · ${report.period.label}`}>
           {report.insights.length === 0 ? (
@@ -93,7 +120,7 @@ export function DashboardExecutivo({ vm, report }: { vm: CommercialDashboardVM; 
           )}
         </Panel>
 
-        <Panel label="Conversões">
+        <Panel label="Conversões por etapa">
           {report.conversions.length === 0 ? (
             <p className="text-[13px] text-bento-muted">Sem dados de conversão.</p>
           ) : (
@@ -102,7 +129,7 @@ export function DashboardExecutivo({ vm, report }: { vm: CommercialDashboardVM; 
                 <div key={step.label}>
                   <div className="flex items-center justify-between text-[12px] mb-1 gap-2">
                     <span className="text-bento-muted truncate">{step.label}</span>
-                    <span className="font-tech text-bento-text tabular-nums shrink-0">{pct(step.rate)}</span>
+                    <span className="font-tech text-bento-text tabular-nums shrink-0">{pctRate(step.rate)}</span>
                   </div>
                   <div className="h-1.5 rounded-full bg-bento-panel overflow-hidden">
                     <div className="h-full bg-lime rounded-full" style={{ width: `${Math.min(100, Math.round(step.rate * 100))}%` }} />

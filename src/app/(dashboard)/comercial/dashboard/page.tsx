@@ -1,13 +1,15 @@
 import Link from 'next/link'
 import { ChevronLeft } from 'lucide-react'
 import { getRequestContext } from '@/server/context/request-context'
-import { getCommercialDashboard } from '@/server/services/DashboardMetricsService'
+import { getExecutiveMetrics } from '@/server/services/ExecutiveMetricsService'
 import { buildCommercialReport } from '@/server/services/ReportingService'
 import { DashboardExecutivo } from '@/components/dashboard/DashboardExecutivo'
 import { WorkspaceHeader } from '@/components/ui/WorkspaceHeader'
 
-// Dashboard Executivo — KPIs do DashboardMetricsService + insights/funil/conversões do ReportingService.
-// Dois serviços (fonte única cada), nenhuma conta na UI (ARCH-001).
+// Dashboard Executivo — PRIMEIRO consumidor da FONTE ÚNICA (EXECUTIVE-METRICS-002). Todos os KPIs executivos
+// (receita recebida/prevista, valor fechado, MRR/ARR, ticket, conversão, clientes, por vendedor/plano) vêm do
+// ExecutiveMetricsService; funil por etapa + insights + conversões-por-etapa continuam no ReportingService
+// (fonte única deles, period-aware). ZERO cálculo na tela (ARCH-001). 'semana' só p/ a Receita Semanal.
 export default async function DashboardExecutivoPage() {
   const context = await getRequestContext()
   const now = new Date()
@@ -17,7 +19,11 @@ export default async function DashboardExecutivoPage() {
     label: 'Este mês',
   }
   const data = context
-    ? await Promise.all([getCommercialDashboard(context), buildCommercialReport(context, period)])
+    ? await Promise.all([
+        getExecutiveMetrics(context, 'mes'),
+        getExecutiveMetrics(context, 'semana'),
+        buildCommercialReport(context, period),
+      ])
     : null
 
   return (
@@ -28,9 +34,11 @@ export default async function DashboardExecutivoPage() {
       <WorkspaceHeader
         breadcrumb={['Comercial', 'Dashboard']}
         title="Visão comercial"
-        subtitle="Indicadores do DashboardMetricsService; insights e funil do ReportingService — fonte única, sem cálculo na tela."
+        subtitle="Métricas da fonte única (ExecutiveMetricsService); funil e insights do ReportingService — sem cálculo na tela."
       />
-      {data ? <DashboardExecutivo vm={data[0]} report={data[1]} /> : <p className="text-sm text-bento-muted">Sem equipe ativa.</p>}
+      {data
+        ? <DashboardExecutivo vm={data[0]} weekReceita={data[1].receitaRecebida} report={data[2]} />
+        : <p className="text-sm text-bento-muted">Sem equipe ativa.</p>}
     </div>
   )
 }
