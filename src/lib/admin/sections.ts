@@ -8,7 +8,7 @@ import {
 // Isto é só o modelo de navegação/organização — nenhuma regra de negócio.
 
 export type AdminSectionKey =
-  | 'empresa' | 'equipe' | 'departamentos' | 'cargos' | 'colaboradores' | 'clientes' | 'agenda' | 'remuneracao'
+  | 'empresa' | 'equipe' | 'departamentos' | 'cargos' | 'colaboradores' | 'clientes' | 'agenda' | 'financeiro' | 'remuneracao'
   | 'permissoes' | 'automacoes' | 'integracoes' | 'api' | 'inbound' | 'eventos' | 'auditoria'
   | 'billing' | 'logs'
 
@@ -96,6 +96,16 @@ export const ADMIN_SECTIONS: AdminSection[] = [
     metrics: ['Clientes ativos', 'Receita mensal', 'Retenção'],
     emptyTitle: 'Nenhum cliente nesta equipe',
     emptyHint: 'Clientes entram automaticamente quando uma venda é fechada no Comercial — ou pelo cadastro histórico.',
+  },
+  {
+    key: 'financeiro', label: 'Financeiro', href: '/admin/financeiro', group: 'regras', icon: TrendingUp,
+    tagline: 'Receita recebida, prevista, MRR/ARR, atraso e próximos recebimentos.',
+    description: 'Painel financeiro executivo com a MESMA fonte única de Hall/Dashboard/Relatórios (ExecutiveMetricsService). Receita Recebida (client_payments) separada de Valor Fechado (deals); MRR/ARR da carteira ativa; recebimentos pendentes e próximos pela régua de cobrança.',
+    planned: [],
+    context: 'Todo número vem do ExecutiveMetricsService (fonte única). Receita Recebida ≠ Valor Fechado — dinheiro recebido nunca se mistura com contrato fechado.',
+    metrics: ['Receita recebida', 'MRR / ARR', 'Recebimentos pendentes'],
+    emptyTitle: 'Sem dados financeiros ainda',
+    emptyHint: 'Os números aparecem conforme os pagamentos (client_payments) são registrados.',
   },
   {
     key: 'remuneracao', label: 'Remuneração', href: '/admin/remuneracao', group: 'regras', icon: Wallet,

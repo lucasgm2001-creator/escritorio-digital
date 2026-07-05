@@ -21,7 +21,7 @@ export function receivedRevenueBetween(payments: PaymentRow[], fromYMD: string, 
 }
 
 const round2 = (n: number): number => Math.round((n + Number.EPSILON) * 100) / 100
-export type PaymentRowWithClient = PaymentRow & { client_id: string }
+export type PaymentRowWithClient = PaymentRow & { client_id: string; numero_semana?: number }
 
 // Agrupa receita recebida (não anulada, no período) por uma dimensão do cliente (vendedor/plano). FONTE ÚNICA
 // da quebra — antes vivia inline no CommercialMetricsService.bySeller. `dim` mapeia client_id → rótulo.
@@ -53,4 +53,10 @@ export function receivedRevenueBySeller(payments: PaymentRowWithClient[], client
 export function receivedRevenueByPlan(payments: PaymentRowWithClient[], clientToPlan: Map<string, string>, fromYMD: string, toYMD: string) {
   return receivedRevenueByDimension(payments, clientToPlan, 'Sem plano', fromYMD, toYMD)
     .map(x => ({ plan: x.label, value: x.value, count: x.count }))
+}
+
+/** Receita recebida por forma de pagamento (período). clientToForma: client_id → rótulo da forma. */
+export function receivedRevenueByForma(payments: PaymentRowWithClient[], clientToForma: Map<string, string>, fromYMD: string, toYMD: string) {
+  return receivedRevenueByDimension(payments, clientToForma, 'Não definida', fromYMD, toYMD)
+    .map(x => ({ forma: x.label, value: x.value, count: x.count }))
 }

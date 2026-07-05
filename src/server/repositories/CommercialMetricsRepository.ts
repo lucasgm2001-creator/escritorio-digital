@@ -55,13 +55,13 @@ export async function getLeadMilestonesForMetrics(): Promise<MMilestone[]> {
   return (data ?? []) as MMilestone[]
 }
 
-export type MPayment = { client_id: string; valor_usd: number; paid_on: string; anulado?: boolean }
+export type MPayment = { client_id: string; valor_usd: number; paid_on: string; anulado?: boolean; numero_semana?: number }
 export type MClientSeller = { id: string; assigned_name: string | null }
 
 export async function getClientRevenueForMetrics(): Promise<{ payments: MPayment[]; clients: MClientSeller[] }> {
   const supabase = createClient()
   const [pRes, cRes] = await Promise.all([
-    supabase.from('client_payments').select('client_id, valor_usd, paid_on, anulado'),
+    supabase.from('client_payments').select('client_id, valor_usd, paid_on, anulado, numero_semana'),
     supabase.from('clients').select('id, assigned_name'),
   ])
   return {
@@ -73,8 +73,8 @@ export async function getClientRevenueForMetrics(): Promise<{ payments: MPayment
 // ── Carteira de clientes p/ métricas executivas (MRR/ARR, receita por plano, clientes novos, receita prevista).
 //    Team-scoped; RLS já exclui soft-deleted. plan_weekly = valor SEMANAL do cliente (custom ou do plano). ──
 export type MExecClient = {
-  id: string; assigned_name: string | null; status: string | null; plan_weekly: number | null
-  plano_id: string | null; periodicidade: string | null; start_date: string | null
+  id: string; name: string | null; assigned_name: string | null; status: string | null; plan_weekly: number | null
+  plano_id: string | null; periodicidade: string | null; forma_pagamento: string | null; start_date: string | null
   dia_pagamento_semana: number | null; created_at: string | null
 }
 export type MPlan = { id: string; nome: string }
@@ -82,7 +82,7 @@ export type MPlan = { id: string; nome: string }
 export async function getExecutiveClients(teamId: string): Promise<{ clients: MExecClient[]; plans: MPlan[] }> {
   const supabase = createClient()
   const [cRes, pRes] = await Promise.all([
-    supabase.from('clients').select('id, assigned_name, status, plan_weekly, plano_id, periodicidade, start_date, dia_pagamento_semana, created_at').eq('team_id', teamId),
+    supabase.from('clients').select('id, name, assigned_name, status, plan_weekly, plano_id, periodicidade, forma_pagamento, start_date, dia_pagamento_semana, created_at').eq('team_id', teamId),
     supabase.from('plans').select('id, nome'),
   ])
   return {
