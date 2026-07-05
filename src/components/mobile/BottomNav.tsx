@@ -9,9 +9,10 @@ import { useModuleAccess } from '@/components/auth/ModuleAccessProvider'
 
 /**
  * Barra de navegação inferior — SÓ mobile (<1024px). Renderizada pelo DashboardShell.
- * Deriva da FONTE ÚNICA (@/lib/navigation): mostra os módulos `primary` (Hall › Comercial › Clientes ›
- * Tráfego) + um botão "Mais" que abre o menu lateral (Sidebar drawer) com TODOS os módulos — nada
- * escondido no celular. Um módulo novo marcado `primary` aparece aqui automaticamente; o resto vai no "Mais".
+ * Deriva da FONTE ÚNICA (@/lib/navigation): mostra os módulos `primary` (Hall › Comercial › Tráfego) + um
+ * botão "Mais" que abre o menu lateral (Sidebar drawer) com TODOS os módulos — nada escondido no celular.
+ * (Clientes deixou de ser andar — vive em Administração › Clientes, CLIENT-HISTORY-ADMIN-003.)
+ * Um módulo novo marcado `primary` aparece aqui automaticamente; o resto vai no "Mais".
  */
 const itemCls = 'flex-1 flex flex-col items-center justify-center gap-1 min-h-[44px] py-2 outline-none focus-visible:ring-2 focus-visible:ring-lime/50 rounded-md [-webkit-tap-highlight-color:transparent]'
 

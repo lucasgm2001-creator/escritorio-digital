@@ -82,6 +82,12 @@ export const ADMIN_SECTIONS: AdminSection[] = [
     planned: ['Cadastro completo de colaboradores', 'Vínculo departamento · cargo · template · gestor', 'Status, histórico e documentos', 'Base para permissões e remuneração'],
   },
   {
+    key: 'agenda', label: 'Agendas', href: '/admin/agenda', group: 'organizacao', icon: CalendarDays,
+    tagline: 'A agenda de cada colaborador — visão administrativa (só leitura).',
+    description: 'Owner e Desenvolvedor enxergam a agenda de qualquer colaborador REUSANDO o calendário existente (calendar_events) — sem duplicar calendário nem criar outro. Escolha a pessoa e veja seus compromissos.',
+    planned: ['Lista de colaboradores', 'Agenda individual (só leitura)', 'Reuso do calendário do Hall', 'Filtro por período (futuro)'],
+  },
+  {
     key: 'clientes', label: 'Clientes', href: '/admin/clientes', group: 'organizacao', icon: Building2,
     tagline: 'A carteira de clientes — cadastro, histórico e workspace por cliente.',
     description: 'A lista de clientes da empresa vive aqui (CLIENT-HISTORY-ADMIN-003): cadastro com histórico completo, prateleiras por nicho e integrações. De cada cliente abre-se o Workspace (financeiro, tráfego, projetos, equipe, agenda, relatórios). Respeita a permissão do módulo — quem tem acesso operacional entra, owner/dev sempre.',
@@ -90,12 +96,6 @@ export const ADMIN_SECTIONS: AdminSection[] = [
     metrics: ['Clientes ativos', 'Receita mensal', 'Retenção'],
     emptyTitle: 'Nenhum cliente nesta equipe',
     emptyHint: 'Clientes entram automaticamente quando uma venda é fechada no Comercial — ou pelo cadastro histórico.',
-  },
-  {
-    key: 'agenda', label: 'Agendas', href: '/admin/agenda', group: 'organizacao', icon: CalendarDays,
-    tagline: 'A agenda de cada colaborador — visão administrativa (só leitura).',
-    description: 'Owner e Desenvolvedor enxergam a agenda de qualquer colaborador REUSANDO o calendário existente (calendar_events) — sem duplicar calendário nem criar outro. Escolha a pessoa e veja seus compromissos.',
-    planned: ['Lista de colaboradores', 'Agenda individual (só leitura)', 'Reuso do calendário do Hall', 'Filtro por período (futuro)'],
   },
   {
     key: 'remuneracao', label: 'Remuneração', href: '/admin/remuneracao', group: 'regras', icon: Wallet,
