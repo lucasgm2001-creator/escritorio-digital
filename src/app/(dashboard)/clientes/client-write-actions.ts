@@ -122,7 +122,7 @@ async function resolveEditRate(supabase: ReturnType<typeof createServiceClient>)
 // ownership). NÃO é o updateClientAction (livre), que segue restrito à identidade.
 const HISTORY_CLIENT_COLS = [
   'name', 'company', 'email', 'phone', 'nicho', 'fuso', 'city', 'state', 'area_code',
-  'start_date', 'plano_id', 'plan_weekly', 'dia_pagamento_semana', 'periodicidade', 'assigned_to', 'assigned_name',
+  'start_date', 'plano_id', 'plan_weekly', 'dia_pagamento_semana', 'periodicidade', 'forma_pagamento', 'assigned_to', 'assigned_name',
 ] as const
 
 // SAVE com HISTÓRICO (CLIENT-HISTORY-ADMIN-003): grava os campos do cliente E reconstrói AUTOMATICAMENTE toda

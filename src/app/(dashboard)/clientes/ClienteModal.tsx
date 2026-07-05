@@ -49,6 +49,10 @@ export function ClienteModal({ client, onClose, onSaved, initialTab }: {
     periodicidade: (client.periodicidade ?? 'semanal') as 'semanal' | 'mensal',
     start_date: (client.start_date ?? '').slice(0, 10),
     responsavel: client.assigned_name ?? '',
+    forma_pagamento: client.forma_pagamento ?? '',  // Parte 2 — PIX/cartão/transferência/etc. (texto livre)
+    // Valor personalizado (Parte 2): se preenchido, vira o valor SEMANAL e o cliente fica sem plano. Pré-carrega
+    // o plan_weekly quando o cliente já é "sem plano" (plano_id null) — senão fica vazio (herda do plano).
+    valorCustom: client.plano_id ? '' : (client.plan_weekly ? String(client.plan_weekly) : ''),
     // HISTÓRICO do pipeline (CLIENT-HISTORY-ADMIN-003) — datas REAIS; ao Salvar, o sistema reconstrói tudo
     // automaticamente (lead → contato → reunião → proposta → fechamento + semanas/comissão). Vazio = mantém.
     leadDate: '', firstContact: '', meetingDate: '', proposalDate: '', closeDate: '',
@@ -80,15 +84,20 @@ export function ClienteModal({ client, onClose, onSaved, initialTab }: {
 
   const buildPatch = () => {
     const editPlan = plans.find(p => p.id === form.plano_id)
+    const custom = Number(form.valorCustom)
+    const hasCustom = form.valorCustom.trim() !== '' && custom > 0
     return {
       name: form.name || client.name,
       company: form.company || null,
       email: form.email || null,
       phone: form.phone || null,
-      plano_id: form.plano_id || client.plano_id || null,
-      plan_weekly: editPlan?.valor_semanal ?? client.plan_weekly,
+      // Valor personalizado (Parte 2): se informado, é o valor semanal e o cliente fica SEM plano (plano_id null).
+      // Senão, herda do plano selecionado. O motor sempre lê plan_weekly (resolveClientPlan) — regra intacta.
+      plano_id: hasCustom ? null : (form.plano_id || client.plano_id || null),
+      plan_weekly: hasCustom ? custom : (editPlan?.valor_semanal ?? client.plan_weekly),
       dia_pagamento_semana: Number(form.dia_pagamento_semana),
       periodicidade: form.periodicidade,     // forma de cobrança (F2)
+      forma_pagamento: form.forma_pagamento.trim() || null,  // Parte 2 — método (texto livre)
       start_date: form.start_date || null,   // editável/retroativo (CLIENT-HISTORY-F1)
       assigned_name: form.responsavel.trim() || null,  // responsável (histórico)
       nicho: form.nicho.trim() || null,
@@ -195,6 +204,16 @@ export function ClienteModal({ client, onClose, onSaved, initialTab }: {
               {plans.map(p => <option key={p.id} value={p.id}>{p.nome} — ${p.valor_semanal}/sem{p.valor_mensal ? ` · $${p.valor_mensal}/mês` : ''}</option>)}
             </select>
           </div>
+          {/* Valor personalizado (Parte 2) — sobrescreve o plano: vira o valor SEMANAL do cliente (sem plano).
+              Deixe vazio para usar o plano. O motor lê plan_weekly (resolveClientPlan) — regra intacta. */}
+          <div>
+            <label className="block text-xs font-medium text-bento-dim mb-1">Valor personalizado (semanal, opcional)</label>
+            <input type="number" min="0" step="1" inputMode="decimal" value={form.valorCustom}
+              onChange={e => setForm(p => ({ ...p, valorCustom: e.target.value }))} placeholder="Ex.: 175 — vazio usa o plano" className={inputCls} />
+            {form.valorCustom.trim() !== '' && Number(form.valorCustom) > 0 && (
+              <p className="font-tech text-[10px] text-bento-muted/70 mt-1">Cliente sem plano — vale US$ {Number(form.valorCustom)}/semana.</p>
+            )}
+          </div>
           {/* Forma de cobrança (F2) — semanal ou mensal. O motor é sempre semanal; "mensal" só muda como
               se registra o pagamento (quita o mês de uma vez via payMonth). Não altera o valor por semana. */}
           <div>
@@ -203,6 +222,11 @@ export function ClienteModal({ client, onClose, onSaved, initialTab }: {
               <option value="semanal">Semanal</option>
               <option value="mensal">Mensal (quita o mês de uma vez)</option>
             </select>
+          </div>
+          {/* Forma de pagamento (Parte 2) — método (PIX, cartão, transferência...). Só cadastro; não afeta o motor. */}
+          <div>
+            <label className="block text-xs font-medium text-bento-dim mb-1">Forma de pagamento</label>
+            <input value={form.forma_pagamento} onChange={e => setForm(p => ({ ...p, forma_pagamento: e.target.value }))} placeholder="Ex.: PIX, cartão, transferência" className={inputCls} />
           </div>
           <div>
             <label className="block text-xs font-medium text-bento-dim mb-1">Dia de pagamento (semana)</label>

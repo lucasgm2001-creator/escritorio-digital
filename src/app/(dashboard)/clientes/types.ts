@@ -11,6 +11,7 @@ export interface Client {
   plano_id?: string | null
   dia_pagamento_semana?: number | null   // dia-da-semana de cobrança (0=Dom..6=Sáb), MESMA convenção do cron/payDueWeeks
   periodicidade?: 'semanal' | 'mensal'    // forma de cobrança (F2). Motor é sempre semanal; 'mensal' = paga o mês de uma vez.
+  forma_pagamento?: string | null         // método (PIX/cartão/transferência...) — só cadastro (Parte 2, migration 054)
   status: 'ativo' | 'inativo' | 'prospect'
   start_date?: string
   end_date?: string
