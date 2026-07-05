@@ -101,7 +101,7 @@ export async function getLeadHub(context: RequestContext, leadId: string): Promi
       category: 'reuniao' as const,
       origin: 'sistema' as LeadTimelineOrigin,
       author: null,
-      at: m.created_at ?? m.met_on,
+      at: m.met_on ?? m.created_at,
       title: 'Reunião',
       description: m.note ?? (m.met_on ? `Reunião em ${m.met_on}` : null),
     })),
@@ -111,7 +111,7 @@ export async function getLeadHub(context: RequestContext, leadId: string): Promi
       category: 'contrato' as const,
       origin: 'sistema' as LeadTimelineOrigin,
       author: null,
-      at: d.created_at ?? d.data_fechamento,
+      at: d.data_fechamento ?? d.created_at,
       title: 'Venda fechada',
       description: `US$ ${Number(d.valor_total_usd ?? 0).toLocaleString('en-US')}`,
     })),
@@ -138,7 +138,7 @@ export async function getLeadHub(context: RequestContext, leadId: string): Promi
   }
 
   // ---- Lead Health ----
-  const lastMeetingAt = maxDate(meetings.map(m => m.created_at ?? m.met_on))
+  const lastMeetingAt = maxDate(meetings.map(m => m.met_on ?? m.created_at))
   const lastProposalAt = maxDate(stageEvents.filter(e => proposalSlugs.has(e.to_stage)).map(e => e.changed_at))
   const health: LeadHealth = {
     daysStuck: stats.daysStuck,

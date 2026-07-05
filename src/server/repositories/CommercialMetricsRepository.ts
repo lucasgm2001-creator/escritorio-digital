@@ -8,38 +8,36 @@ import { createClient } from '@/lib/supabase/server'
 
 export type MLead = { id: string; status: string | null; value: number | null; received_at: string | null; created_at: string | null; stage_changed_at: string | null; score: number | null; origem: string | null }
 export type MStage = { lead_id: string | null; from_stage: string | null; to_stage: string; changed_at: string }
-export type MMeeting = { id: string; valor_usd: number | null; created_at: string | null }
+// met_on = data REAL da reunião (competência para período/timeline); created_at é só quando a linha nasceu no
+// banco. CLIENT-HISTORY-ADMIN-003: reunião histórica (met_on retroativo) tem de cair no período certo.
+export type MMeeting = { id: string; valor_usd: number | null; met_on: string | null; created_at: string | null }
 export type MDeal = { id: string; lead_id: string | null; valor_total_usd: number | null; status: string | null; data_fechamento: string | null; created_at: string | null }
-export type MClient = { id: string; created_at: string | null }
 
 export type CommercialRaw = {
   leads: MLead[]
   stageEvents: MStage[]
   meetings: MMeeting[]
   deals: MDeal[]
-  clients: MClient[]
 }
 
 export async function getCommercialRaw(teamId: string): Promise<CommercialRaw> {
   const supabase = createClient()
-  const [leads, stageEvents, meetings, deals, clients] = await Promise.all([
+  // (Removido o load de `clients` — era DEAD: nenhum consumidor lia raw.clients. CLIENT-HISTORY-ADMIN-003, Parte 5.)
+  const [leads, stageEvents, meetings, deals] = await Promise.all([
     supabase.from('leads').select('id, status, value, received_at, created_at, stage_changed_at, score, origem').eq('team_id', teamId),
     supabase.from('stage_events').select('lead_id, from_stage, to_stage, changed_at').eq('team_id', teamId),
-    supabase.from('meetings').select('id, valor_usd, created_at').eq('team_id', teamId),
+    supabase.from('meetings').select('id, valor_usd, met_on, created_at').eq('team_id', teamId),
     supabase.from('deals').select('id, lead_id, valor_total_usd, status, data_fechamento, created_at').eq('team_id', teamId),
-    supabase.from('clients').select('id, created_at').eq('team_id', teamId),
   ])
   if (leads.error) throw leads.error
   if (stageEvents.error) throw stageEvents.error
   if (meetings.error) throw meetings.error
   if (deals.error) throw deals.error
-  if (clients.error) throw clients.error
   return {
     leads: (leads.data ?? []) as MLead[],
     stageEvents: (stageEvents.data ?? []) as MStage[],
     meetings: (meetings.data ?? []) as MMeeting[],
     deals: (deals.data ?? []) as MDeal[],
-    clients: (clients.data ?? []) as MClient[],
   }
 }
 

@@ -41,7 +41,9 @@ export async function buildCommercialReport(context: RequestContext, period: Rep
   // Eventos no PERÍODO — cada MOVIMENTAÇÃO conta (nunca substitui a anterior).
   const events = raw.stageEvents.filter(e => inPeriod(e.changed_at, period))
   const dealsP = raw.deals.filter(d => inPeriod(d.data_fechamento ?? d.created_at, period))
-  const meetingsP = raw.meetings.filter(m => inPeriod(m.created_at, period))
+  // Reunião entra no período pela data REAL (met_on), não por quando a linha nasceu — senão reunião histórica
+  // (met_on retroativo, created_at = agora) cairia no mês errado (CLIENT-HISTORY-ADMIN-003).
+  const meetingsP = raw.meetings.filter(m => inPeriod(m.met_on ?? m.created_at, period))
   const to = (set: Set<string>): number => events.filter(e => set.has(e.to_stage)).length
 
   const won = dealsP.length

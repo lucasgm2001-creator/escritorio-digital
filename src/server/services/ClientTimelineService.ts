@@ -25,11 +25,13 @@ export async function getClientTimeline(context: RequestContext, clientId: strin
 
   const items: LeadTimelineItem[] = []
 
-  // Cliente criado
+  // Cliente criado — ancorado na DATA DO CONTRATO (start_date), não em quando a linha nasceu no banco. Assim a
+  // timeline reflete o histórico real: um cliente cadastrado retroativamente aparece na época certa
+  // (CLIENT-HISTORY-ADMIN-003). created_at é só fallback quando não há start_date.
   items.push({
     id: `created-${client.id}`,
     type: 'atividade', category: 'informacao', origin: 'sistema',
-    author: client.assigned_name ?? null, at: client.created_at ?? null,
+    author: client.assigned_name ?? null, at: client.start_date ?? client.created_at ?? null,
     title: 'Cliente criado', description: `${client.name} entrou como cliente.`,
   })
 
