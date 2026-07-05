@@ -21,7 +21,7 @@ import {
   deleteMeetingAction, updateMeetingAction,
 } from '../compensation-write-actions'
 import { cn } from '@/lib/utils'
-import { monthlySummary, resolveRate, dealTotal } from '@/lib/commission/calc'
+import { monthlySummary, resolveRate, dealTotal, pendingCommission } from '@/lib/commission/calc'
 import { meetingCommissionCounts } from '@/lib/commission/constants'
 import { payWeekMessage } from '@/lib/commission/actions'
 import type { SalaryPeriod, Meeting, WeeklyPayment, FxConfig, Deal, DealStatus } from '@/lib/commission/types'
@@ -446,8 +446,10 @@ export function CommissionSection({ sellerId, sellerName }: { sellerId: string; 
     return salaries.filter(s => s.effectiveFrom <= firstDay).sort((a, b) => (a.effectiveFrom < b.effectiveFrom ? 1 : -1))[0]?.effectiveFrom
   })()
   const vazio = summary.totalUsd === 0
-  const semanasPendentes = deals.reduce((acc, d) => d.status === 'em_andamento'
-    ? acc + Math.max(0, d.tetoSemanas - weeks.filter(w => w.dealId === d.id).length) : acc, 0)
+  // Comissões pendentes das primeiras 4 semanas (reusa pendingCommission → dealTotal). Fonte única do total,
+  // da contagem e das semanas restantes — substitui o cálculo inline que reimplementava a mesma conta.
+  const pending = pendingCommission(deals, weeks)
+  const semanasPendentes = pending.semanasPendentesTotais
   const monthPrefix = `${refDate.year}-${pad2(refDate.month)}`
   // Comissão por SEMANA do mês (US$25/semana), com o cliente de origem. Só exibição.
   const weeksOfMonth = weeks
@@ -911,12 +913,20 @@ export function CommissionSection({ sellerId, sellerName }: { sellerId: string; 
 
       {/* ── POR CLIENTE: recebido × falta (acumulado por venda — regra 7) ─── */}
       <Collapsible icon={<Users className="w-4 h-4 text-lime-fg" />} title="Por cliente"
-        peek={`${deals.length} venda(s)`} open={!!open.porCliente} onToggle={() => toggle('porCliente')}
+        peek={pending.clientesPendentes > 0 ? `${usd(pending.totalPendenteUsd)} pendente` : `${deals.length} venda(s)`} open={!!open.porCliente} onToggle={() => toggle('porCliente')}
         headerExtra={<span className="text-[10px] text-bento-muted">acumulado</span>}>
         {deals.length === 0 ? (
           <p className="text-xs text-bento-muted py-2">Nenhuma venda lançada ainda.</p>
         ) : (
           <div className="space-y-2.5">
+            {/* Resumo de pendência das 4 primeiras semanas (reusa pendingCommission → dealTotal); os cards abaixo detalham cada venda. */}
+            <div className="rounded-btn border border-lime/30 bg-lime/5 px-3 py-2 flex items-center justify-between gap-2">
+              <div className="min-w-0">
+                <p className="font-tech text-[10px] uppercase tracking-wide text-bento-muted">Comissão pendente · 4 primeiras semanas</p>
+                <p className="text-[11px] text-bento-dim">{pending.clientesPendentes} pendente(s) · {pending.clientesCompletos} completo(s) · {pending.semanasPendentesTotais} sem. a receber</p>
+              </div>
+              <span className="font-display text-lg font-bold text-lime-fg tabular-nums flex-none">{usd(pending.totalPendenteUsd)}</span>
+            </div>
             {deals.map(d => {
               const dt = dealTotal(d, weeks)
               // Fallback defensivo: status fora do enum conhecido não derruba a tela (HOTFIX-REMUNERACAO-CRASH).

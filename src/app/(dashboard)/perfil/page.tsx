@@ -24,6 +24,7 @@ export default async function PerfilPage() {
     hasComp: false, sellerName: profile?.name ?? '', cargo: null, department: null, rule: null,
     currentMonth: null, nextPayout: null, yearReceivedUsd: 0, totalReceivedUsd: 0, dealsCount: 0,
     thisWeekUsd: 0, status: 'ativo', lastUpdate: null, months: [],
+    pending: { totalPendenteUsd: 0, totalPagoNasElegiveisUsd: 0, clientesPendentes: 0, clientesCompletos: 0, semanasPendentesTotais: 0, lines: [] },
   }
   const comp = context ? await getMyCompensationView(context) : EMPTY
   // Cargos do colaborador (MÚLTIPLOS) — FONTE ÚNICA team_members.role_keys (via context). O Perfil só EXIBE

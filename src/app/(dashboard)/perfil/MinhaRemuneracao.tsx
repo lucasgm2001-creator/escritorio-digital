@@ -8,6 +8,7 @@ import { usd, brl } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import { buildMyCompensationPdf } from '@/lib/commercial/my-compensation-pdf'
 import type { MyCompensationView } from '@/server/services/MyCompensationService'
+import type { PendingClientLine } from '@/lib/commission/types'
 import type { CommissionType, PaymentRule } from '@/server/repositories/CompensationRepository'
 
 // "Minha Remuneração" (Perfil) — visão do COLABORADOR (COMPENSATION-REAL-001). Só leitura; os números vêm
@@ -72,6 +73,51 @@ export function MinhaRemuneracao({ vm, workspace }: { vm: MyCompensationView; wo
         <MetricCard title="Próximo pagamento" value={vm.nextPayout?.date ?? '—'} size="sm" tone="muted" />
         <MetricCard title="Comissão acumulada" value={usd(vm.totalReceivedUsd)} size="sm" />
       </div>
+
+      {/* Comissões pendentes — primeiras 4 semanas por cliente (SELLER-COMMISSION-PENDING-001). Reusa o motor:
+          os números vêm prontos de vm.pending (pendingCommission → dealTotal). Só exibição, cards compactos. */}
+      {vm.pending.lines.length > 0 && (
+        <div className="bento-fx p-4 space-y-3">
+          <div className="flex items-center justify-between gap-2">
+            <p className="font-tech text-[10px] uppercase tracking-[0.12em] text-bento-muted">Comissões pendentes · primeiras 4 semanas</p>
+            <span className="text-[11px] text-bento-dim shrink-0">{vm.pending.clientesPendentes} pendente(s) · {vm.pending.clientesCompletos} completo(s)</span>
+          </div>
+
+          {vm.pending.clientesPendentes === 0 ? (
+            <p className="flex items-center gap-1.5 text-[13px] text-bento-muted">
+              <span className="text-lime-fg font-semibold">✓</span> Nenhuma comissão pendente — todos os clientes completaram as 4 semanas.
+            </p>
+          ) : (
+            <>
+              <div className="flex items-end justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="font-tech text-[10px] uppercase tracking-wide text-bento-muted">Total pendente</p>
+                  <p className="font-display text-2xl font-bold text-lime-fg tabular-nums leading-none">{usd(vm.pending.totalPendenteUsd)}</p>
+                </div>
+                <p className="text-[11px] text-bento-dim text-right shrink-0">
+                  {vm.pending.semanasPendentesTotais} semana(s) a receber<br />em {vm.pending.clientesPendentes} cliente(s)
+                </p>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                {vm.pending.lines.filter(l => l.situacao === 'pendente').map(l => <PendingCard key={l.dealId} l={l} />)}
+              </div>
+            </>
+          )}
+
+          {vm.pending.clientesCompletos > 0 && (
+            <p className="text-[11px] text-bento-dim leading-relaxed">
+              <span className="text-bento-muted font-medium">Completaram as 4 semanas:</span>{' '}
+              {vm.pending.lines.filter(l => l.situacao === 'completo').map(l => l.clientName || 'Sem nome').join(' · ')}
+            </p>
+          )}
+          {vm.pending.lines.some(l => l.situacao === 'encerrado') && (
+            <p className="text-[11px] text-bento-dim leading-relaxed">
+              <span className="text-bento-muted font-medium">Encerradas antes das 4 semanas:</span>{' '}
+              {vm.pending.lines.filter(l => l.situacao === 'encerrado').map(l => `${l.clientName || 'Sem nome'} (${l.semanasPagas}/${l.semanasElegiveis})`).join(' · ')}
+            </p>
+          )}
+        </div>
+      )}
 
       {/* Modelo (Parte 6) */}
       <div className="bento-fx p-4 space-y-3">
@@ -143,6 +189,28 @@ function Row({ label, value, sub }: { label: string; value: string | number; sub
     <div className="flex items-baseline justify-between gap-3 py-1.5 border-b border-bento-border/40 last:border-0">
       <span className="text-bento-muted shrink-0">{label}</span>
       <span className="text-bento-text font-medium text-right min-w-0 break-words tabular-nums">{value}{sub && <span className="block text-[11px] text-bento-dim font-normal">{sub}</span>}</span>
+    </div>
+  )
+}
+
+// Card compacto de um cliente com comissão pendente. Progresso pagas/4 + valor que falta + próxima semana.
+function PendingCard({ l }: { l: PendingClientLine }) {
+  const pct = l.semanasElegiveis > 0 ? Math.min(100, (l.semanasPagas / l.semanasElegiveis) * 100) : 0
+  return (
+    <div className="bg-bento-bg border border-bento-border/60 rounded-btn p-3">
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-sm font-medium text-bento-text truncate">{l.clientName || 'Venda sem cliente'}</span>
+        <span className="font-display text-sm font-bold text-lime-fg tabular-nums flex-none">{usd(l.comissaoPendenteUsd)}</span>
+      </div>
+      <div className="mt-2 flex items-center gap-2">
+        <div className="flex-1 h-1.5 rounded-full bg-bento-border/50 overflow-hidden">
+          <div className="h-full rounded-full bg-lime" style={{ width: `${pct}%` }} />
+        </div>
+        <span className="font-tech text-[11px] text-bento-muted tabular-nums flex-none">{l.semanasPagas}/{l.semanasElegiveis} sem.</span>
+      </div>
+      <p className="mt-1.5 text-[11px] text-bento-dim">
+        {l.semanasPendentes} semana(s) × {usd(l.comissaoPorSemanaUsd)}{l.proximaSemana ? ` · próxima: ${l.proximaSemana}ª` : ''}
+      </p>
     </div>
   )
 }

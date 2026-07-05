@@ -85,3 +85,38 @@ export interface NextPayout {
   refMonth: number
   summary: MonthlySummary
 }
+
+/** Venda + nome do cliente (só EXIBIÇÃO) — entrada da visão de "comissões pendentes". */
+export interface DealWithClient extends Deal {
+  clientName: string | null
+}
+
+/** Situação da venda na régua das primeiras `tetoSemanas` (4) semanas de comissão. */
+export type PendingSituacao = 'pendente' | 'completo' | 'encerrado'
+
+/** Uma venda (cliente) na visão de comissões pendentes. Deriva 100% do dealTotal — sem regra nova. */
+export interface PendingClientLine {
+  dealId: string
+  clientName: string | null
+  dataFechamento: string       // 'YYYY-MM-DD' (informativo)
+  status: DealStatus
+  situacao: PendingSituacao     // pendente = ainda faltam semanas; completo = 4/4; encerrado = congelado antes de completar
+  semanasElegiveis: number      // tetoSemanas (as "4 primeiras")
+  semanasPagas: number
+  semanasPendentes: number
+  comissaoPorSemanaUsd: number
+  comissaoPagaUsd: number
+  comissaoPendenteUsd: number   // = semanasPendentes × comissaoPorSemanaUsd (só em_andamento projeta)
+  valorTotalUsd: number         // = tetoSemanas × comissaoPorSemanaUsd (o "valor" do plano de comissão)
+  proximaSemana: number | null  // nº da próxima semana a receber (semanasPagas+1) se pendente; senão null
+}
+
+/** Resumo das comissões pendentes de um vendedor (agregado + linhas por cliente). */
+export interface PendingCommissionResult {
+  totalPendenteUsd: number       // quanto ainda falta receber no total (só das pendentes)
+  totalPagoNasElegiveisUsd: number
+  clientesPendentes: number
+  clientesCompletos: number
+  semanasPendentesTotais: number
+  lines: PendingClientLine[]     // ordenado: pendentes (menos pagas 1º) → encerrados → completos
+}

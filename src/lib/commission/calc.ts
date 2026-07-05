@@ -6,6 +6,7 @@
 import type {
   FxConfig, SalaryPeriod, Meeting, Deal, WeeklyPayment,
   MonthlySummary, DealTotal, NextPayout,
+  DealWithClient, PendingClientLine, PendingCommissionResult,
 } from './types'
 import { meetingCommissionCounts } from './constants'
 
@@ -113,4 +114,55 @@ export function nextPayoutProjection(
   const proximoPagamento = `${monthKey(nextYear, nextMonth)}-01`
   const summary = monthlySummary({ ...input, year: y, month: m })
   return { proximoPagamento, refYear: y, refMonth: m, summary }
+}
+
+/**
+ * Comissões PENDENTES das primeiras `tetoSemanas` (4) semanas de cada cliente (SELLER-COMMISSION-PENDING-001).
+ * NÃO é regra nova: cada linha deriva de `dealTotal` (mesma matemática de semanas pagas × restantes já usada em
+ * "Por cliente" e "Receber esta semana"). Só AGREGA por cliente e classifica a situação p/ exibir.
+ *  - pendente : em_andamento e ainda faltam semanas (semanasRestantes > 0) → projeta o que falta.
+ *  - completo : já pagou as `tetoSemanas` (semanasPagas ≥ teto).
+ *  - encerrado: venda congelada (interrompido/concluído) antes de completar as 4 → não gera mais (0 pendente).
+ * Clientes SEM comissão (Daniel/owner) não têm deal, então nem entram aqui. Soft-deleted já sai na fonte (RLS).
+ */
+export function pendingCommission(deals: DealWithClient[], weeks: WeeklyPayment[]): PendingCommissionResult {
+  const lines: PendingClientLine[] = deals.map(d => {
+    const dt = dealTotal(d, weeks) // REUSO — semanasPagas / semanasRestantes / recebidoUsd / projetadoRestanteUsd
+    const situacao: PendingClientLine['situacao'] =
+      dt.semanasPagas >= d.tetoSemanas ? 'completo'
+        : dt.semanasRestantes > 0 ? 'pendente'
+          : 'encerrado'
+    return {
+      dealId: d.id,
+      clientName: d.clientName,
+      dataFechamento: d.dataFechamento,
+      status: d.status,
+      situacao,
+      semanasElegiveis: d.tetoSemanas,
+      semanasPagas: dt.semanasPagas,
+      semanasPendentes: dt.semanasRestantes,
+      comissaoPorSemanaUsd: d.valorPorSemanaUsd,
+      comissaoPagaUsd: dt.recebidoUsd,
+      comissaoPendenteUsd: dt.projetadoRestanteUsd,
+      valorTotalUsd: round2(d.tetoSemanas * d.valorPorSemanaUsd),
+      proximaSemana: situacao === 'pendente' ? dt.semanasPagas + 1 : null,
+    }
+  })
+
+  // Ordena: pendentes primeiro (as com menos semanas pagas no topo), depois encerrados, depois completos.
+  const rank = (s: PendingClientLine['situacao']) => (s === 'pendente' ? 0 : s === 'encerrado' ? 1 : 2)
+  lines.sort((a, b) =>
+    rank(a.situacao) - rank(b.situacao) ||
+    a.semanasPagas - b.semanasPagas ||
+    (a.clientName ?? '').localeCompare(b.clientName ?? ''))
+
+  const pendentes = lines.filter(l => l.situacao === 'pendente')
+  return {
+    totalPendenteUsd: round2(pendentes.reduce((s, l) => s + l.comissaoPendenteUsd, 0)),
+    totalPagoNasElegiveisUsd: round2(lines.reduce((s, l) => s + l.comissaoPagaUsd, 0)),
+    clientesPendentes: pendentes.length,
+    clientesCompletos: lines.filter(l => l.situacao === 'completo').length,
+    semanasPendentesTotais: pendentes.reduce((s, l) => s + l.semanasPendentes, 0),
+    lines,
+  }
 }

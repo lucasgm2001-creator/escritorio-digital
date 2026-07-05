@@ -43,8 +43,36 @@ export async function buildMyCompensationPdf(vm: MyCompensationView, workspace: 
     columnStyles: { 3: { halign: 'right' }, 4: { halign: 'right' } },
   })
 
-  const finalY = (doc as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 10
+  // ── Comissões pendentes (primeiras 4 semanas) — SELLER-COMMISSION-PENDING-001. Seção simples: total + clientes
+  //    pendentes; se não houver, mostra só "Nenhuma comissão pendente." Não polui (nº de linhas = pendentes).
+  const pend = vm.pending
+  let y = (doc as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 12
+  if (y > 255) { doc.addPage(); y = 20 } // não deixa o cabeçalho da seção cair no rodapé da página
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(11); doc.setTextColor(...dark); doc.text('COMISSÕES PENDENTES', 14, y)
+  doc.setFont('helvetica', 'normal'); doc.setFontSize(9); doc.setTextColor(120, 120, 120)
+  doc.text('Primeiras 4 semanas de cada cliente.', 14, y + 5)
+
+  if (pend.clientesPendentes === 0) {
+    doc.setFontSize(10); doc.setTextColor(90, 90, 90); doc.text('Nenhuma comissão pendente.', 14, y + 12)
+    y = y + 12
+  } else {
+    doc.setFontSize(10); doc.setTextColor(...dark)
+    doc.text(`Total pendente: ${usd(pend.totalPendenteUsd)}    Clientes: ${pend.clientesPendentes}    Semanas restantes: ${pend.semanasPendentesTotais}`, 14, y + 12)
+    autoTable(doc, {
+      startY: y + 17,
+      head: [['Cliente', 'Pagas', 'Faltam', 'Pendente (USD)']],
+      body: pend.lines.filter(l => l.situacao === 'pendente').map(l => [l.clientName ?? '—', `${l.semanasPagas}/${l.semanasElegiveis}`, String(l.semanasPendentes), usd(l.comissaoPendenteUsd)]),
+      foot: [['', '', 'Total', usd(pend.totalPendenteUsd)]],
+      theme: 'striped',
+      headStyles: { fillColor: lime, textColor: 255, fontStyle: 'bold' },
+      footStyles: { fillColor: [240, 244, 238], textColor: dark, fontStyle: 'bold' },
+      styles: { fontSize: 9, cellPadding: 2.5 },
+      columnStyles: { 1: { halign: 'center' }, 2: { halign: 'center' }, 3: { halign: 'right' } },
+    })
+    y = (doc as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable.finalY
+  }
+
   doc.setFontSize(9); doc.setTextColor(120, 120, 120)
-  doc.text('Valores em USD (moeda base); BRL pela cotação congelada da data. Histórico imutável — nada recalculado.', 14, finalY)
+  doc.text('Valores em USD (moeda base); BRL pela cotação congelada da data. Histórico imutável — nada recalculado.', 14, y + 10)
   doc.save(`minha-remuneracao-${month?.key ?? 'atual'}.pdf`)
 }

@@ -2,9 +2,9 @@ import 'server-only'
 
 import { createClient } from '@/lib/supabase/server'
 import type { RequestContext } from '@/server/context/request-context'
-import { monthlySummary, nextPayoutProjection, dealTotal } from '@/lib/commission/calc'
+import { monthlySummary, nextPayoutProjection, dealTotal, pendingCommission } from '@/lib/commission/calc'
 import { meetingCommissionCounts } from '@/lib/commission/constants'
-import type { DealStatus, FxConfig, Meeting, MonthlySummary, SalaryPeriod, WeeklyPayment } from '@/lib/commission/types'
+import type { DealStatus, DealWithClient, FxConfig, Meeting, MonthlySummary, PendingCommissionResult, SalaryPeriod, WeeklyPayment } from '@/lib/commission/types'
 import { resolveCompensationRule, type NormalizedCompensationRule } from '@/server/services/CompensationService'
 import { roleByKey, departmentByKey, type DepartmentKey } from '@/lib/people/catalog'
 
@@ -48,13 +48,18 @@ export type MyCompensationView = {
   status: string              // status do vendedor (ativo/inativo)
   lastUpdate: string | null   // data do último lançamento (última atualização)
   months: CompMonth[]
+  pending: PendingCommissionResult  // comissões pendentes das primeiras 4 semanas por cliente (reusa dealTotal)
 }
 
 export async function getMyCompensationView(context: RequestContext): Promise<MyCompensationView> {
+  const emptyPending: PendingCommissionResult = {
+    totalPendenteUsd: 0, totalPagoNasElegiveisUsd: 0, clientesPendentes: 0, clientesCompletos: 0,
+    semanasPendentesTotais: 0, lines: [],
+  }
   const empty: MyCompensationView = {
     hasComp: false, sellerName: context.profile?.name ?? '', cargo: null, department: null, rule: null,
     currentMonth: null, nextPayout: null, yearReceivedUsd: 0, totalReceivedUsd: 0, dealsCount: 0,
-    thisWeekUsd: 0, status: 'ativo', lastUpdate: null, months: [],
+    thisWeekUsd: 0, status: 'ativo', lastUpdate: null, months: [], pending: emptyPending,
   }
   const teamId = context.activeTeamId
   if (!teamId) return empty
@@ -113,12 +118,19 @@ export async function getMyCompensationView(context: RequestContext): Promise<My
   // Comissão acumulada (histórico) = todas as semanas + reuniões já recebidas (sem salário).
   const totalReceivedUsd = round2(weeks.reduce((s, w) => s + w.valorUsd, 0) + meetings.reduce((s, mm) => s + mm.valorUsd, 0))
 
+  // Vendas do vendedor no formato do motor (+ nome do cliente p/ exibição). REUSO único p/ "esta semana" e "pendentes".
+  const dealsWithClient: DealWithClient[] = deals.map(d => ({
+    id: d.id, sellerId: seller.id, valorTotalUsd: Number(d.valor_total_usd), tetoSemanas: Number(d.teto_semanas),
+    valorPorSemanaUsd: Number(d.valor_por_semana_usd), status: d.status as DealStatus,
+    dataFechamento: d.data_fechamento ?? '', clientName: d.client_name,
+  }))
   // Receber esta semana = parcela semanal das vendas ATIVAS que ainda têm semanas a vencer (reusa dealTotal).
-  const thisWeekUsd = round2(deals
+  const thisWeekUsd = round2(dealsWithClient
     .filter(d => d.status === 'em_andamento')
-    .map(d => ({ id: d.id, sellerId: seller.id, valorTotalUsd: Number(d.valor_total_usd), tetoSemanas: Number(d.teto_semanas), valorPorSemanaUsd: Number(d.valor_por_semana_usd), status: d.status as DealStatus, dataFechamento: d.data_fechamento ?? '' }))
     .filter(dl => dealTotal(dl, weeks).semanasRestantes > 0)
     .reduce((s, dl) => s + dl.valorPorSemanaUsd, 0))
+  // Comissões pendentes das primeiras 4 semanas, por cliente (mesma matemática do dealTotal — só agregada por venda).
+  const pending = pendingCommission(dealsWithClient, weeks)
   // Última atualização = data do lançamento mais recente (semana paga / reunião).
   const eventDates = [...weeks.map(w => w.paidOn), ...meetings.map(mm => mm.metOn)].filter(Boolean).sort()
   const lastUpdate = eventDates.length ? eventDates[eventDates.length - 1] : null
@@ -148,6 +160,6 @@ export async function getMyCompensationView(context: RequestContext): Promise<My
   return {
     hasComp: true, sellerName: seller.name, cargo: role?.name ?? null, department: dept?.name ?? null,
     rule, currentMonth, nextPayout, yearReceivedUsd, totalReceivedUsd, dealsCount: deals.length,
-    thisWeekUsd, status: (seller as { status?: string }).status ?? 'ativo', lastUpdate, months,
+    thisWeekUsd, status: (seller as { status?: string }).status ?? 'ativo', lastUpdate, months, pending,
   }
 }
