@@ -2,6 +2,7 @@ import { ClientesFloor } from '@/app/(dashboard)/clientes/ClientesFloor'
 import { createClient } from '@/lib/supabase/server'
 import { getRequestContext } from '@/server/context/request-context'
 import { requireModuleEntry } from '@/server/security/module-guard'
+import { getClientsFinanceSummary } from '@/server/services/ClientsFinanceSummaryService'
 import type { Client, Nicho, ClientIntegration } from '@/app/(dashboard)/clientes/types'
 
 // Administração › Clientes (CLIENT-HISTORY-ADMIN-003): a lista de clientes vive AQUI agora — deixou de ser andar
@@ -26,11 +27,15 @@ export default async function AdminClientesPage() {
     ? await supabase.from('clients').select('*').eq('team_id', activeTeamId).order('created_at', { ascending: false })
     : { data: [] }
 
+  // Resumo financeiro por cliente (Parte 5) — total recebido, próxima cobrança, pendências — na própria lista.
+  const finance = context ? await getClientsFinanceSummary(context) : {}
+
   return (
     <ClientesFloor
       initialClients={(clients ?? []) as Client[]}
       initialNichos={(nichos ?? []) as Nicho[]}
       initialIntegrations={(integrations ?? []) as ClientIntegration[]}
+      finance={finance}
     />
   )
 }

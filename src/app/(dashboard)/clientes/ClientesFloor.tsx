@@ -10,13 +10,15 @@ import { HubTab } from './HubTab'
 import { IntegracoesTab } from './IntegracoesTab'
 import { ClienteDetalhe } from './ClienteDetalhe'
 import type { Client, Nicho, ClientIntegration } from './types'
+import type { ClientFinanceSummary } from '@/server/services/ClientsFinanceSummaryService'
 
 type Tab = 'hub' | 'integracoes'
 
-export function ClientesFloor({ initialClients, initialNichos, initialIntegrations }: {
+export function ClientesFloor({ initialClients, initialNichos, initialIntegrations, finance = {} }: {
   initialClients: Client[]
   initialNichos: Nicho[]
   initialIntegrations: ClientIntegration[]
+  finance?: Record<string, ClientFinanceSummary>   // resumo financeiro por cliente (Parte 5) — só na aba Administração
 }) {
   const [clients, setClients] = useState<Client[]>(initialClients)
   useRealtimeRows<Client>('clients', setClients)   // cria/edita/encerra cliente reflete ao vivo
@@ -76,7 +78,7 @@ export function ClientesFloor({ initialClients, initialNichos, initialIntegratio
 
       <div className="flex-1 overflow-y-auto">
         {tab === 'hub' && (
-          <HubTab clients={clients} nichos={nichos} integrations={integrations}
+          <HubTab clients={clients} nichos={nichos} integrations={integrations} finance={finance}
             onOpen={setDetailId} onNichoCreated={(n) => setNichos(prev => [...prev, n])} />
         )}
         {tab === 'integracoes' && (

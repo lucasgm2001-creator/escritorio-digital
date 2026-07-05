@@ -2,20 +2,23 @@
 
 import { useState, useMemo } from 'react'
 import Link from 'next/link'
-import { Search, X, Plus, MessageCircle, ArrowRight } from 'lucide-react'
+import { Search, X, Plus, ArrowRight, TrendingUp } from 'lucide-react'
 import { useToast } from '@/components/ui/toast'
 import { createNichoAction } from './client-write-actions'
-import { cn } from '@/lib/utils'
+import { cn, formatCurrency } from '@/lib/utils'
+import { formatDateBR } from '@/lib/date'
 import { planLabel, healthOf, type Client, type Nicho, type ClientIntegration } from './types'
+import type { ClientFinanceSummary } from '@/server/services/ClientsFinanceSummaryService'
 
 const ADD_COLORS = ['#38bdf8', '#fbbf24', '#C2F73A', '#22C55E', '#A855F7', '#EC4899', '#F97316', '#64748b']
 const SEM_PRATELEIRA = '__sem__'
 const TODOS = '__todos__'
 
-export function HubTab({ clients, nichos, integrations, onOpen, onNichoCreated }: {
+export function HubTab({ clients, nichos, integrations, finance, onOpen, onNichoCreated }: {
   clients: Client[]
   nichos: Nicho[]
   integrations: ClientIntegration[]
+  finance?: Record<string, ClientFinanceSummary>
   onOpen: (id: string) => void
   onNichoCreated: (n: Nicho) => void
 }) {
@@ -127,7 +130,7 @@ export function HubTab({ clients, nichos, integrations, onOpen, onNichoCreated }
                     <p className="text-center text-xs text-bento-muted/60 py-4 font-tech">Nenhum cliente aqui.</p>
                   ) : (
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 pt-2">
-                      {sh.items.map(c => <ClientCard key={c.id} client={c} integ={integByClient.get(c.id)} onOpen={() => onOpen(c.id)} />)}
+                      {sh.items.map(c => <ClientCard key={c.id} client={c} integ={integByClient.get(c.id)} fin={finance?.[c.id]} onOpen={() => onOpen(c.id)} />)}
                     </div>
                   )}
                 </div>
@@ -140,12 +143,16 @@ export function HubTab({ clients, nichos, integrations, onOpen, onNichoCreated }
   )
 }
 
-function ClientCard({ client, integ, onOpen }: { client: Client; integ?: ClientIntegration; onOpen: () => void }) {
+const usd = (v: number): string => formatCurrency(v, 'en-US', 'USD')
+
+// Card premium (Parte 5 + 7): hierarquia clara — quem é o cliente, quem vende, quanto/como paga, e a SITUAÇÃO
+// financeira num relance (total recebido, próxima cobrança, pendências). Menos ruído (WhatsApp virou só um ponto;
+// o detalhe fica na aba Integrações). Card = wrapper com DOIS caminhos irmãos: botão abre o detalhe (onOpen); o
+// link abre o Workspace (/clientes/[id]). Sem <Link> aninhado em <button>.
+function ClientCard({ client, integ, fin, onOpen }: { client: Client; integ?: ClientIntegration; fin?: ClientFinanceSummary; onOpen: () => void }) {
   const health = healthOf(client.status)
-  const waOn = !!integ?.ativo
   const cityLine = [client.city, client.company].filter(Boolean).join(' · ')
-  // Card = wrapper (não-interativo) com DOIS caminhos irmãos: o botão abre o detalhe atual (onOpen);
-  // o link abre o Workspace (/clientes/[id]). Sem <Link> aninhado em <button> (evita ação indevida).
+  const isMensal = client.periodicidade === 'mensal'
   return (
     <div className="bento-fx p-3.5 hover:border-lime/40 transition-colors flex flex-col gap-2.5">
       <button onClick={onOpen} className="text-left flex flex-col gap-2.5">
@@ -157,15 +164,30 @@ function ClientCard({ client, integ, onOpen }: { client: Client; integ?: ClientI
             <p className="font-semibold text-bento-text text-sm truncate">{client.name}</p>
             {cityLine && <p className="text-xs text-bento-muted truncate">{cityLine}</p>}
           </div>
+          {integ?.ativo && <span className="w-1.5 h-1.5 rounded-full bg-[#22C55E] flex-none mt-1.5" title="WhatsApp ativo" />}
           <span className={cn('w-2 h-2 rounded-full flex-none mt-1', health.dot)} title={health.label} />
         </div>
-        <div className="flex items-center gap-2 flex-wrap">
+        {/* Plano · cobrança · responsável */}
+        <div className="flex items-center gap-1.5 flex-wrap">
           <span className="font-tech text-[10px] font-semibold px-2 py-0.5 rounded-full border border-lime/40 text-lime-fg bg-lime/10">{planLabel(client.plan_weekly)}</span>
-          <span className={cn('font-tech text-[10px] px-2 py-0.5 rounded-full border inline-flex items-center gap-1',
-            waOn ? 'border-[#22C55E]/40 text-[#22C55E] bg-[#22C55E]/10' : 'border-bento-border text-bento-muted bg-bento-bg')}>
-            <MessageCircle className="w-3 h-3" />{waOn ? 'WhatsApp ativo' : 'WhatsApp off'}
-          </span>
+          <span className="font-tech text-[10px] px-2 py-0.5 rounded-full border border-bento-border text-bento-dim bg-bento-bg">{isMensal ? 'Mensal' : 'Semanal'}</span>
+          {client.assigned_name && <span className="font-tech text-[10px] text-bento-muted truncate min-w-0">· {client.assigned_name}</span>}
         </div>
+        {/* Situação financeira num relance (Parte 5) */}
+        {fin && (
+          <div className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5 pt-2 border-t border-bento-border/50 text-[11px]">
+            <span className="text-bento-muted inline-flex items-center gap-1"><TrendingUp className="w-3 h-3 text-lime-fg" />Recebido</span>
+            <span className="text-right font-tech tabular-nums text-bento-text">{usd(fin.totalRecebido)}</span>
+            <span className="text-bento-muted">Próxima</span>
+            <span className="text-right font-tech tabular-nums text-bento-dim">{fin.proximaCobranca ? formatDateBR(fin.proximaCobranca) : '—'}</span>
+            {fin.pendentes > 0 && (
+              <>
+                <span className="text-amber-300">Pendências</span>
+                <span className="text-right font-tech tabular-nums text-amber-300">{fin.pendentes} sem.</span>
+              </>
+            )}
+          </div>
+        )}
       </button>
       <Link href={`/clientes/${client.id}`}
         className="flex items-center justify-center gap-1.5 pt-2.5 border-t border-bento-border/60 text-[12px] font-medium text-lime-fg hover:text-bento-text transition-colors min-h-[40px]">
