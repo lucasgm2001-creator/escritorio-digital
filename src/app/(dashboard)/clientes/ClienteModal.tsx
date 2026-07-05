@@ -2,9 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { updateClient } from '@/lib/commission/actions'
-import { reconstructClientHistoryAction, registerPlanUpgradeAction } from './client-write-actions'
-import { useSave } from '@/lib/useSave'
+import { saveClientHistoryAction, registerPlanUpgradeAction } from './client-write-actions'
 import { useToast } from '@/components/ui/toast'
 import { FUSO_OPTIONS } from '../comercial/types'
 import { US_STATES, sanitizeAreaCode } from '@/lib/usStates'
@@ -28,8 +26,8 @@ const weekdayOf = (d?: string | null): number => {
 }
 const inputCls = 'w-full bg-bento-bg border border-bento-border rounded-btn px-3 py-2 text-sm text-bento-text placeholder:text-bento-muted focus:outline-none focus:border-lime'
 
-// Modal de edição de cliente — COMPARTILHADO entre a aba Clientes e a aba Contatos. Salva na
-// tabela clients pelo MESMO caminho (updateClient). O telefone auto-preenche DDD/estado/cidade
+// Modal de edição de cliente — COMPARTILHADO entre a aba Clientes e a aba Contatos. Ao Salvar, grava o cliente
+// E reconstrói o HISTÓRICO (saveClientHistoryAction). O telefone auto-preenche DDD/estado/cidade
 // pela MESMA regra do mapa (src/data/us-map.json > areaCodes), carregado sob demanda (lazy).
 export function ClienteModal({ client, onClose, onSaved, initialTab }: {
   client: Client
@@ -38,12 +36,10 @@ export function ClienteModal({ client, onClose, onSaved, initialTab }: {
   initialTab?: 'editar' | 'dossie'   // abre direto numa aba (default: Editar)
 }) {
   const supabase = createClient()
-  const save = useSave()
   const { toast } = useToast()
   const [view, setView] = useState<'editar' | 'dossie'>(initialTab ?? 'editar')
   const [plans, setPlans] = useState<Plan[]>([])
   const [loading, setLoading] = useState(false)
-  const [reconstructing, setReconstructing] = useState(false)
   const [upgradePlan, setUpgradePlan] = useState('')
   const [upgradeDate, setUpgradeDate] = useState(new Date().toISOString().slice(0, 10))
   const [upgrading, setUpgrading] = useState(false)
@@ -52,6 +48,10 @@ export function ClienteModal({ client, onClose, onSaved, initialTab }: {
     plano_id: client.plano_id ?? '', dia_pagamento_semana: String(client.dia_pagamento_semana ?? weekdayOf(client.start_date)),
     periodicidade: (client.periodicidade ?? 'semanal') as 'semanal' | 'mensal',
     start_date: (client.start_date ?? '').slice(0, 10),
+    responsavel: client.assigned_name ?? '',
+    // HISTÓRICO do pipeline (CLIENT-HISTORY-ADMIN-003) — datas REAIS; ao Salvar, o sistema reconstrói tudo
+    // automaticamente (lead → contato → reunião → proposta → fechamento + semanas/comissão). Vazio = mantém.
+    leadDate: '', firstContact: '', meetingDate: '', proposalDate: '', closeDate: '',
     fuso: client.fuso ?? '', nicho: client.nicho ?? '',
     city: client.city ?? '', state: client.state ?? '', area_code: client.area_code ?? '',
   })
@@ -90,6 +90,7 @@ export function ClienteModal({ client, onClose, onSaved, initialTab }: {
       dia_pagamento_semana: Number(form.dia_pagamento_semana),
       periodicidade: form.periodicidade,     // forma de cobrança (F2)
       start_date: form.start_date || null,   // editável/retroativo (CLIENT-HISTORY-F1)
+      assigned_name: form.responsavel.trim() || null,  // responsável (histórico)
       nicho: form.nicho.trim() || null,
       fuso: form.fuso || null,
       city: form.city.trim() || null,
@@ -98,38 +99,37 @@ export function ClienteModal({ client, onClose, onSaved, initialTab }: {
     }
   }
 
+  // SAVE = persistir o cliente + reconstruir o HISTÓRICO automaticamente (CLIENT-HISTORY-ADMIN-003). Não há mais
+  // botão "Reconstruir histórico": ao salvar, o sistema costura lead → contato → reunião → proposta → fechamento
+  // e as semanas/comissão nas DATAS reais. Campos de data vazios = mantém o que já existe (idempotente).
   const handleSave = async () => {
     setLoading(true)
     const patch = buildPatch()
-    const { ok } = await save({
-      run: () => updateClient(supabase, client.id, patch),
-      success: 'Cliente atualizado.',
-      error: 'Não foi possível salvar o cliente',
-    })
+    const history = {
+      startDate: form.start_date || '',
+      leadDate: form.leadDate || null,
+      firstContact: form.firstContact || null,
+      meetingDate: form.meetingDate || null,
+      proposalDate: form.proposalDate || null,
+      closeDate: form.closeDate || null,
+    }
+    const res = await saveClientHistoryAction(client.id, patch, history)
     setLoading(false)
-    if (ok) { onSaved({ ...client, ...patch } as Client); onClose() }
-  }
-
-  // Reconstrução histórica (CLIENT-HISTORY-F1): salva (persiste o start_date retroativo) e reconstrói as
-  // semanas + comissão nas DATAS históricas via o motor existente. Não fecha o modal — mostra o resultado.
-  const handleReconstruct = async () => {
-    if (reconstructing || loading) return
-    setReconstructing(true)
-    try {
-      const patch = buildPatch()
-      const { ok } = await save({
-        run: () => updateClient(supabase, client.id, patch),
-        success: 'Data salva.', error: 'Não foi possível salvar o cliente',
-      })
-      if (!ok) return
-      onSaved({ ...client, ...patch } as Client)
-      const res = await reconstructClientHistoryAction(client.id)
-      if (!res.ok) { toast({ type: 'error', message: res.error }); return }
-      const parts = [`${res.marked.length} semana(s) marcada(s)`]
-      if (res.redated > 0) parts.push(`${res.redated} corrigida(s) de data`)
-      if (!res.hadDeal) parts.push('sem venda vinculada → comissão não gerada')
-      toast({ type: 'success', message: `Histórico reconstruído: ${parts.join(' · ')}.` })
-    } finally { setReconstructing(false) }
+    if (!res.ok) { toast({ type: 'error', message: res.error }); return }
+    onSaved({ ...client, ...patch } as Client)
+    if (res.reconstructed) {
+      const parts: string[] = []
+      if (res.createdLead) parts.push('lead')
+      if (res.createdMeeting) parts.push('reunião')
+      if (res.createdDeal) parts.push('venda')
+      if (res.stageEvents) parts.push(`${res.stageEvents} fase(s)`)
+      if (res.marked.length) parts.push(`${res.marked.length} semana(s)`)
+      if (res.redated) parts.push(`${res.redated} corrigida(s)`)
+      toast({ type: 'success', message: parts.length ? `Salvo · histórico: ${parts.join(' · ')}.` : 'Cliente salvo e histórico reconstruído.' })
+    } else {
+      toast({ type: 'success', message: 'Cliente atualizado.' })
+    }
+    onClose()
   }
 
   // Upgrade de plano (F3): move o cliente para um plano maior e lança o bônus (só a diferença) na comissão.
@@ -218,18 +218,33 @@ export function ClienteModal({ client, onClose, onSaved, initialTab }: {
               onChange={e => setForm(p => ({ ...p, start_date: e.target.value }))} className={inputCls} />
             <p className="font-tech text-[10px] text-bento-muted/70 mt-1">Pode ser retroativa (cliente histórico) — alimenta dias como cliente, cobrança e comissão.</p>
           </div>
-          {/* Reconstrução histórica — gera as semanas pagas + comissão nas DATAS reais desde o início,
-              pelo MESMO motor do agendador. Idempotente; não recalcula valores (só coloca cada semana no mês certo). */}
-          <div className="rounded-btn border border-bento-border/60 bg-bento-bg p-3 space-y-2">
-            <p className="text-xs font-medium text-bento-text">Reconstruir histórico</p>
-            <p className="font-tech text-[10px] text-bento-muted leading-relaxed">
-              Salva a data e gera as semanas pagas + comissão nas datas históricas (do início até hoje), pelo mesmo
-              motor do agendador. Não recalcula valores — só coloca cada semana no mês certo.
-            </p>
-            <button type="button" onClick={handleReconstruct} disabled={reconstructing || loading || !form.start_date}
-              className="w-full px-3 py-2 rounded-btn text-xs font-semibold border border-lime/40 text-lime-fg hover:bg-lime/10 transition-colors disabled:opacity-50">
-              {reconstructing ? 'Reconstruindo...' : 'Salvar e reconstruir histórico'}
-            </button>
+          {/* HISTÓRICO do pipeline (CLIENT-HISTORY-ADMIN-003) — datas REAIS da jornada. Ao Salvar, o sistema
+              reconstrói TUDO automaticamente (funil, timeline, receita e comissão) nas datas informadas, como se
+              o cliente tivesse entrado naquela época. Não há mais botão de reconstruir. Vazio = mantém o atual. */}
+          <div className="rounded-btn border border-bento-border/60 bg-bento-bg p-3 space-y-2.5">
+            <div>
+              <p className="text-xs font-medium text-bento-text">Histórico</p>
+              <p className="font-tech text-[10px] text-bento-muted leading-relaxed">
+                Datas reais da jornada. Ao <span className="text-bento-text">Salvar</span>, o sistema reconstrói
+                sozinho o funil, a timeline, a receita e a comissão — como se o cliente tivesse entrado naquela época.
+              </p>
+            </div>
+            <div className="grid grid-cols-2 gap-2.5">
+              {([
+                ['leadDate', 'Data do lead'], ['firstContact', 'Primeiro contato'], ['meetingDate', 'Reunião'],
+                ['proposalDate', 'Proposta'], ['closeDate', 'Fechamento'],
+              ] as const).map(([key, label]) => (
+                <div key={key}>
+                  <label className="block text-[11px] font-medium text-bento-dim mb-1">{label}</label>
+                  <input type="date" value={form[key]} max={new Date().toISOString().slice(0, 10)}
+                    onChange={e => setForm(p => ({ ...p, [key]: e.target.value }))} className={inputCls} />
+                </div>
+              ))}
+              <div>
+                <label className="block text-[11px] font-medium text-bento-dim mb-1">Responsável</label>
+                <input value={form.responsavel} onChange={e => setForm(p => ({ ...p, responsavel: e.target.value }))} placeholder="Vendedor" className={inputCls} />
+              </div>
+            </div>
           </div>
           {/* Upgrade de plano (F3) — muda o cliente p/ um plano MAIOR e lança o bônus (SÓ a diferença) na
               comissão do mês, pela config do vendedor. Não duplica; competência = data do upgrade. */}

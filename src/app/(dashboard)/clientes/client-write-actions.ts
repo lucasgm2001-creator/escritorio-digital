@@ -5,8 +5,10 @@ import { can } from '@/lib/permissions/can'
 import { createClient } from '@/lib/supabase/server'
 import { createServiceClient } from '@/lib/supabase/service'
 import { assertClientOwnership } from '@/server/security/team-ownership'
-import { reconstructClientHistory, payMonth, nextUnpaidMonth, applyPlanUpgrade } from '@/lib/commission/actions'
+import { payMonth, nextUnpaidMonth, applyPlanUpgrade, saveClientHistory, type ClientHistoryInput } from '@/lib/commission/actions'
 import { resolveRate } from '@/lib/commission/calc'
+import { getStages } from '@/lib/funnelStages.server'
+import { wonSlug } from '@/lib/funnelStages'
 import type { FxConfig } from '@/lib/commission/types'
 
 // Escritas do módulo Clientes roteadas pelo SERVIDOR (PERMISSIONS-003): UI → action → can('clients','edit') →
@@ -115,26 +117,55 @@ async function resolveEditRate(supabase: ReturnType<typeof createServiceClient>)
   return r > 0 ? r : 5.40
 }
 
-// Reconstrução histórica do cliente (CLIENT-HISTORY-F1): a partir do start_date já gravado, coloca as
-// semanas/comissão nas DATAS HISTÓRICAS reais (alinha o deal, re-data a semana carimbada "hoje", faz o
-// backfill das vencidas) reusando o motor existente (reconstructClientHistory → payDueWeeks/payWeek/calc).
-// Sem migration, sem motor novo, sem mudar regra de dinheiro. Segurança: service-role só APÓS confirmar que
-// o cliente é da EQUIPE ATIVA (assertClientOwnership) — MESMO modelo do /api/commission/auto (P1-SERVICEROLE-001).
-export async function reconstructClientHistoryAction(clientId: string): Promise<Res<{ marked: number[]; redated: number; dueCount: number; hadDeal: boolean }>> {
+// Campos do cliente que o SAVE com histórico pode gravar (identidade + cobrança/plano/datas/responsável).
+// Money/datas entram aqui de propósito: é o cadastro histórico do cliente (gated por can('clients','edit') +
+// ownership). NÃO é o updateClientAction (livre), que segue restrito à identidade.
+const HISTORY_CLIENT_COLS = [
+  'name', 'company', 'email', 'phone', 'nicho', 'fuso', 'city', 'state', 'area_code',
+  'start_date', 'plano_id', 'plan_weekly', 'dia_pagamento_semana', 'periodicidade', 'assigned_to', 'assigned_name',
+] as const
+
+// SAVE com HISTÓRICO (CLIENT-HISTORY-ADMIN-003): grava os campos do cliente E reconstrói AUTOMATICAMENTE toda
+// a jornada (lead/contato/reunião/proposta/fechamento + semanas/comissão/receita) nas DATAS HISTÓRICAS — sem
+// botão separado. Reusa o motor (saveClientHistory → reconstructClientHistory). Segurança: service-role só após
+// assertClientOwnership (mesmo modelo do reconstruct/payMonth). Sem start_date, só salva os campos (não reconstrói).
+export async function saveClientHistoryAction(
+  clientId: string,
+  clientPatch: Record<string, unknown>,
+  history: ClientHistoryInput,
+): Promise<Res<{ reconstructed: boolean; leadId: string | null; createdLead: boolean; createdDeal: boolean; createdMeeting: boolean; stageEvents: number; marked: number[]; redated: number; hadDeal: boolean }>> {
   const g = await guardEdit()
   if (!g.context) return { ok: false, error: g.error }
   const supabase = createServiceClient()
   const owned = await assertClientOwnership(supabase, clientId, g.context.activeTeamId)
   if (!owned.ok) return { ok: false, error: owned.status === 403 ? 'Cliente de outra equipe.' : 'Cliente não encontrado.' }
+  const teamId = g.context.activeTeamId
+
+  // 1) Grava os campos do cliente (allowlist) — nunca muta cliente de outra equipe (filtro por team_id).
+  const clean = pick(clientPatch, HISTORY_CLIENT_COLS)
+  if (Object.keys(clean).length > 0) {
+    let q = supabase.from('clients').update(clean).eq('id', clientId)
+    if (teamId) q = q.eq('team_id', teamId)
+    const { error } = await q
+    if (error) return { ok: false, error: error.message }
+  }
+
+  const emptyOut = { leadId: null, createdLead: false, createdDeal: false, createdMeeting: false, stageEvents: 0, marked: [] as number[], redated: 0, hadDeal: false }
+  // 2) Sem data de início → só salvou os campos (não há o que reconstruir). Não é erro.
+  if (!history.startDate) return { ok: true, reconstructed: false, ...emptyOut }
+
+  // 3) Reconstrói o pipeline + o motor financeiro nas datas históricas.
+  const stages = await getStages()
+  const won = wonSlug(stages)
   const rate = await resolveEditRate(supabase)
-  const r = await reconstructClientHistory(supabase as Parameters<typeof reconstructClientHistory>[0], clientId, rate, g.context.activeTeamId)
+  const r = await saveClientHistory(supabase as Parameters<typeof saveClientHistory>[0], clientId, history, won, rate, teamId)
   if (!r.ok) {
-    const msg = r.reason === 'inativo' ? 'Cliente inativo — congelado (reative para reconstruir).'
-      : r.reason === 'sem_inicio' ? 'Defina a data de início do contrato antes de reconstruir.'
+    const msg = r.reason === 'inativo' ? 'Cliente inativo — reative para reconstruir o histórico.'
+      : r.reason === 'sem_inicio' ? 'Defina a data de início do contrato.'
       : 'Cliente não encontrado.'
     return { ok: false, error: msg }
   }
-  return { ok: true, marked: r.marked, redated: r.redated, dueCount: r.dueCount, hadDeal: r.hadDeal }
+  return { ok: true, reconstructed: true, leadId: r.leadId, createdLead: r.createdLead, createdDeal: r.createdDeal, createdMeeting: r.createdMeeting, stageEvents: r.stageEvents, marked: r.marked, redated: r.redated, hadDeal: r.hadDeal }
 }
 
 // Pagamento MENSAL (F2): quita todas as semanas do mês de competência reusando o motor semanal (payMonth →

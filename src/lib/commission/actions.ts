@@ -1,4 +1,5 @@
 import type { createClient } from '@/lib/supabase/client'
+import { weeklyCommissionUsd, hasCommissionPct, LEGACY_VPS_USD, DEFAULT_TETO_SEMANAS } from '@/lib/commission/planCommission'
 
 type SupaClient = ReturnType<typeof createClient>
 
@@ -69,15 +70,6 @@ export function registerMeeting(
     client_id: m.clientId ?? null, client_name: m.clientName ?? null, note: m.note ?? null, lead_id: m.leadId ?? null,
     ...withTeam(teamId),
   }).select('id, seller_id, met_on, valor_usd, cotacao_usd_brl, client_name').single()
-}
-
-// Atualiza campos de um cliente. MESMA escrita da UI de Clientes (retorna o builder).
-// NUNCA deleta — não há função de exclusão aqui de propósito.
-export function updateClient(
-  supabase: SupaClient, id: string,
-  patch: Record<string, string | number | null>,
-) {
-  return supabase.from('clients').update(patch).eq('id', id)
 }
 
 // ─── Comissão nova (incremento 2): pagamento parte do CLIENTE → receita + comissão derivada ───
@@ -417,4 +409,156 @@ export async function nextUnpaidMonth(
   const registered = new Set((cps ?? []).map(r => r.numero_semana as number))
   let n = 1; while (registered.has(n)) n++
   return dueDateFor(start, dia, n).slice(0, 7)
+}
+
+// ─── Cadastro/edição com HISTÓRICO automático (CLIENT-HISTORY-ADMIN-003) ────────────────────────
+// ORQUESTRADOR: dadas as datas históricas do pipeline, reconstrói TODA a jornada nas datas REAIS costurando
+// os escritores que já existem (lead / stage_events / meeting / deal / interações) e, no fim, o motor
+// financeiro (reconstructClientHistory → semanas + comissão + receita por paid_on). NÃO é motor novo: liga o
+// que já existe. Roda no SAVE do cliente — sem botão "reconstruir". Idempotente onde dá: atualiza as datas de
+// linhas existentes e só CRIA as que faltam; stage_events/1º-contato só entram se o lead ainda não os tem
+// (não duplica em re-edições). Datas de pipeline vêm como YYYY-MM-DD; stage_events usam meio-dia UTC (sem
+// deslocar o dia por fuso). O caller (server action) já gravou os campos do cliente (start_date/plano/dia/
+// periodicidade/responsável) na tabela clients — aqui cuidamos das LINHAS de pipeline + reconstrução.
+export interface ClientHistoryInput {
+  startDate: string             // início do contrato (YYYY-MM-DD) — obrigatório p/ reconstruir
+  leadDate?: string | null      // data do lead (leads.received_at)
+  firstContact?: string | null  // primeiro contato (interação + last_contact_at)
+  meetingDate?: string | null   // reunião (meetings.met_on + stage_event)
+  proposalDate?: string | null  // proposta (stage_event)
+  closeDate?: string | null     // fechamento (deals.data_fechamento + stage_event won); default = startDate
+}
+
+const ymdOnly = (s?: string | null): string | null => {
+  if (!s) return null
+  const v = String(s).slice(0, 10)
+  return /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : null
+}
+const atNoon = (ymd: string): string => `${ymd}T12:00:00.000Z` // timestamp estável (meio-dia UTC não vira o dia)
+
+export async function saveClientHistory(
+  supabase: SupaClient, clientId: string, input: ClientHistoryInput, wonSlugStr: string, rate: number, teamId?: string | null,
+): Promise<{ ok: boolean; reason?: string; leadId: string | null; createdLead: boolean; createdDeal: boolean; createdMeeting: boolean; stageEvents: number; redated: number; marked: number[]; hadDeal: boolean }> {
+  const fail = (reason: string) => ({ ok: false, reason, leadId: null, createdLead: false, createdDeal: false, createdMeeting: false, stageEvents: 0, redated: 0, marked: [] as number[], hadDeal: false })
+  const start = ymdOnly(input.startDate)
+  if (!start) return fail('sem_inicio')
+  // Raw = só o que o usuário informou (pode ser null); Eff = com fallback p/ CRIAR/computar linhas. Escrever em
+  // linha EXISTENTE usa o raw (não clobbera received_at/data_fechamento bons quando o campo vem vazio na re-edição).
+  const leadRaw = ymdOnly(input.leadDate)
+  const closeRaw = ymdOnly(input.closeDate)
+  const leadDate = leadRaw ?? start
+  const close = closeRaw ?? start
+  const meetingDate = ymdOnly(input.meetingDate)
+  const firstContact = ymdOnly(input.firstContact)
+  const proposalDate = ymdOnly(input.proposalDate)
+
+  const { data: cli } = await supabase.from('clients').select('name, assigned_to, assigned_name, status, plano_id').eq('id', clientId).is('deleted_at', null).maybeSingle()
+  if (!cli) return fail('nao_encontrado')
+  if (cli.status !== 'ativo') return fail('inativo')
+  const clientName = String(cli.name ?? '').trim()
+  const sellerName = (cli.assigned_name as string | null) ?? null
+
+  // Deal em_andamento do cliente (o MESMO que a derivação de comissão usa).
+  const { data: deals } = await supabase.from('deals').select('id, lead_id, seller_id').eq('client_id', clientId).eq('status', 'em_andamento').order('data_fechamento', { ascending: false }).limit(1)
+  let deal = deals?.[0] ?? null
+
+  // Vendedor: dono do deal → casa por nome (assigned_name) → 1º ativo (mesma regra do won-flow).
+  let sellerId: string | null = (deal?.seller_id as string | null) ?? null
+  if (!sellerId && sellerName) { const { data } = await supabase.from('sellers').select('id').eq('status', 'ativo').ilike('name', `%${sellerName.trim()}%`).limit(1); sellerId = data?.[0]?.id ?? null }
+  if (!sellerId) { const { data } = await supabase.from('sellers').select('id').eq('status', 'ativo').order('created_at').limit(1); sellerId = data?.[0]?.id ?? null }
+
+  // LEAD: via deal.lead_id → por nome → cria (won, received_at histórico). NÃO marca origem='cliente_existente'
+  // (esse valor é EXCLUÍDO das métricas de período): é um lead ganho real e deve contar no funil/relatórios.
+  let leadId: string | null = (deal?.lead_id as string | null) ?? null
+  let createdLead = false
+  if (!leadId && clientName) { const { data } = await supabase.from('leads').select('id').ilike('name', clientName).limit(1); leadId = data?.[0]?.id ?? null }
+  if (!leadId && clientName) {
+    const { data: nl } = await supabase.from('leads').insert({
+      name: clientName, status: wonSlugStr, received_at: leadDate, stage_changed_at: atNoon(close),
+      last_contact_at: firstContact ? atNoon(firstContact) : atNoon(leadDate),
+      assigned_to: cli.assigned_to ?? null, assigned_name: sellerName, ...withTeam(teamId),
+    }).select('id').single()
+    if (nl) { leadId = nl.id; createdLead = true }
+  } else if (leadId) {
+    // Não-destrutivo: só escreve os campos que o usuário informou (raw). status=won é seguro (é o lead do cliente).
+    const leadPatch: Record<string, string> = { status: wonSlugStr }
+    if (leadRaw) leadPatch.received_at = leadRaw
+    if (closeRaw) leadPatch.stage_changed_at = atNoon(closeRaw)
+    if (firstContact) leadPatch.last_contact_at = atNoon(firstContact)
+    let lq = supabase.from('leads').update(leadPatch).eq('id', leadId)
+    if (teamId) lq = lq.eq('team_id', teamId)
+    await lq
+  }
+
+  // DEAL: cria se não existe (reusa a comissão por plano do won-flow), senão realinha data_fechamento + lead_id.
+  let createdDeal = false
+  if (!deal && sellerId && leadId) {
+    let vps = LEGACY_VPS_USD; let pctUsed: number | null = null
+    if (cli.plano_id) {
+      const { data: pl } = await supabase.from('plans').select('valor_semanal, comissao_percentual').eq('id', cli.plano_id).maybeSingle()
+      const pct = pl?.comissao_percentual != null ? Number(pl.comissao_percentual) : null
+      if (pl && hasCommissionPct(pct)) { pctUsed = pct; vps = weeklyCommissionUsd(Number(pl.valor_semanal), pct) }
+    }
+    const teto = DEFAULT_TETO_SEMANAS
+    const { data: nd } = await supabase.from('deals').insert({
+      seller_id: sellerId, client_id: clientId, client_name: clientName, lead_id: leadId,
+      valor_total_usd: Math.round(vps * teto * 100) / 100, teto_semanas: teto, valor_por_semana_usd: vps, comissao_percentual: pctUsed,
+      status: 'em_andamento', data_fechamento: close, ...withTeam(teamId),
+    }).select('id, lead_id, seller_id').single()
+    if (nd) { deal = nd; createdDeal = true }
+  } else if (deal) {
+    // Não-destrutivo: só realinha data_fechamento se o fechamento foi informado; sempre garante o vínculo do lead.
+    const dealPatch: Record<string, string> = {}
+    if (closeRaw) dealPatch.data_fechamento = closeRaw
+    if (leadId) dealPatch.lead_id = leadId
+    if (Object.keys(dealPatch).length > 0) {
+      let dq = supabase.from('deals').update(dealPatch).eq('id', deal.id)
+      if (teamId) dq = dq.eq('team_id', teamId)
+      await dq
+    }
+  }
+
+  // MEETING (met_on = data REAL): atualiza a existente (por lead/cliente) ou cria uma via registerMeeting.
+  let createdMeeting = false
+  if (meetingDate && sellerId) {
+    let mid: string | null = null
+    if (leadId) { const { data } = await supabase.from('meetings').select('id').eq('lead_id', leadId).limit(1); mid = data?.[0]?.id ?? null }
+    if (!mid) { const { data } = await supabase.from('meetings').select('id').eq('client_id', clientId).limit(1); mid = data?.[0]?.id ?? null }
+    if (mid) { let mq = supabase.from('meetings').update({ met_on: meetingDate }).eq('id', mid); if (teamId) mq = mq.eq('team_id', teamId); await mq }
+    else { const { error } = await registerMeeting(supabase, sellerId, { metOn: meetingDate, valorUsd: 15, clientId, clientName, leadId }, rate, teamId); if (!error) createdMeeting = true }
+  }
+
+  // STAGE EVENTS históricos — reconstrói a jornada do funil nas datas reais (→reunião, →proposta, →fechado),
+  // para funil/relatórios/timeline baterem. SÓ se o lead ainda não tem nenhum (não duplica em re-edições).
+  let stageEvents = 0
+  if (leadId) {
+    const { data: existing } = await supabase.from('stage_events').select('id').eq('lead_id', leadId).limit(1)
+    if (!existing || existing.length === 0) {
+      const rows: Record<string, string | null>[] = []
+      const ev = (from: string | null, to: string, ymd: string) => rows.push({ lead_id: leadId, lead_name: clientName, from_stage: from, to_stage: to, changed_at: atNoon(ymd), seller_id: sellerId, seller_name: sellerName, ...(teamId ? { team_id: teamId } : {}) })
+      ev(null, 'novo', leadDate)
+      let prev = 'novo'
+      if (meetingDate) { ev(prev, 'reuniao', meetingDate); prev = 'reuniao' }
+      if (proposalDate) { ev(prev, 'proposta', proposalDate); prev = 'proposta' }
+      ev(prev, wonSlugStr, close)
+      const { error } = await supabase.from('stage_events').insert(rows)
+      if (!error) stageEvents = rows.length
+    }
+  }
+
+  // PRIMEIRO CONTATO como interação (created_at histórico) — só se o lead ainda não tem interações. Aparece
+  // na timeline como "Contato" na data real (a timeline lê created_at). service-role pode gravar created_at.
+  if (leadId && firstContact) {
+    const { data: existingInt } = await supabase.from('lead_interactions').select('id').eq('lead_id', leadId).limit(1)
+    if (!existingInt || existingInt.length === 0) {
+      await supabase.from('lead_interactions').insert({
+        lead_id: leadId, type: 'atendeu', note: 'Primeiro contato', score_delta: 0,
+        created_by_name: sellerName, created_at: atNoon(firstContact), ...withTeam(teamId),
+      })
+    }
+  }
+
+  // MOTOR FINANCEIRO: semanas + comissão + receita nas datas reais (paid_on por vencimento). Reuso puro.
+  const r = await reconstructClientHistory(supabase, clientId, rate, teamId)
+  return { ok: r.ok, reason: r.reason, leadId, createdLead, createdDeal, createdMeeting, stageEvents, redated: r.redated, marked: r.marked, hadDeal: r.hadDeal || createdDeal }
 }
