@@ -2,10 +2,8 @@ import { HallClient } from './HallClient'
 import { capitalizeName } from '@/lib/utils'
 import { createClient } from '@/lib/supabase/server'
 import { getRequestContext } from '@/server/context/request-context'
-import { getDashboardData, type DashboardData } from '@/server/services/DashboardService'
+import { getDashboardData, EMPTY_DASHBOARD } from '@/server/services/DashboardService'
 import type { Task, LinkOption } from '../tarefas/types'
-
-const EMPTY_DASH: DashboardData = { leadsAwaiting: { count: 0, sample: [] }, kpiGroups: [], alerts: [] }
 
 export default async function HallPage() {
   const supabase = createClient()
@@ -28,7 +26,7 @@ export default async function HallPage() {
     activeTeamId
       ? supabase.from('clients').select('id, name, phone, company').eq('team_id', activeTeamId).order('name')
       : Promise.resolve({ data: [] }),
-    context ? getDashboardData(context) : Promise.resolve(EMPTY_DASH),
+    context ? getDashboardData(context) : Promise.resolve(EMPTY_DASHBOARD),
   ])
 
   const linkOptions: LinkOption[] = [

@@ -464,6 +464,42 @@ export function HallClient({ initialActivities, initialTasks, linkOptions, userN
               </div>
             ))}
 
+            {/* ══ RECEITA POR VENDEDOR / PLANO ══ recebida no mês — mesma FONTE ÚNICA (ExecutiveMetricsService). */}
+            {(dashboard.receitaPorVendedor.length > 0 || dashboard.receitaPorPlano.length > 0) && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {dashboard.receitaPorVendedor.length > 0 && (
+                  <div className="space-y-2">
+                    <SectionLabel>Receita por vendedor</SectionLabel>
+                    <Panel className="max-lg:p-3" headerClassName="max-lg:hidden" label="Receita por vendedor">
+                      <div className="space-y-1.5">
+                        {dashboard.receitaPorVendedor.map(r => (
+                          <div key={r.label} className="flex items-center justify-between gap-2 text-[13px]">
+                            <span className="text-bento-text truncate">{r.label} <span className="text-bento-dim">· {r.count} cliente(s)</span></span>
+                            <span className="font-tech text-bento-text tabular-nums shrink-0">US$ {Math.round(r.value).toLocaleString('en-US')}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </Panel>
+                  </div>
+                )}
+                {dashboard.receitaPorPlano.length > 0 && (
+                  <div className="space-y-2">
+                    <SectionLabel>Receita por plano</SectionLabel>
+                    <Panel className="max-lg:p-3" headerClassName="max-lg:hidden" label="Receita por plano">
+                      <div className="space-y-1.5">
+                        {dashboard.receitaPorPlano.map(r => (
+                          <div key={r.label} className="flex items-center justify-between gap-2 text-[13px]">
+                            <span className="text-bento-text truncate">{r.label} <span className="text-bento-dim">· {r.count} cliente(s)</span></span>
+                            <span className="font-tech text-bento-text tabular-nums shrink-0">US$ {Math.round(r.value).toLocaleString('en-US')}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </Panel>
+                  </div>
+                )}
+              </div>
+            )}
+
             {/* ══ ATIVIDADES RECENTES ══ movimentações reais (realtime). Secundário — colapsa no mobile. */}
             {hallCfg.blocks.atividade && <SectionLabel>Atividades recentes</SectionLabel>}
             {hallCfg.blocks.atividade && (
