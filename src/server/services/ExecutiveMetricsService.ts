@@ -1,0 +1,93 @@
+import 'server-only'
+
+import type { RequestContext } from '@/server/context/request-context'
+import type { ExecutiveMetricsVM } from '@/core/metrics/types'
+import { getCommercialRaw, getClientRevenueForMetrics, getExecutiveClients } from '@/server/repositories/CommercialMetricsRepository'
+import { rangeFor, type Mode } from '@/lib/period'
+import { dueDateFor } from '@/lib/commission/actions'
+import { funnelConversionPct } from '@/lib/funnelMetrics'
+import { receivedRevenueBetween, receivedRevenueBySeller, receivedRevenueByPlan, type PaymentRowWithClient } from '@/core/metrics/revenue'
+import { mrr as calcMrr, arr as calcArr, activeClientsCount, newClientsCount, mrrByPlan } from '@/core/metrics/portfolio'
+import { closedValue, closedCount, averageTicket } from '@/core/metrics/sales'
+
+// ExecutiveMetricsService — CAMADA ÚNICA de leitura executiva (EXECUTIVE-METRICS-001, Parte 1). Todo dashboard,
+// Hall, Financeiro, Relatórios, PDF, Administração e IA consomem ESTE serviço. Ele NÃO reimplementa nada:
+// orquestra os repositórios já existentes (getCommercialRaw / getClientRevenueForMetrics / getExecutiveClients)
+// e os primitivos PUROS de core/metrics (revenue/portfolio/sales) + funnelConversionPct + o cronograma canônico
+// dueDateFor. Definições oficiais e consumidores em core/metrics/registry.ts. Team-scoped (TEAM-001).
+
+const pad2 = (n: number): number | string => (n < 10 ? `0${n}` : n)
+const ymd = (d: Date): string => `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`
+const spToday = (): string => new Date().toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' })
+const dowOfYmd = (s: string): number => { const [y, m, d] = s.split('-').map(Number); return new Date(Date.UTC(y, m - 1, d)).getUTCDay() }
+
+const EMPTY = (label: string, from: string, to: string): ExecutiveMetricsVM => ({
+  periodLabel: label, from, to,
+  receitaRecebida: 0, valorFechado: 0, receitaPrevista: 0, mrr: 0, arr: 0,
+  ticketMedio: 0, conversao: 0, clientesAtivos: 0, clientesNovos: 0,
+  receitaPorVendedor: [], receitaPorPlano: [], mrrPorPlano: [],
+})
+
+// Receita PREVISTA: soma, por cliente ativo, das cobranças AGENDADAS (dueDateFor) que caem depois de HOJE e
+// até o fim do período, × valor semanal. Reusa o cronograma canônico (mesmo do cron/ClientFinance).
+function forecastRevenue(
+  clients: { status: string | null; plan_weekly: number | null; start_date: string | null; dia_pagamento_semana: number | null }[],
+  afterYMD: string, throughYMD: string,
+): number {
+  if (throughYMD <= afterYMD) return 0
+  let total = 0
+  for (const c of clients) {
+    if (c.status !== 'ativo' || !c.start_date) continue
+    const start = String(c.start_date).slice(0, 10)
+    const weekly = Number(c.plan_weekly) || 0
+    if (weekly <= 0) continue
+    const dia = c.dia_pagamento_semana ?? dowOfYmd(start)
+    for (let n = 1; n <= 520; n++) {
+      const due = dueDateFor(start, dia, n)
+      if (due > throughYMD) break
+      if (due > afterYMD) total += weekly
+    }
+  }
+  return Math.round((total + Number.EPSILON) * 100) / 100
+}
+
+export async function getExecutiveMetrics(context: RequestContext, mode: Mode = 'mes'): Promise<ExecutiveMetricsVM> {
+  const range = rangeFor(mode)
+  const from = ymd(range.start), to = ymd(range.end)
+  const teamId = context.activeTeamId
+  if (!teamId) return EMPTY(range.label, from, to)
+
+  const [raw, revenue, carteira] = await Promise.all([
+    getCommercialRaw(teamId),           // leads + deals (valor fechado / conversão)
+    getClientRevenueForMetrics(),       // client_payments (receita recebida / por vendedor / por plano)
+    getExecutiveClients(teamId),        // clients + plans (MRR/ARR / ativos / novos / previsão / dimensões)
+  ])
+
+  // Mapas de dimensão (client_id → vendedor / nome do plano) a partir da carteira rica.
+  const planName = new Map(carteira.plans.map(p => [p.id, p.nome]))
+  const clientToSeller = new Map(carteira.clients.map(c => [c.id, c.assigned_name || 'Sem responsável']))
+  const clientToPlan = new Map(carteira.clients.map(c => [c.id, (c.plano_id && planName.get(c.plano_id)) || 'Sem plano']))
+  const payments = revenue.payments as PaymentRowWithClient[]
+
+  // Conversão do PERÍODO: leads que chegaram no intervalo (received_at, fallback created_at).
+  const periodLeads = raw.leads.filter(l => { const d = ((l.received_at ?? l.created_at) ?? '').slice(0, 10); return d >= from && d <= to })
+
+  const mrrValue = calcMrr(carteira.clients)
+  const valorFechado = closedValue(raw.deals, from, to)
+
+  return {
+    periodLabel: range.label, from, to,
+    receitaRecebida: receivedRevenueBetween(payments, from, to),
+    valorFechado,
+    receitaPrevista: forecastRevenue(carteira.clients, spToday(), to),
+    mrr: mrrValue,
+    arr: calcArr(mrrValue),
+    ticketMedio: averageTicket(valorFechado, closedCount(raw.deals, from, to)),
+    conversao: funnelConversionPct(periodLeads),
+    clientesAtivos: activeClientsCount(carteira.clients),
+    clientesNovos: newClientsCount(carteira.clients, from, to),
+    receitaPorVendedor: receivedRevenueBySeller(payments, clientToSeller, from, to),
+    receitaPorPlano: receivedRevenueByPlan(payments, clientToPlan, from, to),
+    mrrPorPlano: mrrByPlan(carteira.clients, planName),
+  }
+}

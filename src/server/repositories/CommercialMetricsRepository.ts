@@ -69,3 +69,24 @@ export async function getClientRevenueForMetrics(): Promise<{ payments: MPayment
     clients: (cRes.data ?? []) as MClientSeller[],
   }
 }
+
+// ── Carteira de clientes p/ métricas executivas (MRR/ARR, receita por plano, clientes novos, receita prevista).
+//    Team-scoped; RLS já exclui soft-deleted. plan_weekly = valor SEMANAL do cliente (custom ou do plano). ──
+export type MExecClient = {
+  id: string; assigned_name: string | null; status: string | null; plan_weekly: number | null
+  plano_id: string | null; periodicidade: string | null; start_date: string | null
+  dia_pagamento_semana: number | null; created_at: string | null
+}
+export type MPlan = { id: string; nome: string }
+
+export async function getExecutiveClients(teamId: string): Promise<{ clients: MExecClient[]; plans: MPlan[] }> {
+  const supabase = createClient()
+  const [cRes, pRes] = await Promise.all([
+    supabase.from('clients').select('id, assigned_name, status, plan_weekly, plano_id, periodicidade, start_date, dia_pagamento_semana, created_at').eq('team_id', teamId),
+    supabase.from('plans').select('id, nome'),
+  ])
+  return {
+    clients: (cRes.data ?? []) as MExecClient[],
+    plans: (pRes.data ?? []) as MPlan[],
+  }
+}
