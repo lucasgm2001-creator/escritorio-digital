@@ -14,7 +14,7 @@ import { useDialog } from '@/components/ui/useDialog'
 import { DossieTab } from './DossieTab'
 import type { Client } from './types'
 
-interface Plan { id: string; nome: string; valor_semanal: number }
+interface Plan { id: string; nome: string; valor_semanal: number; valor_mensal: number | null }
 // Dia de pagamento da semana — 0=Dom..6=Sáb, MESMA convenção que o cron/payDueWeeks lê (getUTCDay civil).
 const WEEKDAYS: { value: number; label: string }[] = [
   { value: 0, label: 'Domingo' }, { value: 1, label: 'Segunda' }, { value: 2, label: 'Terça' },
@@ -47,13 +47,14 @@ export function ClienteModal({ client, onClose, onSaved, initialTab }: {
   const [form, setForm] = useState({
     name: client.name, company: client.company ?? '', email: client.email ?? '', phone: client.phone ?? '',
     plano_id: client.plano_id ?? '', dia_pagamento_semana: String(client.dia_pagamento_semana ?? weekdayOf(client.start_date)),
+    periodicidade: (client.periodicidade ?? 'semanal') as 'semanal' | 'mensal',
     start_date: (client.start_date ?? '').slice(0, 10),
     fuso: client.fuso ?? '', nicho: client.nicho ?? '',
     city: client.city ?? '', state: client.state ?? '', area_code: client.area_code ?? '',
   })
 
   useEffect(() => {
-    supabase.from('plans').select('id, nome, valor_semanal').eq('ativo', true).order('ordem')
+    supabase.from('plans').select('id, nome, valor_semanal, valor_mensal').eq('ativo', true).order('ordem')
       .then(({ data }) => setPlans((data ?? []) as Plan[]))
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
@@ -84,6 +85,7 @@ export function ClienteModal({ client, onClose, onSaved, initialTab }: {
       plano_id: form.plano_id || client.plano_id || null,
       plan_weekly: editPlan?.valor_semanal ?? client.plan_weekly,
       dia_pagamento_semana: Number(form.dia_pagamento_semana),
+      periodicidade: form.periodicidade,     // forma de cobrança (F2)
       start_date: form.start_date || null,   // editável/retroativo (CLIENT-HISTORY-F1)
       nicho: form.nicho.trim() || null,
       fuso: form.fuso || null,
@@ -172,7 +174,16 @@ export function ClienteModal({ client, onClose, onSaved, initialTab }: {
             <label className="block text-xs font-medium text-bento-dim mb-1">Plano</label>
             <select value={form.plano_id} onChange={e => setForm(p => ({ ...p, plano_id: e.target.value }))} className={inputCls}>
               {plans.length === 0 && <option value="">Carregando…</option>}
-              {plans.map(p => <option key={p.id} value={p.id}>{p.nome} — ${p.valor_semanal}/sem</option>)}
+              {plans.map(p => <option key={p.id} value={p.id}>{p.nome} — ${p.valor_semanal}/sem{p.valor_mensal ? ` · $${p.valor_mensal}/mês` : ''}</option>)}
+            </select>
+          </div>
+          {/* Forma de cobrança (F2) — semanal ou mensal. O motor é sempre semanal; "mensal" só muda como
+              se registra o pagamento (quita o mês de uma vez via payMonth). Não altera o valor por semana. */}
+          <div>
+            <label className="block text-xs font-medium text-bento-dim mb-1">Cobrança</label>
+            <select value={form.periodicidade} onChange={e => setForm(p => ({ ...p, periodicidade: e.target.value as 'semanal' | 'mensal' }))} className={inputCls}>
+              <option value="semanal">Semanal</option>
+              <option value="mensal">Mensal (quita o mês de uma vez)</option>
             </select>
           </div>
           <div>

@@ -821,7 +821,7 @@ function IaConfigSection() {
 // ─── SISTEMA › Planos (catálogo — só leitura: nome + valor semanal) ───
 // Comissão NÃO aparece aqui: a config de remuneração é área administrativa própria (owner/admin).
 // plans.comissao_percentual permanece intacto no banco — apenas não é exibido/editado nesta tela.
-interface PlanRow { id: string; nome: string; valor_semanal: number }
+interface PlanRow { id: string; nome: string; valor_semanal: number; valor_mensal: number | null }
 
 function PlanosSection() {
   const supabase = createClient()
@@ -829,7 +829,7 @@ function PlanosSection() {
   const [loading, setLoading] = useState(true)
 
   const load = useCallback(async () => {
-    const { data } = await supabase.from('plans').select('id, nome, valor_semanal').eq('ativo', true).order('ordem')
+    const { data } = await supabase.from('plans').select('id, nome, valor_semanal, valor_mensal').eq('ativo', true).order('ordem')
     setPlans((data ?? []) as PlanRow[])
     setLoading(false)
   }, [supabase])
@@ -845,7 +845,7 @@ function PlanosSection() {
           <div key={p.id} className="bento-fx p-4">
             <div className="flex items-center justify-between gap-3">
               <p className="text-sm font-semibold text-bento-text truncate min-w-0">{p.nome}</p>
-              <p className="font-tech text-[11px] text-bento-muted shrink-0">{usd(p.valor_semanal)}/semana</p>
+              <p className="font-tech text-[11px] text-bento-muted shrink-0">{usd(p.valor_semanal)}/sem{p.valor_mensal ? ` · ${usd(p.valor_mensal)}/mês` : ''}</p>
             </div>
           </div>
         ))}
