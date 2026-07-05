@@ -8,6 +8,7 @@ import { useSave } from '@/lib/useSave'
 import { cn, formatDate } from '@/lib/utils'
 import { CommissionSection } from './CommissionSection'
 import { monthlySummary } from '@/lib/commission/calc'
+import { meetingCommissionCounts } from '@/lib/commission/constants'
 import type { SalaryPeriod, Meeting, WeeklyPayment, FxConfig } from '@/lib/commission/types'
 import { usd, brl } from '@/lib/format'
 import { MetricCard } from '@/components/ui/MetricCard'
@@ -141,7 +142,8 @@ function SellerProfile({ seller, onClose, onUpdated, onDeleted }: {
         supabase.from('fx_config').select('cotacao_manual, cotacao_travada').eq('id', 1).maybeSingle(),
       ])
       const salaries: SalaryPeriod[] = (salRes.data ?? []).map(s => ({ sellerId: s.seller_id, valorUsd: Number(s.valor_usd), effectiveFrom: s.effective_from }))
-      const meetings: Meeting[] = (mtgRes.data ?? []).map(mm => ({ id: mm.id, sellerId: mm.seller_id, metOn: mm.met_on, valorUsd: Number(mm.valor_usd), cotacaoUsdBrl: Number(mm.cotacao_usd_brl) }))
+      // Corte (Parte 6): reuniões ≥ JUL/2026 não geram comissão — fora do resumo do vendedor.
+      const meetings: Meeting[] = (mtgRes.data ?? []).filter(mm => meetingCommissionCounts(mm.met_on)).map(mm => ({ id: mm.id, sellerId: mm.seller_id, metOn: mm.met_on, valorUsd: Number(mm.valor_usd), cotacaoUsdBrl: Number(mm.cotacao_usd_brl) }))
       const dealsData = dealRes.data ?? []
       const dealIds = dealsData.map(d => d.id)
       let weeks: WeeklyPayment[] = []

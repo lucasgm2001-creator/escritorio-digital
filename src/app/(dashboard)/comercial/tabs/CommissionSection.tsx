@@ -22,6 +22,7 @@ import {
 } from '../compensation-write-actions'
 import { cn } from '@/lib/utils'
 import { monthlySummary, resolveRate, dealTotal } from '@/lib/commission/calc'
+import { meetingCommissionCounts } from '@/lib/commission/constants'
 import { payWeekMessage } from '@/lib/commission/actions'
 import type { SalaryPeriod, Meeting, WeeklyPayment, FxConfig, Deal, DealStatus } from '@/lib/commission/types'
 import { usd, brl } from '@/lib/format'
@@ -392,7 +393,8 @@ export function CommissionSection({ sellerId, sellerName }: { sellerId: string; 
     ])
 
     setSalaries((salRes.data ?? []).map(s => ({ sellerId: s.seller_id, valorUsd: Number(s.valor_usd), effectiveFrom: s.effective_from })))
-    setMeetings((mtgRes.data ?? []).map(toMeeting))
+    // Corte (Parte 6): reuniões ≥ JUL/2026 não são comissão — não aparecem na lista/histórico do vendedor.
+    setMeetings((mtgRes.data ?? []).filter(m => meetingCommissionCounts(m.met_on)).map(toMeeting))
     const ds = (dealRes.data ?? []).map(toDealUI)
     setDeals(ds)
     setClients((cliRes.data ?? []) as { id: string; name: string }[])

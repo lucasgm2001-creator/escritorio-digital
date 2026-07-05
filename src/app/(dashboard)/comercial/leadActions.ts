@@ -7,6 +7,7 @@ import { markMilestones } from '@/lib/leadMilestones'
 import { wonSlug, marcosForSlug, type FunnelStage } from '@/lib/funnelStages'
 import { payClientWeek, registerMeeting } from '@/lib/commission/actions'
 import { weeklyCommissionUsd, hasCommissionPct, LEGACY_VPS_USD, DEFAULT_TETO_SEMANAS } from '@/lib/commission/planCommission'
+import { meetingCommissionCounts } from '@/lib/commission/constants'
 import { logStageEvent } from '@/lib/stageEvents'
 
 type SupaClient = ReturnType<typeof createClient>
@@ -214,7 +215,9 @@ export async function moveLead(
   // pro vendedor responsável REUSANDO registerMeeting (mesmo valor/cotação/formato). NÃO toca em
   // runWonFlow/calc/payWeek. Idempotente: só cria se NÃO existe nenhuma meeting com este lead_id.
   // Best-effort: falha aqui NÃO bloqueia o move. Sem backfill (só vale para esta mudança).
-  if (lead.status === 'reuniao' && (newStatus === 'proposta' || newStatus === won)) {
+  // CORTE (Parte 6): a partir de JUL/2026 reunião não gera mais comissão — não cria a linha (sem US$0). A
+  // fase (stage_event) do funil segue registrada acima; só a COMISSÃO de reunião é que acaba.
+  if (lead.status === 'reuniao' && (newStatus === 'proposta' || newStatus === won) && meetingCommissionCounts(ymd(new Date()))) {
     try {
       const { data: jaTem } = await supabase.from('meetings').select('id').eq('lead_id', lead.id).limit(1)
       if (!jaTem || jaTem.length === 0) {

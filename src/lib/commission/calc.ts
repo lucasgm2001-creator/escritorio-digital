@@ -7,6 +7,7 @@ import type {
   FxConfig, SalaryPeriod, Meeting, Deal, WeeklyPayment,
   MonthlySummary, DealTotal, NextPayout,
 } from './types'
+import { meetingCommissionCounts } from './constants'
 
 const pad2 = (n: number) => String(n).padStart(2, '0')
 const monthKey = (year: number, month: number) => `${year}-${pad2(month)}`
@@ -51,7 +52,9 @@ export function monthlySummary(input: MonthlyInput): MonthlySummary {
   const rateUsed = resolveRate(fx, automaticRate)
   const salaryBrl = round2(salaryUsd * rateUsed)
 
-  const mtgs = meetings.filter(m => inMonth(m.metOn, year, month))
+  // Reuniões a partir de JUL/2026 não geram comissão (Parte 6) — filtradas do dinheiro na FONTE (calc), então
+  // Minha Remuneração, PDF e projeção do próximo pagamento já saem corretos sem tocar em cada consumidor.
+  const mtgs = meetings.filter(m => inMonth(m.metOn, year, month) && meetingCommissionCounts(m.metOn))
   const meetingsUsd = round2(mtgs.reduce((s, m) => s + m.valorUsd, 0))
   const meetingsBrl = round2(mtgs.reduce((s, m) => s + m.valorUsd * m.cotacaoUsdBrl, 0))
 

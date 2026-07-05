@@ -4,6 +4,7 @@ import type { RequestContext } from '@/server/context/request-context'
 import type { CommercialDashboardVM } from '@/core/metrics/types'
 import { getCommercialRaw } from '@/server/repositories/CommercialMetricsRepository'
 import { getStages } from '@/lib/funnelStages.server'
+import { meetingCommissionCounts } from '@/lib/commission/constants'
 
 // Fonte ÚNICA de KPIs do Dashboard Executivo (ARCH-001). Nenhuma tela calcula — tudo sai daqui.
 // Definições explícitas por KPI (a partir das tabelas canônicas), team-scoped (TEAM-001).
@@ -57,7 +58,8 @@ export async function getCommercialDashboard(context: RequestContext): Promise<C
     leadsStuck: activeLeads.filter(l => daysSince(l.stage_changed_at ?? l.created_at) > 7).length,
     avgDaysAsLead: totalLeads > 0 ? Math.round(sum(raw.leads.map(l => daysSince(l.received_at ?? l.created_at))) / totalLeads) : 0,
     avgDaysPerStage: gapCount > 0 ? Math.round(gapSum / gapCount / DAY) : 0,
-    meetings: raw.meetings.length,
+    // Reuniões que contam como comissão (Parte 6): a partir de JUL/2026 não entram no Dashboard.
+    meetings: raw.meetings.filter(m => meetingCommissionCounts(m.met_on ?? m.created_at)).length,
     noShows: raw.stageEvents.filter(e => noShowSlugs.has(e.to_stage)).length,
     proposals: raw.stageEvents.filter(e => proposalSlugs.has(e.to_stage)).length,
     closes,

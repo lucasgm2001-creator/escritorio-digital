@@ -4,6 +4,7 @@ import type { RequestContext } from '@/server/context/request-context'
 import type { CommercialReport, ConversionStep, PipelineMovement, ReportInsight, ReportKpis, ReportPeriod, StageRanking } from '@/core/reporting/types'
 import { getCommercialRaw } from '@/server/repositories/CommercialMetricsRepository'
 import { getStages } from '@/lib/funnelStages.server'
+import { meetingCommissionCounts } from '@/lib/commission/constants'
 
 // ÚNICO lugar que monta o relatório comercial (Constituição: o PDF nunca calcula — consome isto).
 // Mesma fonte do Dashboard (CommercialMetricsRepository) — zero duplicação. Team-scoped (TEAM-001).
@@ -42,8 +43,9 @@ export async function buildCommercialReport(context: RequestContext, period: Rep
   const events = raw.stageEvents.filter(e => inPeriod(e.changed_at, period))
   const dealsP = raw.deals.filter(d => inPeriod(d.data_fechamento ?? d.created_at, period))
   // Reunião entra no período pela data REAL (met_on), não por quando a linha nasceu — senão reunião histórica
-  // (met_on retroativo, created_at = agora) cairia no mês errado (CLIENT-HISTORY-ADMIN-003).
-  const meetingsP = raw.meetings.filter(m => inPeriod(m.met_on ?? m.created_at, period))
+  // (met_on retroativo, created_at = agora) cairia no mês errado (CLIENT-HISTORY-ADMIN-003). E a partir de
+  // JUL/2026 reunião não conta mais como comissão (Parte 6) — fora do Dashboard/Relatórios financeiros também.
+  const meetingsP = raw.meetings.filter(m => inPeriod(m.met_on ?? m.created_at, period) && meetingCommissionCounts(m.met_on ?? m.created_at))
   const to = (set: Set<string>): number => events.filter(e => set.has(e.to_stage)).length
 
   const won = dealsP.length

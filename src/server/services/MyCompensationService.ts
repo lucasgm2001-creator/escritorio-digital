@@ -3,6 +3,7 @@ import 'server-only'
 import { createClient } from '@/lib/supabase/server'
 import type { RequestContext } from '@/server/context/request-context'
 import { monthlySummary, nextPayoutProjection, dealTotal } from '@/lib/commission/calc'
+import { meetingCommissionCounts } from '@/lib/commission/constants'
 import type { DealStatus, FxConfig, Meeting, MonthlySummary, SalaryPeriod, WeeklyPayment } from '@/lib/commission/types'
 import { resolveCompensationRule, type NormalizedCompensationRule } from '@/server/services/CompensationService'
 import { roleByKey, departmentByKey, type DepartmentKey } from '@/lib/people/catalog'
@@ -80,8 +81,11 @@ export async function getMyCompensationView(context: RequestContext): Promise<My
   ])
 
   const salaries: SalaryPeriod[] = (salRes.data ?? []).map(s => ({ sellerId: s.seller_id, valorUsd: Number(s.valor_usd), effectiveFrom: s.effective_from }))
-  const meetings: Meeting[] = (mtgRes.data ?? []).map(m => ({ id: m.id, sellerId: m.seller_id, metOn: m.met_on, valorUsd: Number(m.valor_usd), cotacaoUsdBrl: Number(m.cotacao_usd_brl) }))
-  const mtgClient = new Map((mtgRes.data ?? []).map(m => [m.id, (m as { client_name: string | null }).client_name]))
+  // Corte (Parte 6): reuniões com competência ≥ JUL/2026 não geram comissão → fora de TUDO em Minha Remuneração
+  // (total, linhas por mês, meses com evento, última atualização, PDF). Filtra na FONTE, uma vez só.
+  const eligibleMeetings = (mtgRes.data ?? []).filter(m => meetingCommissionCounts(m.met_on))
+  const meetings: Meeting[] = eligibleMeetings.map(m => ({ id: m.id, sellerId: m.seller_id, metOn: m.met_on, valorUsd: Number(m.valor_usd), cotacaoUsdBrl: Number(m.cotacao_usd_brl) }))
+  const mtgClient = new Map(eligibleMeetings.map(m => [m.id, (m as { client_name: string | null }).client_name]))
   const deals = (dealRes.data ?? []) as { id: string; client_name: string | null; valor_total_usd: number; valor_por_semana_usd: number; teto_semanas: number; status: string; data_fechamento: string | null }[]
   const dealById = new Map(deals.map(d => [d.id, d]))
   const dealIds = deals.map(d => d.id)

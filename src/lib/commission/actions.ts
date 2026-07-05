@@ -1,5 +1,6 @@
 import type { createClient } from '@/lib/supabase/client'
 import { weeklyCommissionUsd, hasCommissionPct, LEGACY_VPS_USD, DEFAULT_TETO_SEMANAS } from '@/lib/commission/planCommission'
+import { meetingCommissionCounts } from '@/lib/commission/constants'
 
 type SupaClient = ReturnType<typeof createClient>
 
@@ -450,8 +451,10 @@ async function reconstructLeadPipelineEvents(
   const { leadId, leadName, sellerId, sellerName, clientId, leadDate, firstContact, meetingDate, proposalDate, finalStage, finalDate } = a
 
   // MEETING (met_on = data REAL): atualiza a existente (por lead/cliente) ou cria uma via registerMeeting.
+  // CORTE (Parte 6): reunião com competência ≥ JUL/2026 não vira comissão → não cria a linha. A jornada de fases
+  // abaixo (stage_event 'reuniao') registra a reunião no funil/timeline mesmo assim.
   let createdMeeting = false
-  if (meetingDate && sellerId) {
+  if (meetingDate && sellerId && meetingCommissionCounts(meetingDate)) {
     let mid: string | null = null
     { const { data } = await supabase.from('meetings').select('id').eq('lead_id', leadId).limit(1); mid = data?.[0]?.id ?? null }
     if (!mid && clientId) { const { data } = await supabase.from('meetings').select('id').eq('client_id', clientId).limit(1); mid = data?.[0]?.id ?? null }
