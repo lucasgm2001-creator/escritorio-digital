@@ -6,6 +6,7 @@ import { saveClientHistoryAction, registerPlanUpgradeAction } from './client-wri
 import { useToast } from '@/components/ui/toast'
 import { FUSO_OPTIONS } from '../comercial/types'
 import { US_STATES, sanitizeAreaCode } from '@/lib/usStates'
+import { resolvePhoneGeo, type PhoneGeo } from '@/lib/geo/phone-geo'
 import { cn } from '@/lib/utils'
 import { Portal } from '@/components/ui/Portal'
 import { useDialog } from '@/components/ui/useDialog'
@@ -43,6 +44,7 @@ export function ClienteModal({ client, onClose, onSaved, initialTab }: {
   const [upgradePlan, setUpgradePlan] = useState('')
   const [upgradeDate, setUpgradeDate] = useState(new Date().toISOString().slice(0, 10))
   const [upgrading, setUpgrading] = useState(false)
+  const [geoSug, setGeoSug] = useState<PhoneGeo | null>(null)   // sugestão de cidade/estado a partir do telefone (Parte 2)
   const [form, setForm] = useState({
     name: client.name, company: client.company ?? '', email: client.email ?? '', phone: client.phone ?? '',
     plano_id: client.plano_id ?? '', dia_pagamento_semana: String(client.dia_pagamento_semana ?? weekdayOf(client.start_date)),
@@ -66,20 +68,22 @@ export function ClienteModal({ client, onClose, onSaved, initialTab }: {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  // Telefone (EUA) → DDD/estado/cidade. 11+ díg. começando com 1 → DDD = [1..3]; 10 díg. → DDD = [0..2].
-  // DDD no us-map.json: preenche st+city+area_code. Fora dele: só area_code (estado/cidade ficam p/ ajuste).
-  const onPhoneChange = async (phone: string) => {
+  // Telefone → SUGESTÃO de geografia (Parte 2): EUA (area code) ou Brasil (DDD), via resolvePhoneGeo (fonte única).
+  // NÃO preenche sozinho — só sugere; o usuário aplica (applyGeo) ou ignora. Não sobrescreve dado manual sem confirmar.
+  const onPhoneChange = (phone: string) => {
     setForm(p => ({ ...p, phone }))
-    const digits = phone.replace(/\D/g, '')
-    let ddd = ''
-    if (digits.length >= 11 && digits[0] === '1') ddd = digits.slice(1, 4)
-    else if (digits.length === 10) ddd = digits.slice(0, 3)
-    if (!ddd) return
-    const mod = await import('@/data/us-map.json')
-    const ac = (mod.default as { areaCodes: Record<string, { st: string; city: string }> }).areaCodes[ddd]
-    setForm(p => p.phone !== phone ? p : (ac
-      ? { ...p, area_code: ddd, state: ac.st, city: ac.city }
-      : { ...p, area_code: ddd }))
+    resolvePhoneGeo(phone).then(geo => setGeoSug(geo)).catch(() => setGeoSug(null))
+  }
+  // A sugestão só aparece se DIFERE do que já está no formulário (senão não há o que aplicar).
+  const geoDiffers = !!geoSug && (
+    geoSug.areaCode !== (form.area_code || '') ||
+    (!!geoSug.state && geoSug.state !== (form.state || '')) ||
+    (!!geoSug.city && geoSug.city !== (form.city || ''))
+  )
+  const applyGeo = () => {
+    if (!geoSug) return
+    setForm(p => ({ ...p, area_code: geoSug.areaCode, ...(geoSug.state ? { state: geoSug.state } : {}), ...(geoSug.city ? { city: geoSug.city } : {}) }))
+    setGeoSug(null)
   }
 
   const buildPatch = () => {
@@ -195,7 +199,17 @@ export function ClienteModal({ client, onClose, onSaved, initialTab }: {
           <div>
             <label className="block text-xs font-medium text-bento-dim mb-1">Telefone</label>
             <input value={form.phone} onChange={e => onPhoneChange(e.target.value)} placeholder={client.phone ?? '+1 (555) 123-4567'} className={inputCls} />
-            <p className="font-tech text-[10px] text-bento-muted/70 mt-1">Telefone dos EUA preenche DDD/estado/cidade automaticamente.</p>
+            {geoDiffers ? (
+              <div className="mt-1.5 flex items-center gap-2 rounded-btn border border-lime/30 bg-lime/10 px-2.5 py-1.5">
+                <span className="text-[11px] text-bento-text flex-1 min-w-0 truncate">Detectamos: <span className="font-medium">{geoSug!.label}</span></span>
+                <button type="button" onClick={applyGeo} className="text-[11px] font-semibold text-lime-fg hover:underline shrink-0">Aplicar</button>
+                <button type="button" onClick={() => setGeoSug(null)} aria-label="Ignorar" className="text-bento-muted hover:text-bento-text shrink-0">
+                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                </button>
+              </div>
+            ) : (
+              <p className="font-tech text-[10px] text-bento-muted/70 mt-1">Telefone dos EUA/Brasil sugere estado e cidade — você aceita ou ignora.</p>
+            )}
           </div>
           <div>
             <label className="block text-xs font-medium text-bento-dim mb-1">Plano</label>

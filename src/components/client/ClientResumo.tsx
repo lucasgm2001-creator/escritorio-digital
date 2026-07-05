@@ -4,6 +4,7 @@ import { formatDateBR } from '@/lib/date'
 import { Panel } from '@/components/bento/Panel'
 import { MetricCard, type MetricTone } from '@/components/ui/MetricCard'
 import { LeadJourney } from '@/components/lead/LeadJourney'
+import { ClientEditLauncher } from '@/components/client/ClientEditLauncher'
 import { type Client } from '@/app/(dashboard)/clientes/types'
 import type { ClientFinanceVM } from '@/server/services/ClientFinanceService'
 import type { ClientHealthBand, ClientHealthKey } from '@/lib/client/health-band'
@@ -74,9 +75,12 @@ export function ClientResumo({ client, finance, lastActivityAt, lastMeetingAt, l
           <h1 className="font-display font-bold text-2xl text-bento-text truncate">{client.name}</h1>
           <p className="text-sm text-bento-muted mt-0.5 truncate">{[client.company, client.nicho].filter(Boolean).join(' · ') || '—'}</p>
         </div>
-        <span title={health.hint} className={cn('inline-flex items-center gap-1.5 text-[11px] font-tech uppercase tracking-wide px-2.5 py-1 rounded-full border shrink-0', health.cls)}>
-          <span className={cn('w-1.5 h-1.5 rounded-full', health.dot)} /> Saúde: {health.label}
-        </span>
+        <div className="flex items-center gap-2 shrink-0">
+          <ClientEditLauncher client={client} />
+          <span title={health.hint} className={cn('inline-flex items-center gap-1.5 text-[11px] font-tech uppercase tracking-wide px-2.5 py-1 rounded-full border', health.cls)}>
+            <span className={cn('w-1.5 h-1.5 rounded-full', health.dot)} /> Saúde: {health.label}
+          </span>
+        </div>
       </header>
 
       {/* KPIs do cliente — size md (calmo/consistente) num grid que respira e usa a largura recuperada
