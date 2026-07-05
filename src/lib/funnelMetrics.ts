@@ -5,7 +5,7 @@
 //
 //   conversão geral = fechados ÷ (leads NÃO-Lixeira E NÃO-cliente_existente)
 
-function funnelConversionPct(leads: { status: string; origem?: string | null }[]): number {
+export function funnelConversionPct(leads: { status: string; origem?: string | null }[]): number {
   const base = leads.filter(l => l.origem !== 'cliente_existente' && l.status !== 'lixeira')
   const fechados = base.filter(l => l.status === 'fechado').length
   return base.length > 0 ? (fechados / base.length) * 100 : 0

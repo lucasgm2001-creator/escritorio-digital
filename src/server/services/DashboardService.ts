@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase/server'
 import type { RequestContext } from '@/server/context/request-context'
 import { can } from '@/lib/permissions/can'
 import { getCommercialDashboard } from '@/server/services/DashboardMetricsService'
+import { receivedRevenueSince } from '@/core/metrics/revenue'
 
 // Cockpit operacional do Hall (DASHBOARD-REAL-001). SÓ leitura/agregação de dados que já existem, escopado à
 // equipe ativa. REUSA getCommercialDashboard (fonte única dos KPIs comerciais — mesmos números do /comercial),
@@ -64,7 +65,7 @@ export async function getDashboardData(context: RequestContext): Promise<Dashboa
   // ── Financeiro: receita recebida no mês + clientes com pagamento em atraso (gap > 9 dias) ──
   const payRows = (paymentsRes.data ?? []) as { client_id: string | null; valor_usd: number | null; paid_on: string | null; anulado: boolean | null }[]
   const validPay = payRows.filter(p => !p.anulado)
-  const receitaMes = validPay.filter(p => (p.paid_on ?? '') >= monthStart).reduce((s, p) => s + (Number(p.valor_usd) || 0), 0)
+  const receitaMes = receivedRevenueSince(payRows, monthStart)
   const lastPayByClient = new Map<string, string>()
   for (const p of validPay) {
     if (!p.client_id || !p.paid_on) continue

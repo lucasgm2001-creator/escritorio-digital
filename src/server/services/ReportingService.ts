@@ -89,11 +89,14 @@ export async function buildCommercialReport(context: RequestContext, period: Rep
     { label: 'Proposta → Fechado', rate: rate(won, Math.max(1, kpis.proposals)) },
   ]
 
-  // Ranking/gargalos por fase (leads atualmente parados em cada etapa).
+  // Ranking/gargalos por fase (leads atualmente parados em cada etapa). Agrupa por status UMA vez
+  // (fix N+1: O(etapas × leads) → O(leads)).
+  const leadsByStatus = new Map<string, typeof raw.leads>()
+  for (const l of raw.leads) { const k = l.status ?? ''; const arr = leadsByStatus.get(k); if (arr) arr.push(l); else leadsByStatus.set(k, [l]) }
   const funnel: StageRanking[] = stages
     .filter(s => !s.is_won && !s.is_lost)
     .map(s => {
-      const leadsHere = raw.leads.filter(l => l.status === s.slug)
+      const leadsHere = leadsByStatus.get(s.slug) ?? []
       return {
         stage: s.nome,
         count: leadsHere.length,

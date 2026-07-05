@@ -3,6 +3,7 @@ import 'server-only'
 import { createClient } from '@/lib/supabase/server'
 import type { RequestContext } from '@/server/context/request-context'
 import { getActiveTeamMembers, getActiveTeamInvites, getTeamsOverview } from '@/server/services/TeamService'
+import { receivedRevenueSince, type PaymentRow } from '@/core/metrics/revenue'
 
 // Painel administrativo com DADOS REAIS (ADMIN-REAL-001). Só LEITURA/agregação das tabelas que já existem —
 // nada de nova arquitetura, domínio ou cálculo de regra. Tudo escopado à equipe ativa (team_id). Onde não há
@@ -93,10 +94,10 @@ export async function getAdminOverview(context: RequestContext): Promise<AdminOv
   const convitesAtivos = invites.filter(i => !i.used_at && (i.expires_at ?? '') > now2).length
   const convitesExpirados = invites.filter(i => !i.used_at && (i.expires_at ?? '') <= now2).length
 
-  // Financeiro (soma real do ledger, sem recalcular regra)
-  const payRows = (payments.data ?? []) as { valor_usd: number | null; paid_on: string | null; anulado: boolean | null }[]
+  // Financeiro (soma real do ledger) — receita recebida via FONTE ÚNICA (core/metrics/revenue).
+  const payRows = (payments.data ?? []) as PaymentRow[]
   const valid = payRows.filter(p => !p.anulado)
-  const receitaMes = valid.filter(p => (p.paid_on ?? '') >= monthStart).reduce((s, p) => s + (Number(p.valor_usd) || 0), 0)
+  const receitaMes = receivedRevenueSince(payRows, monthStart)
   const pagamentosSemana = valid.filter(p => (p.paid_on ?? '') >= weekAgo).length
   const usd = (n: number) => `US$ ${Math.round(n).toLocaleString('en-US')}`
 

@@ -66,8 +66,11 @@ export async function getCommercialMetricsTab(context: RequestContext, mode: Mod
   const hot = allLeads.filter(l => (l.score ?? 0) > 650).length
   const warm = allLeads.filter(l => (l.score ?? 0) > 400 && (l.score ?? 0) <= 650).length
   const cold = allLeads.filter(l => (l.score ?? 0) <= 400).length
+  // Agrupa leads por status UMA vez (fix N+1: O(colunas × leads) → O(leads)).
+  const leadsByStatus = new Map<string, typeof allLeads>()
+  for (const l of allLeads) { const k = l.status ?? ''; const arr = leadsByStatus.get(k); if (arr) arr.push(l); else leadsByStatus.set(k, [l]) }
   const funnel = ALL_COLUMNS.map(col => {
-    const ls = allLeads.filter(l => l.status === col.key)
+    const ls = leadsByStatus.get(col.key) ?? []
     return { key: col.key, count: ls.length, value: ls.reduce((acc, l) => acc + (l.value || 0), 0) }
   })
   const maxCount = Math.max(...funnel.map(x => x.count), 1)
