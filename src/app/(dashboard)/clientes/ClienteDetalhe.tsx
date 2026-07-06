@@ -3,10 +3,9 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { ChevronLeft, MessageCircle, FolderOpen, FileDown, Power, ArrowRight, Trash2 } from 'lucide-react'
-import { createClient } from '@/lib/supabase/client'
 import { useToast } from '@/components/ui/toast'
 import { useRole } from '@/components/auth/RoleProvider'
-import { softDeleteClientAction } from './client-write-actions'
+import { softDeleteClientAction, updateClientAction, deactivateClientAction } from './client-write-actions'
 import { cn, formatCurrency } from '@/lib/utils'
 import { formatDateBR } from '@/lib/date'
 import { planLabel, healthOf, type Client, type Nicho, type ClientIntegration } from './types'
@@ -20,7 +19,6 @@ export function ClienteDetalhe({ client, nichos, integration, onBack, onUpdated 
   onBack: () => void
   onUpdated: (c: Client) => void
 }) {
-  const supabase = createClient()
   const { toast } = useToast()
   const role = useRole()
   const [deact, setDeact] = useState(false)
@@ -41,12 +39,10 @@ export function ClienteDetalhe({ client, nichos, integration, onBack, onUpdated 
     if (next === (client.nicho ?? null)) { setNicho(next); return }
     setNicho(next)
     setSavingNicho(true)
-    const { data, error } = await supabase.from('clients')
-      .update({ nicho: next, updated_at: new Date().toISOString() })
-      .eq('id', client.id).select('*').single()
+    const r = await updateClientAction(client.id, { nicho: next })
     setSavingNicho(false)
-    if (error || !data) { setNicho(prev); toast({ type: 'error', message: `Não foi possível mudar a prateleira: ${error?.message ?? 'erro'}` }); return }
-    onUpdated(data as Client)
+    if (!r.ok) { setNicho(prev); toast({ type: 'error', message: `Não foi possível mudar a prateleira: ${r.error}` }); return }
+    onUpdated({ ...client, nicho: next ?? undefined })
     toast({ type: 'success', message: next ? `Movido para "${next}".` : 'Movido para "Sem prateleira".' })
   }
 
@@ -59,14 +55,10 @@ export function ClienteDetalhe({ client, nichos, integration, onBack, onUpdated 
 
   const desativar = async () => {
     setBusy(true)
-    const today = new Date()
-    const end = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`
-    const { data, error } = await supabase.from('clients')
-      .update({ status: 'inativo', end_date: end, end_reason: reason.trim() || null })
-      .eq('id', client.id).select('*').single()
+    const r = await deactivateClientAction(client.id, reason.trim() || null)
     setBusy(false)
-    if (error || !data) { toast({ type: 'error', message: `Não foi possível desativar: ${error?.message ?? 'erro'}` }); return }
-    onUpdated(data as Client)
+    if (!r.ok) { toast({ type: 'error', message: `Não foi possível desativar: ${r.error}` }); return }
+    onUpdated({ ...client, status: 'inativo', end_date: r.endDate })
     setDeact(false)
     toast({ type: 'success', message: 'Cliente desativado.' })
   }

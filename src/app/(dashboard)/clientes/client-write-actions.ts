@@ -3,6 +3,7 @@
 import { getRequestContext } from '@/server/context/request-context'
 import { can } from '@/lib/permissions/can'
 import { createClient } from '@/lib/supabase/server'
+import { todaySP } from '@/lib/date'
 import { createServiceClient } from '@/lib/supabase/service'
 import { assertClientOwnership } from '@/server/security/team-ownership'
 import { payMonth, nextUnpaidMonth, applyPlanUpgrade, saveClientHistory, type ClientHistoryInput } from '@/lib/commission/actions'
@@ -54,6 +55,22 @@ export async function updateClientAction(clientId: string, patch: Record<string,
   const { error } = await q
   if (error) return { ok: false, error: error.message }
   return { ok: true }
+}
+
+// Desativa (rescisão/churn): status inativo + data de encerramento (hoje, autoridade do servidor) + motivo.
+// NÃO mexe em comissão/receita já registradas — só o estado do cliente. Mesma guarda can('clients','edit') +
+// filtro por team_id (nunca desativa cliente de outra equipe). Fecha a última escrita direta do browser.
+export async function deactivateClientAction(clientId: string, reason: string | null): Promise<Res<{ endDate: string }>> {
+  const g = await guardEdit()
+  if (!g.context) return { ok: false, error: g.error }
+  const supabase = createClient()
+  const teamId = g.context.activeTeamId
+  const endDate = todaySP()   // fim = hoje (Brasília), definido no servidor
+  let q = supabase.from('clients').update({ status: 'inativo', end_date: endDate, end_reason: reason?.trim() || null }).eq('id', clientId)
+  if (teamId) q = q.eq('team_id', teamId)
+  const { error } = await q
+  if (error) return { ok: false, error: error.message }
+  return { ok: true, endDate }
 }
 
 // Cria uma prateleira (nicho). Carimba team_id no servidor. Devolve a linha criada para o estado otimista.
