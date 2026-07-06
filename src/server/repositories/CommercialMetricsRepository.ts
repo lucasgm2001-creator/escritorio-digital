@@ -20,19 +20,23 @@ export type CommercialRaw = {
   deals: MDeal[]
 }
 
-export async function getCommercialRaw(teamId: string): Promise<CommercialRaw> {
+// withPipeline=true carrega TAMBÉM stage_events + meetings (pipeline/gargalos do Relatório). Os consumidores
+// executivos (Hall/Dashboard/Financeiro/aba Métricas) usam SÓ leads + deals → não varrem essas 2 tabelas
+// inteiras (perf, SPRINT-FINAL-002 Parte 4). Números idênticos: o caminho executivo nunca leu stageEvents/meetings.
+export async function getCommercialRaw(teamId: string, opts?: { withPipeline?: boolean }): Promise<CommercialRaw> {
   const supabase = createClient()
-  // (Removido o load de `clients` — era DEAD: nenhum consumidor lia raw.clients. CLIENT-HISTORY-ADMIN-003, Parte 5.)
-  const [leads, stageEvents, meetings, deals] = await Promise.all([
+  const withPipeline = opts?.withPipeline ?? false
+  const emptyRes = <T>() => Promise.resolve({ data: [] as T[], error: null })
+  const [leads, deals, stageEvents, meetings] = await Promise.all([
     supabase.from('leads').select('id, status, value, received_at, created_at, stage_changed_at, score, origem').eq('team_id', teamId),
-    supabase.from('stage_events').select('lead_id, from_stage, to_stage, changed_at').eq('team_id', teamId),
-    supabase.from('meetings').select('id, valor_usd, met_on, created_at').eq('team_id', teamId),
     supabase.from('deals').select('id, lead_id, valor_total_usd, status, data_fechamento, created_at').eq('team_id', teamId),
+    withPipeline ? supabase.from('stage_events').select('lead_id, from_stage, to_stage, changed_at').eq('team_id', teamId) : emptyRes<MStage>(),
+    withPipeline ? supabase.from('meetings').select('id, valor_usd, met_on, created_at').eq('team_id', teamId) : emptyRes<MMeeting>(),
   ])
   if (leads.error) throw leads.error
+  if (deals.error) throw deals.error
   if (stageEvents.error) throw stageEvents.error
   if (meetings.error) throw meetings.error
-  if (deals.error) throw deals.error
   return {
     leads: (leads.data ?? []) as MLead[],
     stageEvents: (stageEvents.data ?? []) as MStage[],

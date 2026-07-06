@@ -31,7 +31,7 @@ export async function buildCommercialReport(context: RequestContext, period: Rep
   const teamId = context.activeTeamId
   if (!teamId) return empty
 
-  const [raw, stages] = await Promise.all([getCommercialRaw(teamId), getStages()])
+  const [raw, stages] = await Promise.all([getCommercialRaw(teamId, { withPipeline: true }), getStages()])
   const stageName = (slug: string | null): string => (slug ? stages.find(s => s.slug === slug)?.nome ?? slug : '—')
   const wonSlugs = new Set(stages.filter(s => s.is_won).map(s => s.slug))
   const lostSlugs = new Set(stages.filter(s => s.is_lost).map(s => s.slug))
