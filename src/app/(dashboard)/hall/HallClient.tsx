@@ -58,7 +58,7 @@ interface Props {
 // Divisor de secao discreto: rotulo pequeno + fio fino (sem caixa/borda pesada). Usado na Visao Geral.
 function SectionLabel({ children }: { children: React.ReactNode }) {
   return (
-    <div className="flex items-center gap-3 pt-1">
+    <div className="flex items-center gap-3">
       <span className="font-tech text-caption uppercase tracking-label text-bento-muted shrink-0">{children}</span>
       <span className="h-px flex-1 bg-bento-border/50" aria-hidden />
     </div>
@@ -193,7 +193,7 @@ export function HallClient({ initialActivities, initialTasks, linkOptions, userN
   ]
 
   return (
-    <div className="p-4 sm:p-6 max-w-7xl mx-auto space-y-4 animate-fade-in font-body">
+    <div className="p-4 sm:p-6 max-w-7xl mx-auto space-y-3 animate-fade-in font-body">
 
       {/* Header */}
       <div className="flex items-center justify-between">
@@ -225,7 +225,7 @@ export function HallClient({ initialActivities, initialTasks, linkOptions, userN
       </div>
 
       {/* Canvas com grade técnica — todos os painéis vivem aqui dentro */}
-      <div className="bento-canvas p-4 sm:p-5 space-y-4">
+      <div className="bento-canvas p-4 sm:p-5 space-y-3">
 
         {activeTab === 'activities' && (
           <>
@@ -374,7 +374,7 @@ export function HallClient({ initialActivities, initialTasks, linkOptions, userN
             {hallCfg.blocks.atividade && <SectionLabel>Atividades recentes</SectionLabel>}
             {hallCfg.blocks.atividade && (
               <CollapsibleSection title="Atividades Recentes" icon={ActivityIcon}>
-                <Panel className="max-lg:p-3" headerClassName="max-lg:hidden" label="Atividades Recentes" action={<LiveDot />}>
+                <Panel className="max-lg:p-3 lg:pb-4" headerClassName="max-lg:hidden" label="Atividades Recentes" action={<LiveDot />}>
                 <div className="space-y-0 divide-y divide-bento-border/60">
                   {activities.length === 0 ? (
                     <p className="text-sm text-bento-muted py-6 text-center">Nenhuma atividade ainda.</p>
@@ -404,12 +404,12 @@ export function HallClient({ initialActivities, initialTasks, linkOptions, userN
                 </div>
                 {activities.length > 3 && (
                   <button type="button" onClick={() => setActivitiesExpanded(v => !v)}
-                    className="font-tech text-caption uppercase tracking-wide text-lime-fg hover:text-lime transition-colors font-semibold mt-3 self-start">
+                    className="font-tech text-caption uppercase tracking-wide text-lime-fg hover:text-lime transition-colors font-semibold mt-2.5 self-start">
                     {activitiesExpanded ? 'Ver menos' : `Ver mais (${activities.length - 3})`}
                   </button>
                 )}
                 <button type="button" onClick={() => setShowHistory(true)}
-                  className="mt-3 pt-3 border-t border-bento-border/60 w-full text-center font-tech text-caption uppercase tracking-wide text-bento-muted hover:text-lime-fg transition-colors">
+                  className="mt-2.5 pt-2.5 border-t border-bento-border/60 w-full text-center font-tech text-caption uppercase tracking-wide text-bento-muted hover:text-lime-fg transition-colors">
                   Ver histórico
                 </button>
                 </Panel>
@@ -456,7 +456,7 @@ export function HallClient({ initialActivities, initialTasks, linkOptions, userN
         )}
 
         {activeTab === 'tarefas' && (
-          <div className="space-y-4">
+          <div className="space-y-3">
             {/* Resumo do topo — protagonista: Atrasadas (âmbar). Contagens de dados JÁ carregados (sem query
                 nova); a lista completa, filtros e "nova tarefa" seguem no TarefasClient abaixo, intacto. */}
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
@@ -470,7 +470,7 @@ export function HallClient({ initialActivities, initialTasks, linkOptions, userN
         )}
 
         {activeTab === 'relatorio' && (
-          <div className="max-w-5xl mx-auto px-4 sm:px-6 py-5">
+          <div className="max-w-5xl mx-auto px-4 sm:px-6 py-4">
             <ErrorBoundary>
               <RelatorioComercial />
             </ErrorBoundary>
