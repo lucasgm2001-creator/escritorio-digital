@@ -1,6 +1,7 @@
 // Preparação VISUAL das fontes de mídia (Meta/Google/TikTok/LinkedIn + Analytics + tracking).
-// Monogramas (sem ícones de marca) + chip "off" = não conectado. Zero integração/API. Reutilizável
-// (dashboard de Tráfego e, no futuro, aba Tráfego do cliente — mesmos componentes).
+// Monogramas (sem ícones de marca) + chip "Disponível" = pronta para conectar (nunca "off"/inacabado).
+// Zero integração/API. Reutilizável (dashboard de Tráfego e aba Tráfego do cliente — mesmos componentes).
+// Tokens do DS 2.0 (text-note/caption/label) — sem valor mágico.
 
 type Platform = { name: string; monogram: string; category: 'Ads' | 'Analytics' | 'Tracking' }
 
@@ -21,13 +22,13 @@ export function TrafficPlatformGrid() {
       {PLATFORMS.map(platform => (
         <div key={platform.name} className="bento-fx p-3 flex items-center gap-2.5">
           <div className="w-9 h-9 rounded-bento bg-bento-panel border border-bento-border flex items-center justify-center shrink-0">
-            <span className="font-tech text-[11px] font-bold text-bento-muted">{platform.monogram}</span>
+            <span className="font-tech text-caption font-bold text-bento-muted">{platform.monogram}</span>
           </div>
           <div className="min-w-0 flex-1">
-            <p className="text-[13px] font-medium text-bento-text truncate">{platform.name}</p>
-            <p className="text-[10px] text-bento-dim">{platform.category}</p>
+            <p className="text-note font-medium text-bento-text truncate">{platform.name}</p>
+            <p className="text-label text-bento-dim">{platform.category}</p>
           </div>
-          <span className="text-[9px] font-tech uppercase text-bento-dim border border-bento-border rounded-full px-1.5 py-0.5 shrink-0">off</span>
+          <span className="text-label font-tech uppercase text-bento-dim border border-bento-border rounded-full px-1.5 py-0.5 shrink-0">Disponível</span>
         </div>
       ))}
     </div>
