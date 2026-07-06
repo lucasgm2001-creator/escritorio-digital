@@ -47,10 +47,6 @@ function requireActiveTeamId(context: RequestContext): string {
   return context.activeTeamId
 }
 
-function round2(n: number): number {
-  return Math.round((n + Number.EPSILON) * 100) / 100
-}
-
 function normalizeCompensationSettings(
   settings: CompensationSettings,
 ): NormalizedCompensationRule {
@@ -92,7 +88,7 @@ function normalizeCompensationSettings(
  * Exige equipe ativa e so retorna a config se ela pertencer a essa equipe
  * (isolamento TEAM-001); caso contrario retorna null. Nao calcula comissao.
  */
-export async function getActiveSettingsForSeller(
+async function getActiveSettingsForSeller(
   context: RequestContext,
   sellerId: string,
   date: string,
@@ -121,22 +117,4 @@ export async function resolveCompensationRule(
   if (!settings) return null
 
   return normalizeCompensationSettings(settings)
-}
-
-/**
- * Previa PURA da comissao por contrato para um valor hipotetico.
- * percentage -> amount * value / 100 ; fixed -> value fixo ; desabilitada -> 0.
- * Nao usa dados reais, nao grava, nao substitui o calculo oficial.
- */
-export function calculateContractCommissionPreview(
-  settings: CompensationSettings,
-  amount: number,
-): number {
-  if (!settings.contract_commission_enabled) return 0
-  if (!Number.isFinite(amount)) return 0
-
-  const { contract_commission_type: type, contract_commission_value: value } = settings
-  const raw = type === 'percentage' ? (amount * value) / 100 : value
-
-  return round2(raw)
 }
