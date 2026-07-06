@@ -1,9 +1,9 @@
 import 'server-only'
 
 import type { RequestContext } from '@/server/context/request-context'
-import { getExecutiveMetrics } from '@/server/services/ExecutiveMetricsService'
-import { getClientRevenueForMetrics, getExecutiveClients } from '@/server/repositories/CommercialMetricsRepository'
-import { receivedRevenueBetween, receivedRevenueByForma, type PaymentRowWithClient } from '@/core/metrics/revenue'
+import { composeExecutiveMetrics } from '@/server/services/ExecutiveMetricsService'
+import { getCommercialRaw, getClientRevenueForMetrics, getExecutiveClients } from '@/server/repositories/CommercialMetricsRepository'
+import { receivedRevenueBetween, receivedRevenueByForma, clientsWithLatePay, type PaymentRowWithClient } from '@/core/metrics/revenue'
 import { clientScheduleStatus, clientChargesBetween, type ChargeState } from '@/lib/commercial/schedule'
 import { rangeFor } from '@/lib/period'
 
@@ -58,17 +58,21 @@ export async function getFinancialView(context: RequestContext): Promise<Financi
   if (!teamId) return EMPTY
 
   const now = new Date()
-  const mStart = ymd(new Date(now.getFullYear(), now.getMonth(), 1))
-  const mEnd = ymd(new Date(now.getFullYear(), now.getMonth() + 1, 0))
+  const mRange = rangeFor('mes')
+  const mStart = ymd(mRange.start)
+  const mEnd = ymd(mRange.end)
   const wk = rangeFor('semana')
   const today = spToday()
   const staleDay = ymd(new Date(Date.now() - 9 * 86_400_000))   // pagamento semanal: gap > 9 dias = atraso
 
-  const [exec, revenue, carteira] = await Promise.all([
-    getExecutiveMetrics(context, 'mes'),   // FONTE ÚNICA dos KPIs núcleo
-    getClientRevenueForMetrics(),          // client_payments (+ numero_semana)
+  // Carrega UMA vez e compõe o VM executivo aqui (sem chamar getExecutiveMetrics, que recarregaria payments/
+  // clients) — mesma FONTE ÚNICA, sem dupla-carga. Os KPIs núcleo saem idênticos ao Hall/Dashboard.
+  const [raw, revenue, carteira] = await Promise.all([
+    getCommercialRaw(teamId),
+    getClientRevenueForMetrics(),          // client_payments (+ numero_semana, plano_id)
     getExecutiveClients(teamId),           // clients (+ forma_pagamento, name)
   ])
+  const exec = composeExecutiveMetrics(raw, revenue, carteira, mStart, mEnd, mRange.label)
   const payments = revenue.payments as PaymentRowWithClient[]
 
   // Receita por forma de pagamento (mês) + receita semanal — mesmos primitivos da receita por vendedor/plano.
@@ -85,21 +89,16 @@ export async function getFinancialView(context: RequestContext): Promise<Financi
     evolucaoMensal.push({ label: `${MONTHS[d.getMonth()]}/${String(d.getFullYear()).slice(2)}`, value: receivedRevenueBetween(payments, s, e) })
   }
 
-  // Régua de cobrança: semanas pagas (numero_semana) + última data de pagamento por cliente.
+  // Régua de cobrança: semanas pagas (numero_semana) por cliente.
   const paidNumsByClient = new Map<string, Set<number>>()
-  const lastPaidByClient = new Map<string, string>()
   for (const p of payments) {
     if (p.anulado) continue
     if (typeof p.numero_semana === 'number' && p.client_id) {
       const set = paidNumsByClient.get(p.client_id) ?? new Set<number>()
       set.add(p.numero_semana); paidNumsByClient.set(p.client_id, set)
     }
-    if (p.client_id && p.paid_on) {
-      const prev = lastPaidByClient.get(p.client_id)
-      if (!prev || p.paid_on > prev) lastPaidByClient.set(p.client_id, p.paid_on)
-    }
   }
-  const clientesEmAtraso = Array.from(lastPaidByClient.values()).filter(last => last < staleDay).length
+  const clientesEmAtraso = clientsWithLatePay(payments, staleDay)   // FONTE ÚNICA (mesma do Hall)
 
   const chargeAgg = new Map<ChargeState, { count: number; valor: number }>()
   let recebimentosPendentesUsd = 0
@@ -117,7 +116,7 @@ export async function getFinancialView(context: RequestContext): Promise<Financi
     }
   }
   proximos.sort((a, b) => a.dueYMD.localeCompare(b.dueYMD))
-  const cobrancasPorEstado = (['prevista', 'aguardando', 'recebida', 'atrasada'] as ChargeState[])
+  const cobrancasPorEstado = (['prevista', 'aguardando', 'recebida', 'atrasada', 'cancelada'] as ChargeState[])
     .map(s => ({ state: s, count: chargeAgg.get(s)?.count ?? 0, valor: round2(chargeAgg.get(s)?.valor ?? 0) }))
 
   return {

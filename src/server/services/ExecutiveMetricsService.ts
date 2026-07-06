@@ -66,19 +66,26 @@ export async function getExecutiveMetrics(context: RequestContext, period: Execu
     getClientRevenueForMetrics(),       // client_payments (receita recebida / por vendedor / por plano)
     getExecutiveClients(teamId),        // clients + plans (MRR/ARR / ativos / novos / previsão / dimensões)
   ])
+  return composeExecutiveMetrics(raw, revenue, carteira, from, to, label)
+}
 
-  // Mapas de dimensão (client_id → vendedor / nome do plano) a partir da carteira rica.
+// Tipos das leituras já existentes (sem novo import) — a composição é PURA e reutilizável sem recarregar.
+type ExecRaw = Awaited<ReturnType<typeof getCommercialRaw>>
+type ExecRevenue = Awaited<ReturnType<typeof getClientRevenueForMetrics>>
+type ExecCarteira = Awaited<ReturnType<typeof getExecutiveClients>>
+
+// Composição PURA do VM executivo a partir dos dados JÁ carregados (raw/revenue/carteira). FONTE ÚNICA da
+// matemática executiva — o FinancialService e o DashboardService chamam ISTO com os MESMOS dados que já leram,
+// eliminando a dupla-carga de client_payments/clients (perf) sem divergir os números.
+export function composeExecutiveMetrics(raw: ExecRaw, revenue: ExecRevenue, carteira: ExecCarteira, from: string, to: string, label: string): ExecutiveMetricsVM {
   const planName = new Map(carteira.plans.map(p => [p.id, p.nome]))
   const clientToSeller = new Map(carteira.clients.map(c => [c.id, c.assigned_name || 'Sem responsável']))
   const clientToPlanId = new Map<string, string | null>(carteira.clients.map(c => [c.id, c.plano_id]))
   const payments = revenue.payments as PaymentRowWithClient[]
-
   // Conversão do PERÍODO: leads que CHEGARAM no intervalo — ESTRITO por received_at (nunca created_at).
   const periodLeads = raw.leads.filter(l => { const d = (l.received_at ?? '').slice(0, 10); return !!d && d >= from && d <= to })
-
   const mrrValue = calcMrr(carteira.clients)
   const valorFechado = closedValue(raw.deals, from, to)
-
   return {
     periodLabel: label, from, to,
     receitaRecebida: receivedRevenueBetween(payments, from, to),

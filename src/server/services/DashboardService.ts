@@ -3,7 +3,10 @@ import 'server-only'
 import { createClient } from '@/lib/supabase/server'
 import type { RequestContext } from '@/server/context/request-context'
 import { can } from '@/lib/permissions/can'
-import { getExecutiveMetrics } from '@/server/services/ExecutiveMetricsService'
+import { composeExecutiveMetrics } from '@/server/services/ExecutiveMetricsService'
+import { getCommercialRaw, getClientRevenueForMetrics, getExecutiveClients } from '@/server/repositories/CommercialMetricsRepository'
+import { clientsWithLatePay, type PaymentRowWithClient } from '@/core/metrics/revenue'
+import { rangeFor } from '@/lib/period'
 
 // Cockpit operacional do Hall (DASHBOARD-REAL-001 → EXECUTIVE-METRICS-003). Os KPIs executivos vêm da FONTE
 // ÚNICA (ExecutiveMetricsService) — exatamente os mesmos números do Dashboard Executivo, sem getCommercialDashboard
@@ -28,6 +31,7 @@ export const EMPTY_DASHBOARD: DashboardData = {
 
 const TERMINAL = new Set(['fechado', 'perdido', 'lixeira'])
 const usd = (n: number): string => `US$ ${Math.round(n).toLocaleString('en-US')}`
+const ymd = (d: Date): string => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 
 export async function getDashboardData(context: RequestContext): Promise<DashboardData> {
   const teamId = context.activeTeamId
@@ -38,32 +42,30 @@ export async function getDashboardData(context: RequestContext): Promise<Dashboa
   const staleDay = new Date(now.getTime() - 9 * 86_400_000).toISOString().slice(0, 10)   // pagamento semanal: gap > 9 dias
   const canManage = can(context, 'teams', 'manage')
 
-  const [exec, openLeadsRes, integrationsOnRes, integrationsOffRes, paymentsRes, openTasksRes, invitesRes] = await Promise.all([
-    getExecutiveMetrics(context, 'mes'),   // FONTE ÚNICA: receita/valor fechado/MRR/ARR/conversão/ticket/clientes/por vendedor/plano
+  // Carrega UMA vez (mesma fonte do Dashboard) e compõe os KPIs aqui — sem chamar getExecutiveMetrics (que
+  // recarregaria payments/clients). client_payments deixa de ser lido 2× no Hall. Números idênticos.
+  const mRange = rangeFor('mes')
+  const [raw, revenue, carteira, openLeadsRes, integrationsOnRes, integrationsOffRes, openTasksRes, invitesRes] = await Promise.all([
+    getCommercialRaw(teamId),
+    getClientRevenueForMetrics(),
+    getExecutiveClients(teamId),
     supabase.from('leads').select('id, name, status, next_contact, last_contact_at').eq('team_id', teamId).limit(500),
     supabase.from('client_integrations').select('id', { count: 'exact', head: true }).eq('team_id', teamId).eq('ativo', true),
     supabase.from('client_integrations').select('id', { count: 'exact', head: true }).eq('team_id', teamId).eq('ativo', false),
-    supabase.from('client_payments').select('client_id, paid_on, anulado').eq('team_id', teamId),
     supabase.from('tasks').select('id', { count: 'exact', head: true }).eq('team_id', teamId).eq('done', false),
     canManage
       ? supabase.from('team_invites').select('id, used_at, expires_at').eq('team_id', teamId)
       : Promise.resolve({ data: [] as { id: string; used_at: string | null; expires_at: string | null }[] }),
   ])
+  const exec = composeExecutiveMetrics(raw, revenue, carteira, ymd(mRange.start), ymd(mRange.end), mRange.label)
 
   // ── Prioridades: leads aguardando contato (follow-up vencido OU nunca contatado), fora dos terminais ──
   const openLeads = (openLeadsRes.data ?? []) as { id: string; name: string; status: string; next_contact: string | null; last_contact_at: string | null }[]
   const awaiting = openLeads.filter(l =>
     !TERMINAL.has(l.status) && ((l.next_contact != null && l.next_contact <= today) || l.last_contact_at == null))
 
-  // ── Operacional: clientes com pagamento em atraso (gap > 9 dias) — última data de pagamento por cliente ──
-  const payRows = (paymentsRes.data ?? []) as { client_id: string | null; paid_on: string | null; anulado: boolean | null }[]
-  const lastPayByClient = new Map<string, string>()
-  for (const p of payRows) {
-    if (p.anulado || !p.client_id || !p.paid_on) continue
-    const prev = lastPayByClient.get(p.client_id)
-    if (!prev || p.paid_on > prev) lastPayByClient.set(p.client_id, p.paid_on)
-  }
-  const clientesEmAtraso = Array.from(lastPayByClient.values()).filter(last => last < staleDay).length
+  // ── Operacional: clientes com pagamento em atraso (gap > 9 dias) — FONTE ÚNICA (mesma do Financeiro) ──
+  const clientesEmAtraso = clientsWithLatePay(revenue.payments as PaymentRowWithClient[], staleDay)
 
   const integrationsOn = integrationsOnRes.count ?? 0
   const integrationsOff = integrationsOffRes.count ?? 0

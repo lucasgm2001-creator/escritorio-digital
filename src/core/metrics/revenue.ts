@@ -23,6 +23,17 @@ export function receivedRevenueBetween(payments: PaymentRow[], fromYMD: string, 
 const round2 = (n: number): number => Math.round((n + Number.EPSILON) * 100) / 100
 export type PaymentRowWithClient = PaymentRow & { client_id: string; numero_semana?: number; plano_id?: string | null }
 
+/** Clientes em ATRASO = último pagamento (não anulado) anterior a staleDayYMD. FONTE ÚNICA (Hall + Financeiro). */
+export function clientsWithLatePay(payments: PaymentRowWithClient[], staleDayYMD: string): number {
+  const lastByClient = new Map<string, string>()
+  for (const p of payments) {
+    if (p.anulado || !p.client_id || !p.paid_on) continue
+    const prev = lastByClient.get(p.client_id)
+    if (!prev || p.paid_on > prev) lastByClient.set(p.client_id, p.paid_on)
+  }
+  return Array.from(lastByClient.values()).filter(last => last < staleDayYMD).length
+}
+
 // Agrupa receita recebida (não anulada, no período) por uma dimensão do cliente (vendedor/plano). FONTE ÚNICA
 // da quebra — antes vivia inline no CommercialMetricsService.bySeller. `dim` mapeia client_id → rótulo.
 function receivedRevenueByDimension(

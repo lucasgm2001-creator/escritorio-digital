@@ -27,7 +27,9 @@ export function clientScheduleStatus(c: ScheduleClient, paidNums: Set<number>, t
 // ── Estado de cada COBRANÇA (OPERATION-CRM-002, Part 4 — Stripe-ready) ──
 // Hoje o estado é DERIVADO do cronograma (dueDateFor) + registro em client_payments. Quando o Stripe entrar,
 // só troca a origem do estado (webhook paid/upcoming/failed → estes mesmos 4 estados) — sem retrabalho.
-export type ChargeState = 'prevista' | 'aguardando' | 'recebida' | 'atrasada'
+// 'cancelada' já FAZ PARTE do contrato (preparação Stripe): hoje a derivação nunca a produz (não há origem de
+// cancelamento); quando o Stripe entrar, o webhook (canceled/void) preenche este estado — sem mudar o tipo.
+export type ChargeState = 'prevista' | 'aguardando' | 'recebida' | 'atrasada' | 'cancelada'
 export type Charge = { numeroSemana: number; dueYMD: string; valor: number; state: ChargeState }
 
 const ATRASO_GRACE_DAYS = 9 // mesma régua do "cliente em atraso" (gap > 9 dias)
