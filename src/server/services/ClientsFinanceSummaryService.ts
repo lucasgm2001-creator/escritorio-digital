@@ -4,6 +4,8 @@ import type { RequestContext } from '@/server/context/request-context'
 import { createClient } from '@/lib/supabase/server'
 import { dueDateFor } from '@/lib/commission/actions'
 import { toPaymentPeriods, type PaymentPeriod } from '@/lib/commercial/payment-periods'
+import { todaySP, dowOfYmd } from '@/lib/date'
+import { receivedRevenue } from '@/core/metrics/revenue'
 
 // Resumo financeiro de TODOS os clientes da equipe numa passada (PRODUCT-SPRINT-003, Parte 5). Reusa a MESMA
 // regra de vencimento (dueDateFor) do ClientFinanceService/cron e o MESMO agrupador (toPaymentPeriods) — sem
@@ -18,8 +20,7 @@ export type ClientFinanceSummary = {
   periods: PaymentPeriod[]      // histórico já agrupado (semana × mês) — mais recente primeiro
 }
 
-const spToday = (): string => new Date().toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' })
-const dowOfYmd = (ymd: string): number => { const [y, m, d] = ymd.split('-').map(Number); return new Date(Date.UTC(y, m - 1, d)).getUTCDay() }
+// todaySP + dowOfYmd — fonte única @/lib/date.
 
 export async function getClientsFinanceSummary(context: RequestContext): Promise<Record<string, ClientFinanceSummary>> {
   const teamId = context.activeTeamId
@@ -37,13 +38,13 @@ export async function getClientsFinanceSummary(context: RequestContext): Promise
     byClient.set(p.client_id, arr)
   }
 
-  const today = spToday()
+  const today = todaySP()
   const out: Record<string, ClientFinanceSummary> = {}
   for (const c of clientsRes.data ?? []) {
     const list = byClient.get(c.id) ?? []
     const active = list.filter(p => !p.anulado)
     const periodicidade = (c.periodicidade === 'mensal' ? 'mensal' : 'semanal') as 'semanal' | 'mensal'
-    const totalRecebido = active.reduce((s, p) => s + p.valorUsd, 0)
+    const totalRecebido = receivedRevenue(list.map(p => ({ valor_usd: p.valorUsd, paid_on: p.paidOn, anulado: p.anulado })))
     const paidNums = new Set(active.map(p => p.numeroSemana))
     const ultimoPagamento = active.map(p => p.paidOn).filter((d): d is string => !!d).sort().pop() ?? null
 

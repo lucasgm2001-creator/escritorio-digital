@@ -4,6 +4,8 @@ import type { RequestContext } from '@/server/context/request-context'
 import { getClientWorkspace } from './ClientWorkspaceService'
 import { getClientPaymentsByClient } from '@/server/repositories/ClientRepository'
 import { dueDateFor } from '@/lib/commission/actions'
+import { todaySP, dowOfYmd } from '@/lib/date'
+import { receivedRevenue } from '@/core/metrics/revenue'
 
 // Financeiro do Cliente (CLIENT-003). LÊ a receita real (client_payments) e DERIVA as métricas —
 // sem alterar nenhuma regra financeira: reusa o helper canônico dueDateFor (mesmo do agendador/cron).
@@ -23,10 +25,7 @@ export type ClientFinanceVM = {
   payments: ClientFinancePayment[]  // ordenadas por número de semana (asc)
 }
 
-// "Hoje" na convenção do agendador (Brasília, YYYY-MM-DD) e dia-da-semana civil de um YMD — mesmas
-// primitivas de data de commission/actions.ts (a REGRA de vencimento continua no dueDateFor importado).
-const spToday = (): string => new Date().toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' })
-const dowOfYmd = (ymd: string): number => { const [y, m, d] = ymd.split('-').map(Number); return new Date(Date.UTC(y, m - 1, d)).getUTCDay() }
+// "Hoje" (Brasília) e dia-da-semana civil vêm da fonte única @/lib/date; a REGRA de vencimento é o dueDateFor.
 
 export async function getClientFinance(context: RequestContext, clientId: string): Promise<ClientFinanceVM | null> {
   const client = await getClientWorkspace(clientId) // team-scoped (TEAM-001) + cache por request
@@ -38,7 +37,7 @@ export async function getClientFinance(context: RequestContext, clientId: string
     .sort((a, b) => a.numeroSemana - b.numeroSemana)
 
   const active = payments.filter(p => !p.anulado)
-  const totalRecebido = active.reduce((sum, p) => sum + p.valorUsd, 0)
+  const totalRecebido = receivedRevenue(payments.map(p => ({ valor_usd: p.valorUsd, paid_on: p.paidOn, anulado: p.anulado })))
   const semanasPagas = active.length
   const paidNums = new Set(active.map(p => p.numeroSemana))
 
@@ -49,7 +48,7 @@ export async function getClientFinance(context: RequestContext, clientId: string
   const start = client.start_date ? String(client.start_date).slice(0, 10) : null
   if (start && client.status === 'ativo') {
     const dia = client.dia_pagamento_semana ?? dowOfYmd(start)
-    const today = spToday()
+    const today = todaySP()
     // Semanas VENCIDAS até hoje = maior n cujo vencimento (dueDateFor) já passou (datas monotônicas).
     let dueCount = 0
     for (let n = 1; n <= 520; n++) { if (dueDateFor(start, dia, n) <= today) dueCount = n; else break }

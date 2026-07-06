@@ -39,18 +39,18 @@ export type ExecutiveMetricsVM = {
 }
 
 // View-model da aba Métricas (CRM-RC-002). Tudo calculado no CommercialMetricsService — a UI só apresenta.
-// convRate/convReuniao em taxa 0..1 (a UI formata). Valores em USD (moeda base atual).
+// conversao em % (0..100, MESMA fonte do Hall/Dashboard); convReuniao em taxa 0..1. Valores em USD.
 export type CommercialMetricsTabVM = {
   periodLabel: string
   kpis: {
     recebidos: number
-    fechados: number
-    convRate: number      // 0..1
+    fechados: number      // contratos fechados (deals) no período — base do Valor Fechado/Ticket
+    conversao: number     // % (0..100) — funnelConversionPct, MESMA definição do Hall/Dashboard
     pipeline: number
     avgTicket: number
-    closedValue: number
+    closedValue: number   // Valor Fechado (deals) no período — não é dinheiro recebido
   }
-  convReuniao: number     // 0..1
+  convReuniao: number     // 0..1 (marco reunião→venda; métrica de funil distinta da Conversão)
   reuniaoBase: number
   fechouBase: number
   funnel: { key: string; count: number; value: number }[]       // ordem de ALL_COLUMNS (estado atual)

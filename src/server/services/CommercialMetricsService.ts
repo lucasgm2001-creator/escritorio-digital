@@ -6,17 +6,21 @@ import {
   getCommercialRaw, getLeadMilestonesForMetrics, getClientRevenueForMetrics,
 } from '@/server/repositories/CommercialMetricsRepository'
 import { rangeFor, type Mode } from '@/lib/period'
-import { ymd } from '@/lib/format'
+import { ymd } from '@/lib/date'
+import { funnelConversionPct } from '@/lib/funnelMetrics'
+import { closedValue, closedCount, averageTicket } from '@/core/metrics/sales'
+import { receivedRevenueBySeller, type PaymentRowWithClient } from '@/core/metrics/revenue'
 import { ALL_COLUMNS } from '@/app/(dashboard)/comercial/types'
 
-// KPIs da aba Métricas (CRM-RC-002). MESMA lógica que a UI fazia — apenas movida para a camada correta
-// (ARCH-001, TEAM-001). Período resolvido no servidor via rangeFor(mode); fontes: leads (team-scoped) +
-// lead_milestones + client_payments (RLS). Nada é recalculado na tela.
+// KPIs da aba Métricas (CRM-RC-002 → SPRINT-FINAL-001). Conversão/Ticket/Valor Fechado/Receita-por-vendedor
+// vêm dos MESMOS primitivos do Hall/Dashboard/Financeiro (funnelConversionPct + core/metrics sales/revenue) —
+// FONTE ÚNICA, sem definição própria. Funil/temperatura/pipeline/reunião→venda seguem por lead/marco (detalhe
+// operacional da aba). Período via rangeFor(mode); team-scoped (ARCH-001/TEAM-001). Nada é recalculado na tela.
 const isTerminal = (s: string | null): boolean => s === 'fechado' || s === 'perdido' || s === 'lixeira'
 
 export const EMPTY_METRICS_TAB: CommercialMetricsTabVM = {
   periodLabel: '—',
-  kpis: { recebidos: 0, fechados: 0, convRate: 0, pipeline: 0, avgTicket: 0, closedValue: 0 },
+  kpis: { recebidos: 0, fechados: 0, conversao: 0, pipeline: 0, avgTicket: 0, closedValue: 0 },
   convReuniao: 0, reuniaoBase: 0, fechouBase: 0,
   funnel: ALL_COLUMNS.map(c => ({ key: c.key, count: 0, value: 0 })), maxCount: 1,
   stageValues: [], maxStageValue: 1,
@@ -50,14 +54,19 @@ export async function getCommercialMetricsTab(context: RequestContext, mode: Mod
   const recebidos = recebidosLeads.length
   const pipeline = recebidosLeads.filter(l => !isTerminal(l.status)).reduce((acc, l) => acc + (l.value || 0), 0)
 
+  // Reunião→Venda continua por marco (lead_milestones) — métrica de FUNIL, distinta e rotulada à parte.
   const ms = milestones.filter(x => inRange(x.achieved_on))
   const fechouIds = new Set(ms.filter(x => x.marco === 'fechou').map(x => x.lead_id))
   const reuniaoIds = new Set(ms.filter(x => x.marco === 'reuniao').map(x => x.lead_id))
-  const fechados = fechouIds.size
-  const closedValue = leads.filter(l => fechouIds.has(l.id)).reduce((acc, l) => acc + (l.value || 0), 0)
-  const avgTicket = fechados > 0 ? closedValue / fechados : 0
-  const convRate = recebidos > 0 ? fechados / recebidos : 0
   const convReuniao = reuniaoIds.size > 0 ? fechouIds.size / reuniaoIds.size : 0
+
+  // FONTE ÚNICA (idêntico a Hall/Dashboard/Financeiro/PDF): Valor Fechado/Ticket = deals; Conversão =
+  // funnelConversionPct dos leads que CHEGARAM no período (received_at). A aba não recalcula nada próprio.
+  const periodLeadsStrict = allLeads.filter(l => { const d = (l.received_at ?? '').slice(0, 10); return !!d && d >= startYMD && d <= endYMD })
+  const valorFechado = closedValue(raw.deals, startYMD, endYMD)
+  const fechados = closedCount(raw.deals, startYMD, endYMD)
+  const avgTicket = averageTicket(valorFechado, fechados)
+  const conversao = funnelConversionPct(periodLeadsStrict)
 
   // ---- Estado ATUAL do funil (snapshot, sem período; usa TODOS os leads p/ bater com a aba Funil) ----
   const total = allLeads.length
@@ -77,24 +86,14 @@ export async function getCommercialMetricsTab(context: RequestContext, mode: Mod
   const stageValues = funnel.filter(x => x.count > 0)
   const maxStageValue = Math.max(...stageValues.map(x => x.value), 1)
 
-  // ---- Receita por vendedor (período, por paid_on; agrupa por clients.assigned_name) ----
+  // ---- Receita por vendedor (período) — FONTE ÚNICA (mesmo primitivo do Financeiro/Dashboard/PDF) ----
   const sellerOf = new Map<string, string>(revenue.clients.map(c => [c.id, c.assigned_name || 'Sem responsável']))
-  const agg: Record<string, { name: string; value: number; clients: Set<string> }> = {}
-  for (const p of revenue.payments) {
-    if (p.anulado) continue
-    const d = (p.paid_on ?? '').slice(0, 10)
-    if (d < startYMD || d > endYMD) continue
-    const name = sellerOf.get(p.client_id) ?? 'Sem responsável'
-    if (!agg[name]) agg[name] = { name, value: 0, clients: new Set() }
-    agg[name].value += Number(p.valor_usd) || 0
-    agg[name].clients.add(p.client_id)
-  }
-  const bySeller = Object.values(agg).map(x => ({ name: x.name, value: x.value, count: x.clients.size })).sort((a, b) => b.value - a.value)
+  const bySeller = receivedRevenueBySeller(revenue.payments as PaymentRowWithClient[], sellerOf, startYMD, endYMD)
   const maxSellerValue = Math.max(...bySeller.map(x => x.value), 1)
 
   return {
     periodLabel: range.label,
-    kpis: { recebidos, fechados, convRate, pipeline, avgTicket, closedValue },
+    kpis: { recebidos, fechados, conversao, pipeline, avgTicket, closedValue: valorFechado },
     convReuniao, reuniaoBase: reuniaoIds.size, fechouBase: fechouIds.size,
     funnel, maxCount, stageValues, maxStageValue,
     bySeller, maxSellerValue,

@@ -30,7 +30,7 @@ export function MetricasTab() {
   const KPIS: { label: string; value: string; sub: string; tone: MetricTone }[] = vm ? [
     { label: 'Recebidos',         value: String(vm.kpis.recebidos), sub: 'novos no período',                                       tone: 'default' },
     { label: 'Fechados',          value: String(vm.kpis.fechados),  sub: 'no período',                                             tone: 'positive' },
-    { label: 'Taxa de Conversão', value: pctFmt(vm.kpis.convRate),  sub: `${vm.kpis.fechados} de ${vm.kpis.recebidos} recebidos`,  tone: 'emerald' },
+    { label: 'Taxa de Conversão', value: `${Math.round(vm.kpis.conversao)}%`, sub: 'leads que viraram cliente',                          tone: 'emerald' },
     { label: 'Pipeline',          value: fmt(vm.kpis.pipeline),     sub: 'ativos criados no período',                              tone: 'default' },
     { label: 'Ticket Médio',      value: fmt(vm.kpis.avgTicket),    sub: 'vendas no período',                                      tone: 'blue' },
     { label: 'Receita Fechada',   value: fmt(vm.kpis.closedValue),  sub: `${vm.kpis.fechados} no período`,                         tone: 'positive' },
