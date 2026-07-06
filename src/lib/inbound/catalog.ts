@@ -1,4 +1,4 @@
-import type { InboundProvider, InboundCategory } from './types'
+import type { InboundProvider } from './types'
 
 // Catálogo ESTÁTICO dos providers de ENTRADA (INBOUND-001, Part 2). Só metadados — nada conecta, nada
 // recebe. Cada provider declara nome, categoria, descrição, autenticação futura, tipo de payload,
@@ -82,11 +82,3 @@ export const INBOUND_PROVIDERS: InboundProvider[] = [
     allowsTest: true, allowsReplay: true, status: 'awaiting_provider',
   },
 ]
-
-export function inboundProvidersByCategory(categories: InboundCategory[]): InboundProvider[] {
-  return INBOUND_PROVIDERS.filter(p => categories.includes(p.category))
-}
-
-export function getInboundProvider(key: string): InboundProvider | undefined {
-  return INBOUND_PROVIDERS.find(p => p.key === key)
-}

@@ -52,7 +52,7 @@ export type CustomerBillingProfile = {
 export type PaymentWebhookEvent = {
   id: string
   provider: PaymentProviderType
-  type: string           // ver billing/events (PaymentEventType)
+  type: string           // tipo do evento de pagamento do provider (ex.: invoice.paid, charge.failed)
   receivedAt: string     // ISO
   payload: unknown
 }

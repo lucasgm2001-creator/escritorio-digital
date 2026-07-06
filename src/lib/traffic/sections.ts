@@ -36,7 +36,3 @@ export const TRAFFIC_SECTIONS: DomainSection[] = [
   { key: 'configuracoes', group: 'plataforma', label: 'Configurações', href: '/trafego/configuracoes', icon: SlidersHorizontal,
     tagline: 'Preferências do módulo.', objetivo: 'Conta padrão, moeda, atribuição e sincronização.', proximaEtapa: 'Definir os padrões da equipe.' },
 ]
-
-export function getTrafficSection(key: string): DomainSection | undefined {
-  return TRAFFIC_SECTIONS.find(section => section.key === key)
-}
