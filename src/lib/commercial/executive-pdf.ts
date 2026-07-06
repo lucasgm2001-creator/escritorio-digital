@@ -32,11 +32,11 @@ export async function buildExecutivePdf(input: {
   let y = 0
   const ensure = (needed: number) => { if (y + needed > 278) { doc.addPage(); y = 22 } }
   const heading = (title: string) => {
-    ensure(16)
-    doc.setFont('helvetica', 'bold'); doc.setFontSize(11); doc.setTextColor(...DARK)
+    ensure(18)
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(11.5); doc.setTextColor(...DARK)
     doc.text(title, L, y)
-    doc.setDrawColor(...GREEN); doc.setLineWidth(0.4); doc.line(L, y + 1.5, L + 16, y + 1.5)
-    y += 7
+    doc.setDrawColor(...GREEN); doc.setLineWidth(0.5); doc.line(L, y + 2, L + 18, y + 2)
+    y += 9   // mais respiro entre o título e o conteúdo da seção
   }
 
   // ══════════════ PÁGINA 1 — Resumo executivo + KPIs principais ══════════════
@@ -56,8 +56,8 @@ export async function buildExecutivePdf(input: {
     `Receita recebida ${usd(exec.receitaRecebida)} · valor fechado ${usd(exec.valorFechado)} · prevista ${usd(exec.receitaPrevista)} · ticket médio ${usd(exec.ticketMedio)}.`,
     `Carteira: MRR ${usd(exec.mrr)} · ARR ${usd(exec.arr)} · ${exec.clientesAtivos} clientes ativos · ${exec.clientesNovos} novos no período.`,
   ]
-  for (const line of summary) { ensure(6); doc.text(line, L, y, { maxWidth: R - L }); y += 6 }
-  y += 3
+  for (const line of summary) { ensure(7); doc.text(line, L, y, { maxWidth: R - L }); y += 6.5 }
+  y += 5
 
   heading('KPIs principais')
   const kpis: [string, string][] = [
@@ -72,7 +72,7 @@ export async function buildExecutivePdf(input: {
     kpiRows.push(chunk.flatMap(([kk, v]) => [kk, v]).concat(Array(6 - chunk.length * 2).fill('')))
   }
   autoTable(doc, {
-    startY: y, body: kpiRows, theme: 'grid', styles: { fontSize: 8.5, cellPadding: 2.4 },
+    startY: y, body: kpiRows, theme: 'grid', styles: { fontSize: 9, cellPadding: 3.2 },
     columnStyles: {
       0: { textColor: GREY }, 1: { fontStyle: 'bold', textColor: DARK },
       2: { textColor: GREY }, 3: { fontStyle: 'bold', textColor: DARK },
