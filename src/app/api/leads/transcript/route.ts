@@ -65,14 +65,17 @@ export async function POST(req: Request) {
     const supabase = createServiceClient()
 
     // 4) Achar o lead por email OU phone (mesma lógica do /api/leads/inbound). NÃO cria lead.
+    // BUGFIX team_id: o webhook não tem sessão; a interação tem de herdar a equipe DONA do lead (senão nasce
+    // órfã, team_id null, e some do histórico sob RLS). Por isso lemos também o team_id do lead casado.
     let leadId: string | null = null
+    let leadTeamId: string | null = null
     if (email) {
-      const { data } = await supabase.from('leads').select('id').eq('email', email).is('deleted_at', null).limit(1)
-      if (data && data.length) leadId = data[0].id as string
+      const { data } = await supabase.from('leads').select('id, team_id').eq('email', email).is('deleted_at', null).limit(1)
+      if (data && data.length) { leadId = data[0].id as string; leadTeamId = (data[0].team_id as string | null) ?? null }
     }
     if (!leadId && phone) {
-      const { data } = await supabase.from('leads').select('id').eq('phone', phone).is('deleted_at', null).limit(1)
-      if (data && data.length) leadId = data[0].id as string
+      const { data } = await supabase.from('leads').select('id, team_id').eq('phone', phone).is('deleted_at', null).limit(1)
+      if (data && data.length) { leadId = data[0].id as string; leadTeamId = (data[0].team_id as string | null) ?? null }
     }
     if (!leadId) {
       console.log('[leads/transcript] nenhum lead encontrado', { hasEmail: !!email, hasPhone: !!phone })
@@ -100,7 +103,7 @@ export async function POST(req: Request) {
     // 7) Insere no histórico de contato. score_delta default 0, created_by null (sem sessão).
     const { data, error } = await supabase
       .from('lead_interactions')
-      .insert({ lead_id: leadId, type: 'ligacao', note, created_by_name: 'Magnetic' })
+      .insert({ lead_id: leadId, type: 'ligacao', note, created_by_name: 'Magnetic', ...(leadTeamId ? { team_id: leadTeamId } : {}) })
       .select('id')
       .single()
 

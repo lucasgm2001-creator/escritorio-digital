@@ -42,7 +42,7 @@ export async function GET(req: Request) {
 
   // Clientes ATIVOS com dia de pagamento definido. dia null → pular; end_date passou → pular.
   const { data: clients, error } = await supabase.from('clients')
-    .select('id, name, assigned_name, status, start_date, end_date, dia_pagamento_semana')
+    .select('id, name, assigned_name, status, start_date, end_date, dia_pagamento_semana, team_id')
     .eq('status', 'ativo').is('deleted_at', null)   // SOFT-DELETE: nunca cobra cliente excluído (service-role ignora RLS)
   if (error) return NextResponse.json({ ok: false, error: error.message }, { status: 500 })
 
@@ -77,7 +77,9 @@ export async function GET(req: Request) {
   // Execução real (idempotente) — payDueWeeks faz a conta de receita + comissão.
   const results: { client: string; marked: number[]; reason: string }[] = []
   for (const c of eligible) {
-    const { marked, reason } = await payDueWeeks(supabase as Parameters<typeof payDueWeeks>[0], c.id, rate)
+    // BUGFIX team_id: sem sessão (cron/service-role) o trigger set_team_id_default não resolve a equipe no
+    // multi-tenant → pagamento/comissão nasciam órfãos (team_id null) e sumiam da receita. Carimba explícito.
+    const { marked, reason } = await payDueWeeks(supabase as Parameters<typeof payDueWeeks>[0], c.id, rate, 12, c.team_id)
     if (marked.length) results.push({ client: c.name as string, marked, reason })
   }
   const totalMarked = results.reduce((s, r) => s + r.marked.length, 0)

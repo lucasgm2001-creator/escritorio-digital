@@ -22,6 +22,9 @@ export const runtime = 'nodejs'
 const ASSIGNED_TO = '623dd724-ddeb-426c-956a-4c71f6653fa5'
 const ASSIGNED_NAME = 'Lucas'
 const RAW_MAX = 64 * 1024
+// TENANCY do webhook (sem sessão → service-role): MESMA resolução do /api/leads/inbound. Sem isto, o lead e o
+// stage_event criados no fallback nasciam órfãos (team_id null) e sumiam do funil sob multi-tenant. Default DR Growth.
+const INBOUND_TEAM_ID = process.env.INBOUND_TEAM_ID ?? '7cf9b5d3-e42f-48d7-bfdf-575736e72827'
 
 // Compara o segredo em tempo constante (sha256 = buffers do mesmo tamanho). Nunca loga o segredo.
 function secretOk(req: Request): boolean {
@@ -166,6 +169,7 @@ export async function POST(req: Request) {
         assigned_to: ASSIGNED_TO,
         assigned_name: ASSIGNED_NAME,
         raw_payload: rawCapped,
+        team_id: INBOUND_TEAM_ID,   // BUGFIX team_id: webhook sem sessão nunca cria lead órfão (multi-tenant)
         ...(fuso ? { fuso } : {}),
       })
       .select('id')
@@ -184,7 +188,7 @@ export async function POST(req: Request) {
       leadId: ins.id, leadName: name || 'Sem nome',
       fromStage: null, toStage: 'novo',
       sellerId: null, sellerName: ASSIGNED_NAME,
-    })
+    }, INBOUND_TEAM_ID)
 
     return NextResponse.json({ ok: true, action: 'created', leadId: ins.id })
   } catch (e) {

@@ -15,6 +15,9 @@ const SEV = new Set(['critico', 'alta', 'media'])
 const MAX_AGE_DAYS = 10   // descarta no insert o que for mais antigo que isso
 const PURGE_AGE_DAYS = 30 // apaga do banco o que passar disso
 const AI_TIMEOUT_MS = 40_000 // guard: aborta a IA ANTES do limite estrutural de 60s da função (margem p/ retornar 504 controlado)
+// TENANCY: news é team-scoped (RLS). Sem sessão (cron/service-role) o trigger não resolve a equipe no multi-tenant
+// → feed nasceria órfão (team_id null) e sumiria do Hall. Carimba a equipe operante — MESMO default do inbound.
+const INBOUND_TEAM_ID = process.env.INBOUND_TEAM_ID ?? '7cf9b5d3-e42f-48d7-bfdf-575736e72827'
 
 // Comparação em tempo constante (sha256 → buffers de mesmo tamanho; não vaza comprimento).
 function secretsMatch(a: string, b: string): boolean {
@@ -136,7 +139,7 @@ export async function POST(req: Request) {
     const toInsert = batch.filter(n => !n.fonte_url || !existing.has(n.fonte_url))
     if (toInsert.length === 0) return NextResponse.json({ ok: true, inserted: 0 })
 
-    const { error } = await supabase.from('news').insert(toInsert)
+    const { error } = await supabase.from('news').insert(toInsert.map(n => ({ ...n, team_id: INBOUND_TEAM_ID })))
     if (error) return NextResponse.json({ ok: false, error: error.message }, { status: 500 })
 
     // Limpeza: notícia pública velha pode sair — a tabela não acumula velharia.
