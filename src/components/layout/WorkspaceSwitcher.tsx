@@ -117,7 +117,7 @@ export function WorkspaceSwitcher({ userName, userEmail, avatarUrl, teams }: {
                   <input autoFocus value={teamName} onChange={e => setTeamName(e.target.value)}
                     onKeyDown={e => { if (e.key === 'Enter') onCreate(); if (e.key === 'Escape') { setCreating(false); setTeamName('') } }}
                     disabled={pending} placeholder="Nome da nova equipe"
-                    className="w-full bg-bento-bg border border-bento-border rounded-btn px-2.5 min-h-[38px] text-sm text-bento-text placeholder:text-bento-muted focus:outline-none focus:border-lime disabled:opacity-50" />
+                    className="w-full bg-bento-bg border border-bento-border rounded-btn px-2.5 min-h-[40px] text-sm text-bento-text placeholder:text-bento-muted focus:outline-none focus:border-lime disabled:opacity-50" />
                   <div className="flex items-center gap-2">
                     <button type="button" onClick={onCreate} disabled={pending || teamName.trim().length < 2}
                       className="bento-btn flex-1 inline-flex items-center justify-center gap-1.5 px-3 min-h-[36px] rounded-btn text-xs font-semibold disabled:opacity-50">

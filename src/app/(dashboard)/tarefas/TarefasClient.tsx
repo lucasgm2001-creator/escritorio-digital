@@ -614,7 +614,7 @@ export function TarefasClient({ tasks, setTasks, deletedIds, linkOptions, curren
               { id: 'concluidas', label: 'Concluídas', count: doneWeek.length },
             ] as { id: MobileChip; label: string; count: number; dot?: string }[]).map(c => (
               <button key={c.id} type="button" onClick={() => setMobileChip(c.id)}
-                className={cn('flex items-center gap-1.5 shrink-0 rounded-full border px-3 min-h-[38px] text-xs font-medium transition-colors',
+                className={cn('flex items-center gap-1.5 shrink-0 rounded-full border px-3 min-h-[40px] text-xs font-medium transition-colors',
                   mobileChip === c.id ? 'bg-lime/15 border-lime/50 text-lime-fg' : 'border-bento-border bg-bento-panel text-bento-dim')}>
                 {c.dot && <span className={cn('w-1.5 h-1.5 rounded-full flex-none', c.dot)} />}
                 {c.label}

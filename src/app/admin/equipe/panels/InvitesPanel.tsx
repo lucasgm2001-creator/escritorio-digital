@@ -88,15 +88,15 @@ export function InvitesPanel({ invites: initial, teamName }: { invites: Workspac
         {tone === 'active' && (
           <div className="flex items-center gap-2 shrink-0 flex-wrap">
             <button type="button" onClick={() => copyInvite(inv)} disabled={!inv.token}
-              className="inline-flex items-center gap-1.5 px-3 min-h-[38px] rounded-btn border border-bento-border text-bento-text text-xs hover:border-lime disabled:opacity-50">
+              className="inline-flex items-center gap-1.5 px-3 min-h-[40px] rounded-btn border border-bento-border text-bento-text text-xs hover:border-lime disabled:opacity-50">
               <Copy className="w-3.5 h-3.5" /> Copiar convite
             </button>
             <button type="button" onClick={() => inv.token && copy(inv.token, 'Código')} disabled={!inv.token}
-              className="inline-flex items-center gap-1.5 px-3 min-h-[38px] rounded-btn border border-bento-border text-bento-dim text-xs hover:text-bento-text disabled:opacity-50">
+              className="inline-flex items-center gap-1.5 px-3 min-h-[40px] rounded-btn border border-bento-border text-bento-dim text-xs hover:text-bento-text disabled:opacity-50">
               <Hash className="w-3.5 h-3.5" /> Copiar código
             </button>
             <button type="button" onClick={() => revoke(inv.id)} disabled={busyId === inv.id || pending}
-              className="inline-flex items-center gap-1.5 px-3 min-h-[38px] rounded-btn border border-bento-border text-bento-dim text-xs hover:border-red-400/60 hover:text-red-400 disabled:opacity-50">
+              className="inline-flex items-center gap-1.5 px-3 min-h-[40px] rounded-btn border border-bento-border text-bento-dim text-xs hover:border-red-400/60 hover:text-red-400 disabled:opacity-50">
               <XCircle className="w-3.5 h-3.5" /> Cancelar
             </button>
           </div>

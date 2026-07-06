@@ -51,7 +51,7 @@ export function OnboardingClient({ userEmail }: { userEmail: string | null }) {
           </p>
           <form action={signOut} className="shrink-0">
             <button type="submit"
-              className="inline-flex items-center gap-1.5 px-3 min-h-[38px] rounded-btn text-xs font-medium border border-bento-border text-bento-dim hover:text-bento-text hover:border-bento-dim transition-colors">
+              className="inline-flex items-center gap-1.5 px-3 min-h-[40px] rounded-btn text-xs font-medium border border-bento-border text-bento-dim hover:text-bento-text hover:border-bento-dim transition-colors">
               <LogOut className="w-3.5 h-3.5" /> Sair / trocar de conta
             </button>
           </form>
