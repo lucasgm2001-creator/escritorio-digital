@@ -1,8 +1,5 @@
-// Fonte única de formatação (moeda + data). Consolida cópias que viviam espalhadas
-// em ~9 componentes. Os formatos de saída são EXATAMENTE os que já existiam — é
-// refactor, não mudança de formato.
-
-const pad = (n: number) => String(n).padStart(2, '0')
+// Fonte única de formatação de MOEDA. Consolida cópias que viviam espalhadas em ~9 componentes.
+// (Os helpers de DATA — ymd/ddmm — migraram para a fonte única de datas em `@/lib/date`.)
 
 // US$ compacto com abreviação M/k (cards do funil, métricas). Zero → "US$ 0".
 export function usdCompact(val: number): string {
@@ -15,7 +12,3 @@ export function usdCompact(val: number): string {
 // US$ / R$ com 2 casas (comissões, equipe).
 export const usd = (n: number) => `US$ ${n.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 export const brl = (n: number) => `R$ ${n.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-
-// Data local (Brasília no browser) → strings.
-export const ymd = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
-export const ddmm = (d: Date) => `${pad(d.getDate())}/${pad(d.getMonth() + 1)}`

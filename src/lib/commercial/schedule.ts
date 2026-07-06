@@ -1,4 +1,5 @@
 import { dueDateFor } from '@/lib/commission/actions'
+import { dowOfYmd, addDaysYmd } from '@/lib/date'
 
 // Régua de cobrança do cliente — MESMA regra do agendador/cron (dueDateFor). Deriva as semanas VENCIDAS sem
 // registro + a PRÓXIMA cobrança futura. Reusa a fonte canônica de vencimento (nada de reimplementar a data).
@@ -7,13 +8,11 @@ import { dueDateFor } from '@/lib/commission/actions'
 export type ScheduleClient = { start_date: string | null; dia_pagamento_semana: number | null; plan_weekly: number | null; status: string | null }
 export type ScheduleStatus = { valorSemanal: number; semanasVencidas: number; proximaCobranca: string | null }
 
-const dow = (ymd: string): number => { const [y, m, d] = ymd.split('-').map(Number); return new Date(Date.UTC(y, m - 1, d)).getUTCDay() }
-
 export function clientScheduleStatus(c: ScheduleClient, paidNums: Set<number>, todayYMD: string): ScheduleStatus {
   const valorSemanal = Number(c.plan_weekly) || 0
   if (c.status !== 'ativo' || !c.start_date) return { valorSemanal, semanasVencidas: 0, proximaCobranca: null }
   const start = String(c.start_date).slice(0, 10)
-  const dia = c.dia_pagamento_semana ?? dow(start)
+  const dia = c.dia_pagamento_semana ?? dowOfYmd(start)
   // Semanas vencidas até hoje (vencimentos monotônicos) e quantas NÃO têm registro ativo (pendentes).
   let dueCount = 0
   for (let n = 1; n <= 520; n++) { if (dueDateFor(start, dia, n) <= todayYMD) dueCount = n; else break }
@@ -33,11 +32,6 @@ export type ChargeState = 'prevista' | 'aguardando' | 'recebida' | 'atrasada' | 
 export type Charge = { numeroSemana: number; dueYMD: string; valor: number; state: ChargeState }
 
 const ATRASO_GRACE_DAYS = 9 // mesma régua do "cliente em atraso" (gap > 9 dias)
-const minusDays = (ymd: string, days: number): string => {
-  const [y, m, d] = ymd.split('-').map(Number)
-  const dt = new Date(Date.UTC(y, m - 1, d)); dt.setUTCDate(dt.getUTCDate() - days)
-  return dt.toISOString().slice(0, 10)
-}
 
 // Cobranças do cliente com vencimento em [fromYMD, toYMD], cada uma com seu estado:
 //  recebida = tem pagamento · prevista = ainda vai vencer · aguardando = venceu há ≤9d sem pagar ·
@@ -46,8 +40,8 @@ export function clientChargesBetween(c: ScheduleClient, paidNums: Set<number>, t
   const valor = Number(c.plan_weekly) || 0
   if (c.status !== 'ativo' || !c.start_date || valor <= 0) return []
   const start = String(c.start_date).slice(0, 10)
-  const dia = c.dia_pagamento_semana ?? dow(start)
-  const graceCutoff = minusDays(todayYMD, ATRASO_GRACE_DAYS)
+  const dia = c.dia_pagamento_semana ?? dowOfYmd(start)
+  const graceCutoff = addDaysYmd(todayYMD, -ATRASO_GRACE_DAYS)
   const out: Charge[] = []
   for (let n = 1; n <= 520; n++) {
     const due = dueDateFor(start, dia, n)

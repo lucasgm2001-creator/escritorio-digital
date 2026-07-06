@@ -14,7 +14,7 @@ import { type LeadStatus } from '../comercial/types'
 import { loadStages } from '@/lib/funnelStages'
 import { payWeek, payWeekMessage, registerMeeting } from '@/lib/commission/actions'
 import { markMilestones } from '@/lib/leadMilestones'
-import { ymd } from '@/lib/format'
+import { ymd } from '@/lib/date'
 
 interface Message {
   id: string

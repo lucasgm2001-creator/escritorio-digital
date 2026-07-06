@@ -2,7 +2,8 @@ import { generateText, tool, jsonSchema } from 'ai'
 import { anthropic } from '@ai-sdk/anthropic'
 import type { createClient } from '@/lib/supabase/server'
 import { nextUnpaidWeek } from '@/lib/commission/actions'
-import { ymd, usd } from '@/lib/format'
+import { usd } from '@/lib/format'
+import { ymd } from '@/lib/date'
 import { wonSlug, type FunnelStage } from '@/lib/funnelStages'
 
 // Client supabase do REQUEST atual (server, ligado à sessão/cookies correntes).

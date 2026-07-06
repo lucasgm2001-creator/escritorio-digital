@@ -7,6 +7,7 @@ import { composeExecutiveMetrics } from '@/server/services/ExecutiveMetricsServi
 import { getCommercialRaw, getClientRevenueForMetrics, getExecutiveClients } from '@/server/repositories/CommercialMetricsRepository'
 import { clientsWithLatePay, type PaymentRowWithClient } from '@/core/metrics/revenue'
 import { rangeFor } from '@/lib/period'
+import { ymd } from '@/lib/date'
 
 // Cockpit operacional do Hall (DASHBOARD-REAL-001 → EXECUTIVE-METRICS-003). Os KPIs executivos vêm da FONTE
 // ÚNICA (ExecutiveMetricsService) — exatamente os mesmos números do Dashboard Executivo, sem getCommercialDashboard
@@ -31,7 +32,6 @@ export const EMPTY_DASHBOARD: DashboardData = {
 
 const TERMINAL = new Set(['fechado', 'perdido', 'lixeira'])
 const usd = (n: number): string => `US$ ${Math.round(n).toLocaleString('en-US')}`
-const ymd = (d: Date): string => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 
 export async function getDashboardData(context: RequestContext): Promise<DashboardData> {
   const teamId = context.activeTeamId

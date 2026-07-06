@@ -6,6 +6,7 @@ import { getCommercialRaw, getClientRevenueForMetrics, getExecutiveClients } fro
 import { receivedRevenueBetween, receivedRevenueByForma, clientsWithLatePay, type PaymentRowWithClient } from '@/core/metrics/revenue'
 import { clientScheduleStatus, clientChargesBetween, type ChargeState } from '@/lib/commercial/schedule'
 import { rangeFor } from '@/lib/period'
+import { ymd, todaySP } from '@/lib/date'
 
 // Visão Financeira executiva team-level (EXECUTIVE-METRICS-005). NÃO é motor novo: os KPIs núcleo vêm de
 // getExecutiveMetrics (fonte única — mesmos números de Hall/Dashboard/Relatórios/PDF) e as dimensões
@@ -41,9 +42,6 @@ export type FinancialViewVM = {
 }
 
 const MONTHS = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez']
-const pad2 = (n: number): string => (n < 10 ? `0${n}` : `${n}`)
-const ymd = (d: Date): string => `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`
-const spToday = (): string => new Date().toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' })
 const round2 = (n: number): number => Math.round((n + Number.EPSILON) * 100) / 100
 
 const EMPTY: FinancialViewVM = {
@@ -62,7 +60,7 @@ export async function getFinancialView(context: RequestContext): Promise<Financi
   const mStart = ymd(mRange.start)
   const mEnd = ymd(mRange.end)
   const wk = rangeFor('semana')
-  const today = spToday()
+  const today = todaySP()
   const staleDay = ymd(new Date(Date.now() - 9 * 86_400_000))   // pagamento semanal: gap > 9 dias = atraso
 
   // Carrega UMA vez e compõe o VM executivo aqui (sem chamar getExecutiveMetrics, que recarregaria payments/

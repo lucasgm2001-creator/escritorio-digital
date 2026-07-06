@@ -1,6 +1,7 @@
 import type { createClient } from '@/lib/supabase/client'
 import { weeklyCommissionUsd, hasCommissionPct, LEGACY_VPS_USD, DEFAULT_TETO_SEMANAS } from '@/lib/commission/planCommission'
 import { meetingCommissionCounts } from '@/lib/commission/constants'
+import { todaySP as spToday, dowOfYmd, addDaysYmd } from '@/lib/date'
 
 type SupaClient = ReturnType<typeof createClient>
 
@@ -149,12 +150,7 @@ export async function payClientWeek(
 }
 
 // ── Date-gating do auto: marca SÓ as semanas cuja DATA REAL de vencimento já chegou ──
-const spToday = () => new Date().toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' }) // YYYY-MM-DD (Brasília)
-const dowOfYmd = (ymd: string) => { const [y, m, d] = ymd.split('-').map(Number); return new Date(Date.UTC(y, m - 1, d)).getUTCDay() } // 0=Dom..6=Sáb (data civil, sem fuso)
-const addDaysYmd = (ymd: string, days: number) => {
-  const [y, m, d] = ymd.split('-').map(Number)
-  return new Date(Date.UTC(y, m - 1, d) + days * 86400000).toISOString().slice(0, 10)
-}
+// spToday/dowOfYmd/addDaysYmd — fonte única @/lib/date (importados acima; dueDateFor os usa).
 // due_date(n) = n-ésima ocorrência do dia de pagamento a partir do start_date (semana 1 = 1º pagamento; +7/sem).
 export function dueDateFor(startYmd: string, diaPagamento: number, n: number): string {
   const offset = (((diaPagamento - dowOfYmd(startYmd)) % 7) + 7) % 7

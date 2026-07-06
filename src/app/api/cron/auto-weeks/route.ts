@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase/service'
 import { payDueWeeks, dueDateFor, resolveClientPlan } from '@/lib/commission/actions'
+import { todaySP } from '@/lib/date'
 
 // Robô diário: marca as semanas de RECEITA VENCIDAS de cada cliente ativo, reusando payDueWeeks
 // (receita em client_payments + comissão derivada via payWeek — teto 4, sem duplicar, sem recriar
@@ -8,8 +9,6 @@ import { payDueWeeks, dueDateFor, resolveClientPlan } from '@/lib/commission/act
 // ?dryRun=1 retorna o que ELA INSERIRIA hoje, SEM gravar nada (auditoria).
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
-
-const spToday = () => new Date().toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' }) // YYYY-MM-DD (Brasília)
 
 export async function GET(req: Request) {
   // Auth: Vercel Cron envia Authorization: Bearer ${CRON_SECRET}. Sem secret válido → 401.
@@ -20,7 +19,7 @@ export async function GET(req: Request) {
 
   const dryRun = new URL(req.url).searchParams.get('dryRun') === '1'
   const supabase = createServiceClient()
-  const today = spToday()
+  const today = todaySP()
 
   // Cotação efetiva = MESMA regra do /api/fx (sem forçar fetch): travada+manual → manual; senão a
   // referência automática armazenada → manual. Só snapshot p/ BRL (não muda o USD).

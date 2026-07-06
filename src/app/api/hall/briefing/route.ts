@@ -5,6 +5,7 @@ import { getRequestContext } from '@/server/context/request-context'
 import { checkRateLimit } from '@/lib/rate-limit'
 import { createServiceClient } from '@/lib/supabase/service'
 import { aiErrorMessage } from '@/lib/aiError'
+import { dayBR } from '@/lib/date'
 
 // Briefing matinal do Hall (resumo do dia). SÓ LEITURA: lê tarefas/leads/reuniões/atividades já
 // salvos e pede à IA (mesmo cliente/modelo do /api/leads/briefing) um resumo curto. NÃO recalcula
@@ -34,7 +35,7 @@ export async function POST() {
   if (!activeTeamId) return NextResponse.json({ ok: true, briefing: 'Bom dia. Configure sua equipe para ver o briefing.' })
   const now = new Date()
   // Data civil de Brasília (mesma convenção do resto do app).
-  const todayYMD = now.toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' })
+  const todayYMD = dayBR(now)
   const fiveDaysAgoISO = new Date(now.getTime() - 5 * DAY_MS).toISOString()
 
   try {

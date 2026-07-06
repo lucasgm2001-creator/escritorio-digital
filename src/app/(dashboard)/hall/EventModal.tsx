@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { createCalendarEventAction } from './calendar-actions'
-import { dayBR } from './dateBR'
+import { dayBR } from '@/lib/date'
 import { type CalendarEvent, EVENT_TYPE_LABELS, bentoInput } from './calendarShared'
 import { useDialog } from '@/components/ui/useDialog'
 import { Portal } from '@/components/ui/Portal'

@@ -6,7 +6,7 @@ import { useToast } from '@/components/ui/toast'
 import { cn } from '@/lib/utils'
 import { CalendarDays } from 'lucide-react'
 import type { Task } from '../tarefas/types'
-import { dayBR } from './dateBR'
+import { dayBR } from '@/lib/date'
 import {
   type CalendarEvent, type CalendarView, EVENT_TYPE_LABELS, MONTH_NAMES, MONTH_ABBR,
   getWeekDays, getMonthDays, getHourSlots,

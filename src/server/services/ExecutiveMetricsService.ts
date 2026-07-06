@@ -9,6 +9,7 @@ import { funnelConversionPct } from '@/lib/funnelMetrics'
 import { receivedRevenueBetween, receivedRevenueBySeller, receivedRevenueByPlan, type PaymentRowWithClient } from '@/core/metrics/revenue'
 import { mrr as calcMrr, arr as calcArr, activeClientsCount, newClientsCount, mrrByPlan } from '@/core/metrics/portfolio'
 import { closedValue, closedCount, averageTicket } from '@/core/metrics/sales'
+import { ymd, todaySP, dowOfYmd } from '@/lib/date'
 
 // ExecutiveMetricsService — CAMADA ÚNICA de leitura executiva (EXECUTIVE-METRICS-001, Parte 1). Todo dashboard,
 // Hall, Financeiro, Relatórios, PDF, Administração e IA consomem ESTE serviço. Ele NÃO reimplementa nada:
@@ -16,10 +17,7 @@ import { closedValue, closedCount, averageTicket } from '@/core/metrics/sales'
 // e os primitivos PUROS de core/metrics (revenue/portfolio/sales) + funnelConversionPct + o cronograma canônico
 // dueDateFor. Definições oficiais e consumidores em core/metrics/registry.ts. Team-scoped (TEAM-001).
 
-const pad2 = (n: number): number | string => (n < 10 ? `0${n}` : n)
-const ymd = (d: Date): string => `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`
-const spToday = (): string => new Date().toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' })
-const dowOfYmd = (s: string): number => { const [y, m, d] = s.split('-').map(Number); return new Date(Date.UTC(y, m - 1, d)).getUTCDay() }
+// pad2/ymd/todaySP/dowOfYmd — fonte única em @/lib/date.
 
 const EMPTY = (label: string, from: string, to: string): ExecutiveMetricsVM => ({
   periodLabel: label, from, to,
@@ -90,7 +88,7 @@ export function composeExecutiveMetrics(raw: ExecRaw, revenue: ExecRevenue, cart
     periodLabel: label, from, to,
     receitaRecebida: receivedRevenueBetween(payments, from, to),
     valorFechado,
-    receitaPrevista: forecastRevenue(carteira.clients, spToday(), to),
+    receitaPrevista: forecastRevenue(carteira.clients, todaySP(), to),
     mrr: mrrValue,
     arr: calcArr(mrrValue),
     ticketMedio: averageTicket(valorFechado, closedCount(raw.deals, from, to)),

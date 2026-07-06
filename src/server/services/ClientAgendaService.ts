@@ -3,6 +3,7 @@ import 'server-only'
 import type { RequestContext } from '@/server/context/request-context'
 import { getClientWorkspace } from './ClientWorkspaceService'
 import { getLeadIdForClient, getMeetingsByLead } from '@/server/repositories/ClientRepository'
+import { todaySP, addDaysYmd } from '@/lib/date'
 
 // Agenda REAL do cliente (CLIENT-005). Usa as reuniões do LEAD de origem (meetings.lead_id), resolvido via
 // deals. Sem Google Calendar/Outlook — só dados internos. Isolamento por equipe via getClientWorkspace.
@@ -14,11 +15,7 @@ export type ClientAgendaVM = {
 }
 
 const EMPTY: ClientAgendaVM = { counts: { hoje: 0, estaSemana: 0, proximos30: 0, concluidas: 0 }, proximas: [], concluidas: [] }
-const spToday = (): string => new Date().toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' })
-const addDays = (ymd: string, days: number): string => {
-  const [y, m, d] = ymd.split('-').map(Number)
-  return new Date(Date.UTC(y, m - 1, d) + days * 86_400_000).toISOString().slice(0, 10)
-}
+// todaySP + addDaysYmd — fonte única @/lib/date.
 
 export async function getClientAgenda(context: RequestContext, clientId: string): Promise<ClientAgendaVM> {
   const client = await getClientWorkspace(clientId) // team-scoped (TEAM-001)
@@ -27,9 +24,9 @@ export async function getClientAgenda(context: RequestContext, clientId: string)
   if (!leadId) return EMPTY
   const meetings = await getMeetingsByLead(leadId)
 
-  const today = spToday()
-  const in7 = addDays(today, 7)
-  const in30 = addDays(today, 30)
+  const today = todaySP()
+  const in7 = addDaysYmd(today, 7)
+  const in30 = addDaysYmd(today, 30)
 
   const dated = meetings
     .map(m => ({ id: m.id, note: m.note ?? null, metOn: m.met_on ? String(m.met_on).slice(0, 10) : null }))
