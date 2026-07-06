@@ -82,7 +82,7 @@ export function RelatorioComercial() {
     setPdfBusy(true); setError(null)
     try {
       const { buildExecutivePdf } = await import('@/lib/commercial/executive-pdf')
-      await buildExecutivePdf({ exec: res.exec, report: res.report, workspace: res.workspace, user: res.user })
+      await buildExecutivePdf({ exec: res.exec, execPrev: res.execPrev, report: res.report, workspace: res.workspace, user: res.user })
     } catch {
       setError('Não foi possível gerar o PDF.')
     } finally {
@@ -91,13 +91,18 @@ export function RelatorioComercial() {
   }
 
   const exec = res?.exec
+  const execPrev = res?.execPrev
   const k = res?.report.kpis
+  const cmp = res?.report.comparison ?? null
   const funnel = (res?.report.funnel ?? []).filter(f => f.count > 0)
   const insights = res?.report.insights ?? []
   const porVendedor = exec?.receitaPorVendedor ?? []
   const porPlano = exec?.receitaPorPlano ?? []
   const maxFunnel = Math.max(1, ...funnel.map(f => f.count))
   const dash = loading ? '—' : undefined
+  // Comparativo com o período anterior (Parte 4) — trend do MetricCard: "+N vs. anterior".
+  const trend = (curV: number, prevV: number | null | undefined, suffix = ''): { value: number; suffix?: string; label: string } | undefined =>
+    (loading || prevV == null) ? undefined : { value: Math.round(curV) - Math.round(prevV), suffix, label: 'vs. anterior' }
 
   return (
     <div className="space-y-5">
@@ -158,39 +163,60 @@ export function RelatorioComercial() {
 
       {error && <div className="bg-amber-900/20 border border-amber-800/40 rounded-btn px-4 py-3 text-xs text-amber-400">{error}</div>}
 
-      {/* Comercial (funil do período) — mesma fonte do PDF */}
+      {/* Funil do período (ACUMULATIVO) — alta prioridade. trend = Δ vs. período anterior de mesma duração. */}
       <section>
-        <SectionLabel>Comercial · {range.label}</SectionLabel>
+        <SectionLabel>Funil do período (acumulado) · {range.label}</SectionLabel>
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5">
-          <MetricCard title="Leads recebidos" value={dash ?? (k?.newLeads ?? 0)} size="sm" />
-          <MetricCard title="Interagiram" value={dash ?? (k?.interagiram ?? 0)} size="sm" />
-          <MetricCard title="Reuniões marcadas" value={dash ?? (k?.meetingsScheduled ?? 0)} size="sm" />
-          <MetricCard title="Propostas" value={dash ?? (k?.proposals ?? 0)} size="sm" />
-          <MetricCard title="Clientes fechados" value={dash ?? (k?.won ?? 0)} size="sm" tone="positive" />
+          <MetricCard title="Leads recebidos" value={dash ?? (k?.newLeads ?? 0)} size="sm" trend={trend(k?.newLeads ?? 0, cmp?.newLeads)} />
+          <MetricCard title="Interagiram" value={dash ?? (k?.interagiram ?? 0)} size="sm" trend={trend(k?.interagiram ?? 0, cmp?.interagiram)} />
+          <MetricCard title="Reuniões marcadas" value={dash ?? (k?.meetingsScheduled ?? 0)} size="sm" trend={trend(k?.meetingsScheduled ?? 0, cmp?.meetingsScheduled)} />
+          <MetricCard title="Propostas em análise" value={dash ?? (k?.proposals ?? 0)} size="sm" trend={trend(k?.proposals ?? 0, cmp?.proposals)} />
+          <MetricCard title="Vendas concluídas" value={dash ?? (k?.won ?? 0)} size="sm" tone="positive" trend={trend(k?.won ?? 0, cmp?.won)} />
         </div>
       </section>
 
-      {/* Receita (dinheiro recebido × previsto × contrato × recorrência) */}
+      {/* Secundárias do período (menores, baixa prioridade). */}
+      <section>
+        <SectionLabel>Secundárias · {range.label}</SectionLabel>
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5">
+          <MetricCard title="Não interagiram" value={dash ?? (k?.naoInteragiram ?? 0)} size="sm" tone="muted" />
+          <MetricCard title="No-show" value={dash ?? (k?.noShow ?? 0)} size="sm" tone="muted" />
+          <MetricCard title="Vendas perdidas" value={dash ?? (k?.lost ?? 0)} size="sm" tone="muted" />
+          <MetricCard title="Negócios futuros" value={dash ?? (k?.negociosFuturos ?? 0)} size="sm" tone="muted" />
+          <MetricCard title="Reagendamentos" value={dash ?? (k?.reagendamentos ?? 0)} size="sm" tone="muted" />
+        </div>
+      </section>
+
+      {/* Receita DO PERÍODO (dinheiro real da janela) — SEM carteira. trend = Δ vs. período anterior. */}
       <section>
         <SectionLabel>Receita · {range.label}</SectionLabel>
-        <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2.5">
-          <MetricCard title="Receita Recebida" value={dash ?? usd(exec?.receitaRecebida ?? 0)} size="sm" tone="emerald" />
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5">
+          <MetricCard title="Receita Recebida" value={dash ?? usd(exec?.receitaRecebida ?? 0)} size="sm" tone="emerald" trend={trend(exec?.receitaRecebida ?? 0, execPrev?.receitaRecebida)} />
           <MetricCard title="Receita Prevista" value={dash ?? usd(exec?.receitaPrevista ?? 0)} size="sm" />
           <MetricCard title="Valor Fechado" value={dash ?? usd(exec?.valorFechado ?? 0)} size="sm" />
-          <MetricCard title="MRR" value={dash ?? usd(exec?.mrr ?? 0)} size="sm" tone="positive" />
-          <MetricCard title="ARR" value={dash ?? usd(exec?.arr ?? 0)} size="sm" />
           <MetricCard title="Ticket Médio" value={dash ?? usd(exec?.ticketMedio ?? 0)} size="sm" />
-          <MetricCard title="Conversão" value={dash ?? `${Math.round(exec?.conversao ?? 0)}%`} size="sm" />
+          <MetricCard title="Conversão" value={dash ?? `${Math.round(exec?.conversao ?? 0)}%`} size="sm" trend={trend(exec?.conversao ?? 0, execPrev?.conversao, 'pp')} />
         </div>
       </section>
 
-      {/* Receita por vendedor / plano — só quando há receita */}
+      {/* Receita por vendedor / plano — DO PERÍODO (mesma fonte do PDF: clientes pagos na janela). */}
       {!loading && (porVendedor.length > 0 || porPlano.length > 0) && (
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          {porVendedor.length > 0 && <ListPanel title="Receita por vendedor" rows={porVendedor.map(s => ({ label: s.name, value: s.value, sub: `${s.count} cliente(s)` }))} />}
-          {porPlano.length > 0 && <ListPanel title="Receita por plano" rows={porPlano.map(p => ({ label: p.plan, value: p.value, sub: `${p.count} cliente(s)` }))} />}
+          {porVendedor.length > 0 && <ListPanel title={`Receita por vendedor · ${range.label}`} rows={porVendedor.map(s => ({ label: s.name, value: s.value, sub: `${s.count} cliente(s)` }))} />}
+          {porPlano.length > 0 && <ListPanel title={`Receita por plano · ${range.label}`} rows={porPlano.map(p => ({ label: p.plan, value: p.value, sub: `${p.count} cliente(s)` }))} />}
         </div>
       )}
+
+      {/* Carteira atual — SNAPSHOT (não é do período). Seção própria, menor, abaixo. */}
+      <section>
+        <SectionLabel>Carteira atual · snapshot (não é do período)</SectionLabel>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+          <MetricCard title="MRR" value={dash ?? usd(exec?.mrr ?? 0)} size="sm" tone="positive" />
+          <MetricCard title="ARR" value={dash ?? usd(exec?.arr ?? 0)} size="sm" />
+          <MetricCard title="Clientes ativos" value={dash ?? (exec?.clientesAtivos ?? 0)} size="sm" tone="muted" subtitle="carteira total" />
+          <MetricCard title="Clientes novos" value={dash ?? (exec?.clientesNovos ?? 0)} size="sm" subtitle="no período" />
+        </div>
+      </section>
 
       {/* Funil por etapa + gargalo — só quando há leads no funil */}
       {!loading && funnel.length > 0 && (
