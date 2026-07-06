@@ -259,6 +259,7 @@ export function HallClient({ initialActivities, initialTasks, linkOptions, userN
 
             {/* ══ PRIORIDADES DE HOJE ══ o que exige ação agora: pendentes + hoje + reuniões (dados JÁ carregados)
                 e leads aguardando contato (DashboardService). */}
+            <div className="space-y-2">
             <SectionLabel>Prioridades de hoje</SectionLabel>
             <p className="text-sm leading-relaxed">
               {tarefasAtrasadas.length > 0 ? (
@@ -274,6 +275,7 @@ export function HallClient({ initialActivities, initialTasks, linkOptions, userN
                 </span>
               )}
             </p>
+            </div>
 
             {hallCfg.blocks.tarefas && (
               <CollapsibleSection title="Tarefas de hoje" icon={CalendarDays} defaultOpen>
@@ -314,7 +316,7 @@ export function HallClient({ initialActivities, initialTasks, linkOptions, userN
                     {dashboard.leadsAwaiting.count === 1 ? 'lead aguardando contato' : 'leads aguardando contato'}
                   </p>
                   {dashboard.leadsAwaiting.sample.length > 0 && (
-                    <p className="text-[12px] text-bento-muted truncate">{dashboard.leadsAwaiting.sample.map(s => s.name).join(' · ')}</p>
+                    <p className="text-xs text-bento-muted truncate">{dashboard.leadsAwaiting.sample.map(s => s.name).join(' · ')}</p>
                   )}
                 </div>
                 <ArrowRight className="w-4 h-4 text-bento-dim shrink-0" />
@@ -371,8 +373,9 @@ export function HallClient({ initialActivities, initialTasks, linkOptions, userN
             )}
 
             {/* ══ ATIVIDADES RECENTES ══ movimentações reais (realtime). Secundário — colapsa no mobile. */}
-            {hallCfg.blocks.atividade && <SectionLabel>Atividades recentes</SectionLabel>}
             {hallCfg.blocks.atividade && (
+              <div className="space-y-2">
+              <SectionLabel>Atividades recentes</SectionLabel>
               <CollapsibleSection title="Atividades Recentes" icon={ActivityIcon}>
                 <Panel className="max-lg:p-3 lg:pb-4" headerClassName="max-lg:hidden" label="Atividades Recentes" action={<LiveDot />}>
                 <div className="space-y-0 divide-y divide-bento-border/60">
@@ -414,6 +417,7 @@ export function HallClient({ initialActivities, initialTasks, linkOptions, userN
                 </button>
                 </Panel>
               </CollapsibleSection>
+              </div>
             )}
 
             {/* ── Agenda (secundário) ── colapsada por padrão; completa (4 vistas + CRUD) ao expandir. */}
@@ -424,11 +428,13 @@ export function HallClient({ initialActivities, initialTasks, linkOptions, userN
             )}
 
             {/* ── Informações ── Notícias (secundário). */}
-            {hallCfg.blocks.noticias && <SectionLabel>Informações</SectionLabel>}
             {hallCfg.blocks.noticias && (
+              <div className="space-y-2">
+              <SectionLabel>Informações</SectionLabel>
               <CollapsibleSection title="Notícias do Setor" icon={Newspaper}>
                 <NewsSection />
               </CollapsibleSection>
+              </div>
             )}
           </>
         )}
@@ -437,11 +443,13 @@ export function HallClient({ initialActivities, initialTasks, linkOptions, userN
           <>
             {/* Contexto acima do mapa (Hall 2.0) — harmoniza com as seções da Visão Geral e evita que o mapa
                 pareça isolado. NÃO compete com o header do próprio LeadMap (nível de seção, não de título). */}
+            <div className="space-y-2">
             <SectionLabel>Distribuição geográfica</SectionLabel>
-            <p className="text-sm text-bento-muted -mt-1">
+            <p className="text-sm text-bento-muted">
               <strong className="font-semibold text-bento-text">{mapLeads.length}</strong> {mapLeads.length === 1 ? 'lead' : 'leads'}
               {' · '}<strong className="font-semibold text-bento-text">{mapClients.length}</strong> {mapClients.length === 1 ? 'cliente' : 'clientes'} da equipe, por estado (EUA).
             </p>
+            </div>
             {/* Mapa CHEIO — enche a LARGURA; a altura vem da proporção (height:auto do SVG). Sem altura
                 fixa (não letterboxa). Mobile: padding mínimo no card pra o mapa usar quase a tela toda. */}
             {/* Título ÚNICO: o header do LeadMap ("Mapa de Leads" + relógios). O Panel fica SEM label p/ não duplicar. */}
