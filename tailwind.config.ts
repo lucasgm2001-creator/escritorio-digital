@@ -102,6 +102,22 @@ const config: Config = {
         'glow-lg':   '0 0 40px rgba(182,255,59,0.40)',
         inner:       'inset 0 1px 0 rgba(255,255,255,0.06)',
       },
+      // ── DESIGN-SYSTEM-2.0 · tokens semânticos ADITIVOS (fim dos valores mágicos) ──
+      // NÃO alteram NADA existente: são novas utilidades (text-label, tracking-label, min-h-control…)
+      // para o /design-system e a migração futura. Escala oficial de texto pequeno + tracking + alturas.
+      fontSize: {
+        label:   ['10px', { lineHeight: '14px' }],   // rótulo CAPS (eyebrow de seção)
+        caption: ['11px', { lineHeight: '15px' }],   // legenda / meta
+        note:    ['13px', { lineHeight: '18px' }],   // texto pequeno de apoio
+      },
+      letterSpacing: {
+        label: '0.12em',   // tracking canônico do rótulo de seção
+      },
+      minHeight: {
+        'control-sm': '36px',   // chip / botão compacto
+        control:      '44px',   // input / botão / alvo de toque (padrão)
+        'control-lg': '52px',   // linha de nav / header
+      },
       backgroundImage: {
         'gradient-card':    'linear-gradient(135deg, #17231B 0%, #111A14 100%)',
         'gradient-sidebar': 'linear-gradient(180deg, #080D0A 0%, #0D140F 100%)',
