@@ -13,6 +13,12 @@ import type { ReportInsight } from '@/core/reporting/types'
 // ReportingService, funil/insights). Tela e PDF batem 1:1. Sem DashboardVM antigo, sem métrica all-time.
 
 const REPORT_MODES: [Mode, string][] = [['semana', 'Semana'], ['mes', 'Mês'], ['semestre', 'Semestre'], ['ano', 'Ano']]
+// Lembra a última escolha de período (preset) — SMART-WORKFLOW-001. Só UI/client (localStorage): sem
+// servidor/dado/regra. Valor ausente ou inválido cai no padrão seguro 'semana'. Janela custom não é lembrada.
+const PERIOD_KEY = 'ed:report-period'
+function rememberedMode(): Mode {
+  try { const m = localStorage.getItem(PERIOD_KEY); return REPORT_MODES.some(([v]) => v === m) ? (m as Mode) : 'semana' } catch { return 'semana' }
+}
 const usd = (n: number): string => `US$ ${Math.round(n).toLocaleString('en-US')}`
 const toYmd = (d: Date): string => { const p = (n: number) => String(n).padStart(2, '0'); return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}` }
 const fmtBR = (ymd: string): string => { const [y, m, d] = ymd.split('-'); return `${d}/${m}/${y}` }
@@ -46,7 +52,7 @@ function ListPanel({ title, rows }: { title: string; rows: { label: string; valu
 }
 
 export function RelatorioComercial() {
-  const [range, setRange] = useState<Range>(() => rangeFor('semana'))   // padrão: semana
+  const [range, setRange] = useState<Range>(() => rangeFor(rememberedMode()))   // padrão: última escolha (ou semana)
   const [res, setRes] = useState<Extract<ExecReportResult, { ok: true }> | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -56,7 +62,7 @@ export function RelatorioComercial() {
   const [customOpen, setCustomOpen] = useState(false)
   const [fromDate, setFromDate] = useState('')
   const [toDate, setToDate] = useState('')
-  const selectPreset = (m: Mode) => { setCustomOpen(false); setRange(rangeFor(m)) }
+  const selectPreset = (m: Mode) => { setCustomOpen(false); setRange(rangeFor(m)); try { localStorage.setItem(PERIOD_KEY, m) } catch { /* ignore */ } }
   const openCustom = () => { setFromDate(toYmd(range.start)); setToDate(toYmd(range.end)); setCustomOpen(true) }
   const customInvalid = !fromDate || !toDate || fromDate > toDate
   const applyCustom = () => {

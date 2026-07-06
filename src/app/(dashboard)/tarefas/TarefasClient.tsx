@@ -148,8 +148,10 @@ export function TarefasClient({ tasks, setTasks, deletedIds, linkOptions, curren
   const [summaryOpen, setSummaryOpen] = useState(false)
   // Erro de ação (concluir/excluir) — sem falha silenciosa
   const [actionError, setActionError] = useState('')
-  // Filtro por responsável (vendedor). 'todos' = sem filtro.
-  const [respFilter, setRespFilter] = useState<string>('todos')
+  // Filtro por responsável (vendedor). 'todos' = sem filtro. Lembra a última escolha (SMART-WORKFLOW-001).
+  const [respFilter, setRespFilter] = useState<string>(() => {
+    try { return localStorage.getItem('ed:tasks-resp') || 'todos' } catch { return 'todos' }
+  })
   const [sellers, setSellers] = useState<{ id: string; name: string }[]>([])
 
   const supabase = createClient()
@@ -177,6 +179,12 @@ export function TarefasClient({ tasks, setTasks, deletedIds, linkOptions, curren
     supabase.from('sellers').select('id, name').eq('status', 'ativo').order('name').then(({ data }) => setSellers((data ?? []) as { id: string; name: string }[]))
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+  // Lembra o último filtro de responsável (só UI/client) e descarta, após carregar, um vendedor que não
+  // exista mais na lista (cai em 'todos'). Sem servidor/dado/regra — só reduz cliques (SMART-WORKFLOW-001).
+  useEffect(() => { try { localStorage.setItem('ed:tasks-resp', respFilter) } catch { /* ignore */ } }, [respFilter])
+  useEffect(() => {
+    if (respFilter !== 'todos' && sellers.length > 0 && !sellers.some(s => s.id === respFilter)) setRespFilter('todos')
+  }, [sellers, respFilter])
   const phoneById = useMemo(() => {
     const m = new Map<string, string>()
     linkOptions.forEach(o => { if (o.phone) m.set(o.id, o.phone) })
