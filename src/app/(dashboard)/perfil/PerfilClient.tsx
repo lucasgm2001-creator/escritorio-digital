@@ -4,7 +4,7 @@ import { useState, useRef } from 'react'
 import Image from 'next/image'
 import { createClient } from '@/lib/supabase/client'
 import { updateOwnProfileAction } from './profile-actions'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Panel } from '@/components/bento/Panel'
 
 interface Props {
   userId: string
@@ -128,11 +128,8 @@ export function PerfilClient({ userId, email, initialName, initialPhone, cargos,
       </div>
 
       {/* Avatar section */}
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="text-sm">Foto de Perfil</CardTitle>
-        </CardHeader>
-        <CardContent>
+      <Panel className="p-6">
+        <h3 className="text-sm font-semibold leading-none tracking-tight text-bento-text mb-3">Foto de Perfil</h3>
           <div className="flex items-center gap-5">
             <div className="relative shrink-0">
               {avatarUrl ? (
@@ -167,15 +164,12 @@ export function PerfilClient({ userId, email, initialName, initialPhone, cargos,
               <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handleAvatarChange} />
             </div>
           </div>
-        </CardContent>
-      </Card>
+      </Panel>
 
       {/* Info section */}
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="text-sm">Informações Pessoais</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
+      <Panel className="p-6">
+        <h3 className="text-sm font-semibold leading-none tracking-tight text-bento-text mb-3">Informações Pessoais</h3>
+        <div className="space-y-4">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-xs font-medium text-muted-foreground mb-1.5">Nome *</label>
@@ -216,8 +210,8 @@ export function PerfilClient({ userId, email, initialName, initialPhone, cargos,
           >
             {saving ? 'Salvando...' : 'Salvar alterações'}
           </button>
-        </CardContent>
-      </Card>
+        </div>
+      </Panel>
     </div>
   )
 }

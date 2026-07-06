@@ -59,7 +59,7 @@ interface Props {
 function SectionLabel({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex items-center gap-3 pt-1">
-      <span className="font-tech text-[11px] uppercase tracking-[0.15em] text-bento-muted shrink-0">{children}</span>
+      <span className="font-tech text-caption uppercase tracking-label text-bento-muted shrink-0">{children}</span>
       <span className="h-px flex-1 bg-bento-border/50" aria-hidden />
     </div>
   )
@@ -212,7 +212,7 @@ export function HallClient({ initialActivities, initialTasks, linkOptions, userN
           const isActive = activeTab === tab.id
           return (
             <button key={tab.id} aria-pressed={isActive} onClick={() => setActiveTab(tab.id)}
-              className={cn('relative flex-1 min-w-0 flex items-center justify-center gap-1.5 px-1 sm:px-3 py-3 text-[11px] sm:text-sm font-medium whitespace-nowrap transition-colors',
+              className={cn('relative flex-1 min-w-0 flex items-center justify-center gap-1.5 px-1 sm:px-3 py-3 text-caption sm:text-sm font-medium whitespace-nowrap transition-colors',
                 isActive ? 'text-lime-fg' : 'text-bento-muted hover:text-bento-text')}>
               <span className="hidden sm:inline-flex shrink-0">{tab.icon}</span>
               {tab.label}
@@ -235,19 +235,19 @@ export function HallClient({ initialActivities, initialTasks, linkOptions, userN
               <div className="rounded-frame border border-amber-800/40 bg-amber-900/10 p-3 space-y-1.5">
                 <div className="flex items-center gap-2">
                   <AlertTriangle className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-                  <p className="font-tech text-[10px] uppercase tracking-[0.12em] text-amber-400">Alertas</p>
+                  <p className="font-tech text-label uppercase tracking-label text-amber-400">Alertas</p>
                 </div>
                 <ul className="space-y-1">
                   {dashboard.alerts.map((a, i) => (
                     <li key={i}>
                       {a.href ? (
                         <button type="button" onClick={() => router.push(a.href!)}
-                          className="w-full text-left flex items-center gap-2 text-[13px] text-bento-text hover:text-amber-300 transition-colors min-h-[32px]">
+                          className="w-full text-left flex items-center gap-2 text-note text-bento-text hover:text-amber-300 transition-colors min-h-[32px]">
                           <span className="w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0" />
                           <span className="min-w-0 truncate">{a.message}</span>
                         </button>
                       ) : (
-                        <span className="flex items-center gap-2 text-[13px] text-bento-text">
+                        <span className="flex items-center gap-2 text-note text-bento-text">
                           <span className="w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0" />{a.message}
                         </span>
                       )}
@@ -285,7 +285,7 @@ export function HallClient({ initialActivities, initialTasks, linkOptions, userN
                     ))}
                     {tarefasAtrasadas.length > 4 && (
                       <button type="button" onClick={() => router.push('/tarefas')}
-                        className="w-full text-left font-tech text-[11px] uppercase tracking-wide text-amber-400 hover:text-amber-300 transition-colors py-1">
+                        className="w-full text-left font-tech text-caption uppercase tracking-wide text-amber-400 hover:text-amber-300 transition-colors py-1">
                         +{tarefasAtrasadas.length - 4} pendentes — ver todas
                       </button>
                     )}
@@ -343,7 +343,7 @@ export function HallClient({ initialActivities, initialTasks, linkOptions, userN
                     <Panel className="max-lg:p-3" headerClassName="max-lg:hidden" label="Receita por vendedor">
                       <div className="space-y-1.5">
                         {dashboard.receitaPorVendedor.map(r => (
-                          <div key={r.label} className="flex items-center justify-between gap-2 text-[13px]">
+                          <div key={r.label} className="flex items-center justify-between gap-2 text-note">
                             <span className="text-bento-text truncate">{r.label} <span className="text-bento-dim">· {r.count} cliente(s)</span></span>
                             <span className="font-tech text-bento-text tabular-nums shrink-0">US$ {Math.round(r.value).toLocaleString('en-US')}</span>
                           </div>
@@ -358,7 +358,7 @@ export function HallClient({ initialActivities, initialTasks, linkOptions, userN
                     <Panel className="max-lg:p-3" headerClassName="max-lg:hidden" label="Receita por plano">
                       <div className="space-y-1.5">
                         {dashboard.receitaPorPlano.map(r => (
-                          <div key={r.label} className="flex items-center justify-between gap-2 text-[13px]">
+                          <div key={r.label} className="flex items-center justify-between gap-2 text-note">
                             <span className="text-bento-text truncate">{r.label} <span className="text-bento-dim">· {r.count} cliente(s)</span></span>
                             <span className="font-tech text-bento-text tabular-nums shrink-0">US$ {Math.round(r.value).toLocaleString('en-US')}</span>
                           </div>
@@ -404,12 +404,12 @@ export function HallClient({ initialActivities, initialTasks, linkOptions, userN
                 </div>
                 {activities.length > 3 && (
                   <button type="button" onClick={() => setActivitiesExpanded(v => !v)}
-                    className="font-tech text-[11px] uppercase tracking-wide text-lime-fg hover:text-lime transition-colors font-semibold mt-3 self-start">
+                    className="font-tech text-caption uppercase tracking-wide text-lime-fg hover:text-lime transition-colors font-semibold mt-3 self-start">
                     {activitiesExpanded ? 'Ver menos' : `Ver mais (${activities.length - 3})`}
                   </button>
                 )}
                 <button type="button" onClick={() => setShowHistory(true)}
-                  className="mt-3 pt-3 border-t border-bento-border/60 w-full text-center font-tech text-[11px] uppercase tracking-wide text-bento-muted hover:text-lime-fg transition-colors">
+                  className="mt-3 pt-3 border-t border-bento-border/60 w-full text-center font-tech text-caption uppercase tracking-wide text-bento-muted hover:text-lime-fg transition-colors">
                   Ver histórico
                 </button>
                 </Panel>

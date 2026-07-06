@@ -29,8 +29,8 @@ import { funnelConversionLabel } from '@/lib/funnelMetrics'
 import type { MapLead, MapClient } from '../comercial/mapTypes'
 
 // classes compartilhadas das seções
-const inputCls = 'w-full bg-bento-bg border border-bento-border rounded-btn px-3 py-2 text-sm text-bento-text placeholder:text-bento-muted focus:outline-none focus:border-lime min-h-[44px]'
-const actionBtnCls = 'flex items-center justify-center gap-2 bg-bento-bg border border-bento-border text-bento-text px-4 py-2 rounded-btn text-sm hover:border-lime transition-colors disabled:opacity-50 min-h-[44px]'
+const inputCls = 'w-full bg-bento-bg border border-bento-border rounded-btn px-3 py-2 text-sm text-bento-text placeholder:text-bento-muted focus:outline-none focus:border-lime min-h-control'
+const actionBtnCls = 'flex items-center justify-center gap-2 bg-bento-bg border border-bento-border text-bento-text px-4 py-2 rounded-btn text-sm hover:border-lime transition-colors disabled:opacity-50 min-h-control'
 
 type Theme = 'light' | 'dark' | 'auto'
 
@@ -77,7 +77,7 @@ export function ThemeSection() {
         <div className="flex gap-2">
           {opts.map(({ id, label, Icon }) => (
             <button key={id} onClick={() => choose(id)}
-              className={cn('flex items-center gap-1.5 px-3 py-2 rounded-btn border text-sm min-h-[44px]',
+              className={cn('flex items-center gap-1.5 px-3 py-2 rounded-btn border text-sm min-h-control',
                 theme === id ? 'bento-btn border-transparent' : 'bg-bento-bg border-bento-border text-bento-dim hover:border-lime transition-colors')}>
               <Icon className="w-[18px] h-[18px]" strokeWidth={1.5} /><span className="font-medium">{label}</span>
             </button>
@@ -117,7 +117,7 @@ function ToggleRow({ label, desc, on, onClick }: { label: string; desc: string; 
         <p className="text-xs text-bento-muted mt-0.5">{desc}</p>
       </div>
       <button type="button" role="switch" aria-checked={on} onClick={onClick}
-        className={cn('px-3 py-1.5 rounded-btn text-xs font-semibold border min-h-[36px] flex-none',
+        className={cn('px-3 py-1.5 rounded-btn text-xs font-semibold border min-h-control-sm flex-none',
           on ? 'bento-btn border-transparent' : 'bg-bento-bg border-bento-border text-bento-dim hover:border-lime transition-colors')}>
         {on ? 'Ativado' : 'Desativado'}
       </button>
@@ -141,7 +141,7 @@ export function AccessibilitySection() {
           <div className="flex gap-2">
             {fonts.map(f => (
               <button key={f.id} onClick={() => update({ font: f.id })}
-                className={cn('px-3 py-2 rounded-btn border text-sm min-h-[44px]',
+                className={cn('px-3 py-2 rounded-btn border text-sm min-h-control',
                   s.font === f.id ? 'bento-btn border-transparent' : 'bg-bento-bg border-bento-border text-bento-dim hover:border-lime transition-colors')}>
                 {f.label}
               </button>
@@ -221,24 +221,24 @@ export function ContaSection() {
     <Panel label="Conta">
       <div className="space-y-5">
         <div>
-          <p className="font-tech text-[10px] uppercase tracking-wide text-bento-muted">E-mail</p>
+          <p className="font-tech text-label uppercase tracking-wide text-bento-muted">E-mail</p>
           <p className="text-sm text-bento-text mt-0.5">{email || '—'}</p>
         </div>
         <div className="border-t border-bento-border/60 pt-4 space-y-2 max-w-sm">
           <p className="text-sm font-medium text-bento-text">Alterar senha</p>
           <input type="password" value={pw} onChange={e => setPw(e.target.value)} placeholder="Nova senha" autoComplete="new-password" className={inputCls} />
           <input type="password" value={pw2} onChange={e => setPw2(e.target.value)} placeholder="Confirmar nova senha" autoComplete="new-password" className={inputCls} />
-          <button onClick={trocarSenha} disabled={busy || !pw} className="bento-btn px-4 py-2 rounded-btn text-sm font-semibold disabled:opacity-50 min-h-[44px]">
+          <button onClick={trocarSenha} disabled={busy || !pw} className="bento-btn px-4 py-2 rounded-btn text-sm font-semibold disabled:opacity-50 min-h-control">
             {busy ? 'Salvando...' : 'Salvar senha'}
           </button>
           {msg && <p className={cn('text-xs', msg.t === 'ok' ? 'text-green-400' : 'text-red-400')}>{msg.m}</p>}
         </div>
         <div className="border-t border-bento-border/60 pt-4 space-y-2 max-w-md">
           <p className="text-sm font-medium text-bento-text">Link de chamada (videochamada)</p>
-          <p className="font-tech text-[10px] text-bento-muted">Sua sala fixa (Zoom/Meet/etc.). Entra nas reuniões marcadas com &quot;Adicionar chamada&quot;.</p>
+          <p className="font-tech text-label text-bento-muted">Sua sala fixa (Zoom/Meet/etc.). Entra nas reuniões marcadas com &quot;Adicionar chamada&quot;.</p>
           <input value={callLink} onChange={e => setCallLink(e.target.value)}
             placeholder="https://zoom.us/j/... ou https://meet.google.com/..." className={inputCls} />
-          <button onClick={salvarCall} disabled={callBusy} className="bento-btn px-4 py-2 rounded-btn text-sm font-semibold disabled:opacity-50 min-h-[44px]">
+          <button onClick={salvarCall} disabled={callBusy} className="bento-btn px-4 py-2 rounded-btn text-sm font-semibold disabled:opacity-50 min-h-control">
             {callBusy ? 'Salvando...' : 'Salvar link'}
           </button>
           {callMsg && <p className={cn('text-xs', callMsg.t === 'ok' ? 'text-green-400' : 'text-red-400')}>{callMsg.m}</p>}
@@ -270,14 +270,14 @@ export function AparenciaSection() {
         <div className="flex flex-col sm:flex-row gap-2">
           {opts.map(o => (
             <button key={o.id} onClick={() => choose(o.id)}
-              className={cn('flex-1 px-3 py-2.5 rounded-btn border text-left min-h-[44px]',
+              className={cn('flex-1 px-3 py-2.5 rounded-btn border text-left min-h-control',
                 d === o.id ? 'bento-btn border-transparent' : 'bg-bento-bg border-bento-border text-bento-dim hover:border-lime transition-colors')}>
               <span className="text-sm font-medium block">{o.label}</span>
-              <span className="text-[11px] opacity-80">{o.desc}</span>
+              <span className="text-caption opacity-80">{o.desc}</span>
             </button>
           ))}
         </div>
-        <p className="font-tech text-[11px] text-bento-muted/70">Aplica em todo o sistema. Tema (claro/escuro) e tamanho de fonte ficam em Tema e Acessibilidade.</p>
+        <p className="font-tech text-caption text-bento-muted/70">Aplica em todo o sistema. Tema (claro/escuro) e tamanho de fonte ficam em Tema e Acessibilidade.</p>
       </div>
     </Panel>
   )
@@ -318,7 +318,7 @@ export function DadosSection() {
           <button onClick={() => run('leads')} disabled={!!busy} className={actionBtnCls}><Download className="w-4 h-4" />{busy === 'leads' ? 'Exportando...' : 'Exportar leads (CSV)'}</button>
           <button onClick={() => run('tarefas')} disabled={!!busy} className={actionBtnCls}><Download className="w-4 h-4" />{busy === 'tarefas' ? 'Exportando...' : 'Exportar tarefas (CSV)'}</button>
         </div>
-        <p className="font-tech text-[11px] text-bento-muted/70 border-t border-bento-border/60 pt-3">Exclusão de conta e apagamento de dados em massa não estão disponíveis por aqui.</p>
+        <p className="font-tech text-caption text-bento-muted/70 border-t border-bento-border/60 pt-3">Exclusão de conta e apagamento de dados em massa não estão disponíveis por aqui.</p>
       </div>
     </Panel>
   )
@@ -338,7 +338,7 @@ function IntegStatus({ nome, detalhe, status }: { nome: string; detalhe: string;
       <span className={cn('w-2 h-2 rounded-full flex-none', map.dot)} />
       <div className="min-w-0 flex-1">
         <p className="text-sm font-medium text-bento-text">{nome}</p>
-        <p className="font-tech text-[11px] text-bento-dim truncate">{detalhe}</p>
+        <p className="font-tech text-caption text-bento-dim truncate">{detalhe}</p>
       </div>
       <span className={cn('text-xs font-semibold', map.txt)}>{map.label}</span>
     </div>
@@ -380,23 +380,23 @@ function GoogleAgendaCard({ google }: { google: { connected: boolean; email: str
   return (
     <div className={connCardCls}>
       <div className="flex items-start gap-3">
-        <span className="w-9 h-9 rounded-xl bg-bento-panel border border-bento-border flex items-center justify-center flex-none">
+        <span className="w-9 h-9 rounded-bento bg-bento-panel border border-bento-border flex items-center justify-center flex-none">
           <CalendarDays className="w-4 h-4 text-bento-dim" />
         </span>
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
             <h3 className="font-display font-bold text-bento-text text-sm">Google Agenda</h3>
             {google.connected && (
-              <span className="font-tech text-[10px] px-1.5 py-0.5 rounded bg-lime/15 text-lime-fg border border-lime/30">Conectado</span>
+              <span className="font-tech text-label px-1.5 py-0.5 rounded bg-lime/15 text-lime-fg border border-lime/30">Conectado</span>
             )}
           </div>
           {google.connected ? (
             <div className="mt-1 space-y-0.5">
-              {google.email && <p className="font-tech text-[11px] text-bento-dim truncate">{google.email}</p>}
-              <p className="font-tech text-[11px] text-lime-fg">✓ Meet ativo</p>
+              {google.email && <p className="font-tech text-caption text-bento-dim truncate">{google.email}</p>}
+              <p className="font-tech text-caption text-lime-fg">✓ Meet ativo</p>
             </div>
           ) : (
-            <p className="text-[13px] text-bento-muted mt-1 leading-snug">
+            <p className="text-note text-bento-muted mt-1 leading-snug">
               Suas tarefas viram eventos no seu Google Agenda — com horário, duração, fuso e link de Meet por reunião.
             </p>
           )}
@@ -405,9 +405,9 @@ function GoogleAgendaCard({ google }: { google: { connected: boolean; email: str
       <div className="mt-3 flex flex-wrap gap-2">
         {google.connected
           ? <button onClick={disconnect} disabled={busy} className={actionBtnCls}>{busy ? 'Desconectando...' : 'Desconectar'}</button>
-          : <a href="/api/google/oauth/initiate" className="bento-btn inline-flex items-center justify-center px-4 py-2 rounded-btn text-sm font-semibold min-h-[44px]">Conectar</a>}
+          : <a href="/api/google/oauth/initiate" className="bento-btn inline-flex items-center justify-center px-4 py-2 rounded-btn text-sm font-semibold min-h-control">Conectar</a>}
       </div>
-      {note && <p className={cn('font-tech text-[11px] mt-2', note.t === 'ok' ? 'text-lime-fg' : 'text-red-400')}>{note.m}</p>}
+      {note && <p className={cn('font-tech text-caption mt-2', note.t === 'ok' ? 'text-lime-fg' : 'text-red-400')}>{note.m}</p>}
     </div>
   )
 }
@@ -417,19 +417,19 @@ function WhatsAppCard() {
   return (
     <div className={cn(connCardCls, 'opacity-70')}>
       <div className="flex items-start gap-3">
-        <span className="w-9 h-9 rounded-xl bg-bento-panel border border-bento-border flex items-center justify-center flex-none">
+        <span className="w-9 h-9 rounded-bento bg-bento-panel border border-bento-border flex items-center justify-center flex-none">
           <Plug className="w-4 h-4 text-bento-muted" />
         </span>
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
             <h3 className="font-display font-bold text-bento-text text-sm">WhatsApp</h3>
-            <span className="font-tech text-[10px] px-1.5 py-0.5 rounded bg-bento-panel text-bento-muted border border-bento-border">Indisponível</span>
+            <span className="font-tech text-label px-1.5 py-0.5 rounded bg-bento-panel text-bento-muted border border-bento-border">Indisponível</span>
           </div>
-          <p className="text-[13px] text-bento-muted mt-1 leading-snug">Notificações e mensagens direto do sistema.</p>
+          <p className="text-note text-bento-muted mt-1 leading-snug">Notificações e mensagens direto do sistema.</p>
         </div>
       </div>
       <div className="mt-3">
-        <button disabled className="cursor-not-allowed opacity-50 inline-flex items-center justify-center gap-2 bg-bento-panel border border-bento-border text-bento-muted px-4 py-2 rounded-btn text-sm min-h-[44px]">Conectar</button>
+        <button disabled className="cursor-not-allowed opacity-50 inline-flex items-center justify-center gap-2 bg-bento-panel border border-bento-border text-bento-muted px-4 py-2 rounded-btn text-sm min-h-control">Conectar</button>
       </div>
     </div>
   )
@@ -448,13 +448,13 @@ export function IntegracoesSection({ google }: { google: { connected: boolean; e
       <div className="space-y-5">
         {/* Conexões: o que o usuário liga/desliga. */}
         <div className="space-y-3">
-          <p className="font-tech text-[10px] uppercase tracking-[0.12em] text-bento-muted">Conexões</p>
+          <p className="font-tech text-label uppercase tracking-label text-bento-muted">Conexões</p>
           <GoogleAgendaCard google={google} />
           <WhatsAppCard />
         </div>
         {/* Sistema · somente leitura: status de infra (sem ação). */}
         <div className="space-y-2">
-          <p className="font-tech text-[10px] uppercase tracking-[0.12em] text-bento-muted">Sistema · somente leitura</p>
+          <p className="font-tech text-label uppercase tracking-label text-bento-muted">Sistema · somente leitura</p>
           <div className="divide-y divide-bento-border/60">
             <IntegStatus nome="Supabase" detalhe={host} status={supaOk} />
             <IntegStatus nome="Anthropic (IA)" detalhe="Chave configurada no servidor (env)" status="config" />
@@ -500,7 +500,7 @@ export function AndarSection({ keyId, label, onOpenSub }: { keyId: string; label
             {/* Mapa saiu do Comercial — agora vira aba do Hall; toda a config de mapa está em Andares → Hall. */}
           </div>
         ) : (
-          <p className="font-tech text-[11px] text-bento-muted/70 border-t border-bento-border/60 pt-3">Sem preferências específicas para este andar além das ações acima.</p>
+          <p className="font-tech text-caption text-bento-muted/70 border-t border-bento-border/60 pt-3">Sem preferências específicas para este andar além das ações acima.</p>
         )}
       </div>
     </Panel>
@@ -521,7 +521,7 @@ export function MapSettingsContent() {
       <div className="space-y-3">
         {/* Vista: 2D / 3D + inclinação (slider só no 3D). */}
         <div className="flex items-center justify-between gap-3 flex-wrap">
-          <div><p className="text-sm text-bento-text">Vista</p><p className="font-tech text-[11px] text-bento-dim">2D plano ou 3D inclinado</p></div>
+          <div><p className="text-sm text-bento-text">Vista</p><p className="font-tech text-caption text-bento-dim">2D plano ou 3D inclinado</p></div>
           <div className="flex items-center gap-3 flex-wrap">
             <div className={seg}>
               {([['3d', '3D'], ['2d', '2D']] as [MapPrefs['view'], string][]).map(([v, l]) => (
@@ -532,13 +532,13 @@ export function MapSettingsContent() {
               <input type="range" min={0} max={45} value={prefs.tilt} disabled={prefs.view !== '3d'}
                 onChange={e => set({ tilt: Number(e.target.value) })}
                 className="w-28 accent-lime disabled:opacity-40 cursor-pointer disabled:cursor-not-allowed" aria-label="Inclinação do mapa" />
-              <span className="font-tech text-[11px] text-bento-dim w-8 tabular-nums">{prefs.tilt}°</span>
+              <span className="font-tech text-caption text-bento-dim w-8 tabular-nums">{prefs.tilt}°</span>
             </div>
           </div>
         </div>
         {/* Modo. */}
         <div className="flex items-center justify-between gap-3 flex-wrap">
-          <div><p className="text-sm text-bento-text">Modo</p><p className="font-tech text-[11px] text-bento-dim">Pontos individuais, bolhas por estado ou calor</p></div>
+          <div><p className="text-sm text-bento-text">Modo</p><p className="font-tech text-caption text-bento-dim">Pontos individuais, bolhas por estado ou calor</p></div>
           <div className={seg}>
             {([['individual', 'Individual'], ['estado', 'Por estado'], ['calor', 'Calor']] as [MapPrefs['mode'], string][]).map(([v, l]) => (
               <button key={v} onClick={() => set({ mode: v })} className={btn(prefs.mode === v)}>{l}</button>
@@ -547,7 +547,7 @@ export function MapSettingsContent() {
         </div>
         {/* Tema. */}
         <div className="flex items-center justify-between gap-3 flex-wrap">
-          <div><p className="text-sm text-bento-text">Tema</p><p className="font-tech text-[11px] text-bento-dim">Cor de acento do mapa</p></div>
+          <div><p className="text-sm text-bento-text">Tema</p><p className="font-tech text-caption text-bento-dim">Cor de acento do mapa</p></div>
           <div className={seg}>
             {([['ciber', 'Cíber'], ['lima', 'Lima'], ['ambar', 'Âmbar']] as [MapPrefs['theme'], string][]).map(([v, l]) => (
               <button key={v} onClick={() => set({ theme: v })} className={btn(prefs.theme === v)}>{l}</button>
@@ -556,7 +556,7 @@ export function MapSettingsContent() {
         </div>
         {/* Mostrar no mapa: visibilidade por tipo (esconde do mapa E das contagens). */}
         <div className="flex items-center justify-between gap-3 flex-wrap">
-          <div><p className="text-sm text-bento-text">Mostrar no mapa</p><p className="font-tech text-[11px] text-bento-dim">Liga/desliga cada tipo no mapa e nas contagens</p></div>
+          <div><p className="text-sm text-bento-text">Mostrar no mapa</p><p className="font-tech text-caption text-bento-dim">Liga/desliga cada tipo no mapa e nas contagens</p></div>
           <div className={seg}>
             {([['novo', 'Novos leads', '#A78BFA'], ['lead', 'Leads', '#38BDF8'], ['cliente', 'Clientes', '#34D399']] as [keyof MapPrefs['show'], string, string][]).map(([k, l, c]) => (
               <button key={k} aria-pressed={prefs.show[k]} onClick={() => set({ show: { ...prefs.show, [k]: !prefs.show[k] } })}
@@ -568,7 +568,7 @@ export function MapSettingsContent() {
         </div>
         {/* Resumo (tooltip) ao passar o mouse. */}
         <div className="flex items-center justify-between gap-3 flex-wrap">
-          <div><p className="text-sm text-bento-text">Resumo ao passar o mouse</p><p className="font-tech text-[11px] text-bento-dim">Mostra a contagem do estado no hover</p></div>
+          <div><p className="text-sm text-bento-text">Resumo ao passar o mouse</p><p className="font-tech text-caption text-bento-dim">Mostra a contagem do estado no hover</p></div>
           <div className={seg}>
             {([[true, 'Ligado'], [false, 'Desligado']] as [boolean, string][]).map(([v, l]) => (
               <button key={String(v)} onClick={() => set({ resumo: v })} className={btn(prefs.resumo === v)}>{l}</button>
@@ -657,11 +657,11 @@ export function LogoUploadSection({ userId }: { userId: string }) {
     <div className="space-y-4">
       <p className="text-xs text-bento-muted">Substitua a logo padrão do sistema. Máximo 200kb, qualquer formato de imagem.</p>
       <div className="flex items-center gap-4">
-        <div className="w-16 h-16 rounded-xl border border-bento-border flex items-center justify-center bg-bento-bg overflow-hidden shrink-0">
+        <div className="w-16 h-16 rounded-bento border border-bento-border flex items-center justify-center bg-bento-bg overflow-hidden shrink-0">
           {logoUrl ? (
             <Image src={logoUrl} alt="Logo" width={64} height={64} className="w-full h-full object-contain" />
           ) : (
-            <div className="w-8 h-8 rounded-lg bg-lime flex items-center justify-center">
+            <div className="w-8 h-8 rounded-btn bg-lime flex items-center justify-center">
               <svg className="w-4 h-4 text-lime-ink" fill="currentColor" viewBox="0 0 24 24">
                 <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" />
               </svg>
@@ -670,7 +670,7 @@ export function LogoUploadSection({ userId }: { userId: string }) {
         </div>
         <div>
           <button onClick={() => fileRef.current?.click()} disabled={uploading}
-            className="flex items-center gap-2 bg-bento-bg border border-bento-border text-bento-text px-4 py-2 rounded-btn text-sm hover:border-lime transition-colors disabled:opacity-50 min-h-[44px]">
+            className="flex items-center gap-2 bg-bento-bg border border-bento-border text-bento-text px-4 py-2 rounded-btn text-sm hover:border-lime transition-colors disabled:opacity-50 min-h-control">
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
             </svg>
@@ -690,7 +690,7 @@ export function LogoUploadSection({ userId }: { userId: string }) {
 function HallSwitchGroup({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div className="space-y-2">
-      <p className="font-tech text-[10px] uppercase tracking-[0.14em] text-bento-muted">{title}</p>
+      <p className="font-tech text-label uppercase tracking-label text-bento-muted">{title}</p>
       <div className="bento-fx divide-y divide-bento-border/60 overflow-hidden">{children}</div>
     </div>
   )
@@ -752,23 +752,23 @@ export function HallSettingsSection({ userId }: { userId: string }) {
 
         {/* Prévia AO VIVO — atualiza conforme liga/desliga os switches. */}
         <div className="lg:w-[380px] shrink-0">
-          <p className="font-tech text-[10px] uppercase tracking-[0.14em] text-bento-muted mb-2">Prévia ao vivo</p>
+          <p className="font-tech text-label uppercase tracking-label text-bento-muted mb-2">Prévia ao vivo</p>
           <div className="bento-fx p-3 space-y-3">
             {pm.some(m => cfg.metrics[m.k]) && (
               <div className="grid grid-cols-2 gap-2">
                 {pm.filter(m => cfg.metrics[m.k]).map(m => (
                   <div key={m.k} className="bento-fx px-2.5 py-2">
-                    <p className="font-tech text-[9px] uppercase tracking-wide text-bento-muted truncate">{m.label}</p>
+                    <p className="font-tech text-label uppercase tracking-wide text-bento-muted truncate">{m.label}</p>
                     <p className="font-display text-lg font-bold text-bento-text tabular-nums leading-none">{m.value}</p>
                   </div>
                 ))}
               </div>
             )}
             {/* (Mini-preview do mapa ANTIGO removido — o único mapa é o LeadMap, no Hall.) */}
-            {cfg.blocks.agenda && <div className="bento-fx px-3 py-2 font-tech text-[11px] text-bento-muted">Agenda</div>}
-            {cfg.blocks.tarefas && <div className="bento-fx px-3 py-2 font-tech text-[11px] text-bento-muted">Tarefas de hoje</div>}
-            {cfg.blocks.atividade && <div className="bento-fx px-3 py-2 font-tech text-[11px] text-bento-muted">Atividade recente</div>}
-            {cfg.blocks.noticias && <div className="bento-fx px-3 py-2 font-tech text-[11px] text-bento-muted">Notícias</div>}
+            {cfg.blocks.agenda && <div className="bento-fx px-3 py-2 font-tech text-caption text-bento-muted">Agenda</div>}
+            {cfg.blocks.tarefas && <div className="bento-fx px-3 py-2 font-tech text-caption text-bento-muted">Tarefas de hoje</div>}
+            {cfg.blocks.atividade && <div className="bento-fx px-3 py-2 font-tech text-caption text-bento-muted">Atividade recente</div>}
+            {cfg.blocks.noticias && <div className="bento-fx px-3 py-2 font-tech text-caption text-bento-muted">Notícias</div>}
           </div>
         </div>
       </div>
@@ -780,8 +780,8 @@ export function HallSettingsSection({ userId }: { userId: string }) {
 function ConfigRow({ label, status }: { label: string; status: string }) {
   return (
     <div className="flex items-center justify-between gap-3 py-2.5 border-b border-bento-border/60 last:border-0">
-      <span className="text-[13px] text-bento-text min-w-0">{label}</span>
-      <span className="font-tech text-[10px] uppercase tracking-wide text-bento-muted shrink-0 text-right">{status}</span>
+      <span className="text-note text-bento-text min-w-0">{label}</span>
+      <span className="font-tech text-label uppercase tracking-wide text-bento-muted shrink-0 text-right">{status}</span>
     </div>
   )
 }
@@ -838,7 +838,7 @@ export function PlanosSection() {
           <div key={p.id} className="bento-fx p-4">
             <div className="flex items-center justify-between gap-3">
               <p className="text-sm font-semibold text-bento-text truncate min-w-0">{p.nome}</p>
-              <p className="font-tech text-[11px] text-bento-muted shrink-0">{usd(p.valor_semanal)}/sem{p.valor_mensal ? ` · ${usd(p.valor_mensal)}/mês` : ''}</p>
+              <p className="font-tech text-caption text-bento-muted shrink-0">{usd(p.valor_semanal)}/sem{p.valor_mensal ? ` · ${usd(p.valor_mensal)}/mês` : ''}</p>
             </div>
           </div>
         ))}
