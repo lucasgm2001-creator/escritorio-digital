@@ -273,7 +273,7 @@ export function HallClient({ initialActivities, initialTasks, linkOptions, userN
                     ))}
                     {tarefasAtrasadas.length > 4 && (
                       <button type="button" onClick={() => router.push('/tarefas')}
-                        className="w-full text-left font-tech text-caption uppercase tracking-wide text-amber-400 hover:text-amber-300 transition-colors py-1">
+                        className="w-full text-left font-tech text-caption uppercase tracking-label text-amber-400 hover:text-amber-300 transition-colors py-1">
                         +{tarefasAtrasadas.length - 4} pendentes — ver todas
                       </button>
                     )}
@@ -317,7 +317,7 @@ export function HallClient({ initialActivities, initialTasks, linkOptions, userN
               // grupos e os números vêm intactos de dashboard.kpiGroups (índice, sem detectar rótulo).
               const primary = gi === 0
               return (
-                <div key={group.title} className="space-y-2">
+                <div key={group.title} className="flex flex-col gap-2">
                   <SectionLabel>{group.title}</SectionLabel>
                   <div className={cn('grid gap-2.5', primary ? 'grid-cols-2 sm:grid-cols-3 lg:grid-cols-5' : 'grid-cols-2 sm:grid-cols-4')}>
                     {group.kpis.map(k => (
@@ -353,7 +353,7 @@ export function HallClient({ initialActivities, initialTasks, linkOptions, userN
                           tabIndex={clickable ? 0 : undefined}
                           className={cn('flex items-start gap-3 py-2 first:pt-0 last:pb-0',
                             clickable && 'cursor-pointer hover:bg-bento-bg/50 rounded-md -mx-1.5 px-1.5 transition-colors')}>
-                          <div className={`w-7 h-7 rounded-md flex items-center justify-center shrink-0 ${ACTIVITY_COLORS[a.type] ?? 'bg-slate-800/60 text-slate-400'}`}>
+                          <div className={`w-7 h-7 rounded-md flex items-center justify-center shrink-0 ${ACTIVITY_COLORS[a.type] ?? 'bg-bento-panel text-bento-muted'}`}>
                             {ACTIVITY_ICONS[a.type]}
                           </div>
                           <div className="flex-1 min-w-0">
@@ -369,12 +369,12 @@ export function HallClient({ initialActivities, initialTasks, linkOptions, userN
                     </div>
                     {activities.length > 3 && (
                       <button type="button" onClick={() => setActivitiesExpanded(v => !v)}
-                        className="font-tech text-caption uppercase tracking-wide text-lime-fg hover:text-lime transition-colors font-semibold mt-2.5 self-start">
+                        className="font-tech text-caption uppercase tracking-label text-lime-fg hover:text-lime transition-colors font-semibold mt-2.5 self-start">
                         {activitiesExpanded ? 'Ver menos' : `Ver mais (${activities.length - 3})`}
                       </button>
                     )}
                     <button type="button" onClick={() => setShowHistory(true)}
-                      className="mt-2.5 pt-2.5 border-t border-bento-border/60 w-full text-center font-tech text-caption uppercase tracking-wide text-bento-muted hover:text-lime-fg transition-colors">
+                      className="mt-2.5 pt-2.5 border-t border-bento-border/60 w-full text-center font-tech text-caption uppercase tracking-label text-bento-muted hover:text-lime-fg transition-colors">
                       Ver histórico
                     </button>
                     </Panel>
@@ -396,7 +396,7 @@ export function HallClient({ initialActivities, initialTasks, linkOptions, userN
                     {dashboard.receitaPorVendedor.length > 0 && (
                       <div className="flex flex-col gap-2">
                         <SectionLabel>Receita por vendedor</SectionLabel>
-                        <Panel className="max-lg:p-3" headerClassName="max-lg:hidden" label="Receita por vendedor">
+                        <Panel className="max-lg:p-3">
                           <div className="space-y-1.5">
                             {dashboard.receitaPorVendedor.map(r => (
                               <div key={r.label} className="flex items-center justify-between gap-2 text-note">
@@ -411,7 +411,7 @@ export function HallClient({ initialActivities, initialTasks, linkOptions, userN
                     {dashboard.receitaPorPlano.length > 0 && (
                       <div className="flex flex-col gap-2">
                         <SectionLabel>Receita por plano</SectionLabel>
-                        <Panel className="max-lg:p-3" headerClassName="max-lg:hidden" label="Receita por plano">
+                        <Panel className="max-lg:p-3">
                           <div className="space-y-1.5">
                             {dashboard.receitaPorPlano.map(r => (
                               <div key={r.label} className="flex items-center justify-between gap-2 text-note">
@@ -443,7 +443,7 @@ export function HallClient({ initialActivities, initialTasks, linkOptions, userN
           <>
             {/* Contexto acima do mapa (Hall 2.0) — harmoniza com as seções da Visão Geral e evita que o mapa
                 pareça isolado. NÃO compete com o header do próprio LeadMap (nível de seção, não de título). */}
-            <div className="space-y-2">
+            <div className="flex flex-col gap-2">
             <SectionLabel>Distribuição geográfica</SectionLabel>
             <p className="text-sm text-bento-muted">
               <strong className="font-semibold text-bento-text">{mapLeads.length}</strong> {mapLeads.length === 1 ? 'lead' : 'leads'}
