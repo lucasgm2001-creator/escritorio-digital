@@ -311,16 +311,22 @@ export function HallClient({ initialActivities, initialTasks, linkOptions, userN
 
             {/* ══ INDICADORES ══ Comercial/Financeiro/Operação — do DashboardService (mesma fonte do /comercial),
                 cartões ACIONÁVEIS que abrem o módulo. Substitui o pulso client-side: fonte única, sem recomputar. */}
-            {dashboard.kpiGroups.map(group => (
-              <div key={group.title} className="space-y-2">
-                <SectionLabel>{group.title}</SectionLabel>
-                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5">
-                  {group.kpis.map(k => (
-                    <MetricCard key={k.label} title={k.label} value={k.value} size="sm" href={k.href} />
-                  ))}
+            {dashboard.kpiGroups.map((group, gi) => {
+              // 1º grupo (Receita, financeiro) = tier de COMANDO: cards maiores (md) → destaca Receita/MRR/ARR.
+              // Demais grupos (Comercial, Operação) = tier operacional, compacto (sm). Só apresentação — os
+              // grupos e os números vêm intactos de dashboard.kpiGroups (índice, sem detectar rótulo).
+              const primary = gi === 0
+              return (
+                <div key={group.title} className="space-y-2">
+                  <SectionLabel>{group.title}</SectionLabel>
+                  <div className={cn('grid gap-2.5', primary ? 'grid-cols-2 sm:grid-cols-3 lg:grid-cols-5' : 'grid-cols-2 sm:grid-cols-4')}>
+                    {group.kpis.map(k => (
+                      <MetricCard key={k.label} title={k.label} value={k.value} size={primary ? 'md' : 'sm'} href={k.href} />
+                    ))}
+                  </div>
                 </div>
-              </div>
-            ))}
+              )
+            })}
 
             {/* ══ RECEITA POR VENDEDOR / PLANO ══ recebida no mês — mesma FONTE ÚNICA (ExecutiveMetricsService). */}
             {(dashboard.receitaPorVendedor.length > 0 || dashboard.receitaPorPlano.length > 0) && (
