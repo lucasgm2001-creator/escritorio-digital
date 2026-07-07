@@ -195,14 +195,46 @@ export function HallClient({ initialActivities, initialTasks, linkOptions, userN
   return (
     <div className="p-4 sm:p-6 max-w-7xl mx-auto space-y-3 animate-fade-in font-body">
 
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
+      {/* ══ Z1 · CONTEXTO — hero executivo: quem/quando + resumo do dia + alertas (chips). SÓ reorganiza dados
+          JÁ existentes (saudação, data, contadores de tarefas/reuniões/leads, alerts do DashboardService).
+          Sem query/estado novo; alertas viram chips clicáveis (deixam de ser painel), sem popover. */}
+      <div className="space-y-2">
+        <div className="flex items-baseline gap-x-3 gap-y-0.5 flex-wrap">
           <h1 suppressHydrationWarning className="font-display text-xl sm:text-2xl font-bold text-bento-text tracking-tight">
             {greeting ? `${greeting}, ${userName}` : userName}
           </h1>
-          <p suppressHydrationWarning className="text-bento-muted mt-0.5 capitalize text-sm">{today}</p>
+          <p suppressHydrationWarning className="text-bento-muted capitalize text-sm">{today}</p>
         </div>
+        <p className="text-sm leading-relaxed">
+          {tarefasAtrasadas.length > 0 ? (
+            <>
+              <strong className="font-semibold text-amber-400">{tarefasAtrasadas.length} {tarefasAtrasadas.length === 1 ? 'tarefa pendente' : 'tarefas pendentes'}</strong>
+              <span className="text-bento-muted">{' · '}{tarefasHoje.length} para hoje{' · '}{reunioesHoje} {reunioesHoje === 1 ? 'reunião' : 'reuniões'}{dashboard.leadsAwaiting.count > 0 ? ` · ${dashboard.leadsAwaiting.count} ${dashboard.leadsAwaiting.count === 1 ? 'lead aguardando' : 'leads aguardando'}` : ''}</span>
+            </>
+          ) : (
+            <span className="text-bento-muted">
+              Hoje: <strong className="font-semibold text-bento-text">{tarefasHoje.length} {tarefasHoje.length === 1 ? 'tarefa' : 'tarefas'}</strong>
+              {' · '}<strong className="font-semibold text-bento-text">{reunioesHoje} {reunioesHoje === 1 ? 'reunião' : 'reuniões'}</strong>
+              {dashboard.leadsAwaiting.count > 0 ? ` · ${dashboard.leadsAwaiting.count} ${dashboard.leadsAwaiting.count === 1 ? 'lead aguardando' : 'leads aguardando'}` : (tarefasHoje.length === 0 && reunioesHoje === 0 ? ' · agenda livre' : '')}
+            </span>
+          )}
+        </p>
+        {dashboard.alerts.length > 0 && (
+          <div className="flex flex-wrap items-center gap-1.5">
+            {dashboard.alerts.map((a, i) => (
+              a.href ? (
+                <button key={i} type="button" onClick={() => router.push(a.href!)}
+                  className="inline-flex items-center gap-1.5 max-w-full rounded-full border border-amber-800/40 bg-amber-900/10 px-2.5 py-1 text-note text-amber-300 hover:border-amber-500/50 transition-colors">
+                  <AlertTriangle className="w-3 h-3 shrink-0" /><span className="truncate">{a.message}</span>
+                </button>
+              ) : (
+                <span key={i} className="inline-flex items-center gap-1.5 max-w-full rounded-full border border-amber-800/40 bg-amber-900/10 px-2.5 py-1 text-note text-amber-300">
+                  <AlertTriangle className="w-3 h-3 shrink-0" /><span className="truncate">{a.message}</span>
+                </span>
+              )
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Tabs — FIXAS: as 5 cabem distribuídas (flex-1), SEM rolagem. overflow-x-hidden + touch-action:pan-y
@@ -229,54 +261,8 @@ export function HallClient({ initialActivities, initialTasks, linkOptions, userN
 
         {activeTab === 'activities' && (
           <>
-            {/* ══ ALERTAS ══ só quando HÁ (pagamento em atraso, integração desligada, convite expirado, tarefas
-                acumuladas). Dados reais do DashboardService. Sem alerta → nem aparece (o vazio é o Hall limpo). */}
-            {dashboard.alerts.length > 0 && (
-              <div className="rounded-frame border border-amber-800/40 bg-amber-900/10 p-3 space-y-1.5">
-                <div className="flex items-center gap-2">
-                  <AlertTriangle className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-                  <p className="font-tech text-label uppercase tracking-label text-amber-400">Alertas</p>
-                </div>
-                <ul className="space-y-1">
-                  {dashboard.alerts.map((a, i) => (
-                    <li key={i}>
-                      {a.href ? (
-                        <button type="button" onClick={() => router.push(a.href!)}
-                          className="w-full text-left flex items-center gap-2 text-note text-bento-text hover:text-amber-300 transition-colors min-h-[32px]">
-                          <span className="w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0" />
-                          <span className="min-w-0 truncate">{a.message}</span>
-                        </button>
-                      ) : (
-                        <span className="flex items-center gap-2 text-note text-bento-text">
-                          <span className="w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0" />{a.message}
-                        </span>
-                      )}
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            )}
-
-            {/* ══ PRIORIDADES DE HOJE ══ o que exige ação agora: pendentes + hoje + reuniões (dados JÁ carregados)
-                e leads aguardando contato (DashboardService). */}
-            <div className="space-y-2">
-            <SectionLabel>Prioridades de hoje</SectionLabel>
-            <p className="text-sm leading-relaxed">
-              {tarefasAtrasadas.length > 0 ? (
-                <>
-                  <strong className="font-semibold text-amber-400">{tarefasAtrasadas.length} {tarefasAtrasadas.length === 1 ? 'tarefa pendente' : 'tarefas pendentes'}</strong>
-                  <span className="text-bento-muted">{' · '}{tarefasHoje.length} para hoje{' · '}{reunioesHoje} {reunioesHoje === 1 ? 'reunião' : 'reuniões'}</span>
-                </>
-              ) : (
-                <span className="text-bento-muted">
-                  Hoje: <strong className="font-semibold text-bento-text">{tarefasHoje.length} {tarefasHoje.length === 1 ? 'tarefa' : 'tarefas'}</strong>
-                  {' · '}<strong className="font-semibold text-bento-text">{reunioesHoje} {reunioesHoje === 1 ? 'reunião' : 'reuniões'}</strong>
-                  {tarefasHoje.length === 0 && reunioesHoje === 0 ? ' · agenda livre' : ''}
-                </span>
-              )}
-            </p>
-            </div>
-
+            {/* Alertas + resumo do dia ("Prioridades") migraram para o HERO (Z1) acima — contexto primeiro,
+                sem painel dedicado. Aqui o canvas começa direto no TRABALHO (o que fazer). */}
             {hallCfg.blocks.tarefas && (
               <CollapsibleSection title="Tarefas de hoje" icon={CalendarDays} defaultOpen>
                 <Panel className="max-lg:p-3" headerClassName="max-lg:hidden" label="Tarefas de hoje">
@@ -389,7 +375,7 @@ export function HallClient({ initialActivities, initialTasks, linkOptions, userN
                       onClick={clickable ? () => router.push(`/comercial?lead=${entityId}`) : undefined}
                       role={clickable ? 'button' : undefined}
                       tabIndex={clickable ? 0 : undefined}
-                      className={cn('flex items-start gap-3 py-3 first:pt-0 last:pb-0',
+                      className={cn('flex items-start gap-3 py-2 first:pt-0 last:pb-0',
                         clickable && 'cursor-pointer hover:bg-bento-bg/50 rounded-md -mx-1.5 px-1.5 transition-colors')}>
                       <div className={`w-7 h-7 rounded-md flex items-center justify-center shrink-0 ${ACTIVITY_COLORS[a.type] ?? 'bg-slate-800/60 text-slate-400'}`}>
                         {ACTIVITY_ICONS[a.type]}
