@@ -336,8 +336,6 @@ export function HallClient({ initialActivities, initialTasks, linkOptions, userN
               <div className="lg:col-span-8 flex flex-col gap-3 min-w-0">
                 {/* ══ ATIVIDADES RECENTES ══ movimentações reais (realtime). */}
                 {hallCfg.blocks.atividade && (
-                  <div className="flex flex-col gap-2">
-                  <SectionLabel>Atividades recentes</SectionLabel>
                   <CollapsibleSection title="Atividades Recentes" icon={ActivityIcon}>
                     <Panel className="max-lg:p-3 lg:pb-4" headerClassName="max-lg:hidden" label="Atividades Recentes" action={<LiveDot />}>
                     <div className="space-y-0 divide-y divide-bento-border/60">
@@ -352,8 +350,8 @@ export function HallClient({ initialActivities, initialTasks, linkOptions, userN
                           role={clickable ? 'button' : undefined}
                           tabIndex={clickable ? 0 : undefined}
                           className={cn('flex items-start gap-3 py-2 first:pt-0 last:pb-0',
-                            clickable && 'cursor-pointer hover:bg-bento-bg/50 rounded-md -mx-1.5 px-1.5 transition-colors')}>
-                          <div className={`w-7 h-7 rounded-md flex items-center justify-center shrink-0 ${ACTIVITY_COLORS[a.type] ?? 'bg-bento-panel text-bento-muted'}`}>
+                            clickable && 'cursor-pointer hover:bg-bento-bg/50 rounded-btn -mx-1.5 px-1.5 transition-colors')}>
+                          <div className={`w-7 h-7 rounded-bento flex items-center justify-center shrink-0 ${ACTIVITY_COLORS[a.type] ?? 'bg-bento-panel text-bento-muted'}`}>
                             {ACTIVITY_ICONS[a.type]}
                           </div>
                           <div className="flex-1 min-w-0">
@@ -379,7 +377,6 @@ export function HallClient({ initialActivities, initialTasks, linkOptions, userN
                     </button>
                     </Panel>
                   </CollapsibleSection>
-                  </div>
                 )}
                 {/* ── Agenda ── colapsada por padrão; completa (4 vistas + CRUD) ao expandir. */}
                 {hallCfg.blocks.agenda && (
