@@ -42,22 +42,18 @@ function BarList({ rows, max }: { rows: { label: string; value: number; sub: str
 // Renomes canônicos: "Receita realizada" (=soma de deals) → "Valor Fechado"; a receita de verdade agora é
 // "Receita Recebida" (client_payments). Conversão/Ticket passam a ser period-aware (registry).
 export function DashboardExecutivo({ vm, weekReceita, report }: { vm: ExecutiveMetricsVM; weekReceita: number; report: CommercialReport }) {
+  // Z1 · Como estou hoje — manchete executiva. Receita pesa mais (Recebida/Prevista/MRR); Conversão fecha o hero.
   const hero: { title: string; value: string; tone: MetricTone }[] = [
     { title: 'Receita Recebida', value: usd(vm.receitaRecebida), tone: 'emerald' },
+    { title: 'Receita Prevista', value: usd(vm.receitaPrevista), tone: 'default' },
     { title: 'MRR', value: usd(vm.mrr), tone: 'positive' },
     { title: 'Conversão', value: pctWhole(vm.conversao), tone: 'default' },
-    { title: 'Ticket Médio', value: usd(vm.ticketMedio), tone: 'default' },
   ]
-  const receita: { label: string; value: string; tone?: MetricTone }[] = [
-    { label: 'Recebida (mês)', value: usd(vm.receitaRecebida), tone: 'emerald' },
+  // Z3 · Resultados — secundários (dinheiro primeiro, contagens por último). NÃO repete o hero (dedup CRM-02A).
+  const resultados: { label: string; value: string | number; tone?: MetricTone }[] = [
     { label: 'Semanal', value: usd(weekReceita) },
-    { label: 'Prevista', value: usd(vm.receitaPrevista) },
     { label: 'Valor Fechado', value: usd(vm.valorFechado) },
-    { label: 'MRR', value: usd(vm.mrr), tone: 'positive' },
     { label: 'ARR', value: usd(vm.arr) },
-  ]
-  const carteira: { label: string; value: string | number; tone?: MetricTone }[] = [
-    { label: 'Conversão', value: pctWhole(vm.conversao) },
     { label: 'Ticket Médio', value: usd(vm.ticketMedio) },
     { label: 'Clientes Ativos', value: vm.clientesAtivos },
     { label: 'Clientes Novos', value: vm.clientesNovos, tone: vm.clientesNovos > 0 ? 'positive' : 'default' },
@@ -69,54 +65,62 @@ export function DashboardExecutivo({ vm, weekReceita, report }: { vm: ExecutiveM
 
   return (
     <div className="space-y-6">
-      {/* Manchete executiva */}
+      {/* 1 · COMO ESTOU HOJE — manchete executiva (dinheiro em destaque). */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5">
         {hero.map(card => <MetricCard key={card.title} title={card.title} value={card.value} tone={card.tone} size="lg" />)}
       </div>
 
-      {/* Receita (dinheiro recebido × previsto × contratos × recorrência) */}
+      {/* 2 · ONDE ESTÁ O PROBLEMA — Insights logo após o hero, largura total. Calmo (Panel), não compete com a Receita. */}
+      <Panel label={`Insights · ${report.period.label}`}>
+        {report.insights.length === 0 ? (
+          <p className="text-note text-bento-muted">Sem alertas relevantes no período.</p>
+        ) : (
+          <ul className="space-y-2">
+            {report.insights.map((insight, i) => {
+              const { Icon, cls } = INSIGHT_STYLE[insight.kind]
+              return (
+                <li key={i} className="flex items-start gap-2.5">
+                  <Icon className={cn('w-4 h-4 mt-0.5 shrink-0', cls)} />
+                  <span className="text-note text-bento-text leading-snug">{insight.message}</span>
+                </li>
+              )
+            })}
+          </ul>
+        )}
+      </Panel>
+
+      {/* 3 · COMO ESTÃO MEUS RESULTADOS — secundários (dinheiro primeiro, contagens por último). Sem repetir o hero. */}
       <section className="space-y-2">
-        <p className="font-tech text-label uppercase tracking-label text-bento-muted">Receita · {vm.periodLabel}</p>
+        <p className="font-tech text-label uppercase tracking-label text-bento-muted">Resultados · {vm.periodLabel}</p>
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5">
-          {receita.map(card => <MetricCard key={card.label} title={card.label} value={card.value} tone={card.tone} size="sm" />)}
+          {resultados.map(card => <MetricCard key={card.label} title={card.label} value={card.value} tone={card.tone} size="sm" />)}
         </div>
       </section>
 
-      {/* Comercial & carteira */}
-      <section className="space-y-2">
-        <p className="font-tech text-label uppercase tracking-label text-bento-muted">Comercial & carteira</p>
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
-          {carteira.map(card => <MetricCard key={card.label} title={card.label} value={card.value} tone={card.tone} size="sm" />)}
-        </div>
-      </section>
-
-      {/* Receita por vendedor / plano (recebida no período) */}
+      {/* 4 · PIPELINE — funil por etapa (com gargalo) + conversões por etapa. */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-start">
-        <Panel label={`Receita por vendedor · ${vm.periodLabel}`}>
-          <BarList rows={vm.receitaPorVendedor.map(s => ({ label: s.name, value: s.value, sub: `${s.count} cliente(s)` }))} max={maxSeller} />
-        </Panel>
-        <Panel label={`Receita por plano · ${vm.periodLabel}`}>
-          <BarList rows={vm.receitaPorPlano.map(p => ({ label: p.plan, value: p.value, sub: `${p.count} cliente(s)` }))} max={maxPlan} />
-        </Panel>
-      </div>
-
-      {/* Insights + Conversões por etapa (ReportingService) */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-start">
-        <Panel label={`Insights · ${report.period.label}`}>
-          {report.insights.length === 0 ? (
-            <p className="text-note text-bento-muted">Sem alertas relevantes no período.</p>
+        <Panel label="Funil por etapa">
+          {report.funnel.length === 0 ? (
+            <p className="text-note text-bento-muted">Sem leads no funil.</p>
           ) : (
-            <ul className="space-y-2">
-              {report.insights.map((insight, i) => {
-                const { Icon, cls } = INSIGHT_STYLE[insight.kind]
-                return (
-                  <li key={i} className="flex items-start gap-2.5">
-                    <Icon className={cn('w-4 h-4 mt-0.5 shrink-0', cls)} />
-                    <span className="text-note text-bento-text leading-snug">{insight.message}</span>
-                  </li>
-                )
-              })}
-            </ul>
+            <div className="space-y-2.5">
+              {report.funnel.map((stage, i) => (
+                <div key={stage.stage}>
+                  <div className="flex items-center justify-between text-caption mb-1 gap-2">
+                    <span className="text-bento-text truncate">
+                      {stage.stage}
+                      {i === 0 && <span className="ml-2 text-label font-tech uppercase tracking-label text-amber-400">gargalo</span>}
+                    </span>
+                    <span className="text-bento-muted shrink-0 tabular-nums">
+                      {stage.count}{stage.avgDays != null ? ` · ${stage.avgDays}d` : ''}
+                    </span>
+                  </div>
+                  <div className="h-1.5 rounded-full bg-bento-panel overflow-hidden">
+                    <div className={cn('h-full rounded-full', i === 0 ? 'bg-amber-400' : 'bg-lime')} style={{ width: `${Math.round((stage.count / maxFunnel) * 100)}%` }} />
+                  </div>
+                </div>
+              ))}
+            </div>
           )}
         </Panel>
 
@@ -141,31 +145,15 @@ export function DashboardExecutivo({ vm, weekReceita, report }: { vm: ExecutiveM
         </Panel>
       </div>
 
-      {/* Funil por etapa — ranking + gargalo (etapa com mais leads acumulados) */}
-      <Panel label="Funil por etapa">
-        {report.funnel.length === 0 ? (
-          <p className="text-note text-bento-muted">Sem leads no funil.</p>
-        ) : (
-          <div className="space-y-2.5">
-            {report.funnel.map((stage, i) => (
-              <div key={stage.stage}>
-                <div className="flex items-center justify-between text-caption mb-1 gap-2">
-                  <span className="text-bento-text truncate">
-                    {stage.stage}
-                    {i === 0 && <span className="ml-2 text-label font-tech uppercase tracking-label text-amber-400">gargalo</span>}
-                  </span>
-                  <span className="text-bento-muted shrink-0 tabular-nums">
-                    {stage.count}{stage.avgDays != null ? ` · ${stage.avgDays}d` : ''}
-                  </span>
-                </div>
-                <div className="h-1.5 rounded-full bg-bento-panel overflow-hidden">
-                  <div className={cn('h-full rounded-full', i === 0 ? 'bg-amber-400' : 'bg-lime')} style={{ width: `${Math.round((stage.count / maxFunnel) * 100)}%` }} />
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </Panel>
+      {/* 5 · DETALHES PARA CONSULTAR — receita por vendedor / plano (recebida no período). */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-start">
+        <Panel label={`Receita por vendedor · ${vm.periodLabel}`}>
+          <BarList rows={vm.receitaPorVendedor.map(s => ({ label: s.name, value: s.value, sub: `${s.count} cliente(s)` }))} max={maxSeller} />
+        </Panel>
+        <Panel label={`Receita por plano · ${vm.periodLabel}`}>
+          <BarList rows={vm.receitaPorPlano.map(p => ({ label: p.plan, value: p.value, sub: `${p.count} cliente(s)` }))} max={maxPlan} />
+        </Panel>
+      </div>
     </div>
   )
 }
