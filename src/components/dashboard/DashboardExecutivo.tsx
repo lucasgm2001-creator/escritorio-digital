@@ -19,12 +19,12 @@ const INSIGHT_STYLE: Record<ReportInsight['kind'], { Icon: typeof Clock; cls: st
 
 // Lista de barras (receita por vendedor / plano) — só apresentação; os números vêm prontos do serviço.
 function BarList({ rows, max }: { rows: { label: string; value: number; sub: string }[]; max: number }) {
-  if (rows.length === 0) return <p className="text-[13px] text-bento-muted">Sem receita recebida no período.</p>
+  if (rows.length === 0) return <p className="text-note text-bento-muted">Sem receita recebida no período.</p>
   return (
     <div className="space-y-2.5">
       {rows.map(r => (
         <div key={r.label}>
-          <div className="flex items-center justify-between text-[12px] mb-1 gap-2">
+          <div className="flex items-center justify-between text-caption mb-1 gap-2">
             <span className="text-bento-text truncate">{r.label} <span className="text-bento-dim">· {r.sub}</span></span>
             <span className="font-tech text-bento-text tabular-nums shrink-0">{usd(r.value)}</span>
           </div>
@@ -76,7 +76,7 @@ export function DashboardExecutivo({ vm, weekReceita, report }: { vm: ExecutiveM
 
       {/* Receita (dinheiro recebido × previsto × contratos × recorrência) */}
       <section className="space-y-2">
-        <p className="font-tech text-[10px] uppercase tracking-[0.12em] text-bento-muted">Receita · {vm.periodLabel}</p>
+        <p className="font-tech text-label uppercase tracking-label text-bento-muted">Receita · {vm.periodLabel}</p>
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5">
           {receita.map(card => <MetricCard key={card.label} title={card.label} value={card.value} tone={card.tone} size="sm" />)}
         </div>
@@ -84,7 +84,7 @@ export function DashboardExecutivo({ vm, weekReceita, report }: { vm: ExecutiveM
 
       {/* Comercial & carteira */}
       <section className="space-y-2">
-        <p className="font-tech text-[10px] uppercase tracking-[0.12em] text-bento-muted">Comercial & carteira</p>
+        <p className="font-tech text-label uppercase tracking-label text-bento-muted">Comercial & carteira</p>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
           {carteira.map(card => <MetricCard key={card.label} title={card.label} value={card.value} tone={card.tone} size="sm" />)}
         </div>
@@ -104,7 +104,7 @@ export function DashboardExecutivo({ vm, weekReceita, report }: { vm: ExecutiveM
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-start">
         <Panel label={`Insights · ${report.period.label}`}>
           {report.insights.length === 0 ? (
-            <p className="text-[13px] text-bento-muted">Sem alertas relevantes no período.</p>
+            <p className="text-note text-bento-muted">Sem alertas relevantes no período.</p>
           ) : (
             <ul className="space-y-2">
               {report.insights.map((insight, i) => {
@@ -112,7 +112,7 @@ export function DashboardExecutivo({ vm, weekReceita, report }: { vm: ExecutiveM
                 return (
                   <li key={i} className="flex items-start gap-2.5">
                     <Icon className={cn('w-4 h-4 mt-0.5 shrink-0', cls)} />
-                    <span className="text-[13px] text-bento-text leading-snug">{insight.message}</span>
+                    <span className="text-note text-bento-text leading-snug">{insight.message}</span>
                   </li>
                 )
               })}
@@ -122,12 +122,12 @@ export function DashboardExecutivo({ vm, weekReceita, report }: { vm: ExecutiveM
 
         <Panel label="Conversões por etapa">
           {report.conversions.length === 0 ? (
-            <p className="text-[13px] text-bento-muted">Sem dados de conversão.</p>
+            <p className="text-note text-bento-muted">Sem dados de conversão.</p>
           ) : (
             <div className="space-y-2.5">
               {report.conversions.map(step => (
                 <div key={step.label}>
-                  <div className="flex items-center justify-between text-[12px] mb-1 gap-2">
+                  <div className="flex items-center justify-between text-caption mb-1 gap-2">
                     <span className="text-bento-muted truncate">{step.label}</span>
                     <span className="font-tech text-bento-text tabular-nums shrink-0">{pctRate(step.rate)}</span>
                   </div>
@@ -144,15 +144,15 @@ export function DashboardExecutivo({ vm, weekReceita, report }: { vm: ExecutiveM
       {/* Funil por etapa — ranking + gargalo (etapa com mais leads acumulados) */}
       <Panel label="Funil por etapa">
         {report.funnel.length === 0 ? (
-          <p className="text-[13px] text-bento-muted">Sem leads no funil.</p>
+          <p className="text-note text-bento-muted">Sem leads no funil.</p>
         ) : (
           <div className="space-y-2.5">
             {report.funnel.map((stage, i) => (
               <div key={stage.stage}>
-                <div className="flex items-center justify-between text-[12px] mb-1 gap-2">
+                <div className="flex items-center justify-between text-caption mb-1 gap-2">
                   <span className="text-bento-text truncate">
                     {stage.stage}
-                    {i === 0 && <span className="ml-2 text-[9px] font-tech uppercase tracking-wide text-amber-400">gargalo</span>}
+                    {i === 0 && <span className="ml-2 text-label font-tech uppercase tracking-label text-amber-400">gargalo</span>}
                   </span>
                   <span className="text-bento-muted shrink-0 tabular-nums">
                     {stage.count}{stage.avgDays != null ? ` · ${stage.avgDays}d` : ''}

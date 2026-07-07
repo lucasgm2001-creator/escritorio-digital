@@ -28,7 +28,7 @@ export default async function DashboardExecutivoPage() {
 
   return (
     <div className="space-y-5 md:space-y-6">
-      <Link href="/comercial" className="inline-flex items-center gap-1 text-sm text-bento-muted min-h-[44px] md:min-h-0">
+      <Link href="/comercial" className="inline-flex items-center gap-1 text-sm text-bento-muted min-h-control md:min-h-0">
         <ChevronLeft className="w-4 h-4" /> Comercial
       </Link>
       <WorkspaceHeader

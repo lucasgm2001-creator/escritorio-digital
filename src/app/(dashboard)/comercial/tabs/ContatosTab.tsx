@@ -74,7 +74,7 @@ function FilterDropdown({ label, options, selected, onToggle }: {
               <p className="text-xs text-bento-muted px-2 py-1.5">Nenhuma opção.</p>
             ) : options.map(o => (
               <button key={o.value} onClick={() => onToggle(o.value)}
-                className="w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-xs text-left hover:bg-bento-bg transition-colors">
+                className="w-full flex items-center gap-2 px-2 py-1.5 rounded-btn text-xs text-left hover:bg-bento-bg transition-colors">
                 <span className={cn('w-3.5 h-3.5 rounded border flex items-center justify-center flex-none',
                   selected.has(o.value) ? 'bg-lime border-lime' : 'border-bento-border')}>
                   {selected.has(o.value) && <Check className="w-2.5 h-2.5 text-lime-ink" />}
@@ -249,12 +249,12 @@ export function ContatosTab({ leads, clients, onOpenLead, onClientUpdated }: Pro
           {r.company && <p className="text-xs text-bento-muted truncate">{r.company}</p>}
         </div>
         <div className="flex items-center gap-1 shrink-0">
-          {r.chegada && <span className="font-tech text-[10px] text-bento-muted tabular-nums">{fmtChegada(r.chegada)}</span>}
+          {r.chegada && <span className="font-tech text-label text-bento-muted tabular-nums">{fmtChegada(r.chegada)}</span>}
           {/* Abrir o Hub do lead (só leads). stopPropagation p/ não abrir o modal da linha. */}
           {r.origem === 'lead' && (
             <Link href={`/comercial/lead/${r.id}`} aria-label="Abrir perfil" title="Abrir perfil"
               onClick={e => e.stopPropagation()}
-              className="p-1 rounded-md text-bento-muted/60 hover:text-lime-fg hover:bg-lime/10 transition-colors">
+              className="p-1 rounded-btn text-bento-muted/60 hover:text-lime-fg hover:bg-lime/10 transition-colors">
               <ArrowRight className="w-3.5 h-3.5" />
             </Link>
           )}
@@ -262,19 +262,19 @@ export function ContatosTab({ leads, clients, onOpenLead, onClientUpdated }: Pro
           {r.origem === 'lead' && (
             <button type="button" aria-label="Excluir de vez" title="Excluir de vez"
               onClick={e => { e.stopPropagation(); setConfirm(r) }}
-              className="p-1 -mr-1 rounded-md text-bento-muted/50 hover:text-red-400 hover:bg-red-500/10 transition-colors">
+              className="p-1 -mr-1 rounded-btn text-bento-muted/50 hover:text-red-400 hover:bg-red-500/10 transition-colors">
               <Trash2 className="w-3.5 h-3.5" />
             </button>
           )}
         </div>
       </div>
       <div className="flex flex-wrap items-center gap-1.5 mt-2">
-        <span className="inline-flex items-center gap-1.5 text-[10px] px-2 py-0.5 rounded-full border border-bento-border text-bento-dim font-semibold">
+        <span className="inline-flex items-center gap-1.5 text-label px-2 py-0.5 rounded-full border border-bento-border text-bento-dim font-semibold">
           <span className={cn('w-1.5 h-1.5 rounded-full flex-none', r.faseDot)} />{r.faseLabel}
         </span>
-        {r.nicho && <span className="text-[10px] px-2 py-0.5 rounded-full bg-bento-bg border border-bento-border text-bento-muted">{r.nicho}</span>}
-        {r.fuso && <span className="font-tech text-[10px] px-2 py-0.5 rounded-full bg-bento-bg border border-bento-border text-bento-muted">{FUSO_LABELS[r.fuso] ?? r.fuso}</span>}
-        {r.phone && <span className="font-tech text-[11px] text-bento-muted ml-auto tabular-nums">{r.phone}</span>}
+        {r.nicho && <span className="text-label px-2 py-0.5 rounded-full bg-bento-bg border border-bento-border text-bento-muted">{r.nicho}</span>}
+        {r.fuso && <span className="font-tech text-label px-2 py-0.5 rounded-full bg-bento-bg border border-bento-border text-bento-muted">{FUSO_LABELS[r.fuso] ?? r.fuso}</span>}
+        {r.phone && <span className="font-tech text-caption text-bento-muted ml-auto tabular-nums">{r.phone}</span>}
       </div>
     </div>
   )
@@ -319,8 +319,8 @@ export function ContatosTab({ leads, clients, onOpenLead, onClientUpdated }: Pro
             {visibleLixeira.length > 0 && (
               <>
                 <div className="flex items-center gap-2 pt-4 pb-1">
-                  <span className="font-tech text-[10px] uppercase tracking-wide text-bento-muted">Lixeira</span>
-                  <span className="font-tech text-[10px] text-bento-muted/70 tabular-nums">{visibleLixeira.length}</span>
+                  <span className="font-tech text-label uppercase tracking-label text-bento-muted">Lixeira</span>
+                  <span className="font-tech text-label text-bento-muted/70 tabular-nums">{visibleLixeira.length}</span>
                   <div className="flex-1 border-t border-bento-border/60" />
                 </div>
                 {visibleLixeira.map(renderRow)}
@@ -355,11 +355,11 @@ export function ContatosTab({ leads, clients, onOpenLead, onClientUpdated }: Pro
 
               <div className="flex flex-col gap-2 pt-1">
                 <button type="button" onClick={() => setConfirm(null)} disabled={deleting}
-                  className="w-full border border-bento-border text-bento-dim py-2.5 rounded-btn text-sm font-medium hover:border-lime hover:text-bento-text transition-colors disabled:opacity-50 min-h-[44px]">
+                  className="w-full border border-bento-border text-bento-dim py-2.5 rounded-btn text-sm font-medium hover:border-lime hover:text-bento-text transition-colors disabled:opacity-50 min-h-control">
                   Cancelar
                 </button>
                 <button type="button" onClick={() => doDelete(confirm)} disabled={deleting}
-                  className="w-full mt-1 bg-red-600 text-white py-2.5 rounded-btn text-sm font-semibold hover:bg-red-700 transition-colors disabled:opacity-50 min-h-[44px]">
+                  className="w-full mt-1 bg-red-600 text-white py-2.5 rounded-btn text-sm font-semibold hover:bg-red-700 transition-colors disabled:opacity-50 min-h-control">
                   {deleting ? 'Excluindo...' : 'Excluir de vez'}
                 </button>
               </div>

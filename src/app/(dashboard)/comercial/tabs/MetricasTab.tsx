@@ -43,7 +43,7 @@ export function MetricasTab() {
         <div className="flex bg-bento-bg border border-bento-border rounded-btn p-1 gap-1 max-w-full overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           {METRICAS_MODES.map(([m, label]) => (
             <button key={m} onClick={() => setMode(m)}
-              className={cn('px-3 py-1.5 rounded-[8px] text-xs font-medium shrink-0 whitespace-nowrap transition-colors',
+              className={cn('px-3 py-1.5 rounded-btn text-xs font-medium shrink-0 whitespace-nowrap transition-colors',
                 mode === m ? 'bg-lime text-lime-ink' : 'text-bento-muted hover:text-bento-text')}>
               {label}
             </button>
@@ -75,7 +75,7 @@ export function MetricasTab() {
             <p className="font-display text-4xl font-bold tabular-nums text-lime-fg flex-none">{pctFmt(vm.convReuniao)}</p>
           </div>
 
-          <p className="font-tech text-[11px] text-bento-muted">Estado atual do funil (não filtra por período):</p>
+          <p className="font-tech text-caption text-bento-muted">Estado atual do funil (não filtra por período):</p>
 
           {/* Meio: Funil por Etapa | Valor por Estágio | Receita por Vendedor */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
@@ -113,7 +113,7 @@ export function MetricasTab() {
                         <div className="flex items-center gap-1.5 min-w-0">
                           <div className={`w-2 h-2 rounded-full flex-none ${st.dotColor}`} />
                           <span className={`text-xs font-medium truncate ${st.textColor}`}>{st.label}</span>
-                          <span className="text-[10px] text-muted-foreground flex-none">({stage.count})</span>
+                          <span className="text-label text-muted-foreground flex-none">({stage.count})</span>
                         </div>
                         <span className="text-xs font-semibold text-muted-foreground tabular-nums">{fmt(stage.value)}</span>
                       </div>
@@ -128,17 +128,17 @@ export function MetricasTab() {
             </div>
 
             <div className={card}>
-              <h3 className="font-semibold text-foreground mb-4 text-sm">Receita por Vendedor <span className="font-tech text-[10px] text-muted-foreground">· no período</span></h3>
+              <h3 className="font-semibold text-foreground mb-4 text-sm">Receita por Vendedor <span className="font-tech text-label text-muted-foreground">· no período</span></h3>
               <div className="space-y-3">
                 {vm.bySeller.map(seller => (
                   <div key={seller.name}>
                     <div className="flex items-center justify-between mb-1.5">
                       <div className="flex items-center gap-2 min-w-0">
                         <div className="w-6 h-6 rounded-full bg-lime/15 flex items-center justify-center flex-none">
-                          <span className="text-[9px] font-bold text-lime-fg">{seller.name.split(' ')[0]?.[0] ?? '?'}</span>
+                          <span className="text-label font-bold text-lime-fg">{seller.name.split(' ')[0]?.[0] ?? '?'}</span>
                         </div>
                         <span className="text-xs font-medium text-muted-foreground truncate">{seller.name}</span>
-                        <span className="text-[10px] text-muted-foreground flex-none">({seller.count})</span>
+                        <span className="text-label text-muted-foreground flex-none">({seller.count})</span>
                       </div>
                       <span className="text-xs font-semibold text-muted-foreground tabular-nums">{fmt(seller.value)}</span>
                     </div>

@@ -86,10 +86,10 @@ export function RadarTab({ leads, stages = [] }: { leads: Lead[]; stages?: Funne
       <div className="flex items-center gap-2 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden -mx-1 px-1">
         {FILTERS.map(f => (
           <button key={f.key} type="button" onClick={() => setFilter(f.key)}
-            className={cn('shrink-0 px-3 py-1.5 rounded-full border text-[13px] transition-colors min-h-[36px] inline-flex items-center gap-1.5',
+            className={cn('shrink-0 px-3 py-1.5 rounded-full border text-note transition-colors min-h-control-sm inline-flex items-center gap-1.5',
               filter === f.key ? 'bg-lime/15 border-lime text-lime-fg' : 'border-bento-border text-bento-muted hover:text-bento-text')}>
             {f.label}
-            <span className={cn('text-[10px] tabular-nums', filter === f.key ? 'opacity-80' : 'opacity-60')}>{counts[f.key]}</span>
+            <span className={cn('text-label tabular-nums', filter === f.key ? 'opacity-80' : 'opacity-60')}>{counts[f.key]}</span>
           </button>
         ))}
       </div>
@@ -106,19 +106,19 @@ export function RadarTab({ leads, stages = [] }: { leads: Lead[]; stages?: Funne
               <div className="flex items-center gap-2.5">
                 <span className={cn('w-2 h-2 rounded-full shrink-0', view.temp ? TEMP_DOT[view.temp] : 'bg-bento-border')} title={view.temp ? TEMPERATURE_LABEL[view.temp] : 'Sem temperatura'} />
                 <span className="text-[15px] font-semibold text-bento-text truncate flex-1 min-w-0">{lead.name}</span>
-                {lead.company && <span className="hidden sm:inline text-[12px] text-bento-muted truncate max-w-[28%]">{lead.company}</span>}
-                <span className={cn('text-[9px] font-tech uppercase tracking-wide px-2 py-0.5 rounded-full border shrink-0', STATE_BADGE[view.state])}>{FOLLOWUP_STATE_LABEL[view.state]}</span>
+                {lead.company && <span className="hidden sm:inline text-caption text-bento-muted truncate max-w-[28%]">{lead.company}</span>}
+                <span className={cn('text-label font-tech uppercase tracking-label px-2 py-0.5 rounded-full border shrink-0', STATE_BADGE[view.state])}>{FOLLOWUP_STATE_LABEL[view.state]}</span>
               </div>
               {/* 2) Situação (por quê) — manual ou derivada honesta */}
-              <p className={cn('text-[13px] leading-snug pl-[18px]', view.situationDerived ? 'text-bento-dim' : 'text-bento-muted')}>{view.situation}</p>
+              <p className={cn('text-note leading-snug pl-[18px]', view.situationDerived ? 'text-bento-dim' : 'text-bento-muted')}>{view.situation}</p>
               {/* 3) Próxima ação + quando */}
               <div className="flex items-center justify-between gap-3 pl-[18px]">
-                <span className="min-w-0 flex items-center gap-1.5 text-[12px]">
+                <span className="min-w-0 flex items-center gap-1.5 text-caption">
                   <ArrowRight className="w-3.5 h-3.5 text-bento-dim shrink-0" />
                   <span className={cn('truncate', view.nextText === '—' ? 'text-bento-dim' : 'text-bento-text')}>{view.nextText}</span>
                   {view.nextWhen && <span className={cn('shrink-0 font-tech', view.nextWhen <= today ? 'text-red-400 font-semibold' : 'text-bento-muted')}>· {relativeDayLabel(view.nextWhen, today)}</span>}
                 </span>
-                {lead.assigned_name && <span className="hidden sm:inline text-[11px] text-bento-dim shrink-0">{lead.assigned_name}</span>}
+                {lead.assigned_name && <span className="hidden sm:inline text-caption text-bento-dim shrink-0">{lead.assigned_name}</span>}
               </div>
             </button>
           ))}

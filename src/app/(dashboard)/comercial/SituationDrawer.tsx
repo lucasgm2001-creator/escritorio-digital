@@ -23,7 +23,7 @@ const WHENS: { key: WhenChoice; label: string }[] = [
 function Chip({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) {
   return (
     <button type="button" onClick={onClick}
-      className={cn('px-3 py-1.5 rounded-full border text-[13px] transition-colors min-h-[36px]',
+      className={cn('px-3 py-1.5 rounded-full border text-note transition-colors min-h-control-sm',
         active ? 'bg-lime/15 border-lime text-lime-fg' : 'border-bento-border text-bento-muted hover:text-bento-text')}>
       {children}
     </button>
@@ -32,7 +32,7 @@ function Chip({ active, onClick, children }: { active: boolean; onClick: () => v
 function Group({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="space-y-1.5">
-      <p className="text-[11px] font-tech uppercase tracking-wide text-bento-muted">{label}</p>
+      <p className="text-caption font-tech uppercase tracking-label text-bento-muted">{label}</p>
       <div className="flex flex-wrap gap-1.5">{children}</div>
     </div>
   )
@@ -84,7 +84,7 @@ export function SituationDrawer({ lead, onClose, onSaved, onSkip }: {
       <div className="relative w-full sm:max-w-md bg-bento-panel border border-bento-border rounded-t-frame sm:rounded-frame p-5 max-h-[90vh] overflow-y-auto space-y-4">
         <div className="flex items-start justify-between gap-2">
           <div className="min-w-0">
-            <p className="text-[11px] font-tech uppercase tracking-wide text-bento-muted">Atualizar situação</p>
+            <p className="text-caption font-tech uppercase tracking-label text-bento-muted">Atualizar situação</p>
             <p className="text-sm font-semibold text-bento-text truncate">{lead.name}</p>
           </div>
           <button type="button" onClick={onClose} className="text-bento-muted hover:text-bento-text shrink-0"><X className="w-5 h-5" /></button>
@@ -107,27 +107,27 @@ export function SituationDrawer({ lead, onClose, onSaved, onSkip }: {
             {WHENS.map(w => <Chip key={w.key} active={when === w.key} onClick={() => setWhen(w.key)}>{w.label}</Chip>)}
             {when === 'data' && (
               <input type="date" value={date} onChange={e => setDate(e.target.value)}
-                className="bg-bento-bg border border-bento-border rounded-btn px-3 py-1.5 text-[13px] text-bento-text focus:outline-none focus:border-lime" />
+                className="bg-bento-bg border border-bento-border rounded-btn px-3 py-1.5 text-note text-bento-text focus:outline-none focus:border-lime" />
             )}
           </Group>
         )}
 
         <div className="space-y-1.5">
-          <p className="text-[11px] font-tech uppercase tracking-wide text-bento-muted">Observação</p>
+          <p className="text-caption font-tech uppercase tracking-label text-bento-muted">Observação</p>
           <textarea value={note} onChange={e => setNote(e.target.value)} rows={2} placeholder="Resumo curto da situação…"
             className="w-full bg-bento-bg border border-bento-border rounded-btn px-3 py-2 text-sm text-bento-text placeholder:text-bento-muted focus:outline-none focus:border-lime resize-none" />
         </div>
 
-        {error && <p className="text-[12px] text-red-400">{error}</p>}
+        {error && <p className="text-caption text-red-400">{error}</p>}
 
         <div className="flex items-center gap-2 pt-1">
           <button type="button" onClick={save} disabled={saving}
-            className="bento-btn px-4 min-h-[44px] rounded-btn text-sm font-semibold flex-1 disabled:opacity-50">
+            className="bento-btn px-4 min-h-control rounded-btn text-sm font-semibold flex-1 disabled:opacity-50">
             {saving ? 'Salvando…' : 'Salvar'}
           </button>
           {onSkip && (
             <button type="button" onClick={onSkip} disabled={saving}
-              className="px-4 min-h-[44px] rounded-btn text-sm font-medium text-bento-muted border border-bento-border hover:text-bento-text disabled:opacity-50">
+              className="px-4 min-h-control rounded-btn text-sm font-medium text-bento-muted border border-bento-border hover:text-bento-text disabled:opacity-50">
               Pular
             </button>
           )}
