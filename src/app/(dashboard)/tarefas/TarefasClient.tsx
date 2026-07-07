@@ -101,6 +101,16 @@ function taskKind(t: Task): TaskKind {
   return 'general'
 }
 
+function taskContextHref(t: Task): string {
+  if (t.linked_type === 'lead') {
+    return t.linked_id ? `/comercial?lead=${encodeURIComponent(t.linked_id)}` : '/comercial'
+  }
+  if (t.linked_type === 'client') {
+    return t.linked_id ? `/clientes/${encodeURIComponent(t.linked_id)}` : '/admin/clientes'
+  }
+  return '/hall?tab=tarefas'
+}
+
 function sectionOf(t: Task, today: string, tomorrow: string, weekEnd: string): SectionId {
   if (!t.due_date) return 'depois'
   if (t.due_date < today)    return 'atrasadas'
@@ -391,7 +401,7 @@ export function TarefasClient({ tasks, setTasks, deletedIds, linkOptions, curren
             {t.linked_id && t.linked_name && (
               <div className="flex items-center gap-1.5 mt-1.5">
                 <Link
-                  href={t.linked_type === 'lead' ? '/comercial' : '/admin/clientes'}
+                  href={taskContextHref(t)}
                   className="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded bg-bento-bg border border-bento-border text-bento-dim hover:border-lime transition-colors max-w-[200px]"
                 >
                   <span className={cn('w-1 h-1 rounded-full flex-none', t.linked_type === 'lead' ? 'bg-blue-400' : 'bg-lime')} />
@@ -500,7 +510,7 @@ export function TarefasClient({ tasks, setTasks, deletedIds, linkOptions, curren
             </div>
             <div className="flex items-center gap-2 flex-wrap mt-1.5">
               {t.linked_id && t.linked_name && (
-                <Link href={t.linked_type === 'lead' ? '/comercial' : '/admin/clientes'} onClick={e => e.stopPropagation()}
+                <Link href={taskContextHref(t)} onClick={e => e.stopPropagation()}
                   className="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded bg-bento-bg border border-bento-border text-bento-dim max-w-[180px]">
                   <span className={cn('w-1 h-1 rounded-full flex-none', t.linked_type === 'lead' ? 'bg-blue-400' : 'bg-lime')} />
                   <span className="truncate">{t.linked_name}</span>
