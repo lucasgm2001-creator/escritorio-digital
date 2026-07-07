@@ -241,7 +241,7 @@ export function ContatosTab({ leads, clients, onOpenLead, onClientUpdated }: Pro
       onClick={() => open(r)}
       role="button" tabIndex={0}
       onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); open(r) } }}
-      className={cn('w-full text-left bento-fx p-3 hover:border-lime/40 transition-colors cursor-pointer',
+      className={cn('w-full text-left bento-fx p-3 hover:border-lime/40 hover:bg-bento-surface transition-colors cursor-pointer',
         r.faseKey === 'lixeira' && 'opacity-70')}>
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
@@ -262,18 +262,19 @@ export function ContatosTab({ leads, clients, onOpenLead, onClientUpdated }: Pro
           {r.origem === 'lead' && (
             <button type="button" aria-label="Excluir de vez" title="Excluir de vez"
               onClick={e => { e.stopPropagation(); setConfirm(r) }}
-              className="p-1 -mr-1 rounded-btn text-bento-muted/50 hover:text-red-400 hover:bg-red-500/10 transition-colors">
+              className="p-1 -mr-1 rounded-btn text-bento-muted/50 hover:text-destructive hover:bg-destructive/10 transition-colors">
               <Trash2 className="w-3.5 h-3.5" />
             </button>
           )}
         </div>
       </div>
-      <div className="flex flex-wrap items-center gap-1.5 mt-2">
+      {/* Meta: a FASE é o único selo (âncora de escaneabilidade); nicho/fuso recuam a texto — menos borda, mesmo dado, mesma altura. */}
+      <div className="flex flex-wrap items-center gap-x-2 gap-y-1 mt-2">
         <span className="inline-flex items-center gap-1.5 text-label px-2 py-0.5 rounded-full border border-bento-border text-bento-dim font-semibold">
           <span className={cn('w-1.5 h-1.5 rounded-full flex-none', r.faseDot)} />{r.faseLabel}
         </span>
-        {r.nicho && <span className="text-label px-2 py-0.5 rounded-full bg-bento-bg border border-bento-border text-bento-muted">{r.nicho}</span>}
-        {r.fuso && <span className="font-tech text-label px-2 py-0.5 rounded-full bg-bento-bg border border-bento-border text-bento-muted">{FUSO_LABELS[r.fuso] ?? r.fuso}</span>}
+        {r.nicho && <span className="text-label text-bento-muted truncate max-w-[40%]">{r.nicho}</span>}
+        {r.fuso && <span className="font-tech text-label text-bento-muted">{FUSO_LABELS[r.fuso] ?? r.fuso}</span>}
         {r.phone && <span className="font-tech text-caption text-bento-muted ml-auto tabular-nums">{r.phone}</span>}
       </div>
     </div>
@@ -338,8 +339,8 @@ export function ContatosTab({ leads, clients, onOpenLead, onClientUpdated }: Pro
           <div ref={confirmDialog.ref} {...confirmDialog.dialogProps} aria-labelledby="contato-del-title" className="relative bento-fx rounded-t-frame sm:rounded-frame shadow-card-hover w-full sm:max-w-md animate-slide-up">
             <div className="p-5 space-y-4">
               <div className="flex items-center gap-3">
-                <span className="w-9 h-9 rounded-full bg-red-500/15 flex items-center justify-center flex-none">
-                  <Trash2 className="w-4 h-4 text-red-400" />
+                <span className="w-9 h-9 rounded-full bg-destructive/15 flex items-center justify-center flex-none">
+                  <Trash2 className="w-4 h-4 text-destructive" />
                 </span>
                 <div className="min-w-0">
                   <h2 id="contato-del-title" className="font-display font-bold text-bento-text leading-tight">Excluir de vez</h2>
@@ -347,8 +348,8 @@ export function ContatosTab({ leads, clients, onOpenLead, onClientUpdated }: Pro
                 </div>
               </div>
 
-              <div className="rounded-btn border border-red-800/50 bg-red-900/20 p-3">
-                <p className="text-sm text-red-200">
+              <div className="rounded-btn border border-destructive/40 bg-destructive/15 p-3">
+                <p className="text-sm text-destructive">
                   Isso apaga o lead e todo o histórico dele (transcrições, briefings, notas) <span className="font-bold">PARA SEMPRE</span>. Não dá pra desfazer.
                 </p>
               </div>
@@ -359,7 +360,7 @@ export function ContatosTab({ leads, clients, onOpenLead, onClientUpdated }: Pro
                   Cancelar
                 </button>
                 <button type="button" onClick={() => doDelete(confirm)} disabled={deleting}
-                  className="w-full mt-1 bg-red-600 text-white py-2.5 rounded-btn text-sm font-semibold hover:bg-red-700 transition-colors disabled:opacity-50 min-h-control">
+                  className="w-full mt-1 bg-destructive text-destructive-foreground py-2.5 rounded-btn text-sm font-semibold hover:bg-destructive/90 transition-colors disabled:opacity-50 min-h-control">
                   {deleting ? 'Excluindo...' : 'Excluir de vez'}
                 </button>
               </div>
