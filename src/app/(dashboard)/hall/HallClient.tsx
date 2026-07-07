@@ -260,7 +260,7 @@ export function HallClient({ initialActivities, initialTasks, linkOptions, userN
       <div className="bento-canvas p-4 sm:p-5 space-y-3">
 
         {activeTab === 'activities' && (
-          <>
+          <div className="flex flex-col gap-3">
             {/* Alertas + resumo do dia ("Prioridades") migraram para o HERO (Z1) acima — contexto primeiro,
                 sem painel dedicado. Aqui o canvas começa direto no TRABALHO (o que fazer). */}
             {hallCfg.blocks.tarefas && (
@@ -328,107 +328,115 @@ export function HallClient({ initialActivities, initialTasks, linkOptions, userN
               )
             })}
 
-            {/* ══ RECEITA POR VENDEDOR / PLANO ══ recebida no mês — mesma FONTE ÚNICA (ExecutiveMetricsService). */}
-            {(dashboard.receitaPorVendedor.length > 0 || dashboard.receitaPorPlano.length > 0) && (
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                {dashboard.receitaPorVendedor.length > 0 && (
-                  <div className="space-y-2">
-                    <SectionLabel>Receita por vendedor</SectionLabel>
-                    <Panel className="max-lg:p-3" headerClassName="max-lg:hidden" label="Receita por vendedor">
-                      <div className="space-y-1.5">
-                        {dashboard.receitaPorVendedor.map(r => (
-                          <div key={r.label} className="flex items-center justify-between gap-2 text-note">
-                            <span className="text-bento-text truncate">{r.label} <span className="text-bento-dim">· {r.count} cliente(s)</span></span>
-                            <span className="font-tech text-bento-text tabular-nums shrink-0">US$ {Math.round(r.value).toLocaleString('en-US')}</span>
+            {/* ══ SPLIT DESKTOP 8/4 (HALL-PREMIUM-004) — principal (Atividades + Agenda) + rail (Receita +
+                Notícias). Mobile empilha (lg:* inerte; acordeões/agenda/notícias intactos). O gap sobrevive ao
+                lg:contents do CollapsibleSection (space-y não sobreviveria); items-start = rail não estica. */}
+            <div className="flex flex-col gap-3 lg:grid lg:grid-cols-12 lg:gap-4 lg:items-start">
+              {/* ── Coluna principal 8/12 — pulso / trabalho ── */}
+              <div className="lg:col-span-8 flex flex-col gap-3 min-w-0">
+                {/* ══ ATIVIDADES RECENTES ══ movimentações reais (realtime). */}
+                {hallCfg.blocks.atividade && (
+                  <div className="flex flex-col gap-2">
+                  <SectionLabel>Atividades recentes</SectionLabel>
+                  <CollapsibleSection title="Atividades Recentes" icon={ActivityIcon}>
+                    <Panel className="max-lg:p-3 lg:pb-4" headerClassName="max-lg:hidden" label="Atividades Recentes" action={<LiveDot />}>
+                    <div className="space-y-0 divide-y divide-bento-border/60">
+                      {activities.length === 0 ? (
+                        <p className="text-sm text-bento-muted py-6 text-center">Nenhuma atividade ainda.</p>
+                      ) : activities.slice(0, activitiesExpanded ? activities.length : 3).map(a => {
+                        const entityId = (a as { entity_id?: string | null }).entity_id
+                        const clickable = a.type === 'lead' && !!entityId
+                        return (
+                        <div key={a.id}
+                          onClick={clickable ? () => router.push(`/comercial?lead=${entityId}`) : undefined}
+                          role={clickable ? 'button' : undefined}
+                          tabIndex={clickable ? 0 : undefined}
+                          className={cn('flex items-start gap-3 py-2 first:pt-0 last:pb-0',
+                            clickable && 'cursor-pointer hover:bg-bento-bg/50 rounded-md -mx-1.5 px-1.5 transition-colors')}>
+                          <div className={`w-7 h-7 rounded-md flex items-center justify-center shrink-0 ${ACTIVITY_COLORS[a.type] ?? 'bg-slate-800/60 text-slate-400'}`}>
+                            {ACTIVITY_ICONS[a.type]}
                           </div>
-                        ))}
-                      </div>
-                    </Panel>
-                  </div>
-                )}
-                {dashboard.receitaPorPlano.length > 0 && (
-                  <div className="space-y-2">
-                    <SectionLabel>Receita por plano</SectionLabel>
-                    <Panel className="max-lg:p-3" headerClassName="max-lg:hidden" label="Receita por plano">
-                      <div className="space-y-1.5">
-                        {dashboard.receitaPorPlano.map(r => (
-                          <div key={r.label} className="flex items-center justify-between gap-2 text-note">
-                            <span className="text-bento-text truncate">{r.label} <span className="text-bento-dim">· {r.count} cliente(s)</span></span>
-                            <span className="font-tech text-bento-text tabular-nums shrink-0">US$ {Math.round(r.value).toLocaleString('en-US')}</span>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm text-bento-text leading-snug">{a.description}</p>
+                            <div className="flex items-center gap-1.5 mt-0.5">
+                              {a.user_name && <><p className="text-xs text-bento-muted">{a.user_name}</p><span className="text-bento-muted/50 text-xs">·</span></>}
+                              <p className="font-tech text-xs text-bento-muted"><TimeAgo date={a.created_at} /></p>
+                            </div>
                           </div>
-                        ))}
-                      </div>
-                    </Panel>
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* ══ ATIVIDADES RECENTES ══ movimentações reais (realtime). Secundário — colapsa no mobile. */}
-            {hallCfg.blocks.atividade && (
-              <div className="space-y-2">
-              <SectionLabel>Atividades recentes</SectionLabel>
-              <CollapsibleSection title="Atividades Recentes" icon={ActivityIcon}>
-                <Panel className="max-lg:p-3 lg:pb-4" headerClassName="max-lg:hidden" label="Atividades Recentes" action={<LiveDot />}>
-                <div className="space-y-0 divide-y divide-bento-border/60">
-                  {activities.length === 0 ? (
-                    <p className="text-sm text-bento-muted py-6 text-center">Nenhuma atividade ainda.</p>
-                  ) : activities.slice(0, activitiesExpanded ? activities.length : 3).map(a => {
-                    const entityId = (a as { entity_id?: string | null }).entity_id
-                    const clickable = a.type === 'lead' && !!entityId
-                    return (
-                    <div key={a.id}
-                      onClick={clickable ? () => router.push(`/comercial?lead=${entityId}`) : undefined}
-                      role={clickable ? 'button' : undefined}
-                      tabIndex={clickable ? 0 : undefined}
-                      className={cn('flex items-start gap-3 py-2 first:pt-0 last:pb-0',
-                        clickable && 'cursor-pointer hover:bg-bento-bg/50 rounded-md -mx-1.5 px-1.5 transition-colors')}>
-                      <div className={`w-7 h-7 rounded-md flex items-center justify-center shrink-0 ${ACTIVITY_COLORS[a.type] ?? 'bg-slate-800/60 text-slate-400'}`}>
-                        {ACTIVITY_ICONS[a.type]}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm text-bento-text leading-snug">{a.description}</p>
-                        <div className="flex items-center gap-1.5 mt-0.5">
-                          {a.user_name && <><p className="text-xs text-bento-muted">{a.user_name}</p><span className="text-bento-muted/50 text-xs">·</span></>}
-                          <p className="font-tech text-xs text-bento-muted"><TimeAgo date={a.created_at} /></p>
                         </div>
-                      </div>
+                        )
+                      })}
                     </div>
-                    )
-                  })}
-                </div>
-                {activities.length > 3 && (
-                  <button type="button" onClick={() => setActivitiesExpanded(v => !v)}
-                    className="font-tech text-caption uppercase tracking-wide text-lime-fg hover:text-lime transition-colors font-semibold mt-2.5 self-start">
-                    {activitiesExpanded ? 'Ver menos' : `Ver mais (${activities.length - 3})`}
-                  </button>
+                    {activities.length > 3 && (
+                      <button type="button" onClick={() => setActivitiesExpanded(v => !v)}
+                        className="font-tech text-caption uppercase tracking-wide text-lime-fg hover:text-lime transition-colors font-semibold mt-2.5 self-start">
+                        {activitiesExpanded ? 'Ver menos' : `Ver mais (${activities.length - 3})`}
+                      </button>
+                    )}
+                    <button type="button" onClick={() => setShowHistory(true)}
+                      className="mt-2.5 pt-2.5 border-t border-bento-border/60 w-full text-center font-tech text-caption uppercase tracking-wide text-bento-muted hover:text-lime-fg transition-colors">
+                      Ver histórico
+                    </button>
+                    </Panel>
+                  </CollapsibleSection>
+                  </div>
                 )}
-                <button type="button" onClick={() => setShowHistory(true)}
-                  className="mt-2.5 pt-2.5 border-t border-bento-border/60 w-full text-center font-tech text-caption uppercase tracking-wide text-bento-muted hover:text-lime-fg transition-colors">
-                  Ver histórico
-                </button>
-                </Panel>
-              </CollapsibleSection>
+                {/* ── Agenda ── colapsada por padrão; completa (4 vistas + CRUD) ao expandir. */}
+                {hallCfg.blocks.agenda && (
+                  <CollapsibleSection title="Agenda" icon={CalendarDays}>
+                    <Calendar userId={userId} events={calEvents} tasks={tasks} onEventsChange={setCalEvents} focusEvent={focusEvent} onFocusHandled={() => setFocusEvent(null)} />
+                  </CollapsibleSection>
+                )}
               </div>
-            )}
-
-            {/* ── Agenda (secundário) ── colapsada por padrão; completa (4 vistas + CRUD) ao expandir. */}
-            {hallCfg.blocks.agenda && (
-              <CollapsibleSection title="Agenda" icon={CalendarDays}>
-                <Calendar userId={userId} events={calEvents} tasks={tasks} onEventsChange={setCalEvents} focusEvent={focusEvent} onFocusHandled={() => setFocusEvent(null)} />
-              </CollapsibleSection>
-            )}
-
-            {/* ── Informações ── Notícias (secundário). */}
-            {hallCfg.blocks.noticias && (
-              <div className="space-y-2">
-              <SectionLabel>Informações</SectionLabel>
-              <CollapsibleSection title="Notícias do Setor" icon={Newspaper}>
-                <NewsSection />
-              </CollapsibleSection>
+              {/* ── Rail lateral 4/12 — consulta / apoio ── */}
+              <div className="lg:col-span-4 flex flex-col gap-3 min-w-0">
+                {/* ══ RECEITA POR VENDEDOR / PLANO ══ recebida no mês — mesma FONTE ÚNICA (ExecutiveMetricsService). */}
+                {(dashboard.receitaPorVendedor.length > 0 || dashboard.receitaPorPlano.length > 0) && (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-1 gap-3">
+                    {dashboard.receitaPorVendedor.length > 0 && (
+                      <div className="flex flex-col gap-2">
+                        <SectionLabel>Receita por vendedor</SectionLabel>
+                        <Panel className="max-lg:p-3" headerClassName="max-lg:hidden" label="Receita por vendedor">
+                          <div className="space-y-1.5">
+                            {dashboard.receitaPorVendedor.map(r => (
+                              <div key={r.label} className="flex items-center justify-between gap-2 text-note">
+                                <span className="text-bento-text truncate">{r.label} <span className="text-bento-dim">· {r.count} cliente(s)</span></span>
+                                <span className="font-tech text-bento-text tabular-nums shrink-0">US$ {Math.round(r.value).toLocaleString('en-US')}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </Panel>
+                      </div>
+                    )}
+                    {dashboard.receitaPorPlano.length > 0 && (
+                      <div className="flex flex-col gap-2">
+                        <SectionLabel>Receita por plano</SectionLabel>
+                        <Panel className="max-lg:p-3" headerClassName="max-lg:hidden" label="Receita por plano">
+                          <div className="space-y-1.5">
+                            {dashboard.receitaPorPlano.map(r => (
+                              <div key={r.label} className="flex items-center justify-between gap-2 text-note">
+                                <span className="text-bento-text truncate">{r.label} <span className="text-bento-dim">· {r.count} cliente(s)</span></span>
+                                <span className="font-tech text-bento-text tabular-nums shrink-0">US$ {Math.round(r.value).toLocaleString('en-US')}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </Panel>
+                      </div>
+                    )}
+                  </div>
+                )}
+                {/* ── Informações ── Notícias (secundário). */}
+                {hallCfg.blocks.noticias && (
+                  <div className="flex flex-col gap-2">
+                  <SectionLabel>Informações</SectionLabel>
+                  <CollapsibleSection title="Notícias do Setor" icon={Newspaper}>
+                    <NewsSection />
+                  </CollapsibleSection>
+                  </div>
+                )}
               </div>
-            )}
-          </>
+            </div>
+          </div>
         )}
 
         {activeTab === 'mapa' && (
