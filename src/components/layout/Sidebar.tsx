@@ -27,7 +27,7 @@ export function Sidebar({ open, onToggle, mobileClose, activeTeamName }: Sidebar
   return (
     <aside
       className={cn(
-        'flex flex-col h-screen transition-[width] duration-200 ease-in-out shrink-0 relative z-30',
+        'flex flex-col h-dvh transition-[width] duration-200 ease-in-out shrink-0 relative z-30',
         'bg-sidebar border-r border-sidebar-border/10',
         isMobileDrawer ? 'w-56' : open ? 'w-56' : 'w-[60px]'
       )}

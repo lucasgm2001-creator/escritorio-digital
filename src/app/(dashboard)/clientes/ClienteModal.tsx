@@ -164,15 +164,15 @@ export function ClienteModal({ client, onClose, onSaved, initialTab }: {
   return (
     <Portal>
     <div onClick={onClose} className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-end sm:items-center justify-center z-[300] p-0 sm:p-4">
-      <div ref={ref} {...dialogProps} aria-labelledby="cliente-modal-title" onClick={e => e.stopPropagation()} className="bento-fx rounded-t-frame sm:rounded-frame shadow-card-hover w-full sm:max-w-md max-h-[92dvh] overflow-y-auto overflow-x-hidden animate-slide-up">
-        <div className="flex items-center justify-between px-5 pt-5 pb-3">
+      <div ref={ref} {...dialogProps} aria-labelledby="cliente-modal-title" onClick={e => e.stopPropagation()} className="bento-fx rounded-t-frame sm:rounded-frame shadow-card-hover w-full sm:max-w-md max-h-[92dvh] flex flex-col overflow-hidden animate-slide-up">
+        <div className="flex shrink-0 items-center justify-between px-5 pt-5 pb-3">
           <h2 id="cliente-modal-title" className="font-display font-bold text-bento-text truncate">{client.name}</h2>
-          <button onClick={onClose} aria-label="Fechar" className="text-bento-muted hover:text-bento-text transition-colors shrink-0">
+          <button onClick={onClose} aria-label="Fechar" className="min-h-9 min-w-9 rounded-lg text-bento-muted hover:text-bento-text hover:bg-bento-bg transition-colors shrink-0 flex items-center justify-center">
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
           </button>
         </div>
         {/* Abas — rolam na horizontal no celular, sem quebrar linha. */}
-        <div className="flex flex-nowrap gap-1 px-5 border-b border-bento-border overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        <div className="flex shrink-0 flex-nowrap gap-1 px-5 border-b border-bento-border overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           {([['editar', 'Editar'], ['dossie', 'Dossiê']] as const).map(([v, l]) => (
             <button key={v} onClick={() => setView(v)}
               className={cn('px-3 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors shrink-0 whitespace-nowrap',
@@ -180,10 +180,10 @@ export function ClienteModal({ client, onClose, onSaved, initialTab }: {
           ))}
         </div>
 
-        {view === 'dossie' && <div className="p-5"><DossieTab client={client} onSaved={onSaved} /></div>}
+        {view === 'dossie' && <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain p-5"><DossieTab client={client} onSaved={onSaved} /></div>}
 
         {view === 'editar' && (
-        <div className="p-5 space-y-3">
+        <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain p-5 space-y-3">
           <div>
             <label className="block text-xs font-medium text-bento-dim mb-1">Nome</label>
             <input value={form.name} onChange={e => setForm(p => ({ ...p, name: e.target.value }))} placeholder={client.name} className={inputCls} />

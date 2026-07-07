@@ -38,19 +38,19 @@ function EventDetailModal({ event, onClose, onDelete }: { event: CalendarEvent; 
   return (
     <Portal>
     <div onClick={onClose} className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-end sm:items-center justify-center z-[300] p-0 sm:p-4">
-      <div ref={ref} {...dialogProps} aria-labelledby="event-detail-title" onClick={e => e.stopPropagation()} className="bento-fx rounded-t-frame sm:rounded-frame shadow-card-hover w-full sm:max-w-sm animate-slide-up">
-        <div className="flex items-center justify-between p-5 border-b border-bento-border">
+      <div ref={ref} {...dialogProps} aria-labelledby="event-detail-title" onClick={e => e.stopPropagation()} className="bento-fx rounded-t-frame sm:rounded-frame shadow-card-hover w-full sm:max-w-sm max-h-[92dvh] flex flex-col overflow-hidden animate-slide-up">
+        <div className="flex shrink-0 items-center justify-between p-5 border-b border-bento-border">
           <div className="flex items-center gap-2.5">
             <span className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: event.color }} />
             <h2 id="event-detail-title" className="font-display font-bold text-bento-text text-base">{event.title}</h2>
           </div>
-          <button onClick={onClose} className="text-bento-muted hover:text-bento-text transition-colors p-1">
+          <button onClick={onClose} className="min-h-9 min-w-9 rounded-lg text-bento-muted hover:text-bento-text hover:bg-bento-bg transition-colors p-1 flex items-center justify-center">
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
             </svg>
           </button>
         </div>
-        <div className="p-5 space-y-3">
+        <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain p-5 space-y-3">
           <div className="flex items-center gap-2 text-sm text-bento-dim">
             <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />

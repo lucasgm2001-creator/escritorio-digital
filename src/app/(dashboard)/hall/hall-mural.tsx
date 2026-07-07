@@ -101,12 +101,12 @@ export function HistoryModal({ onClose }: { onClose: () => void }) {
     <Portal>
     <div className="fixed inset-0 z-[300] flex items-stretch sm:items-center justify-center p-0 sm:p-4 animate-fade-in">
       <div className="absolute inset-0 bg-black/50" onClick={onClose} />
-      <div ref={ref} {...dialogProps} aria-labelledby="history-modal-title" className="relative w-full h-full sm:h-auto sm:max-w-lg sm:max-h-[82vh] bg-bento-panel border border-bento-border rounded-none sm:rounded-bento shadow-card-hover flex flex-col overflow-hidden">
+      <div ref={ref} {...dialogProps} aria-labelledby="history-modal-title" className="relative w-full h-full sm:h-auto sm:max-w-lg sm:max-h-[82dvh] bg-bento-panel border border-bento-border rounded-none sm:rounded-bento shadow-card-hover flex flex-col overflow-hidden">
         <div className="flex items-center justify-between gap-3 p-4 border-b border-bento-border shrink-0">
           <h3 id="history-modal-title" className="font-display font-bold text-bento-text">{title} — Histórico</h3>
-          <button onClick={onClose} aria-label="Fechar" className="p-1.5 rounded-lg text-bento-muted hover:text-bento-text hover:bg-bento-bg transition-colors"><X className="w-4 h-4" /></button>
+          <button onClick={onClose} aria-label="Fechar" className="min-h-9 min-w-9 p-1.5 rounded-lg text-bento-muted hover:text-bento-text hover:bg-bento-bg transition-colors flex items-center justify-center"><X className="w-4 h-4" /></button>
         </div>
-        <div className="flex-1 overflow-y-auto p-4">
+        <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain p-4">
           {loading && items.length === 0 ? (
             <p className="text-sm text-bento-muted text-center py-10">Carregando histórico…</p>
           ) : items.length === 0 ? (
