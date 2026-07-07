@@ -612,14 +612,14 @@ export function VendedoresTab() {
       {addOpen && (
         <Portal>
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-end sm:items-center justify-center z-[300] p-0 sm:p-4">
-          <div ref={addDialog.ref} {...addDialog.dialogProps} aria-labelledby="novo-vendedor-title" className="bento-fx rounded-t-frame sm:rounded-frame shadow-card-hover w-full sm:max-w-sm max-h-[92vh] flex flex-col animate-slide-up">
+          <div ref={addDialog.ref} {...addDialog.dialogProps} aria-labelledby="novo-vendedor-title" className="bento-fx rounded-t-frame sm:rounded-frame shadow-card-hover w-full sm:max-w-sm max-h-[92dvh] flex flex-col overflow-hidden animate-slide-up">
             <div className="flex items-center justify-between p-5 border-b border-bento-border shrink-0">
               <h2 id="novo-vendedor-title" className="font-display font-bold text-bento-text text-base">Novo Vendedor</h2>
               <button onClick={closeAdd} className="text-bento-muted hover:text-bento-text">
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
               </button>
             </div>
-            <div className="p-5 space-y-4 overflow-y-auto">
+            <div className="flex-1 min-h-0 p-5 space-y-4 overflow-y-auto overscroll-contain">
               {/* Foto */}
               <div className="flex items-center gap-3">
                 {photoPreview

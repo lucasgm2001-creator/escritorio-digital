@@ -19,7 +19,7 @@ export function ModuleLauncher({ open, onClose }: { open: boolean; onClose: () =
   return (
     <div className="lg:hidden fixed inset-0 z-[200]" role="dialog" aria-label="Módulos">
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
-      <div className="absolute inset-x-0 bottom-0 max-h-[85vh] flex flex-col rounded-t-frame bg-bento-bg border-t border-bento-border animate-slide-up pb-[max(1rem,env(safe-area-inset-bottom))]">
+      <div className="absolute inset-x-0 bottom-0 max-h-[85dvh] flex flex-col rounded-t-frame bg-bento-bg border-t border-bento-border animate-slide-up pb-[max(1rem,env(safe-area-inset-bottom))]">
         <div className="flex items-center justify-between px-5 h-14 border-b border-bento-border shrink-0">
           <span className="font-display font-semibold text-sm text-bento-text">Módulos</span>
           <button type="button" onClick={onClose} aria-label="Fechar" className="p-1.5 rounded-lg text-bento-muted hover:text-bento-text hover:bg-bento-panel transition-colors min-w-[36px] min-h-[36px] flex items-center justify-center">

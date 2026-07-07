@@ -106,7 +106,7 @@ export function DomainShell({ configKey, config: configProp, visibleSectionKeys,
       {sheetOpen && (
         <div className="md:hidden fixed inset-0 z-[200]">
           <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setSheetOpen(false)} />
-          <div className="absolute inset-x-0 bottom-0 max-h-[82vh] flex flex-col rounded-t-frame bg-bento-bg border-t border-bento-border animate-slide-up pb-[env(safe-area-inset-bottom)]">
+          <div className="absolute inset-x-0 bottom-0 max-h-[82dvh] flex flex-col rounded-t-frame bg-bento-bg border-t border-bento-border animate-slide-up pb-[env(safe-area-inset-bottom)]">
             <div className="flex items-center justify-between px-4 h-12 border-b border-bento-border shrink-0">
               <span className="font-display font-semibold text-sm text-bento-text">Seções</span>
               <button type="button" onClick={() => setSheetOpen(false)} aria-label="Fechar" className="p-1 text-bento-muted hover:text-bento-text">

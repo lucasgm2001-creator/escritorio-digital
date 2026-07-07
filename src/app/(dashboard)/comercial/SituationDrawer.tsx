@@ -2,6 +2,8 @@
 
 import { useState } from 'react'
 import { X } from 'lucide-react'
+import { Portal } from '@/components/ui/Portal'
+import { useDialog } from '@/components/ui/useDialog'
 import { cn } from '@/lib/utils'
 import { updateLeadSituationAction } from './lead-write-actions'
 import {
@@ -52,6 +54,7 @@ export function SituationDrawer({ lead, onClose, onSaved, onSkip }: {
   const [note, setNote] = useState('')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const { ref, dialogProps } = useDialog<HTMLDivElement>(onClose)
 
   const needsWhen = nextAction !== 'nenhuma' && nextAction !== 'aguardar'
 
@@ -79,60 +82,69 @@ export function SituationDrawer({ lead, onClose, onSaved, onSkip }: {
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
-      <div className="absolute inset-0 bg-black/50" onClick={onClose} />
-      <div className="relative w-full sm:max-w-md bg-bento-panel border border-bento-border rounded-t-frame sm:rounded-frame p-5 max-h-[90vh] overflow-y-auto space-y-4">
-        <div className="flex items-start justify-between gap-2">
-          <div className="min-w-0">
-            <p className="text-caption font-tech uppercase tracking-label text-bento-muted">Atualizar situação</p>
-            <p className="text-sm font-semibold text-bento-text truncate">{lead.name}</p>
+    <Portal>
+      <div className="fixed inset-0 z-[300] flex items-end sm:items-center justify-center p-0 sm:p-4 pt-[env(safe-area-inset-top)]">
+        <div className="absolute inset-0 bg-black/50" onClick={onClose} />
+        <div
+          ref={ref}
+          {...dialogProps}
+          aria-labelledby="situation-drawer-title"
+          className="relative flex w-full max-h-[calc(100dvh_-_env(safe-area-inset-top))] flex-col overflow-hidden bg-bento-panel border border-bento-border rounded-t-frame sm:rounded-frame shadow-card-hover sm:max-w-md sm:max-h-[90dvh]"
+        >
+          <div className="flex shrink-0 items-start justify-between gap-2 border-b border-bento-border p-5 pb-3">
+            <div className="min-w-0">
+              <p id="situation-drawer-title" className="text-caption font-tech uppercase tracking-label text-bento-muted">Atualizar situação</p>
+              <p className="text-sm font-semibold text-bento-text truncate">{lead.name}</p>
+            </div>
+            <button type="button" onClick={onClose} className="text-bento-muted hover:text-bento-text shrink-0"><X className="w-5 h-5" /></button>
           </div>
-          <button type="button" onClick={onClose} className="text-bento-muted hover:text-bento-text shrink-0"><X className="w-5 h-5" /></button>
-        </div>
 
-        <Group label="O lead respondeu?">
-          {RESPONSES.map(r => <Chip key={r.key} active={response === r.key} onClick={() => setResponse(r.key)}>{r.label}</Chip>)}
-        </Group>
+          <div className="flex-1 min-h-0 space-y-4 overflow-y-auto overscroll-contain p-5">
+            <Group label="O lead respondeu?">
+              {RESPONSES.map(r => <Chip key={r.key} active={response === r.key} onClick={() => setResponse(r.key)}>{r.label}</Chip>)}
+            </Group>
 
-        <Group label="Resultado">
-          {LAST_ACTIONS.map(a => <Chip key={a} active={lastAction === a} onClick={() => setLastAction(a)}>{LAST_ACTION_LABEL[a]}</Chip>)}
-        </Group>
+            <Group label="Resultado">
+              {LAST_ACTIONS.map(a => <Chip key={a} active={lastAction === a} onClick={() => setLastAction(a)}>{LAST_ACTION_LABEL[a]}</Chip>)}
+            </Group>
 
-        <Group label="Próxima ação">
-          {NEXT_ACTIONS.map(a => <Chip key={a} active={nextAction === a} onClick={() => setNextAction(a)}>{NEXT_ACTION_LABEL[a]}</Chip>)}
-        </Group>
+            <Group label="Próxima ação">
+              {NEXT_ACTIONS.map(a => <Chip key={a} active={nextAction === a} onClick={() => setNextAction(a)}>{NEXT_ACTION_LABEL[a]}</Chip>)}
+            </Group>
 
-        {needsWhen && (
-          <Group label="Quando">
-            {WHENS.map(w => <Chip key={w.key} active={when === w.key} onClick={() => setWhen(w.key)}>{w.label}</Chip>)}
-            {when === 'data' && (
-              <input type="date" value={date} onChange={e => setDate(e.target.value)}
-                className="bg-bento-bg border border-bento-border rounded-btn px-3 py-1.5 text-note text-bento-text focus:outline-none focus:border-lime" />
+            {needsWhen && (
+              <Group label="Quando">
+                {WHENS.map(w => <Chip key={w.key} active={when === w.key} onClick={() => setWhen(w.key)}>{w.label}</Chip>)}
+                {when === 'data' && (
+                  <input type="date" value={date} onChange={e => setDate(e.target.value)}
+                    className="bg-bento-bg border border-bento-border rounded-btn px-3 py-1.5 text-note text-bento-text focus:outline-none focus:border-lime" />
+                )}
+              </Group>
             )}
-          </Group>
-        )}
 
-        <div className="space-y-1.5">
-          <p className="text-caption font-tech uppercase tracking-label text-bento-muted">Observação</p>
-          <textarea value={note} onChange={e => setNote(e.target.value)} rows={2} placeholder="Resumo curto da situação…"
-            className="w-full bg-bento-bg border border-bento-border rounded-btn px-3 py-2 text-sm text-bento-text placeholder:text-bento-muted focus:outline-none focus:border-lime resize-none" />
-        </div>
+            <div className="space-y-1.5">
+              <p className="text-caption font-tech uppercase tracking-label text-bento-muted">Observação</p>
+              <textarea value={note} onChange={e => setNote(e.target.value)} rows={2} placeholder="Resumo curto da situação…"
+                className="w-full bg-bento-bg border border-bento-border rounded-btn px-3 py-2 text-sm text-bento-text placeholder:text-bento-muted focus:outline-none focus:border-lime resize-none" />
+            </div>
 
-        {error && <p className="text-caption text-red-400">{error}</p>}
+            {error && <p className="text-caption text-red-400">{error}</p>}
+          </div>
 
-        <div className="flex items-center gap-2 pt-1">
-          <button type="button" onClick={save} disabled={saving}
-            className="bento-btn px-4 min-h-control rounded-btn text-sm font-semibold flex-1 disabled:opacity-50">
-            {saving ? 'Salvando…' : 'Salvar'}
-          </button>
-          {onSkip && (
-            <button type="button" onClick={onSkip} disabled={saving}
-              className="px-4 min-h-control rounded-btn text-sm font-medium text-bento-muted border border-bento-border hover:text-bento-text disabled:opacity-50">
-              Pular
+          <div className="flex shrink-0 items-center gap-2 border-t border-bento-border px-5 pt-3 pb-[max(1rem,env(safe-area-inset-bottom))]">
+            <button type="button" onClick={save} disabled={saving}
+              className="bento-btn px-4 min-h-control rounded-btn text-sm font-semibold flex-1 disabled:opacity-50">
+              {saving ? 'Salvando…' : 'Salvar'}
             </button>
-          )}
+            {onSkip && (
+              <button type="button" onClick={onSkip} disabled={saving}
+                className="px-4 min-h-control rounded-btn text-sm font-medium text-bento-muted border border-bento-border hover:text-bento-text disabled:opacity-50">
+                Pular
+              </button>
+            )}
+          </div>
         </div>
       </div>
-    </div>
+    </Portal>
   )
 }

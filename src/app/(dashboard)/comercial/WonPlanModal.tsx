@@ -51,9 +51,9 @@ export function WonPlanModal({ leadName, onConfirm, onCancel }: {
     <Portal>
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-end sm:items-center justify-center z-[300] p-0 sm:p-4"
       onClick={onCancel}>
-      <div ref={ref} {...dialogProps} aria-labelledby="won-plan-title" className="bento-fx rounded-t-frame sm:rounded-frame shadow-card-hover w-full sm:max-w-lg max-h-[92vh] flex flex-col animate-slide-up"
+      <div ref={ref} {...dialogProps} aria-labelledby="won-plan-title" className="bento-fx rounded-t-frame sm:rounded-frame shadow-card-hover w-full sm:max-w-lg max-h-[92dvh] flex flex-col overflow-hidden animate-slide-up"
         onClick={e => e.stopPropagation()}>
-        <div className="flex items-center gap-2 p-5 border-b border-bento-border">
+        <div className="flex shrink-0 items-center gap-2 p-5 border-b border-bento-border">
           <Trophy className="w-5 h-5 text-lime-fg shrink-0" />
           <div className="min-w-0">
             <h2 id="won-plan-title" className="font-display font-bold text-bento-text text-base truncate">Fechar venda — {leadName}</h2>
@@ -61,7 +61,7 @@ export function WonPlanModal({ leadName, onConfirm, onCancel }: {
           </div>
         </div>
 
-        <div className="p-5 overflow-auto space-y-2">
+        <div className="flex-1 min-h-0 p-5 overflow-y-auto overscroll-contain space-y-2">
           {loading ? (
             <p className="text-sm text-bento-muted">Carregando planos...</p>
           ) : plans.length === 0 ? (
@@ -85,7 +85,7 @@ export function WonPlanModal({ leadName, onConfirm, onCancel }: {
           })}
         </div>
 
-        <div className="flex items-center justify-end gap-2 p-5 border-t border-bento-border">
+        <div className="flex shrink-0 items-center justify-end gap-2 border-t border-bento-border px-5 pt-5 pb-[max(1.25rem,env(safe-area-inset-bottom))]">
           <button type="button" onClick={onCancel} disabled={busy}
             className="px-4 py-2 rounded-btn text-sm font-medium text-bento-dim border border-bento-border hover:border-lime transition-colors disabled:opacity-50 min-h-[44px]">
             Cancelar

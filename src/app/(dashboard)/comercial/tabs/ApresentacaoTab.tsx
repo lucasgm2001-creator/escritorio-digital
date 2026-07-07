@@ -141,7 +141,7 @@ function LeadBriefModal({ leadId, fallbackName, onContinue, onClose }: {
   return (
     <Portal>
     <div onClick={onClose} className="fixed inset-0 z-[300] bg-black/60 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4">
-      <div ref={ref} {...dialogProps} aria-labelledby="leadbrief-title" onClick={e => e.stopPropagation()} className="bento-fx rounded-t-frame sm:rounded-frame shadow-card-hover w-full sm:max-w-lg max-h-[90vh] flex flex-col animate-slide-up overflow-hidden">
+      <div ref={ref} {...dialogProps} aria-labelledby="leadbrief-title" onClick={e => e.stopPropagation()} className="bento-fx rounded-t-frame sm:rounded-frame shadow-card-hover w-full sm:max-w-lg max-h-[90dvh] flex flex-col animate-slide-up overflow-hidden">
         <div className="flex items-start justify-between gap-2 p-5 border-b border-bento-border shrink-0">
           <div className="min-w-0">
             <p className="font-tech text-[10px] uppercase tracking-[0.12em] text-lime-fg">Resumo do lead</p>
@@ -151,7 +151,7 @@ function LeadBriefModal({ leadId, fallbackName, onContinue, onClose }: {
           <button onClick={onClose} aria-label="Fechar" className="text-bento-muted hover:text-bento-text shrink-0 p-1"><X className="w-5 h-5" /></button>
         </div>
 
-        <div className="p-5 space-y-5 overflow-y-auto overflow-x-hidden">
+        <div className="flex-1 min-h-0 p-5 space-y-5 overflow-y-auto overflow-x-hidden overscroll-contain">
           <div>
             <p className="font-tech text-[10px] uppercase tracking-[0.12em] text-bento-muted mb-1.5">Observações de cadastro</p>
             {loading ? <p className="text-sm text-bento-muted">Carregando...</p>
