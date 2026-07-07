@@ -69,7 +69,7 @@ export function LixeiraClient() {
         <h1 className="font-display font-bold text-bento-text text-lg">Lixeira</h1>
         <p className="text-[13px] text-bento-muted mt-0.5">Clientes e leads excluídos (soft delete). Restaurar traz tudo de volta; “Definitivo” apaga fisicamente. Só o owner.</p>
       </header>
-      {loading ? <p className="text-sm text-bento-muted">Carregando...</p> : (<>
+      {loading ? <p className="text-sm text-bento-muted">Carregando…</p> : (<>
         <Section title="Clientes" rows={clients} type="client" />
         <Section title="Leads" rows={leads} type="lead" />
       </>)}

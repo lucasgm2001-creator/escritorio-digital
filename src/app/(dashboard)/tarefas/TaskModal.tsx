@@ -392,7 +392,7 @@ export function TaskModal({ onClose, onSaved, linkOptions, task, prefill, aiFill
           </button>
           <button type="submit" disabled={saving || !title.trim()}
             className="bento-btn flex-1 py-2.5 rounded-btn text-sm font-semibold disabled:opacity-50 min-h-[44px]">
-            {saving ? 'Salvando...' : editing ? 'Salvar' : 'Criar tarefa'}
+            {saving ? 'Salvando…' : editing ? 'Salvar' : 'Criar tarefa'}
           </button>
         </div>
       </form>

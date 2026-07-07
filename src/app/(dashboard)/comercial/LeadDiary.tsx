@@ -828,7 +828,7 @@ export function LeadDiary({ lead, onClose, onUpdated, onMoveStage, onDeleted, cu
               <span className="text-xs text-bento-muted">Análise com IA</span>
               <button onClick={handleAiAnalysis} disabled={aiLoading}
                 className="font-tech text-xs text-lime-fg hover:text-lime disabled:opacity-50">
-                {aiLoading ? 'Analisando...' : 'Gerar análise'}
+                {aiLoading ? 'Analisando…' : 'Gerar análise'}
               </button>
             </div>
             {aiSuggestion && (
@@ -883,7 +883,7 @@ export function LeadDiary({ lead, onClose, onUpdated, onMoveStage, onDeleted, cu
                 <button onClick={() => setConfirmingDelete(false)} disabled={deleting}
                   className="flex-1 border border-bento-border text-bento-dim py-2 rounded-btn text-sm hover:border-bento-text transition-colors min-h-[44px]">Cancelar</button>
                 <button onClick={handleDelete} disabled={deleting}
-                  className="flex-1 bg-red-500/90 hover:bg-red-500 text-white py-2 rounded-btn text-sm font-semibold disabled:opacity-50 min-h-[44px]">{deleting ? 'Excluindo...' : 'Excluir'}</button>
+                  className="flex-1 bg-red-500/90 hover:bg-red-500 text-white py-2 rounded-btn text-sm font-semibold disabled:opacity-50 min-h-[44px]">{deleting ? 'Excluindo…' : 'Excluir'}</button>
               </div>
             </div>
           ) : (

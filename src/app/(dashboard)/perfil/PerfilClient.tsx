@@ -208,7 +208,7 @@ export function PerfilClient({ userId, email, initialName, initialPhone, cargos,
             disabled={saving}
             className="bento-btn w-full sm:w-auto px-6 py-2.5 rounded-btn text-sm font-semibold disabled:opacity-50 min-h-[44px]"
           >
-            {saving ? 'Salvando...' : 'Salvar alterações'}
+            {saving ? 'Salvando…' : 'Salvar alterações'}
           </button>
         </div>
       </Panel>

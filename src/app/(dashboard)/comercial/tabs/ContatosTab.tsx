@@ -361,7 +361,7 @@ export function ContatosTab({ leads, clients, onOpenLead, onClientUpdated }: Pro
                 </button>
                 <button type="button" onClick={() => doDelete(confirm)} disabled={deleting}
                   className="w-full mt-1 bg-destructive text-destructive-foreground py-2.5 rounded-btn text-sm font-semibold hover:bg-destructive/90 transition-colors disabled:opacity-50 min-h-control">
-                  {deleting ? 'Excluindo...' : 'Excluir de vez'}
+                  {deleting ? 'Excluindo…' : 'Excluir de vez'}
                 </button>
               </div>
             </div>

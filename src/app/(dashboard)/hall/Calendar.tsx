@@ -76,7 +76,7 @@ function EventDetailModal({ event, onClose, onDelete }: { event: CalendarEvent; 
           )}
           <button onClick={handleDelete} disabled={deleting}
             className="w-full mt-2 border border-red-800/50 text-red-400 py-2 rounded-btn text-sm hover:bg-red-900/20 transition-colors disabled:opacity-50 min-h-[44px]">
-            {deleting ? 'Excluindo...' : 'Excluir evento'}
+            {deleting ? 'Excluindo…' : 'Excluir evento'}
           </button>
         </div>
       </div>

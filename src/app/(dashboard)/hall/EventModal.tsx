@@ -135,7 +135,7 @@ export function EventModal({ date, hour, onClose, onSaved }: EventModalProps) {
             </button>
             <button onClick={handleSave} disabled={saving || !form.title.trim()}
               className="bento-btn flex-1 py-2.5 rounded-btn text-sm font-semibold disabled:opacity-50 min-h-[44px]">
-              {saving ? 'Salvando...' : 'Salvar'}
+              {saving ? 'Salvando…' : 'Salvar'}
             </button>
           </div>
         </div>

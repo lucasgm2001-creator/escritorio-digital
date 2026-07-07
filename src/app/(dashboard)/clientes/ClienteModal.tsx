@@ -298,7 +298,7 @@ export function ClienteModal({ client, onClose, onSaved, initialTab }: {
             </div>
             <button type="button" onClick={handleUpgrade} disabled={upgrading || !upgradePlan}
               className="w-full px-3 py-2 rounded-btn text-xs font-semibold border border-lime/40 text-lime-fg hover:bg-lime/10 transition-colors disabled:opacity-50">
-              {upgrading ? 'Registrando...' : 'Registrar upgrade'}
+              {upgrading ? 'Registrando…' : 'Registrar upgrade'}
             </button>
           </div>
           <div>
@@ -332,7 +332,7 @@ export function ClienteModal({ client, onClose, onSaved, initialTab }: {
           </div>
           <div className="flex gap-3 pt-1">
             <button onClick={onClose} className="flex-1 border border-bento-border text-bento-dim py-2.5 rounded-btn text-sm hover:border-lime hover:text-bento-text transition-colors">Cancelar</button>
-            <button onClick={handleSave} disabled={loading} className="bento-btn flex-1 py-2.5 rounded-btn text-sm font-semibold disabled:opacity-50">{loading ? 'Salvando...' : 'Salvar'}</button>
+            <button onClick={handleSave} disabled={loading} className="bento-btn flex-1 py-2.5 rounded-btn text-sm font-semibold disabled:opacity-50">{loading ? 'Salvando…' : 'Salvar'}</button>
           </div>
         </div>
         )}

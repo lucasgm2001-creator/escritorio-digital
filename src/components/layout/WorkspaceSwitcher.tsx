@@ -121,7 +121,7 @@ export function WorkspaceSwitcher({ userName, userEmail, avatarUrl, teams }: {
                   <div className="flex items-center gap-2">
                     <button type="button" onClick={onCreate} disabled={pending || teamName.trim().length < 2}
                       className="bento-btn flex-1 inline-flex items-center justify-center gap-1.5 px-3 min-h-[36px] rounded-btn text-xs font-semibold disabled:opacity-50">
-                      {pending ? 'Criando...' : 'Criar e entrar'}
+                      {pending ? 'Criando…' : 'Criar e entrar'}
                     </button>
                     <button type="button" onClick={() => { setCreating(false); setTeamName('') }} disabled={pending}
                       className="px-3 min-h-[36px] rounded-btn text-xs border border-bento-border text-bento-dim hover:text-bento-text disabled:opacity-50">Cancelar</button>

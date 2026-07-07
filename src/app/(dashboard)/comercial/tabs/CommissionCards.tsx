@@ -96,7 +96,7 @@ export function DealCard({ deal, weeks, statusBusy, onMark, onUnmark, onEditDate
           <input type="date" value={editForm.dataFechamento} onChange={e => setEditForm(p => ({ ...p, dataFechamento: e.target.value }))} className={`w-full ${inputSm} py-1.5`} />
           <div className="flex gap-2">
             <button onClick={() => setEditing(false)} className="flex-1 border border-bento-border text-bento-dim py-1.5 rounded-btn text-[11px] hover:border-lime transition-colors">Cancelar</button>
-            <button onClick={handleSaveEditDeal} disabled={savingEdit} className="flex-1 bento-btn py-1.5 rounded-btn text-[11px] font-semibold disabled:opacity-50">{savingEdit ? 'Salvando...' : 'Salvar venda'}</button>
+            <button onClick={handleSaveEditDeal} disabled={savingEdit} className="flex-1 bento-btn py-1.5 rounded-btn text-[11px] font-semibold disabled:opacity-50">{savingEdit ? 'Salvando…' : 'Salvar venda'}</button>
           </div>
         </div>
       )}
@@ -106,7 +106,7 @@ export function DealCard({ deal, weeks, statusBusy, onMark, onUnmark, onEditDate
           <p className="text-[11px] text-red-400">Tem certeza? Apaga a venda e as semanas dela. Esta ação não pode ser desfeita.</p>
           <div className="flex gap-2">
             <button onClick={() => setConfirmDelete(false)} disabled={busy} className="flex-1 border border-bento-border text-bento-dim py-1.5 rounded-btn text-[11px] hover:border-bento-text transition-colors">Cancelar</button>
-            <button onClick={handleDeleteDeal} disabled={busy} className="flex-1 bg-red-500/90 hover:bg-red-500 text-white py-1.5 rounded-btn text-[11px] font-semibold disabled:opacity-50">{busy ? 'Excluindo...' : 'Excluir venda'}</button>
+            <button onClick={handleDeleteDeal} disabled={busy} className="flex-1 bg-red-500/90 hover:bg-red-500 text-white py-1.5 rounded-btn text-[11px] font-semibold disabled:opacity-50">{busy ? 'Excluindo…' : 'Excluir venda'}</button>
           </div>
         </div>
       )}
@@ -216,7 +216,7 @@ export function MeetingRow({ meeting, onEdit, onDelete }: {
           <p className="text-[11px] text-red-400">Excluir esta reunião? Não pode ser desfeito.</p>
           <div className="flex gap-2">
             <button onClick={() => setConfirming(false)} disabled={busy} className="flex-1 border border-bento-border text-bento-dim py-1.5 rounded-btn text-[11px] hover:border-bento-text transition-colors">Cancelar</button>
-            <button onClick={handleDelete} disabled={busy} className="flex-1 bg-red-500/90 hover:bg-red-500 text-white py-1.5 rounded-btn text-[11px] font-semibold disabled:opacity-50">{busy ? 'Excluindo...' : 'Excluir'}</button>
+            <button onClick={handleDelete} disabled={busy} className="flex-1 bg-red-500/90 hover:bg-red-500 text-white py-1.5 rounded-btn text-[11px] font-semibold disabled:opacity-50">{busy ? 'Excluindo…' : 'Excluir'}</button>
           </div>
         </div>
       )}

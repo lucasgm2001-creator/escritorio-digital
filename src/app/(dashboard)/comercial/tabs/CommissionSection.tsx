@@ -599,7 +599,7 @@ export function CommissionSection({ sellerId, sellerName }: { sellerId: string; 
             {dealError && <p className="text-xs text-red-400">{dealError}</p>}
             <div className="flex gap-2">
               <button onClick={() => { setShowNewDeal(false); setDealError('') }} className="flex-1 border border-bento-border text-bento-dim py-2 rounded-btn text-sm hover:border-lime transition-colors min-h-[44px]">Cancelar</button>
-              <button onClick={addDeal} disabled={savingDeal} className="flex-1 bento-btn py-2 rounded-btn text-sm font-semibold disabled:opacity-50 min-h-[44px]">{savingDeal ? 'Salvando...' : 'Lançar venda'}</button>
+              <button onClick={addDeal} disabled={savingDeal} className="flex-1 bento-btn py-2 rounded-btn text-sm font-semibold disabled:opacity-50 min-h-[44px]">{savingDeal ? 'Salvando…' : 'Lançar venda'}</button>
             </div>
           </div>
         )}
@@ -703,7 +703,7 @@ export function CommissionSection({ sellerId, sellerName }: { sellerId: string; 
             {meetingError && <p className="text-xs text-red-400">{meetingError}</p>}
             <div className="flex gap-2">
               <button onClick={() => { setShowNewMeeting(false); setMeetingError('') }} className="flex-1 border border-bento-border text-bento-dim py-2 rounded-btn text-sm hover:border-lime transition-colors min-h-[44px]">Cancelar</button>
-              <button onClick={addMeeting} disabled={savingMeeting} className="flex-1 bento-btn py-2 rounded-btn text-sm font-semibold disabled:opacity-50 min-h-[44px]">{savingMeeting ? 'Salvando...' : 'Lançar reunião'}</button>
+              <button onClick={addMeeting} disabled={savingMeeting} className="flex-1 bento-btn py-2 rounded-btn text-sm font-semibold disabled:opacity-50 min-h-[44px]">{savingMeeting ? 'Salvando…' : 'Lançar reunião'}</button>
             </div>
           </div>
         )}
@@ -750,7 +750,7 @@ export function CommissionSection({ sellerId, sellerName }: { sellerId: string; 
         </div>
         {salError && <p className="text-xs text-red-400">{salError}</p>}
         <button onClick={addSalary} disabled={savingSal} className="flex items-center justify-center gap-1.5 w-full bento-btn py-2.5 rounded-btn text-sm font-semibold disabled:opacity-50 min-h-[44px]">
-          <Plus className="w-4 h-4" /> {savingSal ? 'Salvando...' : 'Definir salário'}
+          <Plus className="w-4 h-4" /> {savingSal ? 'Salvando…' : 'Definir salário'}
         </button>
       </Collapsible>
 
@@ -777,7 +777,7 @@ export function CommissionSection({ sellerId, sellerName }: { sellerId: string; 
 
         <button onClick={() => refreshFx(true)} disabled={fxRefreshing}
           className="flex items-center justify-center gap-1.5 w-full px-3 py-2 rounded-btn text-xs font-semibold border border-bento-border text-bento-dim hover:border-lime hover:text-lime-fg transition-colors disabled:opacity-50 min-h-[40px]">
-          <RefreshCw className="w-3.5 h-3.5" /> {fxRefreshing ? 'Atualizando...' : 'Atualizar cotação agora'}
+          <RefreshCw className="w-3.5 h-3.5" /> {fxRefreshing ? 'Atualizando…' : 'Atualizar cotação agora'}
         </button>
 
         <button onClick={() => setFxTravadaInput(v => !v)}
@@ -794,7 +794,7 @@ export function CommissionSection({ sellerId, sellerName }: { sellerId: string; 
         {fxError && <p className="text-xs text-red-400">{fxError}</p>}
         <p className="text-[11px] text-bento-muted">Automática busca o dólar do dia (AwesomeAPI) com fallback à última cotação conhecida. Travar fixa no valor manual.</p>
         <button onClick={saveFx} disabled={savingFx} className="w-full bento-btn py-2.5 rounded-btn text-sm font-semibold disabled:opacity-50 min-h-[44px]">
-          {savingFx ? 'Salvando...' : 'Salvar cotação'}
+          {savingFx ? 'Salvando…' : 'Salvar cotação'}
         </button>
       </Collapsible>
     </div>

@@ -229,7 +229,7 @@ export function ContaSection() {
           <input type="password" value={pw} onChange={e => setPw(e.target.value)} placeholder="Nova senha" autoComplete="new-password" className={inputCls} />
           <input type="password" value={pw2} onChange={e => setPw2(e.target.value)} placeholder="Confirmar nova senha" autoComplete="new-password" className={inputCls} />
           <button onClick={trocarSenha} disabled={busy || !pw} className="bento-btn px-4 py-2 rounded-btn text-sm font-semibold disabled:opacity-50 min-h-control">
-            {busy ? 'Salvando...' : 'Salvar senha'}
+            {busy ? 'Salvando…' : 'Salvar senha'}
           </button>
           {msg && <p className={cn('text-xs', msg.t === 'ok' ? 'text-green-400' : 'text-red-400')}>{msg.m}</p>}
         </div>
@@ -239,7 +239,7 @@ export function ContaSection() {
           <input value={callLink} onChange={e => setCallLink(e.target.value)}
             placeholder="https://zoom.us/j/... ou https://meet.google.com/..." className={inputCls} />
           <button onClick={salvarCall} disabled={callBusy} className="bento-btn px-4 py-2 rounded-btn text-sm font-semibold disabled:opacity-50 min-h-control">
-            {callBusy ? 'Salvando...' : 'Salvar link'}
+            {callBusy ? 'Salvando…' : 'Salvar link'}
           </button>
           {callMsg && <p className={cn('text-xs', callMsg.t === 'ok' ? 'text-green-400' : 'text-red-400')}>{callMsg.m}</p>}
         </div>
@@ -832,7 +832,7 @@ export function PlanosSection() {
     <Panel label="Planos">
       <div className="space-y-3">
         <p className="text-xs text-bento-muted">Catálogo de planos ativos.</p>
-        {loading ? <p className="text-sm text-bento-muted">Carregando...</p> : plans.length === 0 ? (
+        {loading ? <p className="text-sm text-bento-muted">Carregando…</p> : plans.length === 0 ? (
           <p className="text-sm text-bento-muted">Nenhum plano ativo na tabela plans.</p>
         ) : plans.map(p => (
           <div key={p.id} className="bento-fx p-4">

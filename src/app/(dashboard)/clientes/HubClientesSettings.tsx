@@ -80,7 +80,7 @@ export function HubClientesSettings() {
       <div className="space-y-3">
         <p className="font-tech text-[11px] text-bento-muted">Prateleiras (nichos) do Hub. A prateleira de um cliente é o campo <span className="text-bento-text">nicho</span> dele.</p>
 
-        {loading ? <p className="text-sm text-bento-muted">Carregando...</p> : (
+        {loading ? <p className="text-sm text-bento-muted">Carregando…</p> : (
           <div className="space-y-2">
             {nichos.map((n, i) => (
               <div key={n.id} className="bento-fx p-2.5 flex items-center gap-2 flex-wrap">

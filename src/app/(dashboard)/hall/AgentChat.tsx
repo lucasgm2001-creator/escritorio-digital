@@ -386,7 +386,7 @@ export function AgentChat({ userId, userName }: { userId: string; userName: stri
               disabled={confirming}
               className="bento-btn px-3 py-1 rounded-btn text-xs font-medium disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {confirming ? 'Salvando...' : 'Confirmar'}
+              {confirming ? 'Salvando…' : 'Confirmar'}
             </button>
             <button
               type="button"

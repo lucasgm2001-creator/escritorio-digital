@@ -521,7 +521,7 @@ export default function LeadMap({
                     <div style={{ fontWeight: 600, fontSize: 15 }}>{ABBR_TO_NAME[panelUf] || panelUf}</div>
                     <div style={{ fontFamily: MONO, fontSize: 10.5, color: 'rgba(170,195,225,0.6)', marginTop: 2 }}>{recs.length} {recs.length === 1 ? 'registro' : 'registros'}</div>
                   </div>
-                  <button onClick={() => setPanelUf(null)} aria-label="Fechar" style={{ cursor: 'pointer', flex: 'none', background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.13)', borderRadius: 9, width: 30, height: 30, color: '#fff', fontSize: 17, lineHeight: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>×</button>
+                  <button onClick={() => setPanelUf(null)} aria-label="Fechar" style={{ cursor: 'pointer', flex: 'none', background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.13)', borderRadius: 9, width: 36, height: 36, color: '#fff', fontSize: 17, lineHeight: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>×</button>
                 </div>
                 <div style={{ overflowY: 'auto', padding: '12px 16px 16px' }}>
                   {recs.length === 0 ? (

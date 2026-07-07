@@ -154,7 +154,7 @@ function LeadBriefModal({ leadId, fallbackName, onContinue, onClose }: {
         <div className="flex-1 min-h-0 p-5 space-y-5 overflow-y-auto overflow-x-hidden overscroll-contain">
           <div>
             <p className="font-tech text-[10px] uppercase tracking-[0.12em] text-bento-muted mb-1.5">Observações de cadastro</p>
-            {loading ? <p className="text-sm text-bento-muted">Carregando...</p>
+            {loading ? <p className="text-sm text-bento-muted">Carregando…</p>
               : lead?.notes?.trim()
                 ? <p className="text-sm text-bento-dim whitespace-pre-wrap break-words bg-bento-bg border border-bento-border rounded-btn p-3">{lead.notes}</p>
                 : <p className="text-sm text-bento-muted">Sem observações de cadastro.</p>}
@@ -162,7 +162,7 @@ function LeadBriefModal({ leadId, fallbackName, onContinue, onClose }: {
 
           <div>
             <p className="font-tech text-[10px] uppercase tracking-[0.12em] text-bento-muted mb-1.5">Histórico de contato</p>
-            {loading ? <p className="text-sm text-bento-muted">Carregando...</p>
+            {loading ? <p className="text-sm text-bento-muted">Carregando…</p>
               : interactions.length === 0
                 ? <p className="text-sm text-bento-muted">Sem histórico de contato.</p>
                 : (
@@ -487,7 +487,7 @@ export function ApresentacaoTab() {
       <datalist id="nicho-list">{nichos.map(n => <option key={n} value={n} />)}</datalist>
 
       {loading ? (
-        <div className="flex-1 flex items-center justify-center text-bento-muted text-sm">Carregando...</div>
+        <div className="flex-1 flex items-center justify-center text-bento-muted text-sm">Carregando…</div>
       ) : view === 'materiais' ? (
         /* ═══ MATERIAIS ═══ */
         <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4">
@@ -580,7 +580,7 @@ export function ApresentacaoTab() {
                       <p className="text-xs font-medium text-red-300">Excluir este material?</p>
                       <div className="flex gap-2">
                         <button onClick={() => setConfirmingId(null)} disabled={deletingId === m.id} className="px-3 py-1.5 rounded-btn text-xs border border-white/30 text-white/80 hover:border-white transition-colors disabled:opacity-50">Cancelar</button>
-                        <button onClick={() => handleDelete(m)} disabled={deletingId === m.id} className="px-3 py-1.5 rounded-btn text-xs font-semibold bg-red-500/90 hover:bg-red-500 text-white transition-colors disabled:opacity-50">{deletingId === m.id ? 'Excluindo...' : 'Excluir'}</button>
+                        <button onClick={() => handleDelete(m)} disabled={deletingId === m.id} className="px-3 py-1.5 rounded-btn text-xs font-semibold bg-red-500/90 hover:bg-red-500 text-white transition-colors disabled:opacity-50">{deletingId === m.id ? 'Excluindo…' : 'Excluir'}</button>
                       </div>
                     </div>
                   ) : (
@@ -685,7 +685,7 @@ export function ApresentacaoTab() {
               <div className="flex gap-2">
                 <button onClick={savePresentation} disabled={savingPres || !form.name.trim() || selectedIds.length === 0}
                   className="bento-btn flex items-center gap-1.5 px-4 py-2 rounded-btn text-sm font-semibold disabled:opacity-50">
-                  {savingPres ? 'Salvando...' : editingId ? 'Salvar alterações' : 'Salvar'}
+                  {savingPres ? 'Salvando…' : editingId ? 'Salvar alterações' : 'Salvar'}
                 </button>
               </div>
             </div>
@@ -739,7 +739,7 @@ export function ApresentacaoTab() {
                     {confirmingPresId === p.id ? (
                       <div className="flex gap-2 mt-auto">
                         <button onClick={() => setConfirmingPresId(null)} disabled={deletingPresId === p.id} className="flex-1 border border-bento-border text-bento-dim py-2 rounded-btn text-xs hover:border-bento-text transition-colors disabled:opacity-50">Cancelar</button>
-                        <button onClick={() => deletePresentation(p)} disabled={deletingPresId === p.id} className="flex-1 bg-red-500/90 hover:bg-red-500 text-white py-2 rounded-btn text-xs font-semibold transition-colors disabled:opacity-50">{deletingPresId === p.id ? 'Excluindo...' : 'Excluir'}</button>
+                        <button onClick={() => deletePresentation(p)} disabled={deletingPresId === p.id} className="flex-1 bg-red-500/90 hover:bg-red-500 text-white py-2 rounded-btn text-xs font-semibold transition-colors disabled:opacity-50">{deletingPresId === p.id ? 'Excluindo…' : 'Excluir'}</button>
                       </div>
                     ) : (
                       <div className="flex items-center justify-between gap-2 mt-auto pt-1">
@@ -782,7 +782,7 @@ export function ApresentacaoTab() {
           <div ref={editMatDialog.ref} {...editMatDialog.dialogProps} aria-labelledby="editmat-title" className="relative w-full max-w-sm bg-bento-panel border border-bento-border rounded-bento shadow-card-hover p-4 space-y-3">
             <div className="flex items-center justify-between">
               <h3 id="editmat-title" className="font-display font-bold text-bento-text">Editar material</h3>
-              <button onClick={() => setEditMat(null)} aria-label="Fechar" className="p-1 text-bento-muted hover:text-bento-text"><X className="w-4 h-4" /></button>
+              <button onClick={() => setEditMat(null)} aria-label="Fechar" className="min-h-9 min-w-9 rounded-lg text-bento-muted hover:text-bento-text hover:bg-bento-bg transition-colors flex items-center justify-center"><X className="w-4 h-4" /></button>
             </div>
             <p className="text-xs text-bento-muted truncate">{editMat.name}</p>
             <div>
@@ -795,7 +795,7 @@ export function ApresentacaoTab() {
             </div>
             <div className="flex gap-2 pt-1">
               <button onClick={() => setEditMat(null)} className="flex-1 border border-bento-border text-bento-dim py-2 rounded-btn text-sm hover:border-lime transition-colors">Cancelar</button>
-              <button onClick={saveMaterialMeta} disabled={savingMeta} className="flex-1 bento-btn py-2 rounded-btn text-sm font-semibold disabled:opacity-50">{savingMeta ? 'Salvando...' : 'Salvar'}</button>
+              <button onClick={saveMaterialMeta} disabled={savingMeta} className="flex-1 bento-btn py-2 rounded-btn text-sm font-semibold disabled:opacity-50">{savingMeta ? 'Salvando…' : 'Salvar'}</button>
             </div>
           </div>
         </div>

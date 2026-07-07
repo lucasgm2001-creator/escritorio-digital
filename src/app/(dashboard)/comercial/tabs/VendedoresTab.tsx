@@ -347,7 +347,7 @@ function SellerProfile({ seller, onClose, onUpdated, onDeleted }: {
               </div>
               <div className="flex gap-2">
                 <button onClick={() => setEditingDados(false)} className="flex-1 border border-bento-border text-bento-dim py-2.5 rounded-btn text-sm hover:border-lime transition-colors min-h-[44px]">Cancelar</button>
-                <button onClick={saveDados} disabled={savingDados} className="flex-1 bento-btn py-2.5 rounded-btn text-sm font-semibold disabled:opacity-50 min-h-[44px]">{savingDados ? 'Salvando...' : 'Salvar dados'}</button>
+                <button onClick={saveDados} disabled={savingDados} className="flex-1 bento-btn py-2.5 rounded-btn text-sm font-semibold disabled:opacity-50 min-h-[44px]">{savingDados ? 'Salvando…' : 'Salvar dados'}</button>
               </div>
             </div>
           ) : (
@@ -380,7 +380,7 @@ function SellerProfile({ seller, onClose, onUpdated, onDeleted }: {
                     <button onClick={() => setConfirmingDelete(false)} disabled={deleting}
                       className="flex-1 border border-bento-border text-bento-dim py-2 rounded-btn text-sm hover:border-bento-text transition-colors min-h-[44px]">Cancelar</button>
                     <button onClick={handleDelete} disabled={deleting}
-                      className="flex-1 bg-red-500/90 hover:bg-red-500 text-white py-2 rounded-btn text-sm font-semibold disabled:opacity-50 min-h-[44px]">{deleting ? 'Excluindo...' : 'Excluir'}</button>
+                      className="flex-1 bg-red-500/90 hover:bg-red-500 text-white py-2 rounded-btn text-sm font-semibold disabled:opacity-50 min-h-[44px]">{deleting ? 'Excluindo…' : 'Excluir'}</button>
                   </div>
                 </div>
               ) : (
@@ -441,7 +441,7 @@ function SellerProfile({ seller, onClose, onUpdated, onDeleted }: {
                 <textarea value={rem.observations} onChange={e => setRem(p => ({ ...p, observations: e.target.value }))} className={`${inputCls} resize-none`} rows={3} placeholder="Ex: revisão em junho, vale refeição incluso..." />
               </div>
               <button onClick={saveRemuneracao} disabled={savingRem} className="w-full bento-btn py-2.5 rounded-btn text-sm font-semibold disabled:opacity-50 min-h-[44px]">
-                {savingRem ? 'Salvando...' : 'Salvar metas'}
+                {savingRem ? 'Salvando…' : 'Salvar metas'}
               </button>
             </div>
           )}
@@ -574,7 +574,7 @@ export function VendedoresTab() {
 
       {/* Cards clicáveis */}
       {loading ? (
-        <div className="flex items-center justify-center gap-3 py-16 text-bento-muted text-sm"><span className="w-5 h-5 border-2 border-bento-muted/20 border-t-lime rounded-full animate-spin" />Carregando...</div>
+        <div className="flex items-center justify-center gap-3 py-16 text-bento-muted text-sm"><span className="w-5 h-5 border-2 border-bento-muted/20 border-t-lime rounded-full animate-spin" />Carregando…</div>
       ) : sellers.length === 0 ? (
         <div className="bento-fx py-16 text-center">
           <svg className="w-10 h-10 mx-auto mb-3 text-bento-muted/30" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
@@ -652,7 +652,7 @@ export function VendedoresTab() {
               </div>
               <div className="flex gap-3 pt-1">
                 <button onClick={closeAdd} className="flex-1 border border-bento-border text-bento-dim py-2.5 rounded-btn text-sm hover:border-lime transition-colors min-h-[44px]">Cancelar</button>
-                <button onClick={handleAdd} disabled={saving || !form.name.trim()} className="flex-1 bento-btn py-2.5 rounded-btn text-sm font-semibold disabled:opacity-50 min-h-[44px]">{saving ? 'Salvando...' : 'Adicionar'}</button>
+                <button onClick={handleAdd} disabled={saving || !form.name.trim()} className="flex-1 bento-btn py-2.5 rounded-btn text-sm font-semibold disabled:opacity-50 min-h-[44px]">{saving ? 'Salvando…' : 'Adicionar'}</button>
               </div>
             </div>
           </div>

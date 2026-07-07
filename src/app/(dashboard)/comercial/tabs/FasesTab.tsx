@@ -309,7 +309,7 @@ export function FasesTab() {
       </div>
 
       {loading ? (
-        <p className="text-sm text-bento-muted">Carregando...</p>
+        <p className="text-sm text-bento-muted">Carregando…</p>
       ) : (
         <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
           <div className="space-y-3">

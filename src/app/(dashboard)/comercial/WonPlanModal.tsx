@@ -92,7 +92,7 @@ export function WonPlanModal({ leadName, onConfirm, onCancel }: {
           </button>
           <button type="button" onClick={confirm} disabled={busy || loading}
             className="bento-btn px-4 py-2 rounded-btn text-sm font-semibold disabled:opacity-50 min-h-[44px]">
-            {busy ? 'Fechando...' : 'Fechar venda'}
+            {busy ? 'Fechando…' : 'Fechar venda'}
           </button>
         </div>
       </div>

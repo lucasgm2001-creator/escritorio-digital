@@ -168,7 +168,7 @@ export function ClientPaymentsPanel({ clients }: { clients: { id: string; name: 
                     <div className="flex flex-wrap gap-2">
                       <button onClick={() => markWeeks(c.id, 1)} disabled={busy}
                         className="bento-btn px-3 py-1.5 rounded-btn text-xs font-semibold disabled:opacity-50">
-                        {busy ? 'Registrando...' : `Marcar semana ${nextUnpaid}`}
+                        {busy ? 'Registrando…' : `Marcar semana ${nextUnpaid}`}
                       </button>
                       <button onClick={() => payWholeMonth(c.id)} disabled={busy} title="Quita todas as semanas do próximo mês de competência (reusa o motor semanal)"
                         className="px-3 py-1.5 rounded-btn text-xs border border-bento-border text-bento-dim hover:border-lime hover:text-bento-text transition-colors disabled:opacity-50">

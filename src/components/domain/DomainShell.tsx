@@ -109,7 +109,7 @@ export function DomainShell({ configKey, config: configProp, visibleSectionKeys,
           <div className="absolute inset-x-0 bottom-0 max-h-[82dvh] flex flex-col rounded-t-frame bg-bento-bg border-t border-bento-border animate-slide-up pb-[env(safe-area-inset-bottom)]">
             <div className="flex items-center justify-between px-4 h-12 border-b border-bento-border shrink-0">
               <span className="font-display font-semibold text-sm text-bento-text">Seções</span>
-              <button type="button" onClick={() => setSheetOpen(false)} aria-label="Fechar" className="p-1 text-bento-muted hover:text-bento-text">
+              <button type="button" onClick={() => setSheetOpen(false)} aria-label="Fechar" className="min-h-9 min-w-9 rounded-lg text-bento-muted hover:text-bento-text hover:bg-bento-panel transition-colors flex items-center justify-center">
                 <X className="w-5 h-5" />
               </button>
             </div>

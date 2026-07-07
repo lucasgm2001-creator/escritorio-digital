@@ -307,7 +307,7 @@ export function LeadModal({ onClose, onCreated, currentUser, stages, clients }: 
               disabled={aiLoading || !rawText.trim()}
               className="bento-btn mt-2 text-sm px-4 py-2 rounded-btn disabled:opacity-50 min-h-0"
             >
-              {aiLoading ? 'Analisando...' : 'Extrair dados'}
+              {aiLoading ? 'Analisando…' : 'Extrair dados'}
             </button>
           </div>
         )}
@@ -571,7 +571,7 @@ export function LeadModal({ onClose, onCreated, currentUser, stages, clients }: 
             </button>
             <button type="submit" disabled={loading || (isClient && !selectedClient)}
               className="bento-btn flex-1 py-2.5 rounded-btn text-sm font-semibold disabled:opacity-50">
-              {loading ? 'Salvando...' : isClient ? 'Adicionar ao funil' : 'Criar Lead'}
+              {loading ? 'Salvando…' : isClient ? 'Adicionar ao funil' : 'Criar Lead'}
             </button>
           </div>
         </form>

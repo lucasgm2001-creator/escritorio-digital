@@ -51,7 +51,7 @@ function PadShell({ title, sub, digits, shake, err, msg, onDigit, onDelete, busy
   return (
     <div className="relative flex flex-col items-center gap-5 p-6 max-w-sm w-full mx-auto">
       {onClose && (
-        <button onClick={onClose} aria-label="Fechar" className="absolute top-2 right-2 p-1.5 rounded-lg text-bento-muted hover:text-bento-text hover:bg-bento-bg transition-colors">
+        <button onClick={onClose} aria-label="Fechar" className="absolute top-2 right-2 min-h-9 min-w-9 rounded-lg text-bento-muted hover:text-bento-text hover:bg-bento-bg transition-colors flex items-center justify-center">
           <X className="w-4 h-4" />
         </button>
       )}

@@ -41,7 +41,7 @@ export function LeadObservationComposer({ leadId }: { leadId: string }) {
           disabled={pending || !text.trim()}
           className="bento-btn px-4 py-2 rounded-btn text-sm font-semibold disabled:opacity-50 min-h-[40px]"
         >
-          {pending ? 'Salvando...' : 'Adicionar observação'}
+          {pending ? 'Salvando…' : 'Adicionar observação'}
         </button>
       </div>
     </div>
