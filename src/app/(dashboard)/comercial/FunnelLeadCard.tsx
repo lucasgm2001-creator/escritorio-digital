@@ -6,7 +6,8 @@ import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { Phone, MessageCircle, FileText, ArrowRight, ChevronDown, Check } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { nextActionLabel } from './leadSignals'
+import { leadSubtitle, nextActionLabel, smartLeadBadges } from './leadSignals'
+import { LeadSmartBadges } from './LeadSmartBadges'
 import { LeadTasks } from './LeadTasks'
 import { type Lead, type LeadStatus } from './types'
 
@@ -30,6 +31,8 @@ export function FunnelLeadCard({ lead, moveTargets, onMove, onOpenDiary, onLog, 
     : lead.status === 'perdido' ? 'bg-red-500'
     : null
   const next = nextActionLabel(lead)
+  const sub = leadSubtitle(lead)
+  const hasSmartBadges = smartLeadBadges(lead).length > 0
   const phone = onlyDigits(lead.phone)
   const stop = (e: React.MouseEvent) => e.stopPropagation()
 
@@ -40,15 +43,21 @@ export function FunnelLeadCard({ lead, moveTargets, onMove, onOpenDiary, onLog, 
       {...attributes}
       {...listeners}
       onClick={() => setOpen(o => !o)}
-      className={cn('bento-fx p-2.5 cursor-pointer select-none transition-colors', open && 'border-lime/40')}
+      className={cn(
+        'bento-fx p-2.5 cursor-pointer select-none transition-[border-color,background-color,box-shadow] duration-150 ease-out hover:border-lime/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lime/50',
+        open && 'border-lime/40 shadow-card-hover',
+      )}
     >
       {/* Topo (sempre visível) */}
       <div className="flex items-center gap-2">
         {dotClass && <span className={cn('w-2 h-2 rounded-full flex-none', dotClass)} />}
         <div className="min-w-0 flex-1">
           <p className="font-semibold text-bento-text text-xs leading-snug truncate">{lead.name}</p>
-          {(lead.company || lead.nicho) && (
-            <p className="font-tech text-[10px] text-bento-muted truncate">{lead.company || lead.nicho}</p>
+          {(sub || hasSmartBadges) && (
+            <div className="mt-0.5 flex min-w-0 items-center gap-1">
+              {sub && <span className="min-w-0 flex-1 truncate font-tech text-[10px] text-bento-muted">{sub}</span>}
+              <LeadSmartBadges lead={lead} max={sub ? 2 : 3} />
+            </div>
           )}
         </div>
         {lead.contact_code && (

@@ -260,7 +260,7 @@ export function LeadModal({ onClose, onCreated, currentUser, stages, clients }: 
   return (
     <Portal>
     <div onClick={onClose} className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-end sm:items-center justify-center z-[300] p-0 sm:p-4">
-      <div ref={ref} {...dialogProps} aria-labelledby="lead-modal-title" onClick={e => e.stopPropagation()} className="bento-fx rounded-t-frame sm:rounded-frame shadow-card-hover w-full sm:max-w-2xl max-h-[92dvh] flex flex-col animate-slide-up">
+      <div ref={ref} {...dialogProps} aria-labelledby="lead-modal-title" onClick={e => e.stopPropagation()} className="bento-fx rounded-t-frame sm:rounded-frame shadow-card-hover w-full sm:max-w-2xl max-h-[92dvh] flex flex-col overflow-hidden animate-slide-up">
 
         {/* Header */}
         <div className="flex items-center justify-between p-5 border-b border-bento-border shrink-0">
@@ -313,7 +313,7 @@ export function LeadModal({ onClose, onCreated, currentUser, stages, clients }: 
         )}
 
         {/* Form */}
-        <form onSubmit={handleSubmit} className="p-5 space-y-4 overflow-y-auto flex-1">
+        <form onSubmit={handleSubmit} className="flex-1 min-h-0 p-5 space-y-4 overflow-y-auto overscroll-contain">
 
           {/* Toggle "Já é cliente" — adiciona ao funil um cliente existente (sem fluxo de fechamento). */}
           <div className="flex items-center justify-between gap-3 bento-fx px-3 py-2.5">

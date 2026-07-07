@@ -3,7 +3,8 @@
 import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { cn } from '@/lib/utils'
-import { getLeadSignal, daysStopped, nextActionLabel, type LeadSignal } from './leadSignals'
+import { getLeadSignal, daysStopped, leadSubtitle, nextActionLabel, smartLeadBadges, type LeadSignal } from './leadSignals'
+import { LeadSmartBadges } from './LeadSmartBadges'
 import type { Lead } from './types'
 import { usdCompact } from '@/lib/format'
 
@@ -35,15 +36,19 @@ const SIGNAL_TAG: Record<Exclude<LeadSignal, 'none'>, string> = {
 // Conteúdo visual do card (compartilhado entre a versão arrastável e a estática).
 function LeadCardBody({ lead }: { lead: Lead }) {
   const signal = getLeadSignal(lead)
-  const sub = lead.nicho || lead.company
+  const sub = leadSubtitle(lead)
+  const hasSmartBadges = smartLeadBadges(lead).length > 0
   const formattedValue = formatValue(lead.value || 0)
   const nextAction = signal === 'none' ? nextActionLabel(lead) : null
 
   return (
     <>
       <p className="font-semibold text-bento-text text-xs coarse:text-sm leading-snug truncate">{lead.name}</p>
-      {sub && (
-        <p className="font-tech text-[10px] coarse:text-[13px] text-bento-muted truncate mt-0.5">{sub}</p>
+      {(sub || hasSmartBadges) && (
+        <div className="mt-0.5 flex min-w-0 items-center gap-1">
+          {sub && <span className="min-w-0 flex-1 truncate font-tech text-[10px] coarse:text-[13px] text-bento-muted">{sub}</span>}
+          <LeadSmartBadges lead={lead} max={sub ? 2 : 3} />
+        </div>
       )}
 
       <div className="flex items-center justify-between gap-2 mt-2">
@@ -94,7 +99,7 @@ export function LeadCard({ lead, isDragging, onClick }: Props) {
       onClick={onClick}
       className={cn(
         'bento-fx p-2.5 coarse:p-3.5 cursor-pointer select-none',
-        'hover:border-lime/50 transition-colors duration-150',
+        'hover:border-lime/50 transition-[border-color,background-color,box-shadow] duration-150 ease-out',
         SIGNAL_BORDER[signal],
         isDragging && 'shadow-card-hover rotate-1 scale-105 border-lime',
       )}
@@ -113,7 +118,7 @@ export function StaticLeadCard({ lead, onClick }: Props) {
       onClick={onClick}
       className={cn(
         'block w-full text-left bento-fx p-2.5 coarse:p-3.5 cursor-pointer',
-        'hover:border-lime/50 transition-colors duration-150',
+        'hover:border-lime/50 transition-[border-color,background-color,box-shadow] duration-150 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lime/50',
         SIGNAL_BORDER[signal],
         lead.status === 'fechado' && 'opacity-60',
       )}
