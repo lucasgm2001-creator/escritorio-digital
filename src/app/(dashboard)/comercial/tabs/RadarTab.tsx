@@ -28,6 +28,9 @@ const FILTERS: { key: Filter; label: string }[] = [
 
 const TEMP_DOT: Record<Temperature, string> = {
   frio: 'bg-blue-400', morno: 'bg-amber-400', quente: 'bg-orange-400', muito_quente: 'bg-red-500',
+  muito_interessado: 'bg-red-500', interessado: 'bg-orange-400', em_duvida: 'bg-amber-400',
+  pensando: 'bg-amber-400', esfriando: 'bg-red-400', pouco_interessado: 'bg-blue-400',
+  nao_interessado: 'bg-zinc-500', nao_avaliado: 'bg-bento-border',
 }
 const STATE_BADGE: Record<FollowupState, string> = {
   precisa_agir: 'text-red-400 border-red-500/30 bg-red-500/10',
@@ -69,13 +72,13 @@ export function RadarTab({ leads, stages = [] }: { leads: Lead[]; stages?: Funne
     hoje: rows.filter(r => r.view.state === 'precisa_agir').length,
     aguardando: rows.filter(r => r.view.state === 'aguardando' || r.view.state === 'agendado').length,
     sem_atualizacao: rows.filter(r => r.view.state === 'sem_atualizacao').length,
-    quentes: rows.filter(r => r.view.temp === 'quente' || r.view.temp === 'muito_quente').length,
+    quentes: rows.filter(r => r.view.temp === 'quente' || r.view.temp === 'muito_quente' || r.view.temp === 'interessado' || r.view.temp === 'muito_interessado').length,
     todos: rows.length,
   }), [rows])
 
   const shown = rows.filter(({ view }) => {
     if (filter === 'todos') return true
-    if (filter === 'quentes') return view.temp === 'quente' || view.temp === 'muito_quente'
+    if (filter === 'quentes') return view.temp === 'quente' || view.temp === 'muito_quente' || view.temp === 'interessado' || view.temp === 'muito_interessado'
     if (filter === 'aguardando') return view.state === 'aguardando' || view.state === 'agendado'
     return view.state === filter
   })

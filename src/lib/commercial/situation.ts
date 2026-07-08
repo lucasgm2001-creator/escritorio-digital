@@ -4,25 +4,51 @@
 export type LastAction =
   | 'respondeu_interessado' | 'pediu_retorno' | 'marcou_reuniao' | 'recebeu_proposta'
   | 'nao_respondeu' | 'desistiu' | 'fechou' | 'sem_mudanca'
+  | 'ligacao_nao_atendeu' | 'ligacao_ocupado' | 'ligacao_caixa_postal' | 'ligacao_conversou'
+  | 'ligacao_marcou_reuniao' | 'ligacao_pediu_proposta' | 'ligacao_ja_cliente' | 'ligacao_numero_invalido'
+  | 'pediu_proposta' | 'ja_e_cliente'
+  | 'whatsapp_nao_visualizou' | 'whatsapp_visualizou' | 'whatsapp_respondeu'
+  | 'whatsapp_pediu_proposta' | 'whatsapp_marcou_reuniao' | 'whatsapp_parou_responder'
+  | 'cliente_pediu_proposta' | 'cliente_quer_reuniao' | 'cliente_tirou_duvidas'
+  | 'cliente_quer_fechar' | 'cliente_quer_negociar' | 'cliente_pediu_retorno'
 export type NextAction =
   | 'nenhuma' | 'ligar' | 'mensagem' | 'cobrar_retorno' | 'enviar_proposta' | 'marcar_reuniao' | 'aguardar'
-export type Temperature = 'frio' | 'morno' | 'quente' | 'muito_quente'
+  | 'encerrar_oportunidade'
+export type Temperature =
+  | 'frio' | 'morno' | 'quente' | 'muito_quente'
+  | 'muito_interessado' | 'interessado' | 'em_duvida' | 'pensando'
+  | 'esfriando' | 'pouco_interessado' | 'nao_interessado' | 'nao_avaliado'
 export type FollowupState =
   | 'precisa_agir' | 'aguardando' | 'agendado' | 'sem_atualizacao' | 'desistiu' | 'fechado' | 'perdido'
 export type LeadResponse = 'sim' | 'nao' | 'nao_falei'
-export type WhenChoice = 'hoje' | 'amanha' | 'esta_semana' | 'data'
+export type WhenChoice = 'hoje' | 'amanha' | 'esta_semana' | 'em_3_dias' | 'em_7_dias' | 'data'
 
 export const LAST_ACTION_LABEL: Record<LastAction, string> = {
   respondeu_interessado: 'Respondeu interessado', pediu_retorno: 'Pediu retorno', marcou_reuniao: 'Marcou reunião',
   recebeu_proposta: 'Recebeu proposta', nao_respondeu: 'Não respondeu', desistiu: 'Desistiu',
   fechou: 'Fechou', sem_mudanca: 'Sem mudança',
+  ligacao_nao_atendeu: 'Ligação: não atendeu', ligacao_ocupado: 'Ligação: ocupado',
+  ligacao_caixa_postal: 'Ligação: caixa postal', ligacao_conversou: 'Ligação: conversou',
+  ligacao_marcou_reuniao: 'Ligação: marcou reunião', ligacao_pediu_proposta: 'Ligação: pediu proposta',
+  ligacao_ja_cliente: 'Ligação: já é cliente', ligacao_numero_invalido: 'Ligação: número inválido',
+  pediu_proposta: 'Pediu proposta', ja_e_cliente: 'Já é cliente',
+  whatsapp_nao_visualizou: 'Não visualizou', whatsapp_visualizou: 'Visualizou', whatsapp_respondeu: 'Respondeu',
+  whatsapp_pediu_proposta: 'WhatsApp: pediu proposta', whatsapp_marcou_reuniao: 'WhatsApp: marcou reunião',
+  whatsapp_parou_responder: 'Parou de responder', cliente_pediu_proposta: 'Cliente pediu proposta',
+  cliente_quer_reuniao: 'Cliente quer reunião', cliente_tirou_duvidas: 'Cliente tirou dúvidas',
+  cliente_quer_fechar: 'Cliente quer fechar', cliente_quer_negociar: 'Cliente quer negociar',
+  cliente_pediu_retorno: 'Cliente pediu retorno',
 }
 export const NEXT_ACTION_LABEL: Record<NextAction, string> = {
-  nenhuma: 'Nenhuma', ligar: 'Ligar', mensagem: 'Mandar mensagem', cobrar_retorno: 'Cobrar retorno',
-  enviar_proposta: 'Enviar proposta', marcar_reuniao: 'Marcar reunião', aguardar: 'Aguardar',
+  nenhuma: 'Nenhuma', ligar: 'Ligar novamente', mensagem: 'Enviar WhatsApp', cobrar_retorno: 'Cobrar retorno',
+  enviar_proposta: 'Enviar proposta', marcar_reuniao: 'Agendar reunião', aguardar: 'Aguardar cliente',
+  encerrar_oportunidade: 'Encerrar oportunidade',
 }
 export const TEMPERATURE_LABEL: Record<Temperature, string> = {
   frio: 'Frio', morno: 'Morno', quente: 'Quente', muito_quente: 'Muito quente',
+  muito_interessado: 'Muito interessado', interessado: 'Interessado', em_duvida: 'Em dúvida',
+  pensando: 'Pensando', esfriando: 'Esfriando', pouco_interessado: 'Pouco interessado',
+  nao_interessado: 'Não interessado', nao_avaliado: 'Não foi possível avaliar',
 }
 export const FOLLOWUP_STATE_LABEL: Record<FollowupState, string> = {
   precisa_agir: 'Precisa agir hoje', aguardando: 'Aguardando resposta', agendado: 'Agendado',
@@ -41,8 +67,8 @@ export const isTemperature = (x: unknown): x is Temperature => typeof x === 'str
 // Deriva o estado de acompanhamento a partir do resultado + próxima ação + quando (no servidor).
 export function deriveFollowupState(lastAction: LastAction, nextAction: NextAction, when: WhenChoice | null): FollowupState {
   if (lastAction === 'desistiu') return 'desistiu'
-  if (lastAction === 'fechou') return 'fechado'
-  if (nextAction === 'nenhuma') return lastAction === 'nao_respondeu' ? 'sem_atualizacao' : 'aguardando'
+  if (lastAction === 'fechou' || lastAction === 'ja_e_cliente' || lastAction === 'ligacao_ja_cliente') return 'fechado'
+  if (nextAction === 'nenhuma') return lastAction === 'nao_respondeu' || lastAction === 'ligacao_nao_atendeu' ? 'sem_atualizacao' : 'aguardando'
   if (nextAction === 'aguardar') return 'aguardando'
   if (when === 'hoje') return 'precisa_agir'
   return 'agendado'
@@ -62,7 +88,8 @@ export function nextContactFromWhen(when: WhenChoice, explicitDate: string | nul
   if (when === 'data') return explicitDate
   const d = new Date(today)
   if (when === 'amanha') d.setDate(d.getDate() + 1)
-  else if (when === 'esta_semana') d.setDate(d.getDate() + 3)
+  else if (when === 'esta_semana' || when === 'em_3_dias') d.setDate(d.getDate() + 3)
+  else if (when === 'em_7_dias') d.setDate(d.getDate() + 7)
   return d.toISOString().slice(0, 10)
 }
 
@@ -105,7 +132,19 @@ export function relativeDayLabel(iso: string | null | undefined, today: string):
   if (diff === 1) return 'amanhã'
   return diff < 0 ? `há ${-diff} dias` : `em ${diff} dias`
 }
-const tempRank = (t: Temperature | null): number => (t === 'muito_quente' ? 3 : t === 'quente' ? 2 : t === 'morno' ? 1 : 0)
+export function temperatureRank(t: Temperature | null): number {
+  if (t === 'muito_quente' || t === 'muito_interessado') return 3
+  if (t === 'quente' || t === 'interessado') return 2
+  if (t === 'morno' || t === 'em_duvida' || t === 'pensando') return 1
+  return 0
+}
+
+export function temperatureTone(t: Temperature | string | null | undefined): 'hot' | 'warm' | 'cold' | 'unknown' {
+  if (t === 'muito_quente' || t === 'muito_interessado' || t === 'quente' || t === 'interessado') return 'hot'
+  if (t === 'morno' || t === 'em_duvida' || t === 'pensando') return 'warm'
+  if (t === 'frio' || t === 'esfriando' || t === 'pouco_interessado' || t === 'nao_interessado') return 'cold'
+  return 'unknown'
+}
 
 export function deriveLeadSituation(l: LeadSituationInput, stage: StageFacts, today: string): LeadSituationView {
   const temp = (isTemperature(l.temperature) ? l.temperature : null) ?? temperatureFromScore(l.score)
@@ -156,5 +195,5 @@ export function deriveLeadSituation(l: LeadSituationInput, stage: StageFacts, to
   else if (l.next_contact) urgency = toDays(l.next_contact) - toDays(today)   // <0 atrasado, 0 hoje, >0 futuro
   else if (state === 'sem_atualizacao') urgency = 30
   else urgency = 20
-  return { state, temp, situation, situationDerived, nextText, nextWhen, urgency: urgency - tempRank(temp) * 0.1 }
+  return { state, temp, situation, situationDerived, nextText, nextWhen, urgency: urgency - temperatureRank(temp) * 0.1 }
 }

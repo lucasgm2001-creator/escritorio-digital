@@ -1,5 +1,5 @@
 import type { Lead } from './types'
-import { NEXT_ACTION_LABEL, type NextAction, isNextAction } from '@/lib/commercial/situation'
+import { NEXT_ACTION_LABEL, type NextAction, isNextAction, temperatureTone } from '@/lib/commercial/situation'
 
 // Funil estilo Pipedrive: a cor é ALARME, não enfeite. Cada card carrega no
 // máximo UM sinal, com prioridade quente > esfriando > atenção.
@@ -100,15 +100,24 @@ const TEMP_LABEL: Record<string, string> = {
   quente: 'Quente',
   morno: 'Morno',
   frio: 'Frio',
+  muito_interessado: 'Muito interessado',
+  interessado: 'Interessado',
+  em_duvida: 'Em dúvida',
+  pensando: 'Pensando',
+  esfriando: 'Esfriando',
+  pouco_interessado: 'Pouco interessado',
+  nao_interessado: 'Não interessado',
+  nao_avaliado: 'Sem avaliação',
 }
 
 const NEXT_COMPACT: Partial<Record<NextAction, string>> = {
   ligar: 'Ligar',
-  mensagem: 'Mensagem',
+  mensagem: 'WhatsApp',
   cobrar_retorno: 'Cobrar',
   enviar_proposta: 'Proposta',
   marcar_reuniao: 'Reunião',
   aguardar: 'Aguardar',
+  encerrar_oportunidade: 'Encerrar',
 }
 
 function firstName(name: string): string {
@@ -119,10 +128,11 @@ function temperatureBadge(lead: Lead): LeadSmartBadge | null {
   if (lead.status === 'fechado' || lead.status === 'perdido') return null
   const explicit = lead.temperature && TEMP_LABEL[lead.temperature] ? TEMP_LABEL[lead.temperature] : null
   if (explicit) {
+    const tone = temperatureTone(lead.temperature)
     return {
       key: 'temperature',
       label: explicit,
-      tone: lead.temperature === 'frio' ? 'muted' : lead.temperature === 'morno' ? 'warning' : 'hot',
+      tone: tone === 'cold' ? 'muted' : tone === 'warm' ? 'warning' : tone === 'hot' ? 'hot' : 'muted',
       title: `Temperatura: ${explicit}`,
     }
   }
