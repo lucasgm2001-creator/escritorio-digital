@@ -237,9 +237,9 @@ export function HallClient({ initialActivities, initialTasks, linkOptions, userN
         )}
       </div>
 
-      {/* Tabs — FIXAS: as 5 cabem distribuídas (flex-1), SEM rolagem. overflow-x-hidden + touch-action:pan-y
-          → arrastar o dedo na horizontal não move nada. Ficam pinadas no topo (só o conteúdo rola). */}
-      <div className="flex border-b border-bento-border overflow-x-hidden touch-pan-y sticky top-0 z-20 bg-background">
+      {/* Tabs — FIXAS: as 5 cabem distribuídas (flex-1), SEM rolagem. O gutter mobile evita que
+          overflow de texto do primeiro item seja cortado pela borda do container. */}
+      <div className="flex border-b border-bento-border overflow-x-hidden touch-pan-y sticky top-0 z-20 bg-background max-sm:-mx-3 max-sm:px-3">
         {TABS.map(tab => {
           const isActive = activeTab === tab.id
           return (
