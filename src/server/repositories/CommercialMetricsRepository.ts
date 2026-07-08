@@ -79,14 +79,14 @@ export async function getClientRevenueForMetrics(): Promise<{ payments: MPayment
 export type MExecClient = {
   id: string; name: string | null; assigned_name: string | null; status: string | null; plan_weekly: number | null
   plano_id: string | null; periodicidade: string | null; forma_pagamento: string | null; start_date: string | null
-  dia_pagamento_semana: number | null; created_at: string | null
+  dia_pagamento_semana: number | null
 }
 export type MPlan = { id: string; nome: string }
 
 export async function getExecutiveClients(teamId: string): Promise<{ clients: MExecClient[]; plans: MPlan[] }> {
   const supabase = createClient()
   const [cRes, pRes] = await Promise.all([
-    supabase.from('clients').select('id, name, assigned_name, status, plan_weekly, plano_id, periodicidade, forma_pagamento, start_date, dia_pagamento_semana, created_at').eq('team_id', teamId),
+    supabase.from('clients').select('id, name, assigned_name, status, plan_weekly, plano_id, periodicidade, forma_pagamento, start_date, dia_pagamento_semana').eq('team_id', teamId),
     supabase.from('plans').select('id, nome'),
   ])
   return {

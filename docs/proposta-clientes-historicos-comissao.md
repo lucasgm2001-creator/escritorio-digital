@@ -97,7 +97,7 @@ A auditoria completa (2 varreduras independentes) concluiu: **o modelo de datas 
 
 | Local | Hoje | Correção | Severidade |
 |---|---|---|---|
-| `src/server/repositories/CommercialMetricsRepository.ts:30` | `clients.select('id, created_at')` p/ "clientes novos no período" | usar **`start_date`** (data de virada), com `created_at` só fallback | **corrigir** |
+| `src/server/repositories/CommercialMetricsRepository.ts` | `clientes novos no período` | usar **somente `start_date`** (data real de entrada como cliente), sem fallback em `created_at`/`updated_at` | **corrigido** |
 | `CommercialMetricsRepository.ts:28` | `meetings.select('id, valor_usd, created_at')` | confirmar bucket; se agrupa receita/contagem por mês, usar **`met_on`** | verificar |
 | Demais (`received_at ?? created_at`, `met_on ?? created_at`, `data_fechamento ?? created_at`, `HallClient` list sort) | fallback/tiebreak | **manter** (correto) | ok |
 
@@ -118,7 +118,7 @@ Todas aditivas; nenhuma toca RLS existente. Leitura de remuneração continua **
 
 ## 6. Plano de implementação em fases (cada uma com autorização, sem push)
 
-1. **F1 — Cliente & comissão histórica:** liberar `start_date`/`data_fechamento` retroativos (cadastro + edição + allowlist), campos de pipeline no `ClienteModal`, reconstrução de linhas reais + backfill via `payDueWeeks`. Corrigir `CommercialMetricsRepository` (`created_at`→`start_date`). *(Sem migration.)*
+1. **F1 — Cliente & comissão histórica:** liberar `start_date`/`data_fechamento` retroativos (cadastro + edição + allowlist), campos de pipeline no `ClienteModal`, reconstrução de linhas reais + backfill via `payDueWeeks`. `CommercialMetricsRepository` já usa `start_date` como única data para "clientes novos". *(Sem migration.)*
 2. **F2 — Semanal + mensal:** migration 049/050 + cadastro de plano (valor semanal/mensal, periodicidade, 1º pagamento, dia de cobrança) + `payMonth`.
 3. **F3 — Upgrade:** migration 051 (`plan_changes`) + `deriveUpgradeCommission` + UI de upgrade (data, plano antigo/novo, delta) + timeline.
 4. **F4 — Valdemir (dado real):** só após F1 (e F2 se mensal). Script idempotente revisável.

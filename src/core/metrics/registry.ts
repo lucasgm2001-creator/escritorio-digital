@@ -90,11 +90,11 @@ export const KPI_REGISTRY: KpiDefinition[] = [
   },
   {
     key: 'clientes_novos', nome: 'Clientes Novos',
-    descricao: 'Clientes que entraram no período (start_date, fallback created_at).',
-    fonteTabela: 'clients (start_date/created_at)',
+    descricao: 'Clientes cuja data real de entrada como cliente caiu no período. Clientes migrados/cadastrados agora não contam se a entrada real foi antiga.',
+    fonteTabela: 'clients (start_date)',
     fonteFuncao: 'core/metrics/portfolio.newClientsCount',
-    formula: 'count(clients com start_date ∈ [início, fim])',
-    unidade: 'contagem', consumidores: ['Financeiro', 'Dashboard Executivo', 'Relatórios', 'IA'], ultimaAlteracao: '2026-07-05',
+    formula: 'count(clients com start_date ∈ [início, fim]); sem fallback em created_at/updated_at',
+    unidade: 'contagem', consumidores: ['Financeiro', 'Dashboard Executivo', 'Relatórios', 'IA'], ultimaAlteracao: '2026-07-08',
   },
   {
     key: 'receita_por_vendedor', nome: 'Receita por Vendedor',

@@ -10,7 +10,6 @@ export type PortfolioClient = {
   plan_weekly: number | null
   plano_id?: string | null
   start_date?: string | null
-  created_at?: string | null
 }
 
 const round2 = (n: number): number => Math.round((n + Number.EPSILON) * 100) / 100
