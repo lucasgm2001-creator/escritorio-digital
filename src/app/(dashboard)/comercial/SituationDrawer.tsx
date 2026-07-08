@@ -7,7 +7,7 @@ import { useDialog } from '@/components/ui/useDialog'
 import { cn } from '@/lib/utils'
 import { updateLeadSituationAction } from './lead-write-actions'
 import {
-  LAST_ACTION_LABEL, NEXT_ACTION_LABEL, TEMPERATURE_LABEL, deriveFollowupState, nextContactFromWhen,
+  LAST_ACTION_LABEL, NEXT_ACTION_LABEL, deriveFollowupState, nextContactFromWhen,
   type LastAction, type NextAction, type LeadResponse, type Temperature, type WhenChoice,
 } from '@/lib/commercial/situation'
 
@@ -17,10 +17,10 @@ import {
 
 type ContactAction = 'ligacao' | 'whatsapp' | 'cliente_contatou'
 
-const CONTACT_ACTIONS: { key: ContactAction; label: string }[] = [
-  { key: 'ligacao', label: '📞 Ligação' },
-  { key: 'whatsapp', label: '💬 WhatsApp' },
-  { key: 'cliente_contatou', label: '👤 Cliente entrou em contato' },
+const CONTACT_ACTIONS: { key: ContactAction; label: string; summary: string }[] = [
+  { key: 'ligacao', label: '📞 Ligação', summary: 'Ligação realizada' },
+  { key: 'whatsapp', label: '💬 WhatsApp', summary: 'WhatsApp enviado' },
+  { key: 'cliente_contatou', label: '👤 Cliente entrou em contato', summary: 'Cliente entrou em contato' },
 ]
 
 const RESULT_OPTIONS: Record<ContactAction, { key: LastAction; label: string; response: LeadResponse }[]> = {
@@ -52,9 +52,23 @@ const RESULT_OPTIONS: Record<ContactAction, { key: LastAction; label: string; re
   ],
 }
 
-const TEMPERATURE_OPTIONS: Temperature[] = [
-  'muito_interessado', 'interessado', 'em_duvida', 'pensando',
-  'esfriando', 'pouco_interessado', 'nao_interessado', 'nao_avaliado',
+const AUTO_NO_PERCEPTION_RESULTS = new Set<LastAction>([
+  'ligacao_nao_atendeu',
+  'ligacao_caixa_postal',
+  'ligacao_numero_invalido',
+  'whatsapp_nao_visualizou',
+])
+
+const PERCEPTION_OPTIONS: { key: Temperature; label: string; hint: string }[] = [
+  { key: 'muito_interessado', label: '🔥 Quer fechar', hint: 'Demonstrou vontade clara de avançar.' },
+  { key: 'interessado', label: '🟢 Bem interessado', hint: 'Gostou da proposta e quer continuar.' },
+  { key: 'pensando', label: '🟡 Interessado, mas sem pressa', hint: 'Existe interesse, mas não é prioridade agora.' },
+  { key: 'em_duvida', label: '🟡 Em dúvida', hint: 'Ainda está avaliando.' },
+  { key: 'morno', label: '🟠 Precisa ser convencido', hint: 'Tem potencial, mas ainda existem objeções.' },
+  { key: 'esfriando', label: '🟠 Parece que vai esfriar', hint: 'A conversa perdeu força.' },
+  { key: 'pouco_interessado', label: '🔴 Pouco interessado', hint: 'Respondeu, mas dificilmente vai avançar.' },
+  { key: 'nao_interessado', label: '🔴 Não quer seguir', hint: 'Disse claramente que não deseja continuar.' },
+  { key: 'nao_avaliado', label: '⚫ Não consegui avaliar', hint: 'Ainda não houve conversa suficiente.' },
 ]
 
 const NEXT_OPTIONS: NextAction[] = [
@@ -85,6 +99,25 @@ function Group({ label, children }: { label: string; children: React.ReactNode }
   )
 }
 
+function perceptionLabel(key: Temperature | null): string | null {
+  if (!key) return null
+  return PERCEPTION_OPTIONS.find(o => o.key === key)?.label ?? key
+}
+
+function contactSummary(key: ContactAction | null): string | null {
+  if (!key) return null
+  return CONTACT_ACTIONS.find(o => o.key === key)?.summary ?? key
+}
+
+function whenLabel(when: WhenChoice | null, date: string): string | null {
+  if (!when) return null
+  if (when !== 'data') return WHENS.find(w => w.key === when)?.label ?? when
+  if (!date) return 'Escolher data'
+  const parsed = new Date(`${date}T12:00:00`)
+  if (Number.isNaN(parsed.getTime())) return date
+  return parsed.toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: '2-digit' })
+}
+
 export function SituationDrawer({ lead, onClose, onSaved, onSkip }: {
   lead: { id: string; name: string }
   onClose: () => void
@@ -105,24 +138,30 @@ export function SituationDrawer({ lead, onClose, onSaved, onSkip }: {
 
   const resultOptions = contactAction ? RESULT_OPTIONS[contactAction] : []
   const needsWhen = nextAction !== 'nenhuma'
+  const skipsPerception = !!lastAction && AUTO_NO_PERCEPTION_RESULTS.has(lastAction)
+  const summaryResult = contactAction && lastAction ? RESULT_OPTIONS[contactAction].find(o => o.key === lastAction)?.label ?? LAST_ACTION_LABEL[lastAction] : null
+  const summaryWhen = needsWhen ? whenLabel(when, date) : null
+  const hasSummary = !!contactAction || !!summaryResult || !!temperature || nextAction !== 'nenhuma' || !!summaryWhen
 
   function selectContactAction(action: ContactAction) {
     setContactAction(action)
     setLastAction(null)
     setResponse(null)
+    setTemperature(null)
     setError(null)
   }
 
   function selectResult(option: { key: LastAction; response: LeadResponse }) {
     setLastAction(option.key)
     setResponse(option.response)
+    setTemperature(AUTO_NO_PERCEPTION_RESULTS.has(option.key) ? 'nao_avaliado' : null)
     setError(null)
   }
 
   async function save() {
     if (!contactAction) { setError('Escolha a ação realizada.'); return }
     if (!lastAction) { setError('Escolha o resultado da ação.'); return }
-    if (!temperature) { setError('Escolha a temperatura do lead.'); return }
+    if (!temperature) { setError('Escolha sua percepção do cliente.'); return }
     if (needsWhen && !when) { setError('Escolha quando realizar a próxima ação.'); return }
     if (when === 'data' && !date) { setError('Escolha a data da próxima ação.'); return }
     setSaving(true); setError(null)
@@ -183,9 +222,15 @@ export function SituationDrawer({ lead, onClose, onSaved, onSkip }: {
                 : <p className="text-note text-bento-muted">Escolha primeiro a ação realizada.</p>}
             </Group>
 
-            <Group label="3. Temperatura do lead">
-              {TEMPERATURE_OPTIONS.map(t => <Chip key={t} active={temperature === t} onClick={() => { setTemperature(t); setError(null) }}>{TEMPERATURE_LABEL[t]}</Chip>)}
-            </Group>
+            {!skipsPerception && (
+              <Group label="3. Como você sentiu o cliente?">
+                {PERCEPTION_OPTIONS.map(t => (
+                  <Chip key={t.key} active={temperature === t.key} onClick={() => { setTemperature(t.key); setError(null) }}>
+                    <span title={t.hint}>{t.label}</span>
+                  </Chip>
+                ))}
+              </Group>
+            )}
 
             <Group label="4. Próxima ação">
               {NEXT_OPTIONS.map(a => <Chip key={a} active={nextAction === a} onClick={() => { setNextAction(a); setError(null) }}>{NEXT_ACTION_LABEL[a]}</Chip>)}
@@ -207,6 +252,19 @@ export function SituationDrawer({ lead, onClose, onSaved, onSkip }: {
                 className="w-full bg-bento-bg border border-bento-border rounded-btn px-3 py-2 text-sm text-bento-text placeholder:text-bento-muted focus:outline-none focus:border-lime resize-none" />
               <p className="text-caption text-bento-muted">Ex.: vai conversar com o sócio, pediu retorno sexta, solicitou proposta por WhatsApp.</p>
             </div>
+
+            {hasSummary && (
+              <div className="rounded-btn border border-bento-border bg-bento-bg/60 p-3">
+                <p className="text-caption font-tech uppercase tracking-label text-bento-muted mb-2">Resumo desta interação</p>
+                <div className="space-y-1 text-note text-bento-text">
+                  {contactAction && <p>✓ {contactSummary(contactAction)}</p>}
+                  {summaryResult && <p>✓ {summaryResult}</p>}
+                  {temperature && <p>✓ {perceptionLabel(temperature)}</p>}
+                  <p>✓ Próxima ação: {NEXT_ACTION_LABEL[nextAction]}</p>
+                  {summaryWhen && <p>✓ {summaryWhen}</p>}
+                </div>
+              </div>
+            )}
 
             {error && <p className="text-caption text-red-400">{error}</p>}
           </div>
