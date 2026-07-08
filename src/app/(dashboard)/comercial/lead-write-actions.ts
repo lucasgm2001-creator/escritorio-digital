@@ -1,8 +1,7 @@
 'use server'
 
-import { getRequestContext } from '@/server/context/request-context'
-import { can } from '@/lib/permissions/can'
 import { createClient } from '@/lib/supabase/server'
+import { pickAllowed, requireActionContext } from '@/server/actions/safe-action'
 import { getStages } from '@/lib/funnelStages.server'
 import { wonSlug } from '@/lib/funnelStages'
 import { markMilestones } from '@/lib/leadMilestones'
@@ -44,17 +43,14 @@ const LEAD_COLS = [
 // Para CRIAÇÃO também aceitamos score/status (a UI define a fase e o score inicial de entrada).
 const LEAD_CREATE_COLS = [...LEAD_COLS, 'score', 'status'] as const
 
-function pick(input: Record<string, unknown>, cols: readonly string[]): Record<string, unknown> {
-  const out: Record<string, unknown> = {}
-  for (const key of cols) if (key in input) out[key] = input[key]
-  return out
-}
-
 async function guard(action: 'create' | 'edit' | 'delete', deny: string) {
-  const context = await getRequestContext()
-  if (!context) return { context: null, error: EXPIRED } as const
-  if (!can(context, 'commercial', action)) return { context: null, error: deny } as const
-  return { context, error: null } as const
+  const g = await requireActionContext({
+    permission: { module: 'commercial', action },
+    deniedMessage: deny,
+    expiredMessage: EXPIRED,
+  })
+
+  return g.context ? { context: g.context, error: null } as const : { context: null, error: g.error.message } as const
 }
 
 // Cria um lead (funil manual ou "já é cliente"). A UI monta o payload; aqui filtramos, carimbamos team_id,
@@ -67,7 +63,7 @@ export async function createLeadAction(
   if (!g.context) return { ok: false, error: g.error }
   const supabase = createClient()
   const teamId = g.context.activeTeamId
-  const payload = { ...pick(input, LEAD_CREATE_COLS), ...(teamId ? { team_id: teamId } : {}) }
+  const payload = { ...pickAllowed(input, LEAD_CREATE_COLS), ...(teamId ? { team_id: teamId } : {}) }
 
   const { data, error } = await supabase.from('leads').insert(payload).select().single()
   if (error || !data) return { ok: false, error: error?.message ?? 'Não foi possível criar o lead.' }
@@ -115,7 +111,7 @@ export async function updateLeadAction(leadId: string, patch: Record<string, unk
   if (!g.context) return { ok: false, error: g.error }
   const supabase = createClient()
   const teamId = g.context.activeTeamId
-  const clean = pick(patch, LEAD_COLS)
+  const clean = pickAllowed(patch, LEAD_COLS)
   if (Object.keys(clean).length === 0) return { ok: true }
   // Defense-in-depth (SECURITY-ACTIONS-001): filtra por team_id no servidor — nunca muta lead de outra equipe.
   let q = supabase.from('leads').update(clean).eq('id', leadId)

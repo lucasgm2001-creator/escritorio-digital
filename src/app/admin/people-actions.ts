@@ -1,9 +1,9 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
-import { getRequestContext } from '@/server/context/request-context'
 import { canAccessAdmin } from '@/lib/permissions/admin-access'
 import { createServiceClient } from '@/lib/supabase/service'
+import { requireActionContext } from '@/server/actions/safe-action'
 import { roleByKey } from '@/lib/people/catalog'
 import { eventBus, createDomainEvent } from '@/lib/events/runtime'
 
@@ -21,11 +21,15 @@ export async function updateCollaboratorRolesAction(input: {
   userId: string
   roleKeys: string[]
 }): Promise<ActionResult> {
-  const context = await getRequestContext()
-  if (!context) return { ok: false, error: 'Sessão expirada. Entre novamente.' }
-  if (!canAccessAdmin(context)) return { ok: false, error: 'Apenas Owner ou Desenvolvedor podem alterar cargos.' }
+  const g = await requireActionContext({
+    authorize: canAccessAdmin,
+    deniedMessage: 'Apenas Owner ou Desenvolvedor podem alterar cargos.',
+    requireActiveTeam: true,
+    noActiveTeamMessage: 'Sem equipe ativa.',
+  })
+  if (!g.context) return { ok: false, error: g.error.message }
+  const { context } = g
   const teamId = context.activeTeamId
-  if (!teamId) return { ok: false, error: 'Sem equipe ativa.' }
 
   // Só chaves VÁLIDAS do catálogo, sem duplicar, preservando a ordem (primeiro = primário).
   const seen = new Set<string>()

@@ -1,7 +1,7 @@
 import 'server-only'
 
 import type { RequestContext } from '@/server/context/request-context'
-import { ActiveTeamRequiredError } from '@/server/services/TeamService'
+import { requireActiveTeamId } from '@/server/context/active-team'
 import {
   getActiveCompensationSettings,
   type CommissionType,
@@ -37,14 +37,6 @@ export type NormalizedCompensationRule = {
     base: UpgradeCommissionBase
   }
   paymentRule: PaymentRule
-}
-
-function requireActiveTeamId(context: RequestContext): string {
-  if (!context.activeTeamId) {
-    throw new ActiveTeamRequiredError()
-  }
-
-  return context.activeTeamId
 }
 
 function normalizeCompensationSettings(

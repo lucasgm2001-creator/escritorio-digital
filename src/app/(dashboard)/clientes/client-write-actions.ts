@@ -1,8 +1,8 @@
 'use server'
 
-import { getRequestContext } from '@/server/context/request-context'
-import { can } from '@/lib/permissions/can'
 import { createClient } from '@/lib/supabase/server'
+import { pickAllowed, requireActionContext } from '@/server/actions/safe-action'
+import { getRequestContext } from '@/server/context/request-context'
 import { todaySP } from '@/lib/date'
 import { createServiceClient } from '@/lib/supabase/service'
 import { assertClientOwnership } from '@/server/security/team-ownership'
@@ -28,24 +28,21 @@ const CLIENT_COLS = ['name', 'company', 'email', 'phone', 'nicho', 'status', 'dr
 const NICHO_COLS = ['nome', 'cor', 'posicao', 'ativo'] as const
 const INTEG_COLS = ['client_id', 'ativo', 'instancia', 'numero_destino', 'template', 'landing_pages', 'updated_at'] as const
 
-function pick(input: Record<string, unknown>, cols: readonly string[]): Record<string, unknown> {
-  const out: Record<string, unknown> = {}
-  for (const key of cols) if (key in input) out[key] = input[key]
-  return out
-}
-
 async function guardEdit() {
-  const context = await getRequestContext()
-  if (!context) return { context: null, error: EXPIRED } as const
-  if (!can(context, 'clients', 'edit')) return { context: null, error: DENY } as const
-  return { context, error: null } as const
+  const g = await requireActionContext({
+    permission: { module: 'clients', action: 'edit' },
+    deniedMessage: DENY,
+    expiredMessage: EXPIRED,
+  })
+
+  return g.context ? { context: g.context, error: null } as const : { context: null, error: g.error.message } as const
 }
 
 // Atualiza dados do cliente (dossiê, pasta do Drive, identidade). Filtrado pela allowlist.
 export async function updateClientAction(clientId: string, patch: Record<string, unknown>): Promise<Res> {
   const g = await guardEdit()
   if (!g.context) return { ok: false, error: g.error }
-  const clean = pick(patch, CLIENT_COLS)
+  const clean = pickAllowed(patch, CLIENT_COLS)
   if (Object.keys(clean).length === 0) return { ok: true }
   const supabase = createClient()
   const teamId = g.context.activeTeamId
@@ -90,7 +87,7 @@ export async function createNichoAction(input: { nome: string; cor: string | nul
 export async function updateNichoAction(id: string, patch: Record<string, unknown>): Promise<Res> {
   const g = await guardEdit()
   if (!g.context) return { ok: false, error: g.error }
-  const clean = pick(patch, NICHO_COLS)
+  const clean = pickAllowed(patch, NICHO_COLS)
   if (Object.keys(clean).length === 0) return { ok: true }
   const supabase = createClient()
   const teamId = g.context.activeTeamId
@@ -106,7 +103,7 @@ export async function upsertClientIntegrationAction(row: Record<string, unknown>
   const g = await guardEdit()
   if (!g.context) return { ok: false, error: g.error }
   const supabase = createClient()
-  const clean = pick(row, INTEG_COLS)
+  const clean = pickAllowed(row, INTEG_COLS)
   const { data, error } = await supabase.from('client_integrations')
     .upsert(clean, { onConflict: 'client_id' }).select('*').single()
   if (error || !data) return { ok: false, error: error?.message ?? 'Não foi possível salvar a integração.' }
@@ -159,7 +156,7 @@ export async function saveClientHistoryAction(
   const teamId = g.context.activeTeamId
 
   // 1) Grava os campos do cliente (allowlist) — nunca muta cliente de outra equipe (filtro por team_id).
-  const clean = pick(clientPatch, HISTORY_CLIENT_COLS)
+  const clean = pickAllowed(clientPatch, HISTORY_CLIENT_COLS)
   if (Object.keys(clean).length > 0) {
     let q = supabase.from('clients').update(clean).eq('id', clientId)
     if (teamId) q = q.eq('team_id', teamId)

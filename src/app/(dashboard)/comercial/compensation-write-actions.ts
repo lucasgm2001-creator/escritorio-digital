@@ -1,8 +1,7 @@
 'use server'
 
-import { getRequestContext } from '@/server/context/request-context'
-import { can } from '@/lib/permissions/can'
 import { createClient } from '@/lib/supabase/server'
+import { requireActionContext, toActionError, type ActionError } from '@/server/actions/safe-action'
 import { payWeek, registerMeeting, ensureClient, type PayWeekReason } from '@/lib/commission/actions'
 import { markMilestones } from '@/lib/leadMilestones'
 
@@ -11,17 +10,16 @@ import { markMilestones } from '@/lib/leadMilestones'
 // approve/export em edit/read). Owner/admin da equipe = admin em tudo → passam. Member (read/edit) = negado.
 // REUSA os helpers financeiros (payWeek/registerMeeting/ensureClient) com o client de SERVIDOR — a regra de
 // dinheiro e o cálculo NÃO mudam; só o caminho (browser → action gated). team_id carimbado no servidor.
-type WriteError = { message: string } | null
+type WriteError = ActionError
 type Row = Record<string, unknown>
 
-const DENY: WriteError = { message: 'Você não tem acesso de administrador ao Financeiro.' }
-const EXPIRED: WriteError = { message: 'Sessão expirada. Entre novamente.' }
+const DENY = 'Você não tem acesso de administrador ao Financeiro.'
 
 async function guardFinanceAdmin() {
-  const context = await getRequestContext()
-  if (!context) return { context: null, error: EXPIRED } as const
-  if (!can(context, 'finance', 'approve')) return { context: null, error: DENY } as const
-  return { context, error: null } as const
+  return requireActionContext({
+    permission: { module: 'finance', action: 'approve' },
+    deniedMessage: DENY,
+  })
 }
 
 // ── fx_config ──────────────────────────────────────────────────────────────────────────────────────
@@ -32,7 +30,7 @@ export async function updateFxConfigAction(patch: { cotacao_manual: number | nul
   const { error } = await supabase.from('fx_config')
     .update({ cotacao_manual: patch.cotacao_manual, cotacao_travada: patch.cotacao_travada, updated_at: new Date().toISOString() })
     .eq('id', 1)
-  return { error: error ? { message: error.message } : null }
+  return { error: toActionError(error) }
 }
 
 // ── seller_salaries (novo período; nunca reescreve o passado) ────────────────────────────────────────
@@ -44,7 +42,7 @@ export async function addSalaryAction(input: { sellerId: string; valorUsd: numbe
   const { data, error } = await supabase.from('seller_salaries')
     .insert({ seller_id: input.sellerId, valor_usd: input.valorUsd, effective_from: input.effectiveFrom, ...(teamId ? { team_id: teamId } : {}) })
     .select('seller_id, valor_usd, effective_from').single()
-  return { data: (data as Row) ?? null, error: error ? { message: error.message } : null }
+  return { data: (data as Row) ?? null, error: toActionError(error) }
 }
 
 // ── deals ────────────────────────────────────────────────────────────────────────────────────────────
@@ -62,7 +60,7 @@ export async function createDealAction(input: {
     valor_total_usd: input.total, teto_semanas: input.semanas, valor_por_semana_usd: input.vps,
     status: 'em_andamento', data_fechamento: input.dataFechamento, ...(teamId ? { team_id: teamId } : {}),
   }).select('id, seller_id, client_name, valor_total_usd, teto_semanas, valor_por_semana_usd, status, data_fechamento').single()
-  return { data: (data as Row) ?? null, clientId, error: error ? { message: error.message } : null }
+  return { data: (data as Row) ?? null, clientId, error: toActionError(error) }
 }
 
 export async function updateDealStatusAction(id: string, status: string): Promise<{ error: WriteError }> {
@@ -75,7 +73,7 @@ export async function updateDealStatusAction(id: string, status: string): Promis
   let q = supabase.from('deals').update({ status }).eq('id', id)
   if (teamId) q = q.eq('team_id', teamId)
   const { error } = await q
-  return { error: error ? { message: error.message } : null }
+  return { error: toActionError(error) }
 }
 
 export async function deleteDealAction(id: string): Promise<{ error: WriteError }> {
@@ -86,7 +84,7 @@ export async function deleteDealAction(id: string): Promise<{ error: WriteError 
   let q = supabase.from('deals').delete().eq('id', id)   // semanas caem por FK cascade
   if (teamId) q = q.eq('team_id', teamId)
   const { error } = await q
-  return { error: error ? { message: error.message } : null }
+  return { error: toActionError(error) }
 }
 
 export async function updateDealAction(id: string, input: {
@@ -104,7 +102,7 @@ export async function updateDealAction(id: string, input: {
   }).eq('id', id)
   if (teamId) q = q.eq('team_id', teamId)   // defense-in-depth (teamId já resolvido acima p/ ensureClient)
   const { error } = await q
-  return { clientId, error: error ? { message: error.message } : null }
+  return { clientId, error: toActionError(error) }
 }
 
 // ── weekly_payments (semanas pagas) ───────────────────────────────────────────────────────────────────
@@ -126,7 +124,7 @@ export async function deleteWeekAction(id: string): Promise<{ error: WriteError 
   let q = supabase.from('weekly_payments').delete().eq('id', id)
   if (teamId) q = q.eq('team_id', teamId)
   const { error } = await q
-  return { error: error ? { message: error.message } : null }
+  return { error: toActionError(error) }
 }
 
 export async function updateWeekDateAction(id: string, paidOn: string): Promise<{ error: WriteError }> {
@@ -137,7 +135,7 @@ export async function updateWeekDateAction(id: string, paidOn: string): Promise<
   let q = supabase.from('weekly_payments').update({ paid_on: paidOn }).eq('id', id)
   if (teamId) q = q.eq('team_id', teamId)
   const { error } = await q
-  return { error: error ? { message: error.message } : null }
+  return { error: toActionError(error) }
 }
 
 // ── meetings (gestão financeira; a comissão automática de reunião vem por moveLead/commercial.edit) ────
@@ -151,7 +149,7 @@ export async function registerMeetingAction(input: {
   const { data, error } = await registerMeeting(supabase, input.sellerId, {
     metOn: input.metOn, valorUsd: input.valorUsd, clientId: input.clientId, clientName: input.clientName, note: input.note, leadId: input.leadId,
   }, input.rate, teamId)
-  if (error) return { data: null, error: { message: error.message } }
+  if (error) return { data: null, error: toActionError(error) }
   if (input.leadId) await markMilestones(supabase, input.leadId, ['reuniao'], teamId)   // marco do relatório (idempotente)
   return { data: (data as Row) ?? null, error: null }
 }
@@ -164,7 +162,7 @@ export async function deleteMeetingAction(id: string): Promise<{ error: WriteErr
   let q = supabase.from('meetings').delete().eq('id', id)
   if (teamId) q = q.eq('team_id', teamId)
   const { error } = await q
-  return { error: error ? { message: error.message } : null }
+  return { error: toActionError(error) }
 }
 
 export async function updateMeetingAction(id: string, patch: { metOn: string; valorUsd: number; clientId: string | null; clientName: string | null }): Promise<{ error: WriteError }> {
@@ -176,5 +174,5 @@ export async function updateMeetingAction(id: string, patch: { metOn: string; va
     .update({ met_on: patch.metOn, valor_usd: patch.valorUsd, client_id: patch.clientId, client_name: patch.clientName }).eq('id', id)
   if (teamId) q = q.eq('team_id', teamId)
   const { error } = await q
-  return { error: error ? { message: error.message } : null }
+  return { error: toActionError(error) }
 }

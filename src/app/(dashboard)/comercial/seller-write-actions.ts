@@ -1,31 +1,23 @@
 'use server'
 
-import { getRequestContext } from '@/server/context/request-context'
-import { can } from '@/lib/permissions/can'
 import { createClient } from '@/lib/supabase/server'
+import { pickAllowed, requireActionContext, toActionError, type ActionError } from '@/server/actions/safe-action'
 
 // Escritas de VENDEDORES (config do Comercial — PERMISSIONS-004). Gerir vendedor é ação de ADMIN do módulo:
 // exige commercial.manage (só o nível 'admin' concede 'manage' no modelo de níveis). Retorno no formato
 // { data, error } — drop-in para o useSave/run e para os handlers diretos. team_id carimbado no servidor.
-type WriteError = { message: string; code?: string } | null
+type WriteError = ActionError
 
-const DENY: WriteError = { message: 'Você não tem acesso de administrador ao Comercial.' }
-const EXPIRED: WriteError = { message: 'Sessão expirada. Entre novamente.' }
+const DENY = 'Você não tem acesso de administrador ao Comercial.'
 
 const SELLER_COLS = 'id, name, email, phone, photo_url, cargo, monthly_goal, default_commission, fixed_salary, start_date, observations, status, leads_assigned, conversion_rate, total_sales, created_at'
 const SELLER_UPDATE_COLS = ['name', 'email', 'phone', 'cargo', 'monthly_goal', 'start_date', 'observations', 'status', 'photo_url'] as const
 
-function pick(input: Record<string, unknown>, cols: readonly string[]): Record<string, unknown> {
-  const out: Record<string, unknown> = {}
-  for (const key of cols) if (key in input) out[key] = input[key]
-  return out
-}
-
 async function guardManage() {
-  const context = await getRequestContext()
-  if (!context) return { context: null, error: EXPIRED } as const
-  if (!can(context, 'commercial', 'manage')) return { context: null, error: DENY } as const
-  return { context, error: null } as const
+  return requireActionContext({
+    permission: { module: 'commercial', action: 'manage' },
+    deniedMessage: DENY,
+  })
 }
 
 export async function createSellerAction(input: {
@@ -41,13 +33,13 @@ export async function createSellerAction(input: {
     status: 'ativo', total_sales: 0, total_commissions: 0, leads_assigned: 0, conversion_rate: 0,
     ...(teamId ? { team_id: teamId } : {}),
   }).select(SELLER_COLS).single()
-  return { data: (data as Record<string, unknown>) ?? null, error: error ? { message: error.message } : null }
+  return { data: (data as Record<string, unknown>) ?? null, error: toActionError(error) }
 }
 
 export async function updateSellerAction(id: string, patch: Record<string, unknown>): Promise<{ error: WriteError }> {
   const g = await guardManage()
   if (!g.context) return { error: g.error }
-  const clean = pick(patch, SELLER_UPDATE_COLS)
+  const clean = pickAllowed(patch, SELLER_UPDATE_COLS)
   if (Object.keys(clean).length === 0) return { error: null }
   const supabase = createClient()
   const teamId = g.context.activeTeamId
@@ -55,7 +47,7 @@ export async function updateSellerAction(id: string, patch: Record<string, unkno
   let q = supabase.from('sellers').update(clean).eq('id', id)
   if (teamId) q = q.eq('team_id', teamId)
   const { error } = await q
-  return { error: error ? { message: error.message } : null }
+  return { error: toActionError(error) }
 }
 
 export async function deleteSellerAction(id: string): Promise<{ error: WriteError }> {
@@ -67,5 +59,5 @@ export async function deleteSellerAction(id: string): Promise<{ error: WriteErro
   if (teamId) q = q.eq('team_id', teamId)
   const { error } = await q
   // Preserva o code (23503 = FK) para a mensagem amigável do handler.
-  return { error: error ? { message: error.message, code: error.code } : null }
+  return { error: toActionError(error) }
 }

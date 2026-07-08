@@ -3,6 +3,7 @@ import 'server-only'
 import { requirePermission } from '@/lib/permissions/require-permission'
 import { createServiceClient } from '@/lib/supabase/service'
 import type { RequestContext } from '@/server/context/request-context'
+import { requireActiveTeamId } from '@/server/context/active-team'
 import type { TeamRole } from '@/lib/supabase/team'
 import type { ModuleLevel } from '@/lib/permissions/types'
 import { MODULE_LEVELS } from '@/lib/permissions/levels'
@@ -16,23 +17,6 @@ import {
   type TeamInvite,
   type TeamMember,
 } from '@/server/repositories/TeamRepository'
-
-export class ActiveTeamRequiredError extends Error {
-  readonly code = 'ACTIVE_TEAM_REQUIRED'
-
-  constructor() {
-    super('Active team is required')
-    this.name = 'ActiveTeamRequiredError'
-  }
-}
-
-function requireActiveTeamId(context: RequestContext): string {
-  if (!context.activeTeamId) {
-    throw new ActiveTeamRequiredError()
-  }
-
-  return context.activeTeamId
-}
 
 export async function getActiveTeamMembers(
   context: RequestContext,

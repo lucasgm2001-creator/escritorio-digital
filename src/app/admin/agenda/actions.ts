@@ -1,8 +1,8 @@
 'use server'
 
-import { getRequestContext } from '@/server/context/request-context'
 import { canAccessAdmin } from '@/lib/permissions/admin-access'
 import { createServiceClient } from '@/lib/supabase/service'
+import { requireActionContext } from '@/server/actions/safe-action'
 import type { CalendarEvent } from '@/app/(dashboard)/hall/calendarShared'
 
 // Agenda administrativa (ACCESS-ROLES-001, Parte 6): OWNER/DESENVOLVEDOR VÊ a agenda de um colaborador.
@@ -12,11 +12,15 @@ import type { CalendarEvent } from '@/app/(dashboard)/hall/calendarShared'
 type Res = { ok: true; events: CalendarEvent[] } | { ok: false; error: string }
 
 export async function getCollaboratorAgendaAction(userId: string): Promise<Res> {
-  const context = await getRequestContext()
-  if (!context) return { ok: false, error: 'Sessão expirada.' }
-  if (!canAccessAdmin(context)) return { ok: false, error: 'Apenas Owner ou Desenvolvedor podem ver agendas.' }
-  const teamId = context.activeTeamId
-  if (!teamId) return { ok: false, error: 'Sem equipe ativa.' }
+  const g = await requireActionContext({
+    authorize: canAccessAdmin,
+    deniedMessage: 'Apenas Owner ou Desenvolvedor podem ver agendas.',
+    expiredMessage: 'Sessão expirada.',
+    requireActiveTeam: true,
+    noActiveTeamMessage: 'Sem equipe ativa.',
+  })
+  if (!g.context) return { ok: false, error: g.error.message }
+  const teamId = g.context.activeTeamId
 
   const svc = createServiceClient()
   const { data: member } = await svc.from('team_members').select('id').eq('team_id', teamId).eq('user_id', userId).maybeSingle()
