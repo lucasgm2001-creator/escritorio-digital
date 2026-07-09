@@ -2,6 +2,7 @@ import { cn } from '@/lib/utils'
 import { LEAD_CATEGORIES } from '@/lib/commercial/lead-categories'
 import type { LeadTimelineItem, LeadTimelineOrigin } from '@/lib/commercial/lead-hub-types'
 import { ResultIcon } from './lead-profile-primitives'
+import { LeadTimelineDescription } from './LeadTimelineDescription'
 
 // Timeline estilo HubSpot: trilho contínuo, nós por categoria, separadores por período, hierarquia clara.
 const ORIGIN_LABEL: Record<LeadTimelineOrigin, string> = { manual: 'Manual', automacao: 'Automação', sistema: 'Sistema', ia: 'IA' }
@@ -76,7 +77,7 @@ export function LeadTimeline({ items }: { items: LeadTimelineItem[] }) {
                       {item.author && <span className="text-[11px] text-bento-muted break-words">· {item.author}</span>}
                       <span className="text-[11px] text-bento-dim ml-auto shrink-0">{relative(item.at)}</span>
                     </div>
-                    {item.description && <p className="text-[13px] text-bento-muted mt-1 break-words">{item.description}</p>}
+                    <LeadTimelineDescription item={item} />
                     <p className="text-[10px] text-bento-dim mt-1.5">{fmtWhen(item.at)} · {ORIGIN_LABEL[item.origin]}</p>
                   </div>
                 </li>
