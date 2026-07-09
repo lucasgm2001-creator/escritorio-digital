@@ -1,7 +1,29 @@
 'use client'
 
 import { useState } from 'react'
-import { X } from 'lucide-react'
+import {
+  BadgeCheck,
+  Ban,
+  CalendarCheck,
+  Check,
+  CircleDot,
+  Clock,
+  Eye,
+  EyeOff,
+  Flame,
+  HelpCircle,
+  MailCheck,
+  MessageCircle,
+  MessageSquareOff,
+  PhoneCall,
+  PhoneMissed,
+  PhoneOff,
+  Send,
+  UserRound,
+  Voicemail,
+  X,
+  type LucideIcon,
+} from 'lucide-react'
 import { Portal } from '@/components/ui/Portal'
 import { useDialog } from '@/components/ui/useDialog'
 import { cn } from '@/lib/utils'
@@ -17,38 +39,41 @@ import {
 
 type ContactAction = 'ligacao' | 'whatsapp' | 'cliente_contatou'
 
-const CONTACT_ACTIONS: { key: ContactAction; label: string; summary: string }[] = [
-  { key: 'ligacao', label: '📞 Ligação', summary: 'Ligação realizada' },
-  { key: 'whatsapp', label: '💬 WhatsApp', summary: 'WhatsApp enviado' },
-  { key: 'cliente_contatou', label: '👤 Cliente entrou em contato', summary: 'Cliente entrou em contato' },
+type OptionTone = 'neutral' | 'success' | 'warning' | 'danger' | 'hot'
+type IconOption<T extends string> = { key: T; label: string; icon: LucideIcon; tone?: OptionTone }
+
+const CONTACT_ACTIONS: (IconOption<ContactAction> & { summary: string })[] = [
+  { key: 'ligacao', label: 'Ligação', summary: 'Ligação realizada', icon: PhoneCall },
+  { key: 'whatsapp', label: 'WhatsApp', summary: 'WhatsApp enviado', icon: MessageCircle },
+  { key: 'cliente_contatou', label: 'Cliente entrou em contato', summary: 'Cliente entrou em contato', icon: UserRound },
 ]
 
-const RESULT_OPTIONS: Record<ContactAction, { key: LastAction; label: string; response: LeadResponse }[]> = {
+const RESULT_OPTIONS: Record<ContactAction, (IconOption<LastAction> & { response: LeadResponse })[]> = {
   ligacao: [
-    { key: 'ligacao_nao_atendeu', label: 'Não atendeu', response: 'nao_falei' },
-    { key: 'ligacao_ocupado', label: 'Ocupado', response: 'nao_falei' },
-    { key: 'ligacao_caixa_postal', label: 'Caixa postal', response: 'nao_falei' },
-    { key: 'ligacao_conversou', label: 'Conversou', response: 'sim' },
-    { key: 'ligacao_marcou_reuniao', label: 'Marcou reunião', response: 'sim' },
-    { key: 'ligacao_pediu_proposta', label: 'Pediu proposta', response: 'sim' },
-    { key: 'ligacao_ja_cliente', label: 'Já é cliente', response: 'sim' },
-    { key: 'ligacao_numero_invalido', label: 'Número inválido', response: 'nao' },
+    { key: 'ligacao_nao_atendeu', label: 'Não atendeu', response: 'nao_falei', icon: PhoneMissed, tone: 'warning' },
+    { key: 'ligacao_ocupado', label: 'Ocupado', response: 'nao_falei', icon: Clock, tone: 'warning' },
+    { key: 'ligacao_caixa_postal', label: 'Caixa postal', response: 'nao_falei', icon: Voicemail, tone: 'neutral' },
+    { key: 'ligacao_conversou', label: 'Conversou', response: 'sim', icon: PhoneCall, tone: 'success' },
+    { key: 'ligacao_marcou_reuniao', label: 'Marcou reunião', response: 'sim', icon: CalendarCheck, tone: 'success' },
+    { key: 'ligacao_pediu_proposta', label: 'Pediu proposta', response: 'sim', icon: Send, tone: 'success' },
+    { key: 'ligacao_ja_cliente', label: 'Já é cliente', response: 'sim', icon: BadgeCheck, tone: 'success' },
+    { key: 'ligacao_numero_invalido', label: 'Número inválido', response: 'nao', icon: PhoneOff, tone: 'danger' },
   ],
   whatsapp: [
-    { key: 'whatsapp_nao_visualizou', label: 'Não visualizou', response: 'nao_falei' },
-    { key: 'whatsapp_visualizou', label: 'Visualizou', response: 'nao_falei' },
-    { key: 'whatsapp_respondeu', label: 'Respondeu', response: 'sim' },
-    { key: 'whatsapp_pediu_proposta', label: 'Pediu proposta', response: 'sim' },
-    { key: 'whatsapp_marcou_reuniao', label: 'Marcou reunião', response: 'sim' },
-    { key: 'whatsapp_parou_responder', label: 'Parou de responder', response: 'nao' },
+    { key: 'whatsapp_nao_visualizou', label: 'Não visualizou', response: 'nao_falei', icon: EyeOff, tone: 'neutral' },
+    { key: 'whatsapp_visualizou', label: 'Visualizou', response: 'nao_falei', icon: Eye, tone: 'warning' },
+    { key: 'whatsapp_respondeu', label: 'Respondeu', response: 'sim', icon: MessageCircle, tone: 'success' },
+    { key: 'whatsapp_pediu_proposta', label: 'Pediu proposta', response: 'sim', icon: Send, tone: 'success' },
+    { key: 'whatsapp_marcou_reuniao', label: 'Marcou reunião', response: 'sim', icon: CalendarCheck, tone: 'success' },
+    { key: 'whatsapp_parou_responder', label: 'Parou de responder', response: 'nao', icon: MessageSquareOff, tone: 'warning' },
   ],
   cliente_contatou: [
-    { key: 'cliente_pediu_proposta', label: 'Pediu proposta', response: 'sim' },
-    { key: 'cliente_quer_reuniao', label: 'Quer reunião', response: 'sim' },
-    { key: 'cliente_tirou_duvidas', label: 'Tirou dúvidas', response: 'sim' },
-    { key: 'cliente_quer_fechar', label: 'Quer fechar', response: 'sim' },
-    { key: 'cliente_quer_negociar', label: 'Quer negociar', response: 'sim' },
-    { key: 'cliente_pediu_retorno', label: 'Pediu retorno', response: 'sim' },
+    { key: 'cliente_pediu_proposta', label: 'Pediu proposta', response: 'sim', icon: Send, tone: 'success' },
+    { key: 'cliente_quer_reuniao', label: 'Quer reunião', response: 'sim', icon: CalendarCheck, tone: 'success' },
+    { key: 'cliente_tirou_duvidas', label: 'Tirou dúvidas', response: 'sim', icon: HelpCircle, tone: 'neutral' },
+    { key: 'cliente_quer_fechar', label: 'Quer fechar', response: 'sim', icon: Flame, tone: 'hot' },
+    { key: 'cliente_quer_negociar', label: 'Quer negociar', response: 'sim', icon: MailCheck, tone: 'warning' },
+    { key: 'cliente_pediu_retorno', label: 'Pediu retorno', response: 'sim', icon: Clock, tone: 'neutral' },
   ],
 }
 
@@ -59,16 +84,16 @@ const AUTO_NO_PERCEPTION_RESULTS = new Set<LastAction>([
   'whatsapp_nao_visualizou',
 ])
 
-const PERCEPTION_OPTIONS: { key: Temperature; label: string; hint: string }[] = [
-  { key: 'muito_interessado', label: '🔥 Quer fechar', hint: 'Demonstrou vontade clara de avançar.' },
-  { key: 'interessado', label: '🟢 Bem interessado', hint: 'Gostou da proposta e quer continuar.' },
-  { key: 'pensando', label: '🟡 Interessado, mas sem pressa', hint: 'Existe interesse, mas não é prioridade agora.' },
-  { key: 'em_duvida', label: '🟡 Em dúvida', hint: 'Ainda está avaliando.' },
-  { key: 'morno', label: '🟠 Precisa ser convencido', hint: 'Tem potencial, mas ainda existem objeções.' },
-  { key: 'esfriando', label: '🟠 Parece que vai esfriar', hint: 'A conversa perdeu força.' },
-  { key: 'pouco_interessado', label: '🔴 Pouco interessado', hint: 'Respondeu, mas dificilmente vai avançar.' },
-  { key: 'nao_interessado', label: '🔴 Não quer seguir', hint: 'Disse claramente que não deseja continuar.' },
-  { key: 'nao_avaliado', label: '⚫ Não consegui avaliar', hint: 'Ainda não houve conversa suficiente.' },
+const PERCEPTION_OPTIONS: (IconOption<Temperature> & { hint: string })[] = [
+  { key: 'muito_interessado', label: 'Quer fechar', hint: 'Demonstrou vontade clara de avançar.', icon: Flame, tone: 'hot' },
+  { key: 'interessado', label: 'Bem interessado', hint: 'Gostou da proposta e quer continuar.', icon: CircleDot, tone: 'success' },
+  { key: 'pensando', label: 'Interessado, mas sem pressa', hint: 'Existe interesse, mas não é prioridade agora.', icon: Clock, tone: 'warning' },
+  { key: 'em_duvida', label: 'Em dúvida', hint: 'Ainda está avaliando.', icon: HelpCircle, tone: 'warning' },
+  { key: 'morno', label: 'Precisa ser convencido', hint: 'Tem potencial, mas ainda existem objeções.', icon: MailCheck, tone: 'warning' },
+  { key: 'esfriando', label: 'Parece que vai esfriar', hint: 'A conversa perdeu força.', icon: MessageSquareOff, tone: 'warning' },
+  { key: 'pouco_interessado', label: 'Pouco interessado', hint: 'Respondeu, mas dificilmente vai avançar.', icon: Ban, tone: 'danger' },
+  { key: 'nao_interessado', label: 'Não quer seguir', hint: 'Disse claramente que não deseja continuar.', icon: X, tone: 'danger' },
+  { key: 'nao_avaliado', label: 'Não consegui avaliar', hint: 'Ainda não houve conversa suficiente.', icon: HelpCircle, tone: 'neutral' },
 ]
 
 const NEXT_OPTIONS: NextAction[] = [
@@ -81,21 +106,67 @@ const WHENS: { key: WhenChoice; label: string }[] = [
   { key: 'em_7_dias', label: 'Em 7 dias' }, { key: 'data', label: 'Escolher data' },
 ]
 
-function Chip({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) {
+const TONE_CLASS: Record<OptionTone, string> = {
+  neutral: 'text-bento-muted',
+  success: 'text-lime-fg',
+  warning: 'text-amber-300',
+  danger: 'text-red-300',
+  hot: 'text-orange-300',
+}
+
+function ActionIcon({ icon: Icon, active, tone = 'neutral' }: { icon: LucideIcon; active: boolean; tone?: OptionTone }) {
   return (
-    <button type="button" onClick={onClick}
-      className={cn('px-3 py-1.5 rounded-full border text-note transition-colors min-h-control-sm',
-        active ? 'bg-lime/15 border-lime text-lime-fg' : 'border-bento-border text-bento-muted hover:text-bento-text')}>
-      {children}
+    <span className={cn(
+      'flex h-7 w-7 shrink-0 items-center justify-center rounded-btn border transition-colors',
+      active ? 'border-lime/40 bg-lime/15 text-lime-fg' : 'border-bento-border bg-bento-bg/80',
+      !active && TONE_CLASS[tone],
+    )}>
+      <Icon className="h-3.5 w-3.5" />
+    </span>
+  )
+}
+
+function OptionChip<T extends string>({
+  option,
+  active,
+  onClick,
+  title,
+}: {
+  option: IconOption<T>
+  active: boolean
+  onClick: () => void
+  title?: string
+}) {
+  return (
+    <button type="button" onClick={onClick} title={title}
+      className={cn(
+        'group inline-flex min-h-control items-center gap-2 rounded-btn border px-2.5 py-1.5 text-left text-note font-medium transition-colors outline-none',
+        'focus-visible:ring-2 focus-visible:ring-lime/50 focus-visible:ring-offset-2 focus-visible:ring-offset-bento-panel',
+        active
+          ? 'border-lime/60 bg-lime/10 text-lime-fg shadow-[0_0_0_1px_rgba(199,255,0,0.12)]'
+          : 'border-bento-border bg-bento-bg/40 text-bento-muted hover:border-bento-text/30 hover:bg-bento-bg hover:text-bento-text',
+      )}>
+      <ActionIcon icon={option.icon} active={active} tone={option.tone} />
+      <span className="min-w-0 leading-tight">{option.label}</span>
     </button>
   )
 }
+
 function Group({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <div className="space-y-1.5">
+    <div className="space-y-2">
       <p className="text-caption font-tech uppercase tracking-label text-bento-muted">{label}</p>
-      <div className="flex flex-wrap gap-1.5">{children}</div>
+      <div className="flex flex-wrap gap-2">{children}</div>
     </div>
+  )
+}
+
+function SummaryLine({ children }: { children: React.ReactNode }) {
+  return (
+    <p className="flex items-start gap-2">
+      <Check className="mt-0.5 h-3.5 w-3.5 shrink-0 text-lime-fg" />
+      <span className="min-w-0">{children}</span>
+    </p>
   )
 }
 
@@ -206,18 +277,14 @@ export function SituationDrawer({ lead, onClose, onSaved, onSkip }: {
           <div className="flex-1 min-h-0 space-y-4 overflow-y-auto overscroll-contain p-5">
             <Group label="1. Ação realizada">
               {CONTACT_ACTIONS.map(a => (
-                <Chip key={a.key} active={contactAction === a.key} onClick={() => selectContactAction(a.key)}>
-                  {a.label}
-                </Chip>
+                <OptionChip key={a.key} option={a} active={contactAction === a.key} onClick={() => selectContactAction(a.key)} />
               ))}
             </Group>
 
             <Group label="2. Resultado da ação">
               {resultOptions.length > 0
                 ? resultOptions.map(a => (
-                  <Chip key={`${contactAction}-${a.key}`} active={lastAction === a.key} onClick={() => selectResult(a)}>
-                    {a.label}
-                  </Chip>
+                  <OptionChip key={`${contactAction}-${a.key}`} option={a} active={lastAction === a.key} onClick={() => selectResult(a)} />
                 ))
                 : <p className="text-note text-bento-muted">Escolha primeiro a ação realizada.</p>}
             </Group>
@@ -225,20 +292,40 @@ export function SituationDrawer({ lead, onClose, onSaved, onSkip }: {
             {!skipsPerception && (
               <Group label="3. Como você sentiu o cliente?">
                 {PERCEPTION_OPTIONS.map(t => (
-                  <Chip key={t.key} active={temperature === t.key} onClick={() => { setTemperature(t.key); setError(null) }}>
-                    <span title={t.hint}>{t.label}</span>
-                  </Chip>
+                  <OptionChip key={t.key} option={t} active={temperature === t.key} title={t.hint} onClick={() => { setTemperature(t.key); setError(null) }} />
                 ))}
               </Group>
             )}
 
             <Group label="4. Próxima ação">
-              {NEXT_OPTIONS.map(a => <Chip key={a} active={nextAction === a} onClick={() => { setNextAction(a); setError(null) }}>{NEXT_ACTION_LABEL[a]}</Chip>)}
+              {NEXT_OPTIONS.map(a => (
+                <button key={a} type="button" onClick={() => { setNextAction(a); setError(null) }}
+                  className={cn(
+                    'min-h-control rounded-btn border px-3 py-1.5 text-note font-medium transition-colors outline-none',
+                    'focus-visible:ring-2 focus-visible:ring-lime/50 focus-visible:ring-offset-2 focus-visible:ring-offset-bento-panel',
+                    nextAction === a
+                      ? 'border-lime/60 bg-lime/10 text-lime-fg'
+                      : 'border-bento-border bg-bento-bg/40 text-bento-muted hover:border-bento-text/30 hover:bg-bento-bg hover:text-bento-text',
+                  )}>
+                  {NEXT_ACTION_LABEL[a]}
+                </button>
+              ))}
             </Group>
 
             {needsWhen && (
               <Group label="5. Quando realizar">
-                {WHENS.map(w => <Chip key={w.key} active={when === w.key} onClick={() => setWhen(w.key)}>{w.label}</Chip>)}
+                {WHENS.map(w => (
+                  <button key={w.key} type="button" onClick={() => setWhen(w.key)}
+                    className={cn(
+                      'min-h-control rounded-btn border px-3 py-1.5 text-note font-medium transition-colors outline-none',
+                      'focus-visible:ring-2 focus-visible:ring-lime/50 focus-visible:ring-offset-2 focus-visible:ring-offset-bento-panel',
+                      when === w.key
+                        ? 'border-lime/60 bg-lime/10 text-lime-fg'
+                        : 'border-bento-border bg-bento-bg/40 text-bento-muted hover:border-bento-text/30 hover:bg-bento-bg hover:text-bento-text',
+                    )}>
+                    {w.label}
+                  </button>
+                ))}
                 {when === 'data' && (
                   <input type="date" value={date} onChange={e => setDate(e.target.value)}
                     className="bg-bento-bg border border-bento-border rounded-btn px-3 py-1.5 text-note text-bento-text focus:outline-none focus:border-lime" />
@@ -257,11 +344,11 @@ export function SituationDrawer({ lead, onClose, onSaved, onSkip }: {
               <div className="rounded-btn border border-bento-border bg-bento-bg/60 p-3">
                 <p className="text-caption font-tech uppercase tracking-label text-bento-muted mb-2">Resumo desta interação</p>
                 <div className="space-y-1 text-note text-bento-text">
-                  {contactAction && <p>✓ {contactSummary(contactAction)}</p>}
-                  {summaryResult && <p>✓ {summaryResult}</p>}
-                  {temperature && <p>✓ {perceptionLabel(temperature)}</p>}
-                  <p>✓ Próxima ação: {NEXT_ACTION_LABEL[nextAction]}</p>
-                  {summaryWhen && <p>✓ {summaryWhen}</p>}
+                  {contactAction && <SummaryLine>{contactSummary(contactAction)}</SummaryLine>}
+                  {summaryResult && <SummaryLine>{summaryResult}</SummaryLine>}
+                  {temperature && <SummaryLine>{perceptionLabel(temperature)}</SummaryLine>}
+                  <SummaryLine>Próxima ação: {NEXT_ACTION_LABEL[nextAction]}</SummaryLine>
+                  {summaryWhen && <SummaryLine>{summaryWhen}</SummaryLine>}
                 </div>
               </div>
             )}

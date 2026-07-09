@@ -14,7 +14,7 @@ import { waNumber } from '@/lib/phone'
 import { LeadTasks } from './LeadTasks'
 import { Portal } from '@/components/ui/Portal'
 import { copyText } from '@/lib/clipboard'
-import { Sparkles, MessageCircle, MessageSquare, Copy, ChevronDown } from 'lucide-react'
+import { ChevronDown, Copy, MessageCircle, MessageSquare, PhoneCall, PhoneMissed, Sparkles, StickyNote, X } from 'lucide-react'
 import { usefulPayloadEntries } from './leaddiary-payload'
 
 // Saudação pré-preenchida do WhatsApp (leads são US → inglês). Editável aqui.
@@ -49,15 +49,18 @@ const PHASE_DOT: Record<ColumnTone, string> = {
   win:     'bg-lime',
   loss:    'bg-red-400',
 }
+const PROFILE_SECTION = 'border-b border-border px-5 py-3 lg:rounded-frame lg:border lg:border-bento-border lg:bg-bento-bg/35 lg:p-4 lg:shadow-sm'
+const PROFILE_SECTION_RELATIVE = `${PROFILE_SECTION} relative`
+const PROFILE_TITLE = 'text-xs font-medium text-muted-foreground'
 
 const INTERACTION_BUTTONS: { type: string; label: string; icon: React.ReactNode; delta: number }[] = [
   {
     type: 'atendeu', label: 'Atendeu', delta: 80,
-    icon: <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" /></svg>,
+    icon: <PhoneCall className="w-4 h-4" />,
   },
   {
     type: 'nao_atendeu', label: 'Não Atendeu', delta: -30,
-    icon: <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" /></svg>,
+    icon: <PhoneMissed className="w-4 h-4" />,
   },
   {
     type: 'mensagem', label: 'Mensagem', delta: 20,
@@ -65,7 +68,7 @@ const INTERACTION_BUTTONS: { type: string; label: string; icon: React.ReactNode;
   },
   {
     type: 'nota', label: 'Nota', delta: 0,
-    icon: <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>,
+    icon: <StickyNote className="w-4 h-4" />,
   },
 ]
 
@@ -82,9 +85,9 @@ const INTERACTION_LABEL: Record<string, string> = {
 const InfoRow = memo(function InfoRow({ label, value }: { label: string; value?: string | number | null }) {
   const v = value == null || String(value).trim() === '' ? '' : String(value)
   return (
-    <div className="flex items-baseline justify-between gap-3 min-w-0">
-      <span className="text-xs text-muted-foreground flex-none">{label}</span>
-      <span className={cn('text-sm text-right break-all min-w-0', v ? 'text-bento-text' : 'text-bento-muted/50')}>{v || '—'}</span>
+    <div className="grid grid-cols-[minmax(5.5rem,8rem)_minmax(0,1fr)] items-start gap-3 min-w-0">
+      <span className="text-xs text-muted-foreground">{label}</span>
+      <span className={cn('min-w-0 text-sm text-right break-words lg:text-left 2xl:text-right', v ? 'text-bento-text' : 'text-bento-muted/50')}>{v || '—'}</span>
     </div>
   )
 })
@@ -429,34 +432,32 @@ export function LeadDiary({ lead, onClose, onUpdated, onMoveStage, onDeleted, cu
       <div className="flex-1 bg-black/30" onClick={onClose} />
 
       {/* Painel lateral */}
-      <div className="w-full max-w-md h-[100dvh] bg-bento-panel border-l border-bento-border flex flex-col shadow-card-hover overflow-hidden">
+      <div className="w-full h-[100dvh] bg-bento-panel border-l border-bento-border flex flex-col shadow-card-hover overflow-hidden sm:max-w-[min(100vw,42rem)] lg:max-w-[min(100vw,72rem)] 2xl:max-w-[min(100vw,96rem)]">
         {/* Header — FIXO no topo (fora do scroll); swipe-pra-baixo fecha no celular. */}
         <div onTouchStart={onHeaderTouchStart} onTouchEnd={onHeaderTouchEnd}
           className="shrink-0 flex items-start justify-between px-5 pb-5 pt-[max(1.25rem,env(safe-area-inset-top))] border-b border-border">
-          <div>
-            <div className="flex items-center gap-2 flex-wrap">
-              <h2 className="font-bold text-foreground text-base">{currentLead.name}</h2>
+          <div className="min-w-0">
+            <div className="flex items-center gap-2 flex-wrap min-w-0">
+              <h2 className="font-bold text-foreground text-base sm:text-lg leading-tight break-words min-w-0">{currentLead.name}</h2>
               {currentLead.contact_code && (
                 <span className="font-mono text-[10px] text-bento-muted bg-bento-bg border border-bento-border rounded px-1.5 py-0.5 flex-none" title="Código do contato">{currentLead.contact_code}</span>
               )}
             </div>
-            {currentLead.company && <p className="text-sm text-muted-foreground">{currentLead.company}</p>}
+            {currentLead.company && <p className="text-sm text-muted-foreground break-words">{currentLead.company}</p>}
           </div>
           <button onClick={onClose} aria-label="Fechar" className="text-muted-foreground hover:text-foreground mt-0.5 p-1 -m-1">
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-            </svg>
+            <X className="w-5 h-5" />
           </button>
         </div>
 
         {/* UM scroll só: todo o perfil rola como UMA coluna (sem caixas internas prendendo no toque). */}
-        <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden pb-safe">
+        <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden pb-safe lg:grid lg:grid-cols-[minmax(20rem,24rem)_minmax(24rem,1fr)] lg:items-start lg:gap-3 lg:p-4 2xl:grid-cols-[minmax(22rem,28rem)_minmax(30rem,1fr)_minmax(22rem,26rem)]">
 
         {/* Dados do lead. MANUAL (created_manually) → "Editar" abre formulário inline (um update). Senão, somente
             leitura ("—" se vazio). Status e responsável têm seletores próprios mais abaixo (respeitam o won-flow). */}
-        <div className="px-5 py-3 border-b border-border space-y-1.5">
+        <div className={cn(PROFILE_SECTION, 'space-y-2 lg:col-span-1')}>
           <div className="flex items-center justify-between">
-            <span className="text-xs text-muted-foreground">Dados do lead</span>
+            <span className={PROFILE_TITLE}>Dados do lead</span>
             {createdManually && !editing && (
               <button type="button" onClick={() => { setDraft(emptyDraft()); setEditing(true) }} className="font-tech text-xs text-lime-fg hover:text-lime">Editar</button>
             )}
@@ -465,20 +466,20 @@ export function LeadDiary({ lead, onClose, onUpdated, onMoveStage, onDeleted, cu
             <div className="mt-1 space-y-2">
               <EditField label="Nome *"><input value={draft.name} onChange={e => setDraft(d => ({ ...d, name: e.target.value }))} className={EDIT_INP} /></EditField>
               <EditField label="Empresa"><input value={draft.company} onChange={e => setDraft(d => ({ ...d, company: e.target.value }))} className={EDIT_INP} /></EditField>
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 <EditField label="E-mail"><input type="email" value={draft.email} onChange={e => setDraft(d => ({ ...d, email: e.target.value }))} className={EDIT_INP} /></EditField>
                 <EditField label="Telefone"><input value={draft.phone} onChange={e => setDraft(d => ({ ...d, phone: e.target.value }))} className={EDIT_INP} /></EditField>
               </div>
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 <EditField label="Nicho"><input value={draft.nicho} onChange={e => setDraft(d => ({ ...d, nicho: e.target.value }))} className={EDIT_INP} /></EditField>
                 <EditField label="Valor (US$)"><input type="number" min="0" inputMode="decimal" value={draft.value} onChange={e => setDraft(d => ({ ...d, value: e.target.value }))} className={EDIT_INP} /></EditField>
               </div>
-              <div className="grid grid-cols-3 gap-2">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                 <EditField label="Cidade"><input value={draft.city} onChange={e => setDraft(d => ({ ...d, city: e.target.value }))} className={EDIT_INP} /></EditField>
                 <EditField label="Estado"><input maxLength={2} value={draft.state} onChange={e => setDraft(d => ({ ...d, state: e.target.value }))} className={EDIT_INP} /></EditField>
                 <EditField label="DDD"><input value={draft.area_code} onChange={e => setDraft(d => ({ ...d, area_code: e.target.value }))} className={EDIT_INP} /></EditField>
               </div>
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 <EditField label="Origem">
                   <select value={draft.origem} onChange={e => setDraft(d => ({ ...d, origem: e.target.value }))} className={EDIT_INP}>
                     <option value="">—</option>
@@ -500,7 +501,7 @@ export function LeadDiary({ lead, onClose, onUpdated, onMoveStage, onDeleted, cu
               <p className="font-tech text-[10px] text-bento-muted/70">Status e responsável são editados nos seletores abaixo.</p>
             </div>
           ) : (
-            <div className="space-y-1.5">
+            <div className="space-y-1.5 lg:space-y-2">
               <InfoRow label="Empresa" value={currentLead.company} />
               <InfoRow label="E-mail" value={currentLead.email} />
               <InfoRow label="Telefone" value={currentLead.phone} />
@@ -522,8 +523,8 @@ export function LeadDiary({ lead, onClose, onUpdated, onMoveStage, onDeleted, cu
           const greeting = first ? WA_GREETING(first) : ''
           const waUrl = `https://wa.me/${num}${greeting ? `?text=${encodeURIComponent(greeting)}` : ''}`
           return (
-            <div className="px-5 py-3 border-b border-border">
-              <span className="text-xs text-muted-foreground">Contato rápido</span>
+            <div className={cn(PROFILE_SECTION, 'lg:col-span-1')}>
+              <span className={PROFILE_TITLE}>Contato rápido</span>
               <div className="mt-1.5 flex items-center gap-2 flex-wrap">
                 <a href={waUrl} target="_blank" rel="noopener noreferrer"
                   className="bento-btn flex items-center gap-1.5 px-3 py-2 rounded-btn text-sm font-semibold min-h-[44px]">
@@ -538,17 +539,17 @@ export function LeadDiary({ lead, onClose, onUpdated, onMoveStage, onDeleted, cu
                   <Copy className="w-4 h-4" />Copiar
                 </button>
               </div>
-              <p className="font-mono text-[11px] text-bento-muted mt-1.5 break-all">{currentLead.phone}</p>
+              <p className="font-mono text-[11px] text-bento-muted mt-1.5 break-words">{currentLead.phone}</p>
             </div>
           )
         })()}
 
         {/* Mais informações — campos ÚTEIS do raw_payload (sem IDs/plumbing). Sanfona FECHADA por padrão. */}
         {payloadExtras.length > 0 && (
-          <div className="px-5 py-3 border-b border-border">
+          <div className={cn(PROFILE_SECTION, 'lg:col-span-1')}>
             <button type="button" onClick={() => setMoreOpen(o => !o)} aria-expanded={moreOpen}
               className="w-full flex items-center justify-between gap-2">
-              <span className="text-xs text-muted-foreground">Mais informações</span>
+              <span className={PROFILE_TITLE}>Mais informações</span>
               <ChevronDown className={cn('w-4 h-4 text-bento-muted transition-transform flex-none', moreOpen && 'rotate-180')} />
             </button>
             {moreOpen && (
@@ -560,8 +561,8 @@ export function LeadDiary({ lead, onClose, onUpdated, onMoveStage, onDeleted, cu
         )}
 
         {/* Fase — seletor (alternativa ao arrastar; vale mobile e desktop) */}
-        <div className="px-5 py-3 border-b border-border relative">
-          <span className="text-xs text-muted-foreground">Fase</span>
+        <div className={cn(PROFILE_SECTION_RELATIVE, 'lg:col-span-1')}>
+          <span className={PROFILE_TITLE}>Fase</span>
           <button
             type="button"
             onClick={() => setPhaseOpen(o => !o)}
@@ -612,8 +613,8 @@ export function LeadDiary({ lead, onClose, onUpdated, onMoveStage, onDeleted, cu
         </div>
 
         {/* Responsável — trocar em lead já criado (mesma lógica corrigida da criação) */}
-        <div className="px-5 py-3 border-b border-border relative">
-          <span className="text-xs text-muted-foreground">Responsável</span>
+        <div className={cn(PROFILE_SECTION_RELATIVE, 'lg:col-span-1')}>
+          <span className={PROFILE_TITLE}>Responsável</span>
           <button
             type="button"
             onClick={() => setRespOpen(o => !o)}
@@ -653,10 +654,10 @@ export function LeadDiary({ lead, onClose, onUpdated, onMoveStage, onDeleted, cu
 
         {/* Detalhes — config técnica secundária (data/fuso/valor/relatório/restaurar), COLAPSADA por padrão.
             Não compete com situação/próxima ação/observações/histórico (UX-LEAD-002, Parte 1). */}
-        <div className="px-5 py-3 border-b border-border">
+        <div className={cn(PROFILE_SECTION, 'lg:col-span-1')}>
           <button type="button" onClick={() => setDetalhesOpen(o => !o)} aria-expanded={detalhesOpen}
             className="w-full flex items-center justify-between gap-2">
-            <span className="text-xs text-muted-foreground">Detalhes</span>
+            <span className={PROFILE_TITLE}>Detalhes</span>
             <ChevronDown className={cn('w-4 h-4 text-bento-muted transition-transform flex-none', detalhesOpen && 'rotate-180')} />
           </button>
           {detalhesOpen && (
@@ -727,7 +728,7 @@ export function LeadDiary({ lead, onClose, onUpdated, onMoveStage, onDeleted, cu
         </div>
 
         {/* Score */}
-        <div className="px-5 py-4 border-b border-border">
+        <div className={cn(PROFILE_SECTION, 'lg:col-span-1')}>
           <div className="flex items-center justify-between mb-2">
             <span className={`text-sm font-semibold ${scoreInfo.color}`}>{scoreInfo.faixa}</span>
             <span className="text-2xl font-bold text-foreground tabular-nums">{currentLead.score}</span>
@@ -744,18 +745,18 @@ export function LeadDiary({ lead, onClose, onUpdated, onMoveStage, onDeleted, cu
         </div>
 
         {/* Botões de interação */}
-        <div className="px-5 py-4 border-b border-border">
-          <p className="text-xs font-medium text-muted-foreground mb-2">Registrar contato</p>
-          <div className="grid grid-cols-2 gap-2">
+        <div className={cn(PROFILE_SECTION, 'lg:col-span-1 2xl:col-span-1')}>
+          <p className={cn(PROFILE_TITLE, 'mb-2')}>Registrar contato</p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 2xl:grid-cols-2 gap-2">
             {INTERACTION_BUTTONS.map(btn => (
               <button
                 key={btn.type}
                 onClick={() => btn.type === 'nota' ? setActiveBtn('nota') : handleInteraction(btn.type)}
                 disabled={loadingInteraction}
-                className="flex items-center gap-2 px-3 py-2 rounded-btn border border-bento-border bg-bento-bg text-bento-muted text-xs font-medium transition-colors hover:border-lime hover:text-bento-text disabled:opacity-50"
+                className="flex min-w-0 items-center gap-2 px-3 py-2 rounded-btn border border-bento-border bg-bento-bg text-bento-muted text-xs font-medium transition-colors hover:border-lime hover:text-bento-text disabled:opacity-50"
               >
                 {btn.icon}
-                {btn.label}
+                <span className="truncate">{btn.label}</span>
                 {btn.delta !== 0 && (
                   <span className="ml-auto font-mono text-bento-dim">{btn.delta > 0 ? '+' : ''}{btn.delta}</span>
                 )}
@@ -783,14 +784,14 @@ export function LeadDiary({ lead, onClose, onUpdated, onMoveStage, onDeleted, cu
         </div>
 
         {/* Tarefas vinculadas a este lead (tasks.linked_type='lead') */}
-        <div className="px-5 py-3 border-b border-border">
+        <div className={cn(PROFILE_SECTION, 'lg:col-span-1 2xl:col-span-1')}>
           <LeadTasks leadId={currentLead.id} leadName={currentLead.name} userId={currentUser.id} compact={false} />
         </div>
 
         {/* Inteligência — Briefing + Análise num ÚNICO ponto de leitura, rebaixado (UX-LEAD-002, Parte 5).
             Ações discretas (text-link); nada de dois blocos competindo. Sem remover funcionalidade. */}
-        <div className="px-5 py-3 border-b border-border space-y-3">
-          <p className="text-xs font-medium text-muted-foreground">Inteligência</p>
+        <div className={cn(PROFILE_SECTION, 'space-y-3 lg:col-span-1 2xl:col-span-1')}>
+          <p className={PROFILE_TITLE}>Inteligência</p>
 
           <div>
             <div className="flex items-center justify-between gap-2">
@@ -838,8 +839,8 @@ export function LeadDiary({ lead, onClose, onUpdated, onMoveStage, onDeleted, cu
         </div>
 
         {/* Timeline — SEM scroll próprio (flui no scroll único). Renderiza incremental: 15 + "ver mais". */}
-        <div className="px-5 py-4">
-          <p className="text-xs font-medium text-muted-foreground mb-3">Timeline de interações</p>
+        <div className={cn(PROFILE_SECTION, 'lg:col-span-2 2xl:col-span-1 2xl:row-span-5')}>
+          <p className={cn(PROFILE_TITLE, 'mb-3')}>Timeline de interações</p>
           {interactions.length === 0 ? (
             <p className="text-xs text-muted-foreground text-center py-4">Nenhuma interação ainda.</p>
           ) : (
@@ -875,7 +876,7 @@ export function LeadDiary({ lead, onClose, onUpdated, onMoveStage, onDeleted, cu
         </div>
 
         {/* Excluir lead — ação destrutiva, confirmação em 2 passos */}
-        <div className="px-5 py-3 border-t border-border">
+        <div className={cn(PROFILE_SECTION, 'lg:col-span-2 2xl:col-span-3')}>
           {confirmingDelete ? (
             <div className="space-y-2">
               <p className="text-xs text-red-400">Tem certeza? Esta ação não pode ser desfeita.</p>
