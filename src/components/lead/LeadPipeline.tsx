@@ -22,14 +22,14 @@ export function LeadPipeline({ steps }: { steps: LeadPipelineStep[] }) {
             'flex-1 rounded-bento border px-2.5 py-2',
             step.current ? 'border-lime/40 bg-lime/10' : 'border-bento-border bg-bento-panel/40',
           )}>
-            <div className="flex items-center justify-between gap-2">
-              <p className={cn('text-sm font-semibold truncate', step.current ? 'text-lime-fg' : 'text-bento-text')}>{step.stage}</p>
+            <div className="flex items-start justify-between gap-2">
+              <p className={cn('text-sm font-semibold leading-snug break-words', step.current ? 'text-lime-fg' : 'text-bento-text')}>{step.stage}</p>
               {step.current && <span className="text-[9px] font-tech uppercase tracking-wide text-lime-fg shrink-0">atual</span>}
             </div>
             <p className="text-[11px] text-bento-muted mt-0.5">
               {fmtDate(step.enteredAt)}{step.durationDays != null ? ` · ${step.durationDays}d na fase` : ''}
             </p>
-            {step.movedBy && <p className="text-[10px] text-bento-dim mt-0.5 truncate">por {step.movedBy}</p>}
+            {step.movedBy && <p className="text-[10px] text-bento-dim mt-0.5 break-words">por {step.movedBy}</p>}
           </div>
         </li>
       ))}

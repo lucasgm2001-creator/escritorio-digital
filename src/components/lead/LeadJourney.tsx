@@ -10,11 +10,11 @@ function fmtDate(iso: string | null): string {
 // Linha do tempo visual (LEAD-002): jornada Lead criado → Contato → Reunião → Proposta → Fechamento → Cliente.
 export function LeadJourney({ steps }: { steps: LeadJourneyStep[] }) {
   return (
-    <div className="flex flex-col sm:flex-row sm:items-stretch gap-2 sm:gap-0">
+    <div className="flex flex-col gap-2 lg:flex-row lg:items-stretch lg:gap-0">
       {steps.map((step, i) => (
         <Fragment key={step.key}>
           <div className={cn(
-            'flex-1 rounded-bento border p-2.5 text-center',
+            'min-w-[8rem] flex-1 rounded-bento border p-2.5 text-center',
             step.done ? 'border-lime/40 bg-lime/10' : 'border-bento-border bg-bento-panel/40',
           )}>
             <div className={cn(
@@ -23,13 +23,13 @@ export function LeadJourney({ steps }: { steps: LeadJourneyStep[] }) {
             )}>
               {step.done ? <Check className="w-3.5 h-3.5" /> : <span className="text-[10px] font-tech">{i + 1}</span>}
             </div>
-            <p className={cn('text-[12px] font-medium truncate', step.done ? 'text-lime-fg' : 'text-bento-muted')}>{step.label}</p>
+            <p className={cn('text-[12px] font-medium leading-tight break-words', step.done ? 'text-lime-fg' : 'text-bento-muted')}>{step.label}</p>
             {step.at && <p className="text-[10px] text-bento-dim mt-0.5">{fmtDate(step.at)}</p>}
           </div>
           {i < steps.length - 1 && (
             <div className="flex items-center justify-center text-bento-dim">
-              <ChevronDown className="w-4 h-4 sm:hidden" />
-              <ChevronRight className="hidden sm:block w-4 h-4" />
+              <ChevronDown className="w-4 h-4 lg:hidden" />
+              <ChevronRight className="hidden lg:block w-4 h-4" />
             </div>
           )}
         </Fragment>

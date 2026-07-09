@@ -19,11 +19,11 @@ export function LeadHealthPanel({ health }: { health: LeadHealth }) {
     { label: 'Contatos', value: health.contacts },
   ]
   return (
-    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
+    <div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,8.5rem),1fr))] gap-2.5">
       {cards.map(card => (
-        <div key={card.label} className="bento-fx p-3">
-          <p className="font-display font-bold text-base text-bento-text leading-none truncate">{card.value}</p>
-          <p className="text-[11px] text-bento-muted mt-1.5 truncate">{card.label}</p>
+        <div key={card.label} className="bento-fx min-w-0 p-3">
+          <p className="font-display font-bold text-base text-bento-text leading-tight break-words">{card.value}</p>
+          <p className="text-[11px] text-bento-muted mt-1.5 break-words">{card.label}</p>
         </div>
       ))}
     </div>

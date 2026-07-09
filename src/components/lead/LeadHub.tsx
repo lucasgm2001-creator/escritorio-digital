@@ -1,7 +1,8 @@
 import Link from 'next/link'
+import type { ReactNode } from 'react'
 import {
   ChevronLeft, Building2, Phone, MessageSquare, ExternalLink, UserPlus, Wallet, CalendarDays,
-  Sparkles, FileText, Clock, TrendingUp, Trophy,
+  Activity, FileText, Clock, TrendingUp, Trophy, type LucideIcon,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Panel } from '@/components/bento/Panel'
@@ -17,8 +18,7 @@ import { LeadNotes } from './LeadNotes'
 import { LeadAttachments } from './LeadAttachments'
 import { LeadComments } from './LeadComments'
 import { AiInsightsPanel } from '@/components/ai/AiInsightsPanel'
-
-const TEMP_LABEL = { quente: '🔥 Quente', morno: '🌤 Morno', frio: '❄️ Frio' } as const
+import { LeadTemperatureBadge } from './lead-temperature-ui'
 
 function usd(value: number | null): string {
   return value == null ? '—' : `US$ ${Number(value).toLocaleString('en-US')}`
@@ -35,6 +35,32 @@ const NEXT_ACTIONS = [
 ]
 const AI_ITEMS = ['Resumo do lead', 'Últimas objeções', 'Resumo das reuniões', 'Próxima melhor ação', 'Sentimento do cliente', 'Resumo comercial']
 
+type ProfileField = {
+  icon: LucideIcon
+  label: string
+  value: ReactNode
+  priority?: 'wide'
+}
+
+function ProfileFieldTile({ field }: { field: ProfileField }) {
+  const Icon = field.icon
+
+  return (
+    <div className={cn(
+      'min-w-0 rounded-btn border border-bento-border/70 bg-bento-panel/35 px-3 py-2.5',
+      field.priority === 'wide' && 'sm:col-span-2',
+    )}>
+      <div className="flex items-center gap-2 text-[11px] text-bento-muted">
+        <Icon className="h-4 w-4 shrink-0 text-bento-dim" aria-hidden />
+        <span className="break-words">{field.label}</span>
+      </div>
+      <div className="mt-1 text-sm font-medium leading-snug text-bento-text break-words">
+        {field.value}
+      </div>
+    </div>
+  )
+}
+
 // Hub do Lead — CRM profissional (CRM-ULTIMATE-001). Saúde + executivo + jornada no topo (entender em
 // 30s); depois contexto | história | painel lateral. Tudo veio do LeadHubService (ARCH-001).
 export function LeadHub({ vm, embedded = false }: { vm: LeadHubVM; embedded?: boolean }) {
@@ -47,7 +73,7 @@ export function LeadHub({ vm, embedded = false }: { vm: LeadHubVM; embedded?: bo
     { icon: ExternalLink, label: 'Origem', value: vm.origem ?? '—' },
     { icon: UserPlus, label: 'Responsável', value: vm.responsavel ?? '—' },
     { icon: Wallet, label: 'Valor esperado', value: usd(vm.expectedValue) },
-    { icon: Sparkles, label: 'Temperatura', value: TEMP_LABEL[vm.executive.temperature] },
+    { icon: Activity, label: 'Temperatura', value: <LeadTemperatureBadge temperature={vm.executive.temperature} className="px-0 py-0 border-0 bg-transparent" /> },
     { icon: TrendingUp, label: 'Score', value: vm.executive.score != null ? String(vm.executive.score) : '—' },
     { icon: Trophy, label: 'Status', value: vm.stageName ?? '—' },
     { icon: CalendarDays, label: 'Dias como lead', value: `${vm.stats.daysAsLead}d` },
@@ -76,14 +102,14 @@ export function LeadHub({ vm, embedded = false }: { vm: LeadHubVM; embedded?: bo
         </div>
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2 flex-wrap">
-            <h1 className="font-display font-bold text-xl text-bento-text truncate">{vm.name}</h1>
+            <h1 className="font-display font-bold text-xl text-bento-text break-words">{vm.name}</h1>
             {vm.stageName && (
               <span className="text-[10px] font-tech uppercase tracking-wide px-2 py-0.5 rounded-full border border-lime/30 bg-lime/10 text-lime-fg">
                 {vm.stageName}
               </span>
             )}
           </div>
-          <p className="text-sm text-bento-muted mt-1 truncate">
+          <p className="text-sm text-bento-muted mt-1 break-words">
             {[vm.company, vm.responsavel && `Resp.: ${vm.responsavel}`].filter(Boolean).join(' · ') || '—'}
           </p>
         </div>
@@ -100,36 +126,18 @@ export function LeadHub({ vm, embedded = false }: { vm: LeadHubVM; embedded?: bo
       <Panel label="Jornada"><LeadJourney steps={vm.journey} /></Panel>
 
       {/* Contexto | História | Painel lateral */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 items-start">
+      <div className="grid grid-cols-1 gap-4 items-start xl:grid-cols-12">
         {/* Contexto */}
-        <div className="space-y-4">
+        <div className="space-y-4 xl:col-span-5 2xl:col-span-3">
           <Panel label="Resumo">
-            <div className="space-y-2.5">
-              {resumo.map(field => {
-                const Icon = field.icon
-                return (
-                  <div key={field.label} className="flex items-center gap-2.5">
-                    <Icon className="w-4 h-4 text-bento-dim shrink-0" />
-                    <span className="text-[11px] text-bento-muted w-28 shrink-0">{field.label}</span>
-                    <span className="text-sm text-bento-text truncate">{field.value}</span>
-                  </div>
-                )
-              })}
+            <div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,13rem),1fr))] gap-2.5">
+              {resumo.map(field => <ProfileFieldTile key={field.label} field={field} />)}
             </div>
           </Panel>
 
           <Panel label="Atividade recente">
-            <div className="space-y-2.5">
-              {atividade.map(field => {
-                const Icon = field.icon
-                return (
-                  <div key={field.label} className="flex items-center gap-2.5">
-                    <Icon className="w-4 h-4 text-bento-dim shrink-0" />
-                    <span className="text-[11px] text-bento-muted w-32 shrink-0">{field.label}</span>
-                    <span className="text-sm text-bento-text truncate">{field.value}</span>
-                  </div>
-                )
-              })}
+            <div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,12rem),1fr))] gap-2.5">
+              {atividade.map(field => <ProfileFieldTile key={field.label} field={field} />)}
             </div>
           </Panel>
 
@@ -137,7 +145,7 @@ export function LeadHub({ vm, embedded = false }: { vm: LeadHubVM; embedded?: bo
         </div>
 
         {/* História (centro) */}
-        <div className="md:col-span-1 lg:col-span-2 space-y-4">
+        <div className="space-y-4 xl:col-span-7 2xl:col-span-6">
           <Panel label="Observações">
             <div className="space-y-3">
               <LeadObservationComposer leadId={vm.id} />
@@ -148,7 +156,7 @@ export function LeadHub({ vm, embedded = false }: { vm: LeadHubVM; embedded?: bo
         </div>
 
         {/* Painel lateral */}
-        <div className="md:col-span-2 lg:col-span-1 space-y-4">
+        <div className="space-y-4 xl:col-span-12 xl:grid xl:grid-cols-[repeat(auto-fit,minmax(min(100%,18rem),1fr))] xl:gap-4 xl:space-y-0 2xl:col-span-3 2xl:block 2xl:space-y-4">
           <Panel label="Histórico comercial"><LeadPipeline steps={vm.pipeline} /></Panel>
 
           <Panel label="Próximas ações">
