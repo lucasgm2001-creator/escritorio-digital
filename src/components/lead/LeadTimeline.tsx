@@ -1,6 +1,7 @@
 import { cn } from '@/lib/utils'
 import { LEAD_CATEGORIES } from '@/lib/commercial/lead-categories'
 import type { LeadTimelineItem, LeadTimelineOrigin } from '@/lib/commercial/lead-hub-types'
+import { ResultIcon } from './lead-profile-primitives'
 
 // Timeline estilo HubSpot: trilho contínuo, nós por categoria, separadores por período, hierarquia clara.
 const ORIGIN_LABEL: Record<LeadTimelineOrigin, string> = { manual: 'Manual', automacao: 'Automação', sistema: 'Sistema', ia: 'IA' }
@@ -64,16 +65,15 @@ export function LeadTimeline({ items }: { items: LeadTimelineItem[] }) {
             <span className="absolute left-4 top-1 bottom-1 w-px bg-bento-border" aria-hidden />
             {(groups.get(bucket) ?? []).map(item => {
               const cat = LEAD_CATEGORIES[item.category]
+              const Icon = cat.icon
               return (
                 <li key={item.id} className="relative flex gap-3">
-                  <div className={cn('relative z-10 w-8 h-8 rounded-bento border flex items-center justify-center shrink-0 text-sm', cat.cls)}>
-                    <span aria-hidden>{cat.emoji}</span>
-                  </div>
+                  <ResultIcon icon={Icon} className={cn('relative z-10', cat.cls)} />
                   <div className="min-w-0 flex-1 rounded-bento border border-bento-border bg-bento-panel/30 px-3 py-2">
-                    <div className="flex items-baseline gap-2 flex-wrap">
-                      <span className="text-sm font-semibold text-bento-text">{item.title}</span>
+                    <div className="flex items-start gap-2 flex-wrap">
+                      <span className="text-sm font-semibold leading-snug text-bento-text break-words">{item.title}</span>
                       <span className="text-[10px] font-tech uppercase tracking-wide px-1.5 py-0.5 rounded-full border border-bento-border text-bento-dim">{cat.label}</span>
-                      {item.author && <span className="text-[11px] text-bento-muted truncate">· {item.author}</span>}
+                      {item.author && <span className="text-[11px] text-bento-muted break-words">· {item.author}</span>}
                       <span className="text-[11px] text-bento-dim ml-auto shrink-0">{relative(item.at)}</span>
                     </div>
                     {item.description && <p className="text-[13px] text-bento-muted mt-1 break-words">{item.description}</p>}

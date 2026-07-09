@@ -57,13 +57,13 @@ export function CommercialMasterDetail({ leads, children }: { leads: MasterLead[
                       active ? 'border-lime/40 bg-lime/10' : 'border-bento-border bg-bento-panel/40 hover:border-lime/30',
                     )}
                   >
-                    <div className="flex items-center justify-between gap-2">
-                      <span className={cn('text-sm font-semibold truncate', active ? 'text-lime-fg' : 'text-bento-text')}>{lead.name}</span>
+                    <div className="flex items-start justify-between gap-2">
+                      <span className={cn('text-sm font-semibold leading-snug break-words', active ? 'text-lime-fg' : 'text-bento-text')}>{lead.name}</span>
                       {lead.score != null && <span className="font-tech text-[11px] text-bento-dim shrink-0 tabular-nums">{lead.score}</span>}
                     </div>
-                    <div className="flex items-center justify-between gap-2 mt-0.5">
-                      <span className="text-[11px] text-bento-muted truncate">{lead.company ?? '—'}</span>
-                      <span className="text-[9px] font-tech uppercase tracking-wide px-1.5 py-0.5 rounded-full border border-bento-border text-bento-dim shrink-0 max-w-[45%] truncate">{lead.stageName}</span>
+                    <div className="flex items-start justify-between gap-2 mt-1">
+                      <span className="text-[11px] leading-snug text-bento-muted break-words">{lead.company ?? '—'}</span>
+                      <span className="text-[9px] font-tech uppercase tracking-wide px-1.5 py-0.5 rounded-full border border-bento-border text-bento-dim shrink-0 max-w-[50%] break-words text-right">{lead.stageName}</span>
                     </div>
                   </Link>
                 </li>

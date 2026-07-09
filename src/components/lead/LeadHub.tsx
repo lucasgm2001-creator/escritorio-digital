@@ -18,7 +18,7 @@ import { LeadNotes } from './LeadNotes'
 import { LeadAttachments } from './LeadAttachments'
 import { LeadComments } from './LeadComments'
 import { AiInsightsPanel } from '@/components/ai/AiInsightsPanel'
-import { LeadTemperatureBadge } from './lead-temperature-ui'
+import { ActionIcon, HealthIndicator, LeadStatusBadge, LeadTemperatureBadge } from './lead-profile-primitives'
 
 function usd(value: number | null): string {
   return value == null ? '—' : `US$ ${Number(value).toLocaleString('en-US')}`
@@ -39,7 +39,7 @@ type ProfileField = {
   icon: LucideIcon
   label: string
   value: ReactNode
-  priority?: 'wide'
+  priority?: 'hero' | 'wide'
 }
 
 function ProfileFieldTile({ field }: { field: ProfileField }) {
@@ -48,13 +48,14 @@ function ProfileFieldTile({ field }: { field: ProfileField }) {
   return (
     <div className={cn(
       'min-w-0 rounded-btn border border-bento-border/70 bg-bento-panel/35 px-3 py-2.5',
+      field.priority === 'hero' && 'sm:col-span-2 xl:col-span-2',
       field.priority === 'wide' && 'sm:col-span-2',
     )}>
       <div className="flex items-center gap-2 text-[11px] text-bento-muted">
-        <Icon className="h-4 w-4 shrink-0 text-bento-dim" aria-hidden />
+        <ActionIcon icon={Icon} className="h-6 w-6 rounded-[7px] border-transparent bg-transparent" />
         <span className="break-words">{field.label}</span>
       </div>
-      <div className="mt-1 text-sm font-medium leading-snug text-bento-text break-words">
+      <div className={cn('mt-1 leading-snug text-bento-text break-words', field.priority === 'hero' ? 'text-base font-semibold' : 'text-sm font-medium')}>
         {field.value}
       </div>
     </div>
@@ -66,21 +67,21 @@ function ProfileFieldTile({ field }: { field: ProfileField }) {
 export function LeadHub({ vm, embedded = false }: { vm: LeadHubVM; embedded?: boolean }) {
   const band = leadHealthBand(vm)
 
-  const resumo = [
-    { icon: Building2, label: 'Empresa', value: vm.company ?? '—' },
-    { icon: Phone, label: 'Telefone', value: vm.phone ?? '—' },
-    { icon: MessageSquare, label: 'Email', value: vm.email ?? '—' },
+  const resumo: ProfileField[] = [
+    { icon: Building2, label: 'Empresa', value: vm.company ?? '—', priority: 'hero' },
+    { icon: Phone, label: 'Telefone', value: vm.phone ?? '—', priority: 'hero' },
+    { icon: MessageSquare, label: 'Email', value: vm.email ?? '—', priority: 'wide' },
     { icon: ExternalLink, label: 'Origem', value: vm.origem ?? '—' },
-    { icon: UserPlus, label: 'Responsável', value: vm.responsavel ?? '—' },
+    { icon: UserPlus, label: 'Responsável', value: vm.responsavel ?? '—', priority: 'wide' },
     { icon: Wallet, label: 'Valor esperado', value: usd(vm.expectedValue) },
-    { icon: Activity, label: 'Temperatura', value: <LeadTemperatureBadge temperature={vm.executive.temperature} className="px-0 py-0 border-0 bg-transparent" /> },
+    { icon: Activity, label: 'Temperatura', value: <LeadTemperatureBadge temperature={vm.executive.temperature} className="px-0 py-0 border-0 bg-transparent text-sm" />, priority: 'wide' },
     { icon: TrendingUp, label: 'Score', value: vm.executive.score != null ? String(vm.executive.score) : '—' },
-    { icon: Trophy, label: 'Status', value: vm.stageName ?? '—' },
+    { icon: Trophy, label: 'Status', value: vm.stageName ? <LeadStatusBadge className="px-0 py-0 border-0 bg-transparent text-sm normal-case tracking-normal">{vm.stageName}</LeadStatusBadge> : '—', priority: 'wide' },
     { icon: CalendarDays, label: 'Dias como lead', value: `${vm.stats.daysAsLead}d` },
     { icon: Clock, label: 'Tempo na fase', value: `${vm.health.daysInStage}d` },
   ]
 
-  const atividade = [
+  const atividade: ProfileField[] = [
     { icon: Phone, label: 'Último contato', value: fmtDate(vm.health.lastContactAt) },
     { icon: CalendarDays, label: 'Última reunião', value: fmtDate(vm.health.lastMeetingAt) },
     { icon: FileText, label: 'Última proposta', value: fmtDate(vm.health.lastProposalAt) },
@@ -104,9 +105,7 @@ export function LeadHub({ vm, embedded = false }: { vm: LeadHubVM; embedded?: bo
           <div className="flex items-center gap-2 flex-wrap">
             <h1 className="font-display font-bold text-xl text-bento-text break-words">{vm.name}</h1>
             {vm.stageName && (
-              <span className="text-[10px] font-tech uppercase tracking-wide px-2 py-0.5 rounded-full border border-lime/30 bg-lime/10 text-lime-fg">
-                {vm.stageName}
-              </span>
+              <LeadStatusBadge>{vm.stageName}</LeadStatusBadge>
             )}
           </div>
           <p className="text-sm text-bento-muted mt-1 break-words">
@@ -117,7 +116,7 @@ export function LeadHub({ vm, embedded = false }: { vm: LeadHubVM; embedded?: bo
           title={band.hint}
           className={cn('inline-flex items-center gap-1.5 text-[11px] font-tech uppercase tracking-wide px-2.5 py-1 rounded-full border shrink-0', band.cls)}
         >
-          <span className={cn('w-1.5 h-1.5 rounded-full', band.dot)} /> Saúde: {band.label}
+          <HealthIndicator className={band.dot} /> Saúde: {band.label}
         </span>
       </header>
 
