@@ -9,6 +9,7 @@ import { createLeadAction, saveLeadHistoryAction } from './lead-write-actions'
 import { useToast } from '@/components/ui/toast'
 import { ymd } from '@/lib/date'
 import { wonSlug, type FunnelStage } from '@/lib/funnelStages'
+import { DEFAULT_LEAD_OWNER_ID, DEFAULT_LEAD_OWNER_NAME } from '@/lib/commercial/default-lead-owner'
 import type { Client } from '../clientes/types'
 import { Portal } from '@/components/ui/Portal'
 import { useDialog } from '@/components/ui/useDialog'
@@ -75,7 +76,7 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 
 export function LeadModal({ onClose, onCreated, currentUser, stages, clients }: Props) {
   const { toast } = useToast()
-  const [form, setForm] = useState({ ...EMPTY_FORM, assigned_to: currentUser.id, assigned_name: currentUser.name, received_at: ymd(new Date()) })
+  const [form, setForm] = useState({ ...EMPTY_FORM, assigned_to: DEFAULT_LEAD_OWNER_ID, assigned_name: DEFAULT_LEAD_OWNER_NAME, received_at: ymd(new Date()) })
   const [loading, setLoading] = useState(false)
   const [aiPaste, setAiPaste] = useState(false)
   const [rawText, setRawText] = useState('')
@@ -178,8 +179,8 @@ export function LeadModal({ onClose, onCreated, currentUser, stages, clients }: 
       origem: 'cliente_existente',        // FLAG: relatórios não contam como venda/comissão nova
       prioridade: 'media',
       received_at: ymd(new Date()),       // chegada = hoje
-      assigned_to: currentUser.id,
-      assigned_name: currentUser.name,    // Lucas
+      assigned_to: DEFAULT_LEAD_OWNER_ID,
+      assigned_name: DEFAULT_LEAD_OWNER_NAME,
       score: 500,
       created_manually: true,             // criado à mão → trigger gera contact_code (C-XXXX). NÃO setar o código aqui.
       status: stageSlug,                  // fase escolhida (default Venda Concluída)
@@ -227,11 +228,9 @@ export function LeadModal({ onClose, onCreated, currentUser, stages, clients }: 
       city: form.city.trim() || null,
       state: form.state || null,
       area_code: form.area_code || null,
-      // Só o usuário logado tem linha em profiles (alvo da FK). Vendedores sem conta
-      // (ex.: Lucas) não — então grava só o nome e deixa a FK null, evitando o
-      // "violates foreign key constraint". Correção plena (contas/FK) fica pra Fase 2.
-      assigned_to: form.assigned_to === currentUser.id ? currentUser.id : null,
-      assigned_name: form.assigned_name || currentUser.name || null,
+      // Lucas é o responsável padrão dos leads. Outros vendedores sem conta seguem com nome histórico e FK null.
+      assigned_to: form.assigned_to === DEFAULT_LEAD_OWNER_ID || form.assigned_to === currentUser.id ? form.assigned_to : null,
+      assigned_name: form.assigned_name || DEFAULT_LEAD_OWNER_NAME,
       score: 500,
       created_manually: true,   // criado à mão → trigger gera contact_code (C-XXXX). NÃO setar o código aqui.
       status: 'novo',
@@ -527,14 +526,15 @@ export function LeadModal({ onClose, onCreated, currentUser, stages, clients }: 
                 const sel = sellers.find(s => s.id === e.target.value)
                 setForm(prev => ({
                   ...prev,
-                  assigned_to: e.target.value || currentUser.id,
-                  assigned_name: sel?.name || currentUser.name,
+                  assigned_to: e.target.value || DEFAULT_LEAD_OWNER_ID,
+                  assigned_name: sel?.name || (e.target.value === currentUser.id ? currentUser.name : DEFAULT_LEAD_OWNER_NAME),
                 }))
               }}
               className={inputCls}
             >
-              <option value={currentUser.id}>{currentUser.name} (eu)</option>
-              {sellers.filter(s => s.id !== currentUser.id).map(s => (
+              <option value={DEFAULT_LEAD_OWNER_ID}>{DEFAULT_LEAD_OWNER_NAME} (padrão)</option>
+              {currentUser.id !== DEFAULT_LEAD_OWNER_ID && <option value={currentUser.id}>{currentUser.name} (eu)</option>}
+              {sellers.filter(s => s.id !== currentUser.id && s.id !== DEFAULT_LEAD_OWNER_ID && s.name !== DEFAULT_LEAD_OWNER_NAME).map(s => (
                 <option key={s.id} value={s.id}>{s.name}</option>
               ))}
             </select>

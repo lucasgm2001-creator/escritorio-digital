@@ -16,6 +16,7 @@ import {
   isLastAction, isNextAction, isTemperature,
   type LastAction, type NextAction, type Temperature, type LeadResponse, type WhenChoice,
 } from '@/lib/commercial/situation'
+import { withDefaultLeadOwner } from '@/lib/commercial/default-lead-owner'
 import type { Lead, LeadStatus } from './types'
 
 // Escritas do Comercial roteadas pelo SERVIDOR (PERMISSIONS-003): UI → action → can()/requirePermission →
@@ -63,7 +64,7 @@ export async function createLeadAction(
   if (!g.context) return { ok: false, error: g.error }
   const supabase = createClient()
   const teamId = g.context.activeTeamId
-  const payload = { ...pickAllowed(input, LEAD_CREATE_COLS), ...(teamId ? { team_id: teamId } : {}) }
+  const payload = { ...withDefaultLeadOwner(pickAllowed(input, LEAD_CREATE_COLS)), ...(teamId ? { team_id: teamId } : {}) }
 
   const { data, error } = await supabase.from('leads').insert(payload).select().single()
   if (error || !data) return { ok: false, error: error?.message ?? 'Não foi possível criar o lead.' }

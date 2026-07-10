@@ -15,6 +15,7 @@ import { loadStages } from '@/lib/funnelStages'
 import { payWeek, payWeekMessage, registerMeeting } from '@/lib/commission/actions'
 import { markMilestones } from '@/lib/leadMilestones'
 import { ymd } from '@/lib/date'
+import { DEFAULT_LEAD_OWNER_ID, DEFAULT_LEAD_OWNER_NAME } from '@/lib/commercial/default-lead-owner'
 
 interface Message {
   id: string
@@ -47,7 +48,8 @@ async function getFxRate(): Promise<number> {
 // só um guard de segurança no cliente — se sobrar uma ação pendente antiga, NÃO executa.
 const PHASE1_DISABLED = new Set(['editar_cliente', 'registrar_pagamento', 'registrar_reuniao'])
 
-export function AgentChat({ userId, userName }: { userId: string; userName: string }) {
+export function AgentChat(_props: { userId: string; userName: string }) {
+  void _props
   const [messages, setMessages] = useState<Message[]>([])
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
@@ -88,8 +90,8 @@ export function AgentChat({ userId, userName }: { userId: string; userName: stri
         value: typeof p.value_estimated === 'number' ? p.value_estimated : 0,
         notes: p.notes ? String(p.notes) : null,
         status: 'novo',
-        assigned_to: userId,
-        assigned_name: userName,
+        assigned_to: DEFAULT_LEAD_OWNER_ID,
+        assigned_name: DEFAULT_LEAD_OWNER_NAME,
       }, { logStage: true })
       if (!res.ok) return `Não consegui criar o lead: ${res.error}`
       return `Pronto! Lead "${name}" criado no funil (status Novo).`
