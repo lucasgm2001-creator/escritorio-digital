@@ -56,6 +56,10 @@ const TIMEZONES: { v: string; l: string }[] = [
   { v: 'America/Los_Angeles', l: 'EUA Oeste' },
 ]
 
+// ID de public.sellers (não é o user_id/profile id do Lucas).
+const DEFAULT_TASK_OWNER_ID = 'd129ace7-424b-4434-88af-baa3781cb568'
+const DEFAULT_TASK_OWNER_NAME = 'Lucas'
+
 // IMPORTANTE: Field em escopo de MÓDULO (não dentro do componente). Dentro do
 // render seria recriado a cada keystroke → o input remonta e perde foco
 // (o bug "só entra 1 letra" que já corrigimos 2x). Aqui o nó é estável.
@@ -130,12 +134,15 @@ export function TaskModal({ onClose, onSaved, linkOptions, task, prefill, aiFill
   // A8/M12: ESC fecha, foco preso dentro + retornado ao abridor, e o scroll do body trava enquanto aberto.
   const { ref, dialogProps } = useDialog<HTMLFormElement>(onClose)
 
-  // Vendedores p/ o campo Responsável (extensível). Nova tarefa nasce com o 1º ativo (Lucas).
+  // Vendedores p/ o campo Responsável. Nova tarefa nasce explicitamente com Lucas;
+  // não dependemos da ordem alfabética retornada pelo banco.
   useEffect(() => {
     supabase.from('sellers').select('id, name').eq('status', 'ativo').order('name').then(({ data }) => {
       const list = (data ?? []) as { id: string; name: string }[]
       setSellers(list)
-      setResponsavelId(prev => prev || task?.responsavel_id || list[0]?.id || '')
+      const lucas = list.find(s => s.id === DEFAULT_TASK_OWNER_ID)
+        ?? list.find(s => s.name.trim().toLocaleLowerCase('pt-BR') === DEFAULT_TASK_OWNER_NAME.toLocaleLowerCase('pt-BR'))
+      setResponsavelId(prev => prev || task?.responsavel_id || lucas?.id || list[0]?.id || '')
     })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
@@ -172,11 +179,17 @@ export function TaskModal({ onClose, onSaved, linkOptions, task, prefill, aiFill
     if (editing && task) {
       const { data, error } = await updateTaskAction(task.id, payload)   // servidor: sessão + equipe + allowlist
       if (!error && data) { syncCalendar((data as unknown as Task).id); onSaved(data as unknown as Task); onClose() }
-      else setSaving(false)
+      else {
+        setSaving(false)
+        toast({ type: 'error', message: error?.message || 'Não foi possível salvar a tarefa.' })
+      }
     } else {
       const { data, error } = await createTaskAction(payload)   // servidor: user_id/team_id carimbados
       if (!error && data) { syncCalendar((data as unknown as Task).id); onSaved(data as unknown as Task); onClose() }
-      else setSaving(false)
+      else {
+        setSaving(false)
+        toast({ type: 'error', message: error?.message || 'Não foi possível criar a tarefa.' })
+      }
     }
   }
 
