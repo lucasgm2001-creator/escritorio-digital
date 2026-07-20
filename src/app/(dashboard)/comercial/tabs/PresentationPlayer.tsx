@@ -1,11 +1,14 @@
 'use client'
 
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useLayoutEffect, useRef, useCallback } from 'react'
 import { cn } from '@/lib/utils'
 import { Portal } from '@/components/ui/Portal'
 import { useDialog } from '@/components/ui/useDialog'
 import { Menu, X, ChevronLeft, ChevronRight } from 'lucide-react'
 import type { PDFDocumentProxy } from 'pdfjs-dist'
+import {
+  loadPdfJs, renderPdfPageIntoCanvas, type PreparedMaterial, PresentationPreparationCache,
+} from './presentation-preloader'
 
 export interface PlayerMaterial {
   id: string
@@ -15,7 +18,7 @@ export interface PlayerMaterial {
 }
 
 // ─── Fullscreen helpers (com prefixo webkit p/ Safari) ──────────────────────────
-function enterFullscreen(el: HTMLElement): Promise<unknown> {
+export function enterFullscreen(el: HTMLElement): Promise<unknown> {
   const fn = el.requestFullscreen || (el as unknown as { webkitRequestFullscreen?: () => Promise<void> }).webkitRequestFullscreen
   if (!fn) return Promise.reject(new Error('sem suporte a fullscreen'))
   try { return Promise.resolve(fn.call(el)) } catch (e) { return Promise.reject(e) }
@@ -49,12 +52,13 @@ function showPdfError(container: HTMLElement, msg: string) {
 // limitado a 2), com a escala REDUZIDA por página se estourar o limite de canvas
 // do navegador (lado ~16384px / área ~16M px no Safari → mancha preta ou falha).
 // Páginas renderizam sob demanda (IntersectionObserver), cada uma isolada.
-function PdfView({ url }: { url: string }) {
+function PdfView({ url, prepared }: { url: string; prepared?: Extract<PreparedMaterial, { kind: 'pdf' }> }) {
   const containerRef = useRef<HTMLDivElement>(null)
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     let cancelled = false
     let doc: PDFDocumentProxy | null = null
+    let ownsDocument = false
     const observers: IntersectionObserver[] = []
     const container = containerRef.current
     if (!container) return
@@ -62,25 +66,28 @@ function PdfView({ url }: { url: string }) {
     ;(async () => {
       // Só falha de CARREGAR o documento inteiro vira erro geral (zera o preview).
       try {
-        const pdfjs = await import('pdfjs-dist')
-        // Worker casado com a versão instalada (evita config de worker no bundler).
-        pdfjs.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`
-        doc = await pdfjs.getDocument(url).promise
+        if (prepared?.url === url) {
+          doc = prepared.document
+        } else {
+          const pdfjs = await loadPdfJs()
+          doc = await pdfjs.getDocument(url).promise
+          ownsDocument = true
+        }
       } catch {
         if (!cancelled && container) showPdfError(container, 'Não foi possível abrir o PDF.')
         return
       }
-      if (!doc || cancelled || !container) { doc?.destroy(); return }
+      if (!doc || cancelled || !container) {
+        if (ownsDocument) { try { doc?.destroy() } catch { /* noop */ } }
+        return
+      }
       container.replaceChildren()
 
-      const dpr = Math.min(window.devicePixelRatio || 1, 2)
-      // Limites conservadores (abaixo do máximo do browser) p/ não gerar mancha
-      // preta nem falha: por lado e por área total.
-      const MAX_SIDE = 8192
-      const MAX_AREA = 16_000_000
       const cw = Math.max(container.clientWidth - 16, 100)
+      const firstPageAlreadyRendered = prepared?.url === url
+      if (firstPageAlreadyRendered) container.appendChild(prepared.firstCanvas)
 
-      for (let n = 1; n <= doc.numPages; n++) {
+      for (let n = firstPageAlreadyRendered ? 2 : 1; n <= doc.numPages; n++) {
         if (cancelled) return
         // Cada página isolada: a que falhar vira placeholder; as outras seguem.
         try {
@@ -98,18 +105,7 @@ function PdfView({ url }: { url: string }) {
             if (done || cancelled || !entries.some(e => e.isIntersecting)) return
             done = true
             io.disconnect()
-            // Encaixe na largura × dpr, REDUZIDO se estourar lado/área do canvas.
-            const fit = cw / base.width
-            let scale = fit * dpr
-            const w = base.width * scale, h = base.height * scale
-            const cap = Math.min(1, MAX_SIDE / w, MAX_SIDE / h, Math.sqrt(MAX_AREA / (w * h)))
-            if (cap < 1) scale *= cap
-            const viewport = page.getViewport({ scale })
-            canvas.width = Math.max(1, Math.floor(viewport.width))
-            canvas.height = Math.max(1, Math.floor(viewport.height))
-            const ctx = canvas.getContext('2d')
-            if (!ctx) { canvas.replaceWith(pagePlaceholder(n)); return }
-            page.render({ canvasContext: ctx, viewport }).promise.catch(() => {
+            renderPdfPageIntoCanvas(page, canvas, cw).catch(() => {
               canvas.replaceWith(pagePlaceholder(n))
             })
           }, { root: container, rootMargin: '400px 0px' })
@@ -124,17 +120,38 @@ function PdfView({ url }: { url: string }) {
     return () => {
       cancelled = true
       observers.forEach(o => o.disconnect())
-      try { doc?.destroy() } catch { /* noop */ }
+      if (ownsDocument) { try { doc?.destroy() } catch { /* noop */ } }
     }
-  }, [url])
+  }, [url, prepared])
 
   // overflow-x-hidden: o overflow-y-auto faz o overflow-x virar 'auto' (regra CSS) → sem isto,
   // qualquer sobra de sub-pixel do canvas do PDF gera scroll lateral no mobile. max-w-full no canvas evita a sobra.
   return <div ref={containerRef} className="w-full h-full max-w-full overflow-y-auto overflow-x-hidden px-2 py-2" />
 }
 
-// ─── Renderiza UMA peça (imagem / PDF limpo / fallback) — reusado na Gaveta ──────
-export function MaterialFrame({ material }: { material: PlayerMaterial }) {
+function PreparedImageFrame({ prepared, name }: {
+  prepared: Extract<PreparedMaterial, { kind: 'image' }>
+  name: string
+}) {
+  const hostRef = useRef<HTMLDivElement>(null)
+  useLayoutEffect(() => {
+    const host = hostRef.current
+    if (!host) return
+    const image = prepared.image
+    image.alt = name
+    image.className = 'max-w-full max-h-full object-contain'
+    host.appendChild(image)
+    return () => { image.remove() }
+  }, [prepared, name])
+  return <div ref={hostRef} className="contents" />
+}
+
+function RawMaterialFrame({ material, prepared }: { material: PlayerMaterial; prepared?: PreparedMaterial | null }) {
+  const matchingPrepared = prepared?.materialId === material.id && prepared.url === material.url ? prepared : null
+  if (matchingPrepared?.kind === 'image') return <PreparedImageFrame prepared={matchingPrepared} name={material.name} />
+  if (matchingPrepared?.kind === 'pdf') return <PdfView url={material.url} prepared={matchingPrepared} />
+
+  // ─── Renderiza UMA peça (imagem / PDF limpo / fallback) — reusado na Gaveta ────
   const t = material.mime_type ?? ''
   if (t.startsWith('image/')) {
     // eslint-disable-next-line @next/next/no-img-element
@@ -159,12 +176,38 @@ export function MaterialFrame({ material }: { material: PlayerMaterial }) {
   )
 }
 
+function CacheAwareMaterialFrame({ material, cache }: { material: PlayerMaterial; cache: PresentationPreparationCache }) {
+  const [prepared, setPrepared] = useState<PreparedMaterial | null>(() => cache.get(material))
+  const [failed, setFailed] = useState(false)
+  useEffect(() => {
+    if (prepared || failed) return
+    let active = true
+    cache.prepare(material).then(result => { if (active) setPrepared(result) }).catch(() => { if (active) setFailed(true) })
+    return () => { active = false }
+  }, [cache, failed, material, prepared])
+
+  if (failed) return <RawMaterialFrame material={material} />
+  if (!prepared) return <p className="text-white/55 text-sm">Preparando material…</p>
+  return <RawMaterialFrame material={material} prepared={prepared} />
+}
+
+export function MaterialFrame({ material, preparationCache }: {
+  material: PlayerMaterial
+  preparationCache?: PresentationPreparationCache
+}) {
+  return preparationCache
+    ? <CacheAwareMaterialFrame material={material} cache={preparationCache} />
+    : <RawMaterialFrame material={material} />
+}
+
 // ─── Player: tela cheia, sequência com setas + menu lateral pra pular ────────────
-export function PresentationPlayer({ name, client, materials, onClose }: {
+export function PresentationPlayer({ name, client, materials, onClose, preparationCache, fullscreenAlreadyRequested = false }: {
   name: string
   client?: string | null
   materials: PlayerMaterial[]
   onClose: () => void
+  preparationCache?: PresentationPreparationCache
+  fullscreenAlreadyRequested?: boolean
 }) {
   const rootRef = useRef<HTMLDivElement>(null)
   // A8: useDialog (ESC/focus-trap/scroll-lock/retorno de foco + role/aria). O nó é COMPARTILHADO com o
@@ -211,8 +254,8 @@ export function PresentationPlayer({ name, client, materials, onClose }: {
   // Entra em tela cheia ao abrir; se sair da tela cheia (ESC/F11), fecha o player.
   useEffect(() => {
     const el = rootRef.current
-    let entered = false
-    if (el) enterFullscreen(el).then(() => { entered = true }).catch(() => { /* fallback: overlay cobre a tela */ })
+    let entered = fullscreenAlreadyRequested && !!fullscreenElement()
+    if (!entered && el) enterFullscreen(el).then(() => { entered = true }).catch(() => { /* fallback: overlay cobre a tela */ })
     const onFsChange = () => { if (entered && !fullscreenElement()) onClose() }
     document.addEventListener('fullscreenchange', onFsChange)
     document.addEventListener('webkitfullscreenchange', onFsChange as EventListener)
@@ -300,7 +343,7 @@ export function PresentationPlayer({ name, client, materials, onClose }: {
             <div key={i} aria-hidden={i !== index}
               className={cn('absolute inset-0 flex items-center justify-center p-4 sm:p-8', reduce ? '' : 'transition-opacity duration-200')}
               style={{ opacity: i === index ? 1 : 0, pointerEvents: i === index ? 'auto' : 'none', zIndex: i === index ? 1 : 0 }}>
-              <MaterialFrame material={m} />
+              <MaterialFrame material={m} preparationCache={preparationCache} />
             </div>
           ))}
           {total > 1 && (

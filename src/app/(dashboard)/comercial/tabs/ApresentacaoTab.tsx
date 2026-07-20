@@ -20,6 +20,7 @@ import {
   GripVertical, FileText, FolderOpen, Layers, Star, Folder, Tag,
 } from 'lucide-react'
 import { PresentationPlayer, MaterialFrame } from './PresentationPlayer'
+import { MeetingMode } from './MeetingMode'
 
 const MAX_BYTES = 50 * 1024 * 1024 // 50 MB — mesmo limite do bucket "materiais"
 const COLS = 'id, name, storage_path, url, mime_type, size_bytes, created_at, favorito, pasta, nicho'
@@ -233,6 +234,7 @@ export function ApresentacaoTab() {
 
   // Player
   const [playing, setPlaying] = useState<{ name: string; client: string | null; materials: Material[] } | null>(null)
+  const [meeting, setMeeting] = useState<{ name: string; client: string | null; materials: Material[] } | null>(null)
   // Resumo do lead (cadastro + histórico) mostrado ANTES de apresentar, quando há lead vinculado.
   const [leadBrief, setLeadBrief] = useState<{ play: { name: string; client: string | null; materials: Material[] }; leadId: string } | null>(null)
 
@@ -420,6 +422,11 @@ export function ApresentacaoTab() {
     // Tem lead vinculado → mostra o resumo (cadastro + histórico) ANTES de apresentar. Sem lead → direto.
     if (p.lead_id) { setLeadBrief({ play, leadId: p.lead_id }); return }
     setPlaying(play)
+  }
+  const prepareMeeting = (p: Presentation) => {
+    const mats = (p.items ?? []).map(id => matById.get(id)).filter(Boolean) as Material[]
+    if (mats.length === 0) { toast({ type: 'error', message: 'Esta apresentação não tem materiais disponíveis para preparar.' }); return }
+    setMeeting({ name: p.name, client: leadName(p.lead_id), materials: mats })
   }
   const pastas = Array.from(new Set(materials.map(m => m.pasta).filter((p): p is string => !!p))).sort((a, b) => a.localeCompare(b))
   const nichos = Array.from(new Set([...materials.map(m => m.nicho), ...leads.map(l => l.nicho)]
@@ -742,12 +749,18 @@ export function ApresentacaoTab() {
                         <button onClick={() => deletePresentation(p)} disabled={deletingPresId === p.id} className="flex-1 bg-red-500/90 hover:bg-red-500 text-white py-2 rounded-btn text-xs font-semibold transition-colors disabled:opacity-50">{deletingPresId === p.id ? 'Excluindo…' : 'Excluir'}</button>
                       </div>
                     ) : (
-                      <div className="flex items-center justify-between gap-2 mt-auto pt-1">
-                        <span className="font-tech text-[11px] text-bento-muted truncate">{items.length} {items.length === 1 ? 'material' : 'materiais'} · {formatDate(p.created_at)}</span>
-                        <div className="flex items-center gap-1.5 shrink-0">
-                          <button onClick={() => openPresentation(p)} aria-label="Editar" title="Editar" className="p-1.5 rounded-btn border border-bento-border text-bento-muted hover:border-lime hover:text-lime-fg transition-colors"><Pencil className="w-3.5 h-3.5" /></button>
-                          <button onClick={() => setConfirmingPresId(p.id)} aria-label="Excluir" title="Excluir" className="p-1.5 rounded-btn border border-bento-border text-bento-muted hover:border-red-400/50 hover:text-red-400 transition-colors"><Trash2 className="w-3.5 h-3.5" /></button>
-                          <button onClick={() => startPresent(p)} aria-label="Apresentar" title="Apresentar" className="w-8 h-8 rounded-full bg-lime hover:bg-lime-hover text-lime-ink flex items-center justify-center transition-colors"><Play className="w-4 h-4 fill-current" /></button>
+                      <div className="mt-auto pt-1 space-y-2">
+                        <button onClick={() => prepareMeeting(p)}
+                          className="w-full min-h-[38px] rounded-btn border border-lime/30 bg-lime/10 px-3 text-xs font-semibold text-lime-fg hover:bg-lime/15 hover:border-lime/50 transition-colors">
+                          Preparar reunião
+                        </button>
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="font-tech text-[11px] text-bento-muted truncate">{items.length} {items.length === 1 ? 'material' : 'materiais'} · {formatDate(p.created_at)}</span>
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            <button onClick={() => openPresentation(p)} aria-label="Editar" title="Editar" className="p-1.5 rounded-btn border border-bento-border text-bento-muted hover:border-lime hover:text-lime-fg transition-colors"><Pencil className="w-3.5 h-3.5" /></button>
+                            <button onClick={() => setConfirmingPresId(p.id)} aria-label="Excluir" title="Excluir" className="p-1.5 rounded-btn border border-bento-border text-bento-muted hover:border-red-400/50 hover:text-red-400 transition-colors"><Trash2 className="w-3.5 h-3.5" /></button>
+                            <button onClick={() => startPresent(p)} aria-label="Apresentar" title="Apresentar" className="w-8 h-8 rounded-full bg-lime hover:bg-lime-hover text-lime-ink flex items-center justify-center transition-colors"><Play className="w-4 h-4 fill-current" /></button>
+                          </div>
                         </div>
                       </div>
                     )}
@@ -772,6 +785,10 @@ export function ApresentacaoTab() {
       {/* Player de apresentação (single-mode, redesenhado) */}
       {playing && (
         <PresentationPlayer name={playing.name} client={playing.client} materials={playing.materials} onClose={() => setPlaying(null)} />
+      )}
+
+      {meeting && (
+        <MeetingMode name={meeting.name} client={meeting.client} materials={meeting.materials} onClose={() => setMeeting(null)} />
       )}
 
       {/* Editar metadados do material (pasta) */}
