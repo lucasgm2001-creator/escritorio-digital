@@ -37,7 +37,7 @@ export const getActiveTeam = cache(async (userId: string): Promise<ActiveTeamRes
     return { activeTeamId: null, activeTeamName: null, activeRole: null, memberships: [] }
   }
 
-  const requestedTeamId = cookies().get(ACTIVE_TEAM_COOKIE)?.value ?? null
+  const requestedTeamId = (await cookies()).get(ACTIVE_TEAM_COOKIE)?.value ?? null
   const memberships = await getMembershipsByUserId(userId)
 
   const activeMembership =

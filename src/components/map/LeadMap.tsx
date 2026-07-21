@@ -1,5 +1,5 @@
 'use client';
-/* eslint-disable @typescript-eslint/no-explicit-any, prefer-const -- componente de mapa fornecido as-is (d3-geo/topojson client tipam GeoJSON como any). */
+/* eslint-disable @typescript-eslint/no-explicit-any -- componente de mapa fornecido as-is (d3-geo/topojson client tipam GeoJSON como any). */
 
 /**
  * LeadMap — 3D / glass US lead map for Next.js.

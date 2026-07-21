@@ -6,7 +6,8 @@ import { WorkspaceHeader } from '@/components/ui/WorkspaceHeader'
 
 // Timeline do Cliente — dados REAIS via ClientTimelineService (ARCH-001, TEAM-001). Reusa o LeadTimeline
 // (mesmo padrão visual do Lead Hub). O acesso à equipe já é garantido pelo layout do workspace.
-export default async function ClientTimelinePage({ params }: { params: { id: string } }) {
+export default async function ClientTimelinePage(props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const context = await getRequestContext()
   const items = context ? await getClientTimeline(context, params.id) : []
 

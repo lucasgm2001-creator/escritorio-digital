@@ -72,7 +72,7 @@ export async function signOut() {
   // Limpa o cookie da equipe ativa: uma referência antiga não pode interferir no próximo login (troca de
   // conta). getActiveTeam já ignora cookie inválido, mas removê-lo evita lixo entre contas. O logout NÃO
   // depende disso para funcionar — mesmo que falhe, a sessão já foi encerrada acima.
-  cookies().delete(ACTIVE_TEAM_COOKIE)
+  (await cookies()).delete(ACTIVE_TEAM_COOKIE)
 
   // Limpa cache de todo o app
   revalidatePath('/', 'layout')

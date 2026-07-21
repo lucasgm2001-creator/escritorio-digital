@@ -68,7 +68,8 @@ export async function switchTeamAction(teamId: string): Promise<ActionResult<{ t
   const target = context.memberships.find(m => m.team_id === teamId)
   if (!target) return { ok: false, error: 'Voce nao faz parte dessa equipe.' }
 
-  cookies().set(ACTIVE_TEAM_COOKIE, teamId, TEAM_COOKIE_OPTS)
+  const cookieStore = await cookies()
+  cookieStore.set(ACTIVE_TEAM_COOKIE, teamId, TEAM_COOKIE_OPTS)
   return { ok: true, data: { teamId } }
 }
 
@@ -97,10 +98,11 @@ export async function leaveTeamAction(): Promise<ActionResult<{ message: string;
   }
 
   const remaining = context.memberships.filter(m => m.team_id !== outcome.leftTeamId)
+  const cookieStore = await cookies()
   if (remaining.length > 0) {
-    cookies().set(ACTIVE_TEAM_COOKIE, remaining[0].team_id, TEAM_COOKIE_OPTS)
+    cookieStore.set(ACTIVE_TEAM_COOKIE, remaining[0].team_id, TEAM_COOKIE_OPTS)
   } else {
-    cookies().delete(ACTIVE_TEAM_COOKIE)
+    cookieStore.delete(ACTIVE_TEAM_COOKIE)
   }
 
   const message = outcome.promotedName
@@ -177,7 +179,8 @@ export async function createTeamAction(name: string): Promise<ActionResult<{ tea
   if (error) return { ok: false, error: errorMessage(error) }
 
   const teamId = data as string
-  cookies().set(ACTIVE_TEAM_COOKIE, teamId, TEAM_COOKIE_OPTS)   // já entra na equipe recém-criada
+  const cookieStore = await cookies()
+  cookieStore.set(ACTIVE_TEAM_COOKIE, teamId, TEAM_COOKIE_OPTS)   // já entra na equipe recém-criada
   return { ok: true, data: { teamId } }
 }
 

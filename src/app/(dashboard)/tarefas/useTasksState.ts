@@ -40,7 +40,7 @@ export function useTasksState(initialTasks: Task[]): TasksState {
       const present = new Set(initialTasks.map(t => t.id))
       deletedIds.current.forEach(id => { if (!present.has(id)) deletedIds.current.delete(id) })
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+
   }, [initialTasks])
   // Tempo real: criar/editar/concluir/excluir tarefa reflete ao vivo (merge por id).
   useRealtimeRows<Task>('tasks', setTasks)

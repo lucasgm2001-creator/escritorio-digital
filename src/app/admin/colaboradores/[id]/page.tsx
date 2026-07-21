@@ -5,7 +5,8 @@ import { canAccessAdmin } from '@/lib/permissions/admin-access'
 import { getCollaboratorDetail } from '@/server/services/PeopleService'
 import { CollaboratorDetail } from '@/components/people/CollaboratorDetail'
 
-export default async function ColaboradorDetailPage({ params }: { params: { id: string } }) {
+export default async function ColaboradorDetailPage(props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const context = await getRequestContext()
   if (context) requireAdminManage(context)
   const collaborator = context ? await getCollaboratorDetail(context, params.id) : null

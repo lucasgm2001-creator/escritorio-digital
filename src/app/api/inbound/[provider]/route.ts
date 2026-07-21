@@ -14,10 +14,12 @@ const notImplemented = (provider: string) =>
     { status: 501 },
   )
 
-export async function POST(_req: Request, { params }: { params: { provider: string } }) {
+export async function POST(_req: Request, props: { params: Promise<{ provider: string }> }) {
+  const params = await props.params;
   return notImplemented(params.provider)
 }
 
-export async function GET(_req: Request, { params }: { params: { provider: string } }) {
+export async function GET(_req: Request, props: { params: Promise<{ provider: string }> }) {
+  const params = await props.params;
   return notImplemented(params.provider)
 }

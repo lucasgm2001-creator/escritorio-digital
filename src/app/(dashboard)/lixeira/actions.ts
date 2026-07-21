@@ -37,7 +37,7 @@ async function rpcOwner(fn: string, param: 'p_client_id' | 'p_lead_id', id: stri
   return { ok: true }
 }
 
-export const restoreClientAction = (id: string) => rpcOwner('restore_client', 'p_client_id', id)
-export const restoreLeadAction = (id: string) => rpcOwner('restore_lead', 'p_lead_id', id)
-export const hardDeleteClientAction = (id: string) => rpcOwner('hard_delete_client', 'p_client_id', id)
-export const hardDeleteLeadAction = (id: string) => rpcOwner('hard_delete_lead', 'p_lead_id', id)
+export const restoreClientAction = async (id: string) => rpcOwner('restore_client', 'p_client_id', id)
+export const restoreLeadAction = async (id: string) => rpcOwner('restore_lead', 'p_lead_id', id)
+export const hardDeleteClientAction = async (id: string) => rpcOwner('hard_delete_client', 'p_client_id', id)
+export const hardDeleteLeadAction = async (id: string) => rpcOwner('hard_delete_lead', 'p_lead_id', id)

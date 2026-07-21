@@ -22,10 +22,6 @@ const fxAuto: FxConfig = { cotacaoManual: null, cotacaoTravada: false }
 
 // ──────────────────────────────────────────────────────────────────────────
 section('Teste 1 — Venda fechada 20/mai: 1 semana em maio, 3 em junho')
-const deal1: Deal = {
-  id: 'd1', sellerId: 's1', valorTotalUsd: 100, tetoSemanas: 4,
-  valorPorSemanaUsd: 25, status: 'em_andamento', dataFechamento: '2026-05-20', kind: 'sale',
-}
 const weeks1: WeeklyPayment[] = [
   { id: 'w1', dealId: 'd1', numeroSemana: 1, valorUsd: 25, paidOn: '2026-05-25', cotacaoUsdBrl: 5.00, kind: 'sale' },
   { id: 'w2', dealId: 'd1', numeroSemana: 2, valorUsd: 25, paidOn: '2026-06-05', cotacaoUsdBrl: 5.00, kind: 'sale' },

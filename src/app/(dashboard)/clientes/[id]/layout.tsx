@@ -6,7 +6,13 @@ import { ClientWorkspaceShell } from '@/components/client/ClientWorkspaceShell'
 
 // Workspace do Cliente (CLIENT-SHELL-001). A casca é LEVE (header + abas horizontais + conteúdo) e vive DENTRO
 // do DashboardShell — sem 2ª casca. Escopo por equipe no ClientWorkspaceService (cliente de outra equipe → notFound).
-export default async function ClientWorkspaceLayout({ params, children }: { params: { id: string }; children: React.ReactNode }) {
+export default async function ClientWorkspaceLayout(props: { params: Promise<{ id: string }>; children: React.ReactNode }) {
+  const params = await props.params;
+
+  const {
+    children
+  } = props;
+
   const context = await getRequestContext()
   if (!context) redirect('/login')
   requireModuleEntry(context, 'clientes')   // "Sem acesso → nem entra" (PERMISSIONS-002)

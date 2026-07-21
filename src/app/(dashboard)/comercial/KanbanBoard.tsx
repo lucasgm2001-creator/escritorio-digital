@@ -160,7 +160,7 @@ export function KanbanBoard({ initialLeads, initialStages, initialClients, curre
         // não achou ainda → mantém leadHandled=false e re-tenta quando `leads` mudar
       }
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+
   }, [leads])
 
   const TABS: { key: Tab; label: string }[] = [
@@ -209,7 +209,7 @@ export function KanbanBoard({ initialLeads, initialStages, initialClients, curre
     }
     for (const n of res.notes) showToast(n.message, n.type)
     return true
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+
   }, [])
 
   // Choke point de TODO movimento (drag, tap, diário). Ao FECHAR (is_won) pelo funil, intercepta
@@ -241,7 +241,7 @@ export function KanbanBoard({ initialLeads, initialStages, initialClients, curre
     const nowIso = new Date().toISOString()
     setLeads(prev => prev.map(l => l.id === lead.id ? { ...l, score: res.newScore, last_contact_at: nowIso } : l))
     showToast(`Contato registrado: ${type === 'atendeu' ? 'Atendeu' : type === 'mensagem' ? 'Mensagem' : 'Não atendeu'}.`)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+
   }, [])
 
   const handleDragEnd = useCallback(async (e: DragEndEvent) => {

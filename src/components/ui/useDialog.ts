@@ -75,7 +75,7 @@ export function useDialog<T extends HTMLElement = HTMLDivElement>(onClose: () =>
       document.body.style.overflow = prevOverflow
       opener?.focus?.()   // retorna o foco a quem abriu
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+
   }, [enabled])
 
   return { ref, dialogProps: { role: 'dialog' as const, 'aria-modal': true } }

@@ -23,7 +23,7 @@ export async function GET(req: Request) {
   // CSRF + ANTI-REPLAY: assinatura/expiração do state + nonce IGUAL ao do cookie httpOnly de uso único.
   // Cookie ausente/diferente → replay ou callback vencido → aborta.
   const parsed = verifyState(state)
-  const cookieNonce = cookies().get('g_oauth_nonce')?.value
+  const cookieNonce = (await cookies()).get('g_oauth_nonce')?.value
   if (!parsed || !cookieNonce || cookieNonce !== parsed.nonce) return to('error')
 
   const tokens = await exchangeCodeForTokens(code)

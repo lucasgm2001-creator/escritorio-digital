@@ -1,12 +1,11 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 
-// Rotas PÚBLICAS: o usuário chega deslogado. /auth/callback cria a sessão trocando o code; sem isto o
-// middleware o mandaria pro /login antes da troca. /forgot-password e /reset-password também são acessados
-// sem sessão prévia (recuperação de senha).
+// Rotas públicas: o usuário chega deslogado. O callback cria a sessão trocando o code;
+// recuperação de senha também precisa continuar acessível sem sessão prévia.
 const PUBLIC_ROUTES = ['/login', '/auth/callback', '/forgot-password', '/reset-password']
 
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   let response = NextResponse.next({ request })
 
   const supabase = createServerClient(
@@ -29,24 +28,19 @@ export async function middleware(request: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser()
   const path = request.nextUrl.pathname
 
-  // Rotas de API cuidam da própria autenticação (requireAuth → 401 JSON, ou
-  // CRON_SECRET no scheduler). Não redirecionamos /api para /login: um cron
-  // não tem sessão e precisa alcançar o handler para validar o secret — e uma
-  // chamada de API deve receber 401 JSON, não um redirect HTML.
+  // APIs validam a própria autenticação e devem responder JSON, nunca redirecionar para HTML.
   if (path.startsWith('/api')) {
     return response
   }
 
-  // Redirect que PRESERVA os cookies que o getUser() possa ter atualizado
-  // (rotação de token). Sem isso, o redirect descarta a sessão renovada e o
-  // usuário aparece deslogado na próxima request — re-login intermitente.
+  // Preserva cookies atualizados pelo Supabase ao redirecionar (inclusive rotação de token).
   const redirectTo = (to: string) => {
-    const res = NextResponse.redirect(new URL(to, request.url))
-    response.cookies.getAll().forEach((cookie) => res.cookies.set(cookie))
-    return res
+    const redirectResponse = NextResponse.redirect(new URL(to, request.url))
+    response.cookies.getAll().forEach((cookie) => redirectResponse.cookies.set(cookie))
+    return redirectResponse
   }
 
-  const isPublic = PUBLIC_ROUTES.some(r => path.startsWith(r))
+  const isPublic = PUBLIC_ROUTES.some((route) => path.startsWith(route))
 
   if (!user && !isPublic) {
     return redirectTo('/login')

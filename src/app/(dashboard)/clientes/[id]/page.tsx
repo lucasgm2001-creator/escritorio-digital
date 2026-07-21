@@ -13,7 +13,8 @@ import { ClientResumo } from '@/components/client/ClientResumo'
 // getClientPaymentsByClient / getClientLeadHub) — sem consulta duplicada entre Resumo/Financeiro/Timeline.
 const DAY = 86_400_000
 
-export default async function ClientResumoPage({ params }: { params: { id: string } }) {
+export default async function ClientResumoPage(props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const context = await getRequestContext()
   if (!context) notFound()
 
