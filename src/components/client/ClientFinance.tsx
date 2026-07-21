@@ -11,11 +11,12 @@ import type { ClientFinanceVM } from '@/server/services/ClientFinanceService'
 // é o mesmo (client_payments por semana), só a apresentação agrupa (toPaymentPeriods).
 const usd = (value: number): string => formatCurrency(value, 'en-US', 'USD')
 const dateOrDash = (iso: string | null): string => (iso ? formatDateBR(iso) : '—')
+const situationLabel: Record<string, string> = { prevista: 'prevista', vencida: 'vencida', paga: 'paga', nao_paga: 'não paga', parcial: 'parcial', isenta: 'isenta', anulada: 'anulada' }
 
 export function ClientFinance({ vm }: { vm: ClientFinanceVM }) {
   const isMensal = vm.periodicidade === 'mensal'
   const periods = toPaymentPeriods(vm.payments, vm.periodicidade)
-  const pagos = periods.filter(p => !p.anulado).length
+  const pagos = periods.filter(p => p.status === 'paga').length
   const kpis: { title: string; value: string; tone?: MetricTone }[] = [
     { title: isMensal ? 'Mensal' : 'Semanal', value: usd(isMensal ? vm.planWeekly * 4 : vm.planWeekly) },
     { title: 'Total recebido', value: usd(vm.totalRecebido), tone: 'emerald' },
@@ -62,7 +63,7 @@ export function ClientFinance({ vm }: { vm: ClientFinanceVM }) {
                   <span className="font-tech text-bento-dim tabular-nums">{period.label} · {dateOrDash(period.paidOn)}</span>
                   <span className="flex items-center gap-2">
                     <span className={cn('font-tech tabular-nums', period.anulado ? 'line-through text-bento-muted' : 'text-bento-text')}>{usd(period.valorUsd)}</span>
-                    {period.anulado && <span className="text-[10px] text-red-400 font-semibold">anulad{isMensal ? 'o' : 'a'}</span>}
+                    <span className={cn('text-[10px] font-semibold', period.status === 'paga' ? 'text-emerald-400' : period.status === 'prevista' ? 'text-bento-muted' : 'text-amber-300')}>{situationLabel[period.status] ?? period.status}</span>
                   </span>
                 </div>
               ))}

@@ -3,16 +3,14 @@ import { createHash, timingSafeEqual } from 'crypto'
 import { getRequestContext } from '@/server/context/request-context'
 import { assertClientOwnership } from '@/server/security/team-ownership'
 import { createServiceClient } from '@/lib/supabase/service'
-import { payDueWeeks } from '@/lib/commission/actions'
+import { scheduleDueWeeks } from '@/lib/commission/actions'
 import { resolveRate } from '@/lib/commission/calc'
 import type { FxConfig } from '@/lib/commission/types'
 
 export const runtime = 'nodejs'
 export const maxDuration = 60
 
-// Auto-preenchimento DATE-GATED: payDueWeeks marca só as semanas cuja data real venceu (paid_on =
-// data da semana), via payClientWeek (receita + comissão derivada). NUNCA marca futura. NÃO muda
-// calc.ts/payWeek (US$25/teto/etc.) — só decide QUANDO/QUAL semana e a DATA.
+// Auto-preenchimento DATE-GATED: agenda cobranças vencidas, sem registrar receita/comissão.
 
 // Comparação em tempo constante (sha256 → buffers de mesmo tamanho; não vaza comprimento).
 function secretsMatch(a: string, b: string): boolean {
@@ -56,8 +54,8 @@ export async function POST(req: Request) {
       const owned = await assertClientOwnership(supabase, body.clientId, context.activeTeamId)
       if (!owned.ok) return NextResponse.json({ ok: false, reason: owned.status === 403 ? 'forbidden' : 'no_client' }, { status: owned.status })
     }
-    const r = await payDueWeeks(supabase, body.clientId, rate)
-    return NextResponse.json({ ok: true, mode: 'single', marked: r.marked, reason: r.reason })
+    const r = await scheduleDueWeeks(supabase, body.clientId, rate)
+    return NextResponse.json({ ok: true, mode: 'single', scheduled: r.scheduled, reason: r.reason })
   }
 
   // CRON (todos) — SÓ pelo token do agendador: processa TODAS as equipes, não é ação de um usuário.
@@ -69,8 +67,8 @@ export async function POST(req: Request) {
   const { data: clients } = await supabase.from('clients').select('id').eq('status', 'ativo').is('deleted_at', null)
   const marked: Record<string, number[]> = {}
   for (const c of clients ?? []) {
-    const r = await payDueWeeks(supabase, c.id as string, rate)
-    if (r.marked.length) marked[c.id as string] = r.marked
+    const r = await scheduleDueWeeks(supabase, c.id as string, rate)
+    if (r.scheduled.length) marked[c.id as string] = r.scheduled
   }
   return NextResponse.json({ ok: true, mode: 'all', count: (clients ?? []).length, marked })
 }

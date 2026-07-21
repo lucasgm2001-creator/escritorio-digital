@@ -6,7 +6,7 @@ import { getRequestContext } from '@/server/context/request-context'
 import { todaySP } from '@/lib/date'
 import { createServiceClient } from '@/lib/supabase/service'
 import { assertClientOwnership } from '@/server/security/team-ownership'
-import { payMonth, nextUnpaidMonth, applyPlanUpgrade, saveClientHistory, type ClientHistoryInput } from '@/lib/commission/actions'
+import { payMonth, nextUnpaidMonth, saveClientHistory, type ClientHistoryInput } from '@/lib/commission/actions'
 import { resolveRate } from '@/lib/commission/calc'
 import { getStages } from '@/lib/funnelStages.server'
 import { wonSlug } from '@/lib/funnelStages'
@@ -200,10 +200,56 @@ export async function payMonthAction(clientId: string, monthRef?: string): Promi
   return { ok: true, marked: r.marked, monthRef: r.monthRef }
 }
 
+export type ClientWeekStatus = 'prevista' | 'vencida' | 'paga' | 'nao_paga' | 'parcial' | 'isenta' | 'anulada'
+export type SaveClientWeekInput = {
+  clientId: string
+  numeroSemana: number
+  status: ClientWeekStatus
+  dueOn: string
+  valorPrevistoUsd: number
+  valorPagoUsd?: number
+  paidOn?: string | null
+  planoId?: string | null
+  observacao?: string | null
+}
+
+// Editor canônico da semana. A função do banco sincroniza situação, receita, comissão e auditoria
+// na mesma transação; nenhuma escrita financeira parcial fica para trás.
+export async function saveClientWeekAction(input: SaveClientWeekInput): Promise<Res<{ payment: Record<string, unknown> }>> {
+  const g = await guardEdit()
+  if (!g.context) return { ok: false, error: g.error }
+  const svc = createServiceClient()
+  const owned = await assertClientOwnership(svc, input.clientId, g.context.activeTeamId)
+  if (!owned.ok) return { ok: false, error: owned.status === 403 ? 'Cliente de outra equipe.' : 'Cliente não encontrado.' }
+  if (!Number.isInteger(input.numeroSemana) || input.numeroSemana < 1) return { ok: false, error: 'Número da semana inválido.' }
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(input.dueOn)) return { ok: false, error: 'Informe o vencimento.' }
+  const rate = await resolveEditRate(svc)
+  const supabase = createClient() // sessão do usuário: o RPC valida owner/admin e registra changed_by
+  const { data, error } = await supabase.rpc('save_client_week', {
+    p_client_id: input.clientId,
+    p_numero_semana: input.numeroSemana,
+    p_status: input.status,
+    p_due_on: input.dueOn,
+    p_valor_previsto_usd: Number(input.valorPrevistoUsd),
+    p_valor_pago_usd: Number(input.valorPagoUsd ?? 0),
+    p_paid_on: input.paidOn || null,
+    p_cotacao_usd_brl: rate,
+    p_plano_id: input.planoId || null,
+    p_observacao: input.observacao?.trim() || null,
+  })
+  if (error || !data) return { ok: false, error: error?.message ?? 'Não foi possível salvar a semana.' }
+  return { ok: true, payment: data as Record<string, unknown> }
+}
+
 // Upgrade de plano (F3): registra o evento + bônus (só a diferença, config do vendedor) na competência do
 // upgrade e move o cliente para o novo plano. Reusa o motor vivo (applyPlanUpgrade). Mesma segurança do
 // reconstruct/payMonth (service-role só após assertClientOwnership). Sem 2º motor; regra financeira explicada.
-export async function registerPlanUpgradeAction(clientId: string, newPlanId: string, changedAt?: string): Promise<Res<{ bonus: number; deltaMensal: number }>> {
+export async function registerPlanUpgradeAction(
+  clientId: string,
+  newPlanId: string,
+  changedAt?: string,
+  options?: { sellerId?: string | null; bonusOverrideUsd?: number | null; effectiveWeek?: number | null; observacao?: string | null },
+): Promise<Res<{ bonus: number; deltaMensal: number; sellerId: string }>> {
   const g = await guardEdit()
   if (!g.context) return { ok: false, error: g.error }
   const supabase = createServiceClient()
@@ -211,14 +257,18 @@ export async function registerPlanUpgradeAction(clientId: string, newPlanId: str
   if (!owned.ok) return { ok: false, error: owned.status === 403 ? 'Cliente de outra equipe.' : 'Cliente não encontrado.' }
   const changed = (changedAt && /^\d{4}-\d{2}-\d{2}$/.test(changedAt)) ? changedAt : new Date().toISOString().slice(0, 10)
   const rate = await resolveEditRate(supabase)
-  const r = await applyPlanUpgrade(supabase as Parameters<typeof applyPlanUpgrade>[0], { clientId, newPlanId, changedAt: changed, rate, teamId: g.context.activeTeamId })
-  if (!r.ok) {
-    const msg = r.reason === 'mesmo_plano' ? 'Selecione um plano diferente do atual.'
-      : r.reason === 'nao_e_upgrade' ? 'O novo plano precisa ser maior que o atual (upgrade).'
-      : r.reason === 'inativo' ? 'Cliente inativo — reative antes de fazer upgrade.'
-      : r.reason === 'plano_invalido' ? 'Plano inválido.'
-      : 'Cliente não encontrado.'
-    return { ok: false, error: msg }
-  }
-  return { ok: true, bonus: r.bonus, deltaMensal: r.deltaMensal }
+  const session = createClient()
+  const { data, error } = await session.rpc('register_plan_upgrade_v2', {
+    p_client_id: clientId,
+    p_new_plan_id: newPlanId,
+    p_changed_at: changed,
+    p_seller_id: options?.sellerId || null,
+    p_bonus_override_usd: options?.bonusOverrideUsd ?? null,
+    p_effective_week: options?.effectiveWeek ?? null,
+    p_cotacao_usd_brl: rate,
+    p_observacao: options?.observacao?.trim() || null,
+  })
+  if (error || !data) return { ok: false, error: error?.message ?? 'Não foi possível registrar o upgrade.' }
+  const result = data as { bonus?: number; deltaMensal?: number; sellerId?: string }
+  return { ok: true, bonus: Number(result.bonus ?? 0), deltaMensal: Number(result.deltaMensal ?? 0), sellerId: String(result.sellerId ?? '') }
 }

@@ -128,6 +128,7 @@ export async function payClientWeek(
 
   const { error } = await supabase.from('client_payments').insert({
     client_id: clientId, numero_semana: numero, valor_usd: valorUsd, paid_on: paidOn, cotacao_usd_brl: rate, plano_id: planoId,
+    status: 'paga', due_on: paidOn, valor_previsto_usd: valorUsd, valor_pago_usd: valorUsd, anulado: false,
     ...withTeam(teamId),
   })
   let dup = false
@@ -184,6 +185,44 @@ export async function payDueWeeks(
     else if (res.reason !== 'dup') break // erro real → para; 'dup' (corrida) segue
   }
   return { marked, reason: marked.length ? 'ok' : 'nada_vencido' }
+}
+
+// Agenda semanas vencidas sem fingir que houve recebimento. A linha ocupa o número da semana,
+// mas fica anulado=true/status=vencida, portanto não entra em receita nem libera comissão.
+// Usado exclusivamente pelos robôs; confirmação de pagamento é sempre uma ação humana.
+export async function scheduleDueWeeks(
+  supabase: SupaClient, clientId: string, rate: number, maxWeeks = 12, teamId?: string | null,
+): Promise<{ scheduled: number[]; reason: string }> {
+  const { data: cli } = await supabase.from('clients')
+    .select('status, start_date, dia_pagamento_semana, plano_id, plan_weekly')
+    .eq('id', clientId).is('deleted_at', null).maybeSingle()
+  if (!cli) return { scheduled: [], reason: 'nao_encontrado' }
+  if (cli.status !== 'ativo') return { scheduled: [], reason: 'inativo' }
+  if (!cli.start_date) return { scheduled: [], reason: 'sem_inicio' }
+
+  const start = String(cli.start_date).slice(0, 10)
+  const dia = cli.dia_pagamento_semana ?? dowOfYmd(start)
+  const today = spToday()
+  const { planoId, valorUsd } = await resolveClientPlan(supabase, clientId)
+  const { data: rows } = await supabase.from('client_payments').select('numero_semana').eq('client_id', clientId)
+  const registered = new Set((rows ?? []).map(r => r.numero_semana as number))
+  const scheduled: number[] = []
+
+  for (let i = 0; i < maxWeeks; i++) {
+    let n = 1; while (registered.has(n)) n++
+    const due = dueDateFor(start, dia, n)
+    if (due > today) break
+    registered.add(n)
+    const { error } = await supabase.from('client_payments').insert({
+      client_id: clientId, numero_semana: n, valor_usd: valorUsd, paid_on: null,
+      cotacao_usd_brl: rate, plano_id: planoId, status: 'vencida', due_on: due,
+      valor_previsto_usd: valorUsd, valor_pago_usd: 0, anulado: true,
+      anulado_motivo: 'Aguardando confirmação de pagamento', ...withTeam(teamId),
+    })
+    if (error && error.code !== '23505') return { scheduled, reason: error.message }
+    if (!error) scheduled.push(n)
+  }
+  return { scheduled, reason: scheduled.length ? 'ok' : 'nada_vencido' }
 }
 
 // ESTORNO auditável e ATÔMICO (M1): chama a função Postgres void_client_week (SECURITY DEFINER) que, numa

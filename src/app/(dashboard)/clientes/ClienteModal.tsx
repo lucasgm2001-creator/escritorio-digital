@@ -14,6 +14,7 @@ import { DossieTab } from './DossieTab'
 import type { Client } from './types'
 
 interface Plan { id: string; nome: string; valor_semanal: number; valor_mensal: number | null }
+interface Seller { id: string; name: string }
 // Dia de pagamento da semana — 0=Dom..6=Sáb, MESMA convenção que o cron/payDueWeeks lê (getUTCDay civil).
 const WEEKDAYS: { value: number; label: string }[] = [
   { value: 0, label: 'Domingo' }, { value: 1, label: 'Segunda' }, { value: 2, label: 'Terça' },
@@ -40,9 +41,14 @@ export function ClienteModal({ client, onClose, onSaved, initialTab }: {
   const { toast } = useToast()
   const [view, setView] = useState<'editar' | 'dossie'>(initialTab ?? 'editar')
   const [plans, setPlans] = useState<Plan[]>([])
+  const [sellers, setSellers] = useState<Seller[]>([])
   const [loading, setLoading] = useState(false)
   const [upgradePlan, setUpgradePlan] = useState('')
   const [upgradeDate, setUpgradeDate] = useState(new Date().toISOString().slice(0, 10))
+  const [upgradeSeller, setUpgradeSeller] = useState('')
+  const [upgradeBonus, setUpgradeBonus] = useState('')
+  const [upgradeWeek, setUpgradeWeek] = useState('')
+  const [upgradeNote, setUpgradeNote] = useState('')
   const [upgrading, setUpgrading] = useState(false)
   const [geoSug, setGeoSug] = useState<PhoneGeo | null>(null)   // sugestão de cidade/estado a partir do telefone (Parte 2)
   const [form, setForm] = useState({
@@ -65,6 +71,12 @@ export function ClienteModal({ client, onClose, onSaved, initialTab }: {
   useEffect(() => {
     supabase.from('plans').select('id, nome, valor_semanal, valor_mensal').eq('ativo', true).order('ordem')
       .then(({ data }) => setPlans((data ?? []) as Plan[]))
+    supabase.from('sellers').select('id, name').eq('status', 'ativo').order('name')
+      .then(({ data }) => {
+        const rows = (data ?? []) as Seller[]
+        setSellers(rows)
+        setUpgradeSeller(rows.find(s => s.name.trim().toLowerCase() === 'lucas')?.id ?? rows[0]?.id ?? '')
+      })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
@@ -150,12 +162,22 @@ export function ClienteModal({ client, onClose, onSaved, initialTab }: {
     if (upgrading || !upgradePlan) return
     setUpgrading(true)
     try {
-      const res = await registerPlanUpgradeAction(client.id, upgradePlan, upgradeDate)
+      const bonus = upgradeBonus.trim() === '' ? null : Number(upgradeBonus)
+      const effectiveWeek = upgradeWeek.trim() === '' ? null : Number(upgradeWeek)
+      const res = await registerPlanUpgradeAction(client.id, upgradePlan, upgradeDate, {
+        sellerId: upgradeSeller || null,
+        bonusOverrideUsd: bonus != null && Number.isFinite(bonus) ? bonus : null,
+        effectiveWeek: effectiveWeek != null && Number.isInteger(effectiveWeek) && effectiveWeek > 0 ? effectiveWeek : null,
+        observacao: upgradeNote || null,
+      })
       if (!res.ok) { toast({ type: 'error', message: res.error }); return }
       const np = plans.find(p => p.id === upgradePlan)
       onSaved({ ...client, plano_id: upgradePlan, plan_weekly: np?.valor_semanal ?? client.plan_weekly } as Client)
       setForm(p => ({ ...p, plano_id: upgradePlan }))
       setUpgradePlan('')
+      setUpgradeBonus('')
+      setUpgradeWeek('')
+      setUpgradeNote('')
       toast({ type: 'success', message: res.bonus > 0 ? `Upgrade registrado · bônus US$${res.bonus} (diferença US$${res.deltaMensal}/mês).` : `Upgrade registrado (sem bônus configurado).` })
     } finally { setUpgrading(false) }
   }
@@ -288,7 +310,7 @@ export function ClienteModal({ client, onClose, onSaved, initialTab }: {
               comissão do mês, pela config do vendedor. Não duplica; competência = data do upgrade. */}
           <div className="rounded-btn border border-bento-border/60 bg-bento-bg p-3 space-y-2">
             <p className="text-xs font-medium text-bento-text">Upgrade de plano</p>
-            <p className="font-tech text-[10px] text-bento-muted leading-relaxed">Move o cliente para um plano maior e gera o bônus de upgrade (só a diferença) na comissão do mês.</p>
+            <p className="font-tech text-[10px] text-bento-muted leading-relaxed">Define o novo plano, a semana em que passa a valer e quem realizou o upgrade. Lucas vem selecionado por padrão.</p>
             <div className="flex gap-2">
               <select value={upgradePlan} onChange={e => setUpgradePlan(e.target.value)} className={cn(inputCls, 'flex-1')}>
                 <option value="">Novo plano…</option>
@@ -296,6 +318,23 @@ export function ClienteModal({ client, onClose, onSaved, initialTab }: {
               </select>
               <input type="date" value={upgradeDate} max={new Date().toISOString().slice(0, 10)} onChange={e => setUpgradeDate(e.target.value)} className={cn(inputCls, 'w-36')} />
             </div>
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="block text-[10px] text-bento-muted mb-1">Vendedor do upgrade</label>
+                <select value={upgradeSeller} onChange={e => setUpgradeSeller(e.target.value)} className={inputCls}>
+                  {sellers.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="block text-[10px] text-bento-muted mb-1">Começa na semana</label>
+                <input type="number" min="1" step="1" value={upgradeWeek} onChange={e => setUpgradeWeek(e.target.value)} placeholder="Próxima" className={inputCls} />
+              </div>
+            </div>
+            <div>
+              <label className="block text-[10px] text-bento-muted mb-1">Bônus do upgrade (USD)</label>
+              <input type="number" min="0" step="0.01" value={upgradeBonus} onChange={e => setUpgradeBonus(e.target.value)} placeholder="Vazio usa a regra de remuneração" className={inputCls} />
+            </div>
+            <textarea rows={2} value={upgradeNote} onChange={e => setUpgradeNote(e.target.value)} placeholder="Observação do upgrade (opcional)" className={inputCls} />
             <button type="button" onClick={handleUpgrade} disabled={upgrading || !upgradePlan}
               className="w-full px-3 py-2 rounded-btn text-xs font-semibold border border-lime/40 text-lime-fg hover:bg-lime/10 transition-colors disabled:opacity-50">
               {upgrading ? 'Registrando…' : 'Registrar upgrade'}

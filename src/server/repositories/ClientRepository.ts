@@ -31,6 +31,10 @@ export type ClientPaymentRecord = {
   numero_semana: number
   valor_usd: number | null
   paid_on: string | null
+  due_on: string | null
+  status: string | null
+  valor_previsto_usd: number | null
+  valor_pago_usd: number | null
   anulado: boolean | null
 }
 
@@ -38,7 +42,7 @@ export const getClientPaymentsByClient = cache(async (clientId: string): Promise
   const supabase = createClient()
   const { data, error } = await supabase
     .from('client_payments')
-    .select('id, client_id, numero_semana, valor_usd, paid_on, anulado')
+    .select('id, client_id, numero_semana, valor_usd, paid_on, due_on, status, valor_previsto_usd, valor_pago_usd, anulado')
     .eq('client_id', clientId)
   if (error) throw error
   return (data ?? []) as ClientPaymentRecord[]

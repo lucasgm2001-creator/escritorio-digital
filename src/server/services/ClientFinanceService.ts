@@ -11,7 +11,7 @@ import { receivedRevenue } from '@/core/metrics/revenue'
 // sem alterar nenhuma regra financeira: reusa o helper canônico dueDateFor (mesmo do agendador/cron).
 // Isolamento por equipe (TEAM-001) via getClientWorkspace. Só leitura, nada de escrita/comissão.
 
-export type ClientFinancePayment = { numeroSemana: number; valorUsd: number; paidOn: string | null; anulado: boolean }
+export type ClientFinancePayment = { numeroSemana: number; valorUsd: number; paidOn: string | null; dueOn: string | null; status: string; anulado: boolean }
 
 export type ClientFinanceVM = {
   planWeekly: number
@@ -33,10 +33,15 @@ export async function getClientFinance(context: RequestContext, clientId: string
 
   const raw = await getClientPaymentsByClient(clientId)
   const payments: ClientFinancePayment[] = raw
-    .map(p => ({ numeroSemana: Number(p.numero_semana), valorUsd: Number(p.valor_usd ?? 0), paidOn: p.paid_on ?? null, anulado: !!p.anulado }))
+    .map(p => ({
+      numeroSemana: Number(p.numero_semana),
+      valorUsd: Number((p.status === 'paga' || p.status === 'parcial') ? (p.valor_pago_usd ?? p.valor_usd ?? 0) : (p.valor_previsto_usd ?? p.valor_usd ?? 0)),
+      paidOn: p.paid_on ?? null, dueOn: p.due_on ?? p.paid_on ?? null,
+      status: p.status ?? (p.anulado ? 'anulada' : 'paga'), anulado: !!p.anulado,
+    }))
     .sort((a, b) => a.numeroSemana - b.numeroSemana)
 
-  const active = payments.filter(p => !p.anulado)
+  const active = payments.filter(p => p.status === 'paga')
   const totalRecebido = receivedRevenue(payments.map(p => ({ valor_usd: p.valorUsd, paid_on: p.paidOn, anulado: p.anulado })))
   const semanasPagas = active.length
   const paidNums = new Set(active.map(p => p.numeroSemana))

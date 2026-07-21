@@ -1,11 +1,9 @@
 import { NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase/service'
-import { payDueWeeks, dueDateFor, resolveClientPlan } from '@/lib/commission/actions'
+import { scheduleDueWeeks, dueDateFor, resolveClientPlan } from '@/lib/commission/actions'
 import { todaySP } from '@/lib/date'
 
-// Robô diário: marca as semanas de RECEITA VENCIDAS de cada cliente ativo, reusando payDueWeeks
-// (receita em client_payments + comissão derivada via payWeek — teto 4, sem duplicar, sem recriar
-// anulada). Roda sem sessão → service-role. Protegida por CRON_SECRET (padrão do Vercel Cron).
+// Robô diário: agenda semanas vencidas. Nunca confirma recebimento e nunca gera comissão sozinho.
 // ?dryRun=1 retorna o que ELA INSERIRIA hoje, SEM gravar nada (auditoria).
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -52,35 +50,32 @@ export async function GET(req: Request) {
   )
 
   if (dryRun) {
-    const items: { client: string; numero_semana: number; paid_on: string; valor_usd: number; geraria_comissao: boolean }[] = []
+    const items: { client: string; numero_semana: number; due_on: string; valor_previsto_usd: number; status: 'vencida' }[] = []
     for (const c of eligible) {
       const start = String(c.start_date).slice(0, 10)
       const dia = Number(c.dia_pagamento_semana)
       const { valorUsd } = await resolveClientPlan(supabase as Parameters<typeof resolveClientPlan>[0], c.id)
       const { data: cps } = await supabase.from('client_payments').select('numero_semana').eq('client_id', c.id)
       const reg = new Set((cps ?? []).map(r => r.numero_semana as number))   // inclui anuladas → não re-marca
-      const { data: deals } = await supabase.from('deals').select('teto_semanas').eq('client_id', c.id).eq('status', 'em_andamento').limit(1)
-      const hasDeal = !!deals?.[0]
-      const teto = deals?.[0]?.teto_semanas ?? 0
-      // Espelha a seleção do payDueWeeks (read-only): 1ª semana não registrada, due<=hoje, máx 12.
+      // Espelha a seleção do agendador (read-only): 1ª semana não registrada, due<=hoje, máx 12.
       for (let i = 0; i < 12; i++) {
         let n = 1; while (reg.has(n)) n++
         const due = dueDateFor(start, dia, n)
         if (due > today) break
         reg.add(n)
-        items.push({ client: c.name as string, numero_semana: n, paid_on: due, valor_usd: valorUsd, geraria_comissao: hasDeal && n <= teto })
+        items.push({ client: c.name as string, numero_semana: n, due_on: due, valor_previsto_usd: valorUsd, status: 'vencida' })
       }
     }
     return NextResponse.json({ ok: true, dryRun: true, today, rate, eligibleClients: eligible.length, count: items.length, items })
   }
 
-  // Execução real (idempotente) — payDueWeeks faz a conta de receita + comissão.
+  // Execução real (idempotente) — cria a pendência; pagamento exige confirmação humana.
   const results: { client: string; marked: number[]; reason: string }[] = []
   for (const c of eligible) {
     // BUGFIX team_id: sem sessão (cron/service-role) o trigger set_team_id_default não resolve a equipe no
     // multi-tenant → pagamento/comissão nasciam órfãos (team_id null) e sumiam da receita. Carimba explícito.
-    const { marked, reason } = await payDueWeeks(supabase as Parameters<typeof payDueWeeks>[0], c.id, rate, 12, c.team_id)
-    if (marked.length) results.push({ client: c.name as string, marked, reason })
+    const { scheduled, reason } = await scheduleDueWeeks(supabase as Parameters<typeof scheduleDueWeeks>[0], c.id, rate, 12, c.team_id)
+    if (scheduled.length) results.push({ client: c.name as string, marked: scheduled, reason })
   }
   const totalMarked = results.reduce((s, r) => s + r.marked.length, 0)
   return NextResponse.json({ ok: true, dryRun: false, today, rate, eligibleClients: eligible.length, totalMarked, results })
