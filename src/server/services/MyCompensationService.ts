@@ -4,7 +4,7 @@ import { createClient } from '@/lib/supabase/server'
 import type { RequestContext } from '@/server/context/request-context'
 import { monthlySummary, nextPayoutProjection, dealTotal, pendingCommission } from '@/lib/commission/calc'
 import { meetingCommissionCounts } from '@/lib/commission/constants'
-import type { DealStatus, DealWithClient, FxConfig, Meeting, MonthlySummary, PendingCommissionResult, SalaryPeriod, WeeklyPayment } from '@/lib/commission/types'
+import type { DealKind, DealStatus, DealWithClient, FxConfig, Meeting, MonthlySummary, PendingCommissionResult, SalaryPeriod, WeeklyPayment } from '@/lib/commission/types'
 import { resolveCompensationRule, type NormalizedCompensationRule } from '@/server/services/CompensationService'
 import { roleByKey, departmentByKey, type DepartmentKey } from '@/lib/people/catalog'
 
@@ -80,7 +80,7 @@ export async function getMyCompensationView(context: RequestContext): Promise<My
   const [salRes, mtgRes, dealRes, fxRes, rule] = await Promise.all([
     supabase.from('seller_salaries').select('seller_id, valor_usd, effective_from').eq('seller_id', seller.id),
     supabase.from('meetings').select('id, seller_id, met_on, valor_usd, cotacao_usd_brl, client_name').eq('seller_id', seller.id),
-    supabase.from('deals').select('id, client_name, valor_total_usd, valor_por_semana_usd, teto_semanas, status, data_fechamento').eq('seller_id', seller.id),
+    supabase.from('deals').select('id, client_name, valor_total_usd, valor_por_semana_usd, teto_semanas, status, data_fechamento, kind').eq('seller_id', seller.id),
     supabase.from('fx_config').select('cotacao_manual, cotacao_travada').eq('team_id', teamId).maybeSingle(),
     resolveCompensationRule(context, seller.id, today),
   ])
@@ -91,14 +91,14 @@ export async function getMyCompensationView(context: RequestContext): Promise<My
   const eligibleMeetings = (mtgRes.data ?? []).filter(m => meetingCommissionCounts(m.met_on))
   const meetings: Meeting[] = eligibleMeetings.map(m => ({ id: m.id, sellerId: m.seller_id, metOn: m.met_on, valorUsd: Number(m.valor_usd), cotacaoUsdBrl: Number(m.cotacao_usd_brl) }))
   const mtgClient = new Map(eligibleMeetings.map(m => [m.id, (m as { client_name: string | null }).client_name]))
-  const deals = (dealRes.data ?? []) as { id: string; client_name: string | null; valor_total_usd: number; valor_por_semana_usd: number; teto_semanas: number; status: string; data_fechamento: string | null }[]
+  const deals = (dealRes.data ?? []) as { id: string; client_name: string | null; valor_total_usd: number; valor_por_semana_usd: number; teto_semanas: number; status: string; data_fechamento: string | null; kind: DealKind }[]
   const dealById = new Map(deals.map(d => [d.id, d]))
   const dealIds = deals.map(d => d.id)
 
   let weeks: WeeklyPayment[] = []
   if (dealIds.length) {
     const { data: wk } = await supabase.from('weekly_payments').select('id, deal_id, numero_semana, valor_usd, paid_on, cotacao_usd_brl').in('deal_id', dealIds)
-    weeks = (wk ?? []).map(w => ({ id: w.id, dealId: w.deal_id, numeroSemana: w.numero_semana, valorUsd: Number(w.valor_usd), paidOn: w.paid_on, cotacaoUsdBrl: Number(w.cotacao_usd_brl) }))
+    weeks = (wk ?? []).map(w => ({ id: w.id, dealId: w.deal_id, numeroSemana: w.numero_semana, valorUsd: Number(w.valor_usd), paidOn: w.paid_on, cotacaoUsdBrl: Number(w.cotacao_usd_brl), kind: dealById.get(w.deal_id)?.kind ?? 'sale' }))
   }
 
   const manual = fxRes.data?.cotacao_manual != null ? Number(fxRes.data.cotacao_manual) : null
@@ -122,7 +122,7 @@ export async function getMyCompensationView(context: RequestContext): Promise<My
   const dealsWithClient: DealWithClient[] = deals.map(d => ({
     id: d.id, sellerId: seller.id, valorTotalUsd: Number(d.valor_total_usd), tetoSemanas: Number(d.teto_semanas),
     valorPorSemanaUsd: Number(d.valor_por_semana_usd), status: d.status as DealStatus,
-    dataFechamento: d.data_fechamento ?? '', clientName: d.client_name,
+    dataFechamento: d.data_fechamento ?? '', clientName: d.client_name, kind: d.kind ?? 'sale',
   }))
   // Receber esta semana = parcela semanal das vendas ATIVAS que ainda têm semanas a vencer (reusa dealTotal).
   const thisWeekUsd = round2(dealsWithClient
@@ -148,7 +148,9 @@ export async function getMyCompensationView(context: RequestContext): Promise<My
     if (summary.salaryUsd > 0) payments.push({ origem: 'Salário fixo', cliente: null, data: `${key}-01`, valorUsd: summary.salaryUsd, valorBrl: summary.salaryBrl, status: null })
     weeks.filter(w => w.paidOn.slice(0, 7) === key).forEach(w => {
       const d = dealById.get(w.dealId)
-      payments.push({ origem: `Venda · semana ${w.numeroSemana}`, cliente: d?.client_name ?? null, data: w.paidOn, valorUsd: w.valorUsd, valorBrl: round2(w.valorUsd * w.cotacaoUsdBrl), status: d?.status ?? null })
+      const origem = w.kind === 'upgrade' ? `Upgrade · parcela ${w.numeroSemana}`
+        : w.kind === 'renewal' ? 'Bônus de renovação' : `Venda · semana ${w.numeroSemana}`
+      payments.push({ origem, cliente: d?.client_name ?? null, data: w.paidOn, valorUsd: w.valorUsd, valorBrl: round2(w.valorUsd * w.cotacaoUsdBrl), status: d?.status ?? null })
     })
     meetings.filter(mm2 => mm2.metOn.slice(0, 7) === key).forEach(mm2 => {
       payments.push({ origem: 'Reunião', cliente: mtgClient.get(mm2.id) ?? null, data: mm2.metOn, valorUsd: mm2.valorUsd, valorBrl: round2(mm2.valorUsd * mm2.cotacaoUsdBrl), status: null })
@@ -159,7 +161,7 @@ export async function getMyCompensationView(context: RequestContext): Promise<My
 
   return {
     hasComp: true, sellerName: seller.name, cargo: role?.name ?? null, department: dept?.name ?? null,
-    rule, currentMonth, nextPayout, yearReceivedUsd, totalReceivedUsd, dealsCount: deals.length,
+    rule, currentMonth, nextPayout, yearReceivedUsd, totalReceivedUsd, dealsCount: deals.filter(d => d.kind === 'sale').length,
     thisWeekUsd, status: (seller as { status?: string }).status ?? 'ativo', lastUpdate, months, pending,
   }
 }

@@ -24,13 +24,13 @@ const fxAuto: FxConfig = { cotacaoManual: null, cotacaoTravada: false }
 section('Teste 1 — Venda fechada 20/mai: 1 semana em maio, 3 em junho')
 const deal1: Deal = {
   id: 'd1', sellerId: 's1', valorTotalUsd: 100, tetoSemanas: 4,
-  valorPorSemanaUsd: 25, status: 'em_andamento', dataFechamento: '2026-05-20',
+  valorPorSemanaUsd: 25, status: 'em_andamento', dataFechamento: '2026-05-20', kind: 'sale',
 }
 const weeks1: WeeklyPayment[] = [
-  { id: 'w1', dealId: 'd1', numeroSemana: 1, valorUsd: 25, paidOn: '2026-05-25', cotacaoUsdBrl: 5.00 },
-  { id: 'w2', dealId: 'd1', numeroSemana: 2, valorUsd: 25, paidOn: '2026-06-05', cotacaoUsdBrl: 5.00 },
-  { id: 'w3', dealId: 'd1', numeroSemana: 3, valorUsd: 25, paidOn: '2026-06-12', cotacaoUsdBrl: 5.00 },
-  { id: 'w4', dealId: 'd1', numeroSemana: 4, valorUsd: 25, paidOn: '2026-06-19', cotacaoUsdBrl: 5.00 },
+  { id: 'w1', dealId: 'd1', numeroSemana: 1, valorUsd: 25, paidOn: '2026-05-25', cotacaoUsdBrl: 5.00, kind: 'sale' },
+  { id: 'w2', dealId: 'd1', numeroSemana: 2, valorUsd: 25, paidOn: '2026-06-05', cotacaoUsdBrl: 5.00, kind: 'sale' },
+  { id: 'w3', dealId: 'd1', numeroSemana: 3, valorUsd: 25, paidOn: '2026-06-12', cotacaoUsdBrl: 5.00, kind: 'sale' },
+  { id: 'w4', dealId: 'd1', numeroSemana: 4, valorUsd: 25, paidOn: '2026-06-19', cotacaoUsdBrl: 5.00, kind: 'sale' },
 ]
 const base1 = { salaries: [] as SalaryPeriod[], meetings: [] as Meeting[], weeks: weeks1, fx: fxAuto, automaticRate: 5.00 }
 const mai = monthlySummary({ ...base1, year: 2026, month: 5 })
@@ -48,7 +48,7 @@ const meet2: Meeting[] = [
   { id: 'm2', sellerId: 's2', metOn: '2026-06-18', valorUsd: 15, cotacaoUsdBrl: 5.00 },
 ]
 const weeks2: WeeklyPayment[] = [
-  { id: 'w21', dealId: 'd2', numeroSemana: 1, valorUsd: 25, paidOn: '2026-06-10', cotacaoUsdBrl: 5.00 },
+  { id: 'w21', dealId: 'd2', numeroSemana: 1, valorUsd: 25, paidOn: '2026-06-10', cotacaoUsdBrl: 5.00, kind: 'sale' },
 ]
 // Cotação automática do salário = 5.40 (não-congelada); reuniões/semana congeladas em 5.00.
 const s2 = monthlySummary({ year: 2026, month: 6, salaries: sal2, meetings: meet2, weeks: weeks2, fx: fxAuto, automaticRate: 5.40 })
@@ -61,11 +61,11 @@ check('total BRL (500*5.40 + 30*5 + 25*5)', s2.totalBrl, 2975)
 section('Teste 3 — Venda interrompida na 2ª semana → congela em US$50 (não projeta 3 e 4)')
 const deal3: Deal = {
   id: 'd3', sellerId: 's3', valorTotalUsd: 100, tetoSemanas: 4,
-  valorPorSemanaUsd: 25, status: 'interrompido', dataFechamento: '2026-05-01',
+  valorPorSemanaUsd: 25, status: 'interrompido', dataFechamento: '2026-05-01', kind: 'sale',
 }
 const weeks3: WeeklyPayment[] = [
-  { id: 'w31', dealId: 'd3', numeroSemana: 1, valorUsd: 25, paidOn: '2026-05-10', cotacaoUsdBrl: 5.00 },
-  { id: 'w32', dealId: 'd3', numeroSemana: 2, valorUsd: 25, paidOn: '2026-05-17', cotacaoUsdBrl: 5.00 },
+  { id: 'w31', dealId: 'd3', numeroSemana: 1, valorUsd: 25, paidOn: '2026-05-10', cotacaoUsdBrl: 5.00, kind: 'sale' },
+  { id: 'w32', dealId: 'd3', numeroSemana: 2, valorUsd: 25, paidOn: '2026-05-17', cotacaoUsdBrl: 5.00, kind: 'sale' },
 ]
 const t3 = dealTotal(deal3, weeks3)
 console.log(`  recebido ${USD(t3.recebidoUsd)} | semanas restantes ${t3.semanasRestantes} | projetado restante ${USD(t3.projetadoRestanteUsd)} | TOTAL ${USD(t3.totalProjetadoUsd)}`)
@@ -111,6 +111,19 @@ const proj = nextPayoutProjection('2026-06-15', { salaries: sal2, meetings: meet
 console.log(`  próximo pagamento: ${proj.proximoPagamento} (fecha o mês ${proj.refMonth}/${proj.refYear})`)
 console.log(`  vai cair: ${USD(proj.summary.totalUsd)}  /  ${BRL(proj.summary.totalBrl)}`)
 check('próximo pagamento paga junho (total USD)', proj.summary.totalUsd, 555)
+
+// ──────────────────────────────────────────────────────────────────────────
+section('Teste 6 — Venda, upgrade e renovação aparecem separados sem mudar o total')
+const classified: WeeklyPayment[] = [
+  { id: 'sale', dealId: 'sale', numeroSemana: 1, valorUsd: 25, paidOn: '2026-06-10', cotacaoUsdBrl: 5, kind: 'sale' },
+  { id: 'upgrade', dealId: 'upgrade', numeroSemana: 1, valorUsd: 10, paidOn: '2026-06-10', cotacaoUsdBrl: 5, kind: 'upgrade' },
+  { id: 'renewal', dealId: 'renewal', numeroSemana: 1, valorUsd: 50, paidOn: '2026-06-10', cotacaoUsdBrl: 5, kind: 'renewal' },
+]
+const c6 = monthlySummary({ year: 2026, month: 6, salaries: [], meetings: [], weeks: classified, fx: fxAuto, automaticRate: 5 })
+check('vendas separadas', c6.salesCommissionUsd, 25)
+check('upgrade separado', c6.upgradeBonusUsd, 10)
+check('renovação separada', c6.renewalBonusUsd, 50)
+check('total preservado', c6.totalUsd, 85)
 
 // ──────────────────────────────────────────────────────────────────────────
 console.log(`\n${failures === 0 ? '✅ TODOS OS CASOS BATERAM COM O ESPERADO' : `❌ ${failures} verificação(ões) FALHARAM`}`)

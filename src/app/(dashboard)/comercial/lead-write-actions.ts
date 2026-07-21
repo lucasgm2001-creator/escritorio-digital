@@ -1,6 +1,7 @@
 'use server'
 
 import { createClient } from '@/lib/supabase/server'
+import { createServiceClient } from '@/lib/supabase/service'
 import { DEFAULT_TASK_OWNER_ID, DEFAULT_TASK_OWNER_NAME } from '@/lib/tasks/default-task-owner'
 import { pickAllowed, requireActionContext } from '@/server/actions/safe-action'
 import { getStages } from '@/lib/funnelStages.server'
@@ -94,7 +95,9 @@ export async function createLeadAction(
 export async function saveLeadHistoryAction(leadId: string, history: LeadHistoryInput): Promise<Res<{ stageEvents: number; createdMeeting: boolean }>> {
   const g = await guard('edit', DENY_EDIT)
   if (!g.context) return { ok: false, error: g.error }
-  const supabase = createClient()
+  const supabase = createServiceClient()
+  const { data: ownedLead } = await supabase.from('leads').select('id').eq('id', leadId).eq('team_id', g.context.activeTeamId).is('deleted_at', null).maybeSingle()
+  if (!ownedLead) return { ok: false, error: 'Lead não encontrado nesta equipe.' }
   const stages = await getStages()
   const won = wonSlug(stages)
   const { data: fx } = await supabase.from('fx_config').select('cotacao_manual, cotacao_travada, cotacao_referencia').eq('id', 1).maybeSingle()
@@ -127,16 +130,23 @@ export async function updateLeadAction(leadId: string, patch: Record<string, unk
 export async function moveLeadAction(lead: MovableLead, newStatus: LeadStatus, planoId: string | null = null): Promise<Res<{ notes: ActionNote[] }>> {
   const g = await guard('edit', DENY_EDIT)
   if (!g.context) return { ok: false, error: g.error }
-  const supabase = createClient()
+  const session = createClient()
   // Unificação da Lixeira (F4): mover para 'lixeira' = EXCLUIR (soft_delete_lead, owner-only). deleted_at é a
   // fonte OFICIAL de exclusão — não mais o status. Assim não há dois sistemas de "lixeira".
   if (newStatus === 'lixeira') {
-    const { error } = await supabase.rpc('soft_delete_lead', { p_lead_id: lead.id })
+    const { error } = await session.rpc('soft_delete_lead', { p_lead_id: lead.id })
     if (error) return { ok: false, error: /owner/i.test(error.message) ? 'Apenas o owner da equipe pode excluir.' : error.message }
     return { ok: true, notes: [{ message: 'Lead excluído (Lixeira).', type: 'success' }] }
   }
+  // O fluxo de fechamento escreve nos ledgers financeiros com service-role somente depois da
+  // autorização acima e de confirmar que o lead pertence à equipe ativa.
+  const supabase = createServiceClient()
+  const { data: ownedLead } = await supabase.from('leads')
+    .select('id, name, status, email, phone, company, assigned_to, assigned_name, city, state, area_code')
+    .eq('id', lead.id).eq('team_id', g.context.activeTeamId).is('deleted_at', null).maybeSingle()
+  if (!ownedLead) return { ok: false, error: 'Lead não encontrado nesta equipe.' }
   const stages = await getStages()
-  const res = await moveLead(supabase, lead, newStatus, g.context.profile?.name ?? '—', stages, planoId, g.context.user.id, g.context.activeTeamId)
+  const res = await moveLead(supabase as Parameters<typeof moveLead>[0], ownedLead as MovableLead, newStatus, g.context.profile?.name ?? '—', stages, planoId, g.context.user.id, g.context.activeTeamId)
   if (!res.ok) return { ok: false, error: res.error ?? 'Não foi possível mover o lead.' }
   return { ok: true, notes: res.notes }
 }

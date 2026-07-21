@@ -148,7 +148,7 @@ export function MinhaRemuneracao({ vm, workspace }: { vm: MyCompensationView; wo
                   <div className="flex items-center gap-2 min-w-0">
                     <ChevronDown className={cn('w-4 h-4 text-bento-muted transition-transform shrink-0', isOpen && 'rotate-180')} />
                     <span className="text-sm font-semibold text-bento-text capitalize shrink-0">{mo.label}</span>
-                    <span className="text-caption text-bento-dim truncate">· {mo.summary.weeksCount} semana(s) · {mo.summary.meetingsCount} reunião(ões)</span>
+                    <span className="text-caption text-bento-dim truncate">· {mo.summary.salesWeeksCount} semana(s) de venda · {mo.summary.meetingsCount} reunião(ões)</span>
                   </div>
                   <span className="text-sm font-semibold text-bento-text tabular-nums shrink-0">{usd(mo.summary.totalUsd)}</span>
                 </button>

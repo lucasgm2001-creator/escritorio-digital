@@ -26,7 +26,7 @@ export async function buildMyCompensationPdf(vm: MyCompensationView, workspace: 
   doc.setFont('helvetica', 'bold'); doc.setFontSize(11); doc.setTextColor(...dark); doc.text('TOTAL DO MÊS', 14, 58)
   doc.setFontSize(17); doc.setTextColor(...lime); doc.text(usd(cur?.totalUsd ?? 0), 14, 67)
   doc.setFont('helvetica', 'normal'); doc.setFontSize(10); doc.setTextColor(...dark)
-  doc.text(`Salário: ${usd(cur?.salaryUsd ?? 0)}    Reuniões (${cur?.meetingsCount ?? 0}): ${usd(cur?.meetingsUsd ?? 0)}    Comissão (${cur?.weeksCount ?? 0} sem.): ${usd(cur?.weeksUsd ?? 0)}`, 14, 75)
+  doc.text(`Salário: ${usd(cur?.salaryUsd ?? 0)}  Vendas (${cur?.salesWeeksCount ?? 0} sem.): ${usd(cur?.salesCommissionUsd ?? 0)}  Upgrade: ${usd(cur?.upgradeBonusUsd ?? 0)}  Renovação: ${usd(cur?.renewalBonusUsd ?? 0)}`, 14, 75)
   doc.setTextColor(90, 90, 90)
   doc.text(`Próximo pagamento: ${vm.nextPayout?.date ?? '—'}  ·  saldo previsto ${usd(vm.nextPayout?.totalUsd ?? 0)}`, 14, 81)
 

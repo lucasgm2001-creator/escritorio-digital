@@ -3,6 +3,7 @@
 // Cada comissão (reunião / semana) guarda a cotação CONGELADA da data → histórico imutável.
 
 export type DealStatus = 'em_andamento' | 'interrompido' | 'concluido'
+export type DealKind = 'sale' | 'upgrade' | 'renewal'
 
 /** Configuração global da cotação USD->BRL (uma linha só no banco). */
 export interface FxConfig {
@@ -35,6 +36,7 @@ export interface Deal {
   valorPorSemanaUsd: number // 25 (= total / teto, congelado)
   status: DealStatus
   dataFechamento: string    // 'YYYY-MM-DD' (informativo; NÃO define o mês das semanas)
+  kind: DealKind
 }
 
 /** Semana de uma venda RECEBIDA pelo cliente. Conta no mês de paidOn. */
@@ -45,6 +47,7 @@ export interface WeeklyPayment {
   valorUsd: number      // 25
   paidOn: string        // 'YYYY-MM-DD' -> define o mês
   cotacaoUsdBrl: number // congelada no recebimento
+  kind: DealKind
 }
 
 /** Resultado do resumo mensal de um vendedor. */
@@ -56,12 +59,19 @@ export interface MonthlySummary {
   meetingsUsd: number
   weeksCount: number
   weeksUsd: number
+  salesWeeksCount: number
+  salesCommissionUsd: number
+  upgradeBonusUsd: number
+  renewalBonusUsd: number
   totalUsd: number
   // BRL (exibição): reuniões/semanas pela cotação CONGELADA; salário pela cotação vigente.
   rateUsed: number      // cotação usada p/ converter o salário (não-congelado)
   salaryBrl: number
   meetingsBrl: number
   weeksBrl: number
+  salesCommissionBrl: number
+  upgradeBonusBrl: number
+  renewalBonusBrl: number
   totalBrl: number
 }
 

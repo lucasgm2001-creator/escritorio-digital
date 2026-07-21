@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase/service'
-import { scheduleDueWeeks, dueDateFor, resolveClientPlan } from '@/lib/commission/actions'
+import { scheduleDueWeeks, dueDateFor, resolveClientPlanTimeline } from '@/lib/commission/actions'
 import { todaySP } from '@/lib/date'
 
 // Robô diário: agenda semanas vencidas. Nunca confirma recebimento e nunca gera comissão sozinho.
@@ -29,7 +29,7 @@ export async function GET(req: Request) {
 
   // GUARD A4: se a leitura de fx_config FALHOU ou não há cotação real no banco, ABORTA sem gravar nada —
   // nunca congelar BRL com câmbio chutado. É SEGURO: payDueWeeks faz catch-up no próximo ciclo com a
-  // cotação certa, então nenhuma semana se perde (só atrasa um ciclo). O USD não é afetado por isto.
+    // cotação certa, então nenhuma semana se perde (só atrasa um ciclo). O USD não é afetado por isto.
   if (fxError || rate == null || !(rate > 0)) {
     const reason = fxError
       ? `erro lendo fx_config: ${fxError.message}`
@@ -40,7 +40,7 @@ export async function GET(req: Request) {
 
   // Clientes ATIVOS com dia de pagamento definido. dia null → pular; end_date passou → pular.
   const { data: clients, error } = await supabase.from('clients')
-    .select('id, name, assigned_name, status, start_date, end_date, dia_pagamento_semana, team_id')
+    .select('id, name, assigned_name, status, start_date, billing_anchor_date, end_date, dia_pagamento_semana, team_id')
     .eq('status', 'ativo').is('deleted_at', null)   // SOFT-DELETE: nunca cobra cliente excluído (service-role ignora RLS)
   if (error) return NextResponse.json({ ok: false, error: error.message }, { status: 500 })
 
@@ -52,9 +52,9 @@ export async function GET(req: Request) {
   if (dryRun) {
     const items: { client: string; numero_semana: number; due_on: string; valor_previsto_usd: number; status: 'vencida' }[] = []
     for (const c of eligible) {
-      const start = String(c.start_date).slice(0, 10)
+    const start = String(c.billing_anchor_date ?? c.start_date).slice(0, 10)
       const dia = Number(c.dia_pagamento_semana)
-      const { valorUsd } = await resolveClientPlan(supabase as Parameters<typeof resolveClientPlan>[0], c.id)
+      const planAtWeek = await resolveClientPlanTimeline(supabase as Parameters<typeof resolveClientPlanTimeline>[0], c.id)
       const { data: cps } = await supabase.from('client_payments').select('numero_semana').eq('client_id', c.id)
       const reg = new Set((cps ?? []).map(r => r.numero_semana as number))   // inclui anuladas → não re-marca
       // Espelha a seleção do agendador (read-only): 1ª semana não registrada, due<=hoje, máx 12.
@@ -63,6 +63,7 @@ export async function GET(req: Request) {
         const due = dueDateFor(start, dia, n)
         if (due > today) break
         reg.add(n)
+        const { valorUsd } = planAtWeek(n)
         items.push({ client: c.name as string, numero_semana: n, due_on: due, valor_previsto_usd: valorUsd, status: 'vencida' })
       }
     }

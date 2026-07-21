@@ -2,7 +2,7 @@
 // formato/mapeamento do componente. Sem React/estado: formatação de data, cores de status e mapeadores
 // DB(snake)→cálculo(camel). Movido VERBATIM (comportamento idêntico). Reusável por CommissionSection e pelos
 // sub-componentes de lançamento (DealCard/MeetingRow), que passam a importar daqui.
-import type { Deal, DealStatus, Meeting, WeeklyPayment } from '@/lib/commission/types'
+import type { Deal, DealKind, DealStatus, Meeting, WeeklyPayment } from '@/lib/commission/types'
 
 export const inputCls = 'w-full bg-bento-bg border border-bento-border rounded-btn px-3 py-2 text-sm text-bento-text placeholder:text-bento-muted focus:outline-none focus:border-lime'
 export const inputSm = 'bg-bento-bg border border-bento-border rounded-btn px-2 py-1 text-[11px] text-bento-text focus:outline-none focus:border-lime'
@@ -46,13 +46,13 @@ export type DealUI = Deal & { clientName: string | null }
 export type MeetingUI = Meeting & { clientName: string | null }
 
 // ── mapeadores DB (snake) → tipos do cálculo (camel) ──────────────────────────
-export const toDealUI = (r: { id: string; seller_id: string; client_name: string | null; valor_total_usd: number; teto_semanas: number; valor_por_semana_usd: number; status: DealStatus; data_fechamento: string }): DealUI => ({
+export const toDealUI = (r: { id: string; seller_id: string; client_name: string | null; valor_total_usd: number; teto_semanas: number; valor_por_semana_usd: number; status: DealStatus; data_fechamento: string; kind?: DealKind }): DealUI => ({
   id: r.id, sellerId: r.seller_id, clientName: r.client_name,
   valorTotalUsd: Number(r.valor_total_usd), tetoSemanas: r.teto_semanas,
-  valorPorSemanaUsd: Number(r.valor_por_semana_usd), status: r.status, dataFechamento: r.data_fechamento,
+  valorPorSemanaUsd: Number(r.valor_por_semana_usd), status: r.status, dataFechamento: r.data_fechamento, kind: r.kind ?? 'sale',
 })
-export const toWeek = (r: { id: string; deal_id: string; numero_semana: number; valor_usd: number; paid_on: string; cotacao_usd_brl: number }): WeeklyPayment => ({
-  id: r.id, dealId: r.deal_id, numeroSemana: r.numero_semana, valorUsd: Number(r.valor_usd), paidOn: r.paid_on, cotacaoUsdBrl: Number(r.cotacao_usd_brl),
+export const toWeek = (r: { id: string; deal_id: string; numero_semana: number; valor_usd: number; paid_on: string; cotacao_usd_brl: number }, kind: DealKind = 'sale'): WeeklyPayment => ({
+  id: r.id, dealId: r.deal_id, numeroSemana: r.numero_semana, valorUsd: Number(r.valor_usd), paidOn: r.paid_on, cotacaoUsdBrl: Number(r.cotacao_usd_brl), kind,
 })
 export const toMeeting = (r: { id: string; seller_id: string; met_on: string; valor_usd: number; cotacao_usd_brl: number; client_name: string | null }): MeetingUI => ({
   id: r.id, sellerId: r.seller_id, metOn: r.met_on, valorUsd: Number(r.valor_usd), cotacaoUsdBrl: Number(r.cotacao_usd_brl), clientName: r.client_name,

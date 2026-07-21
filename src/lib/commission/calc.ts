@@ -62,15 +62,23 @@ export function monthlySummary(input: MonthlyInput): MonthlySummary {
   const wks = weeks.filter(w => inMonth(w.paidOn, year, month))
   const weeksUsd = round2(wks.reduce((s, w) => s + w.valorUsd, 0))
   const weeksBrl = round2(wks.reduce((s, w) => s + w.valorUsd * w.cotacaoUsdBrl, 0))
+  const sales = wks.filter(w => w.kind === 'sale')
+  const upgrades = wks.filter(w => w.kind === 'upgrade')
+  const renewals = wks.filter(w => w.kind === 'renewal')
+  const sumUsd = (rows: WeeklyPayment[]) => round2(rows.reduce((s, w) => s + w.valorUsd, 0))
+  const sumBrl = (rows: WeeklyPayment[]) => round2(rows.reduce((s, w) => s + w.valorUsd * w.cotacaoUsdBrl, 0))
 
   return {
     year, month,
     salaryUsd,
     meetingsCount: mtgs.length, meetingsUsd,
     weeksCount: wks.length, weeksUsd,
+    salesWeeksCount: sales.length, salesCommissionUsd: sumUsd(sales),
+    upgradeBonusUsd: sumUsd(upgrades), renewalBonusUsd: sumUsd(renewals),
     totalUsd: round2(salaryUsd + meetingsUsd + weeksUsd),
     rateUsed,
     salaryBrl, meetingsBrl, weeksBrl,
+    salesCommissionBrl: sumBrl(sales), upgradeBonusBrl: sumBrl(upgrades), renewalBonusBrl: sumBrl(renewals),
     totalBrl: round2(salaryBrl + meetingsBrl + weeksBrl),
   }
 }
@@ -126,7 +134,7 @@ export function nextPayoutProjection(
  * Clientes SEM comissão (Daniel/owner) não têm deal, então nem entram aqui. Soft-deleted já sai na fonte (RLS).
  */
 export function pendingCommission(deals: DealWithClient[], weeks: WeeklyPayment[]): PendingCommissionResult {
-  const lines: PendingClientLine[] = deals.map(d => {
+  const lines: PendingClientLine[] = deals.filter(d => d.kind === 'sale').map(d => {
     const dt = dealTotal(d, weeks) // REUSO — semanasPagas / semanasRestantes / recebidoUsd / projetadoRestanteUsd
     const situacao: PendingClientLine['situacao'] =
       dt.semanasPagas >= d.tetoSemanas ? 'completo'

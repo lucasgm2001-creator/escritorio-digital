@@ -96,7 +96,7 @@ export function CommissionSection({ sellerId, sellerName }: { sellerId: string; 
     const [salRes, mtgRes, dealRes, fxRes, cliRes, leadRes, renewalRes] = await Promise.all([
       supabase.from('seller_salaries').select('seller_id, valor_usd, effective_from').eq('seller_id', sellerId).order('effective_from', { ascending: false }),
       supabase.from('meetings').select('id, seller_id, met_on, valor_usd, cotacao_usd_brl, client_name').eq('seller_id', sellerId).order('met_on', { ascending: false }),
-      supabase.from('deals').select('id, seller_id, client_name, valor_total_usd, teto_semanas, valor_por_semana_usd, status, data_fechamento').eq('seller_id', sellerId).order('data_fechamento', { ascending: false }),
+      supabase.from('deals').select('id, seller_id, client_name, valor_total_usd, teto_semanas, valor_por_semana_usd, status, data_fechamento, kind').eq('seller_id', sellerId).order('data_fechamento', { ascending: false }),
       supabase.from('fx_config').select('cotacao_manual, cotacao_travada, cotacao_referencia').eq('id', 1).maybeSingle(),
       supabase.from('clients').select('id, name').order('name'),
       supabase.from('leads').select('id, name').order('name'),
@@ -117,7 +117,8 @@ export function CommissionSection({ sellerId, sellerName }: { sellerId: string; 
     const dealIds = ds.map(d => d.id)
     if (dealIds.length) {
       const { data: wk } = await supabase.from('weekly_payments').select('id, deal_id, numero_semana, valor_usd, paid_on, cotacao_usd_brl').in('deal_id', dealIds)
-      setWeeks((wk ?? []).map(toWeek))
+      const kindByDeal = new Map(ds.map(d => [d.id, d.kind]))
+      setWeeks((wk ?? []).map(w => toWeek(w, kindByDeal.get(w.deal_id) ?? 'sale')))
     } else {
       setWeeks([])
     }
@@ -280,7 +281,7 @@ export function CommissionSection({ sellerId, sellerName }: { sellerId: string; 
     if (!res.ok) { toast({ type: 'error', message: payWeekMessage(res.reason, res.message) }); return false }
     if (res.row) {
       const row = res.row as Parameters<typeof toWeek>[0]
-      setWeeks(prev => [...prev, toWeek(row)])
+      setWeeks(prev => [...prev, toWeek(row, deal.kind)])
       toast({ type: 'success', message: `Semana ${numero} recebida em ${fmtDayMonthYear(paidOn)}.` })
     }
     return true
@@ -424,14 +425,16 @@ export function CommissionSection({ sellerId, sellerName }: { sellerId: string; 
     //  · Reuniões: summary.meetingsCount (= meetings com metOn no mês; qtd × US$15 = meetingsUsd)
     //  · Semanas pagas: summary.weeksCount (= weekly_payments com paidOn no mês; qtd × US$25 = weeksUsd)
     //  · Vendas no mês: deals com data_fechamento no mês e status de venda fechada/ativa (exclui interrompido).
-    const vendasMes = deals.filter(d => d.dataFechamento.slice(0, 7) === mp && d.status !== 'interrompido').length
+    const vendasMes = deals.filter(d => d.kind === 'sale' && d.dataFechamento.slice(0, 7) === mp && d.status !== 'interrompido').length
     const rows: { sort: string; dia: string; acao: string; cliente: string; usd: number }[] = []
     if (summary.salaryUsd > 0) rows.push({ sort: `${mp}-01`, dia: `01/${pad2(mo)}`, acao: 'Salário fixo', cliente: '—', usd: summary.salaryUsd })
     meetings.filter(m => m.metOn.slice(0, 7) === mp).forEach(m =>
       rows.push({ sort: m.metOn, dia: fmtDayMonth(m.metOn), acao: 'Reunião', cliente: m.clientName || '—', usd: m.valorUsd }))
     weeks.filter(w => w.paidOn.slice(0, 7) === mp).forEach(w => {
       const d = dealById.get(w.dealId)
-      rows.push({ sort: w.paidOn, dia: fmtDayMonth(w.paidOn), acao: `Semana ${w.numeroSemana} (venda)`, cliente: d?.clientName || '—', usd: w.valorUsd })
+      const action = d?.kind === 'upgrade' ? `Upgrade · parcela ${w.numeroSemana}`
+        : d?.kind === 'renewal' ? 'Bônus de renovação' : `Semana ${w.numeroSemana} (venda)`
+      rows.push({ sort: w.paidOn, dia: fmtDayMonth(w.paidOn), acao: action, cliente: d?.clientName || '—', usd: w.valorUsd })
     })
     rows.sort((a, b) => (a.sort < b.sort ? -1 : 1))
 
@@ -455,9 +458,9 @@ export function CommissionSection({ sellerId, sellerName }: { sellerId: string; 
     doc.text(`${brl(summary.totalBrl)}  (cotação R$ ${rateStr})`, 14, 74)
     doc.setFontSize(10); doc.setTextColor(...dark)
     // Valores COM as quantidades do mês ao lado (qtd × valor unitário = valor exibido).
-    doc.text(`Salário fixo: ${usd(summary.salaryUsd)}    Reuniões (${summary.meetingsCount}): ${usd(summary.meetingsUsd)}    Comissão de venda (${summary.weeksCount} sem.): ${usd(summary.weeksUsd)}`, 14, 82)
+    doc.text(`Salário: ${usd(summary.salaryUsd)}  Vendas (${summary.salesWeeksCount} sem.): ${usd(summary.salesCommissionUsd)}  Upgrade: ${usd(summary.upgradeBonusUsd)}  Renovação: ${usd(summary.renewalBonusUsd)}`, 14, 82)
     doc.setTextColor(90, 90, 90)
-    doc.text(`Reuniões no mês: ${summary.meetingsCount} (× US$ 15)    Semanas pagas: ${summary.weeksCount} (× US$ 25)    Vendas no mês: ${vendasMes}`, 14, 88)
+    doc.text(`Reuniões no mês: ${summary.meetingsCount}    Semanas de venda pagas: ${summary.salesWeeksCount}    Vendas no mês: ${vendasMes}`, 14, 88)
 
     autoTable(doc, {
       startY: 94,
@@ -516,7 +519,9 @@ export function CommissionSection({ sellerId, sellerName }: { sellerId: string; 
           {/* Componentes da COMISSÃO (reuniões + vendas) — o salário é separado, mais abaixo. */}
           {[
             { label: `Reuniões (${summary.meetingsCount})`, u: summary.meetingsUsd, b: summary.meetingsBrl },
-            { label: `Vendas (${summary.weeksCount} sem.)`, u: summary.weeksUsd, b: summary.weeksBrl },
+            { label: `Vendas (${summary.salesWeeksCount} sem.)`, u: summary.salesCommissionUsd, b: summary.salesCommissionBrl },
+            { label: 'Bônus de upgrade', u: summary.upgradeBonusUsd, b: summary.upgradeBonusBrl },
+            { label: 'Bônus de renovação', u: summary.renewalBonusUsd, b: summary.renewalBonusBrl },
           ].map(r => (
             <div key={r.label} className="flex items-center justify-between py-2 border-b border-bento-border/40">
               <span className="text-xs text-bento-muted">{r.label}</span>

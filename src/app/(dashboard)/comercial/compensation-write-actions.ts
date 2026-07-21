@@ -53,18 +53,28 @@ export async function updateRenewalBonusAction(sellerId: string, enabled: boolea
   const supabase = createClient()
   const teamId = g.context.activeTeamId
   if (!teamId) return { error: { message: 'Equipe ativa não encontrada.' } }
-  const { data: seller } = await supabase.from('sellers').select('id').eq('id', sellerId).eq('team_id', teamId).maybeSingle()
+  const { data: seller } = await supabase.from('sellers').select('id, gera_comissao').eq('id', sellerId).eq('team_id', teamId).maybeSingle()
   if (!seller) return { error: { message: 'Vendedor não encontrado nesta equipe.' } }
+  if (!seller.gera_comissao) return { error: { message: 'Este colaborador não participa de bonificações.' } }
 
+  const today = new Date().toISOString().slice(0, 10)
   const { data: current, error: readError } = await supabase.from('collaborator_compensation_settings')
-    .select('id').eq('seller_id', sellerId).eq('team_id', teamId)
-    .lte('effective_from', new Date().toISOString().slice(0, 10))
+    .select('*').eq('seller_id', sellerId).eq('team_id', teamId)
+    .lte('effective_from', today)
     .order('effective_from', { ascending: false }).limit(1).maybeSingle()
   if (readError) return { error: toActionError(readError) }
-  const payload = { renewal_bonus_enabled: enabled, renewal_bonus_type: 'fixed', renewal_bonus_value: 50, updated_at: new Date().toISOString() }
-  const result = current
+  const previous = { ...(current ?? {}) }
+  delete previous.id
+  delete previous.created_at
+  const payload = {
+    ...previous, seller_id: sellerId, team_id: teamId, effective_from: today,
+    renewal_bonus_enabled: enabled, renewal_bonus_type: 'fixed', renewal_bonus_value: 50,
+    updated_at: new Date().toISOString(),
+  }
+  // Se já houve uma alteração hoje, atualiza apenas a vigência de hoje. O histórico anterior nunca é reescrito.
+  const result = current?.effective_from === today
     ? await supabase.from('collaborator_compensation_settings').update(payload).eq('id', current.id).eq('team_id', teamId)
-    : await supabase.from('collaborator_compensation_settings').insert({ seller_id: sellerId, team_id: teamId, effective_from: new Date().toISOString().slice(0, 10), ...payload })
+    : await supabase.from('collaborator_compensation_settings').insert(payload)
   return { error: toActionError(result.error) }
 }
 
@@ -81,13 +91,20 @@ export async function updateUpgradeCommissionAction(sellerId: string, enabled: b
 
   const today = new Date().toISOString().slice(0, 10)
   const { data: current, error: readError } = await supabase.from('collaborator_compensation_settings')
-    .select('id').eq('seller_id', sellerId).eq('team_id', teamId).lte('effective_from', today)
+    .select('*').eq('seller_id', sellerId).eq('team_id', teamId).lte('effective_from', today)
     .order('effective_from', { ascending: false }).limit(1).maybeSingle()
   if (readError) return { error: toActionError(readError) }
-  const payload = { upgrade_commission_enabled: enabled, upgrade_commission_type: 'percentage', upgrade_commission_value: 20, upgrade_commission_base: 'plan_difference', updated_at: new Date().toISOString() }
-  const result = current
+  const previous = { ...(current ?? {}) }
+  delete previous.id
+  delete previous.created_at
+  const payload = {
+    ...previous, seller_id: sellerId, team_id: teamId, effective_from: today,
+    upgrade_commission_enabled: enabled, upgrade_commission_type: 'percentage',
+    upgrade_commission_value: 20, upgrade_commission_base: 'plan_difference', updated_at: new Date().toISOString(),
+  }
+  const result = current?.effective_from === today
     ? await supabase.from('collaborator_compensation_settings').update(payload).eq('id', current.id).eq('team_id', teamId)
-    : await supabase.from('collaborator_compensation_settings').insert({ seller_id: sellerId, team_id: teamId, effective_from: today, ...payload })
+    : await supabase.from('collaborator_compensation_settings').insert(payload)
   return { error: toActionError(result.error) }
 }
 

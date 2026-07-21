@@ -138,7 +138,7 @@ function SellerProfile({ seller, onClose, onUpdated, onDeleted }: {
       const [salRes, mtgRes, dealRes, fxRes] = await Promise.all([
         supabase.from('seller_salaries').select('seller_id, valor_usd, effective_from').eq('seller_id', seller.id),
         supabase.from('meetings').select('id, seller_id, met_on, valor_usd, cotacao_usd_brl').eq('seller_id', seller.id),
-        supabase.from('deals').select('id, data_fechamento').eq('seller_id', seller.id),
+        supabase.from('deals').select('id, data_fechamento, kind').eq('seller_id', seller.id),
         supabase.from('fx_config').select('cotacao_manual, cotacao_travada').eq('id', 1).maybeSingle(),
       ])
       const salaries: SalaryPeriod[] = (salRes.data ?? []).map(s => ({ sellerId: s.seller_id, valorUsd: Number(s.valor_usd), effectiveFrom: s.effective_from }))
@@ -149,7 +149,8 @@ function SellerProfile({ seller, onClose, onUpdated, onDeleted }: {
       let weeks: WeeklyPayment[] = []
       if (dealIds.length) {
         const { data: wk } = await supabase.from('weekly_payments').select('id, deal_id, numero_semana, valor_usd, paid_on, cotacao_usd_brl').in('deal_id', dealIds)
-        weeks = (wk ?? []).map(w => ({ id: w.id, dealId: w.deal_id, numeroSemana: w.numero_semana, valorUsd: Number(w.valor_usd), paidOn: w.paid_on, cotacaoUsdBrl: Number(w.cotacao_usd_brl) }))
+        const kindByDeal = new Map(dealsData.map(d => [d.id, d.kind ?? 'sale']))
+        weeks = (wk ?? []).map(w => ({ id: w.id, dealId: w.deal_id, numeroSemana: w.numero_semana, valorUsd: Number(w.valor_usd), paidOn: w.paid_on, cotacaoUsdBrl: Number(w.cotacao_usd_brl), kind: kindByDeal.get(w.deal_id) ?? 'sale' }))
       }
       const manual = fxRes.data?.cotacao_manual != null ? Number(fxRes.data.cotacao_manual) : null
       const fx: FxConfig = { cotacaoManual: manual, cotacaoTravada: !!fxRes.data?.cotacao_travada }
@@ -163,7 +164,7 @@ function SellerProfile({ seller, onClose, onUpdated, onDeleted }: {
       setMc({
         comissaoAtual: comissaoPuraUsd, comissaoAnterior: comissaoPuraPrevUsd, comissaoAtualBrl: comissaoPuraBrl,
         totalAtual: cur.totalUsd, totalAtualBrl: cur.totalBrl,
-        vendasMes: dealsData.filter(d => (d.data_fechamento ?? '').slice(0, 7) === mp).length,
+        vendasMes: dealsData.filter(d => (d.kind ?? 'sale') === 'sale' && (d.data_fechamento ?? '').slice(0, 7) === mp).length,
         reunioesMes: cur.meetingsCount, salarioUsd: cur.salaryUsd, salarioBrl: cur.salaryBrl, rate: cur.rateUsed,
       })
     }

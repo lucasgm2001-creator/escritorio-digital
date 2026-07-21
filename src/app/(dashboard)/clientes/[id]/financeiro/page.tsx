@@ -14,16 +14,17 @@ export default async function ClientFinanceiroPage({ params }: { params: { id: s
   const vm = context ? await getClientFinance(context, params.id) : null
   const client = context ? await getClientWorkspace(params.id) : null
   if (!vm || !client) notFound()
+  const canManage = context?.role === 'owner' || context?.role === 'admin'
 
   return (
     <div className="space-y-6">
       <ClientFinance vm={vm} />
-      <ClientPaymentsPanel
+      {canManage ? <ClientPaymentsPanel
         clients={[{ id: client.id, name: client.name }]}
         defaultOpen
         defaultClientId={client.id}
         title="Editar semanas e recebimentos"
-      />
+      /> : <p className="text-sm text-bento-muted">O histórico financeiro está disponível acima. Alterações de recebimentos são restritas à administração.</p>}
       <ClientBilling billing={currentBillingProfile()} />
     </div>
   )

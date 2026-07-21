@@ -135,6 +135,12 @@ export function ClientPaymentsPanel({
     const expected = Number(editor.valorPrevisto)
     const paid = Number(editor.valorPago || 0)
     if (!Number.isFinite(expected) || expected < 0) { toast({ type: 'error', message: 'Informe um valor previsto válido.' }); return }
+    if (editor.status === 'paga' && (!editor.paidOn || paid <= 0 || paid < expected)) {
+      toast({ type: 'error', message: 'Para marcar como paga, informe a data e o valor integral recebido.' }); return
+    }
+    if (editor.status === 'parcial' && (!editor.paidOn || paid <= 0 || paid >= expected)) {
+      toast({ type: 'error', message: 'O pagamento parcial deve ser maior que zero e menor que o valor previsto.' }); return
+    }
     setSaving(true)
     try {
       const res = await saveClientWeekAction({

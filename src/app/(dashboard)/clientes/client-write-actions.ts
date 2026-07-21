@@ -38,6 +38,15 @@ async function guardEdit() {
   return g.context ? { context: g.context, error: null } as const : { context: null, error: g.error.message } as const
 }
 
+async function guardFinance() {
+  const g = await requireActionContext({
+    permission: { module: 'finance', action: 'approve' },
+    deniedMessage: 'Você não tem acesso de administrador ao Financeiro.',
+    expiredMessage: EXPIRED,
+  })
+  return g.context ? { context: g.context, error: null } as const : { context: null, error: g.error.message } as const
+}
+
 // Atualiza dados do cliente (dossiê, pasta do Drive, identidade). Filtrado pela allowlist.
 export async function updateClientAction(clientId: string, patch: Record<string, unknown>): Promise<Res> {
   const g = await guardEdit()
@@ -216,7 +225,7 @@ export type SaveClientWeekInput = {
 // Editor canônico da semana. A função do banco sincroniza situação, receita, comissão e auditoria
 // na mesma transação; nenhuma escrita financeira parcial fica para trás.
 export async function saveClientWeekAction(input: SaveClientWeekInput): Promise<Res<{ payment: Record<string, unknown> }>> {
-  const g = await guardEdit()
+  const g = await guardFinance()
   if (!g.context) return { ok: false, error: g.error }
   const svc = createServiceClient()
   const owned = await assertClientOwnership(svc, input.clientId, g.context.activeTeamId)
@@ -241,34 +250,41 @@ export async function saveClientWeekAction(input: SaveClientWeekInput): Promise<
   return { ok: true, payment: data as Record<string, unknown> }
 }
 
-// Upgrade de plano (F3): registra o evento + bônus (só a diferença, config do vendedor) na competência do
-// upgrade e move o cliente para o novo plano. Reusa o motor vivo (applyPlanUpgrade). Mesma segurança do
-// reconstruct/payMonth (service-role só após assertClientOwnership). Sem 2º motor; regra financeira explicada.
+// Upgrade de plano (F3): registra o evento e cria quatro parcelas de 20% da diferença mensal.
+// Cada parcela só é liberada por uma semana integralmente paga, dentro da transação do banco.
 export async function registerPlanUpgradeAction(
   clientId: string,
   newPlanId: string,
   changedAt?: string,
   options?: { sellerId?: string | null; effectiveWeek?: number | null; observacao?: string | null },
 ): Promise<Res<{ bonus: number; weeklyBonus: number; installments: number; deltaMensal: number; sellerId: string }>> {
-  const g = await guardEdit()
+  const g = await guardFinance()
   if (!g.context) return { ok: false, error: g.error }
   const supabase = createServiceClient()
   const owned = await assertClientOwnership(supabase, clientId, g.context.activeTeamId)
   if (!owned.ok) return { ok: false, error: owned.status === 403 ? 'Cliente de outra equipe.' : 'Cliente não encontrado.' }
   const changed = (changedAt && /^\d{4}-\d{2}-\d{2}$/.test(changedAt)) ? changedAt : new Date().toISOString().slice(0, 10)
-  const rate = await resolveEditRate(supabase)
   const session = createClient()
   const { data, error } = await session.rpc('register_plan_upgrade_v2', {
     p_client_id: clientId,
     p_new_plan_id: newPlanId,
     p_changed_at: changed,
     p_seller_id: options?.sellerId || null,
-    p_bonus_override_usd: null,
     p_effective_week: options?.effectiveWeek ?? null,
-    p_cotacao_usd_brl: rate,
     p_observacao: options?.observacao?.trim() || null,
   })
   if (error || !data) return { ok: false, error: error?.message ?? 'Não foi possível registrar o upgrade.' }
   const result = data as { bonus?: number; weeklyBonus?: number; installments?: number; deltaMensal?: number; sellerId?: string }
   return { ok: true, bonus: Number(result.bonus ?? 0), weeklyBonus: Number(result.weeklyBonus ?? 0), installments: Number(result.installments ?? 0), deltaMensal: Number(result.deltaMensal ?? 0), sellerId: String(result.sellerId ?? '') }
+}
+
+// Cancelamento auditável do upgrade mais recente. Restaura o plano anterior e estorna somente
+// as parcelas de bônus ligadas ao evento; semanas já pagas do cliente permanecem imutáveis.
+export async function voidPlanUpgradeAction(planChangeId: string, reason?: string | null): Promise<Res> {
+  const g = await guardFinance()
+  if (!g.context) return { ok: false, error: g.error }
+  const supabase = createClient()
+  const { error } = await supabase.rpc('void_plan_upgrade', { p_plan_change_id: planChangeId, p_reason: reason?.trim() || null })
+  if (error) return { ok: false, error: error.message }
+  return { ok: true }
 }

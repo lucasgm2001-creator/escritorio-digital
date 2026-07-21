@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { saveClientHistoryAction, registerPlanUpgradeAction } from './client-write-actions'
+import { saveClientHistoryAction, registerPlanUpgradeAction, voidPlanUpgradeAction } from './client-write-actions'
 import { useToast } from '@/components/ui/toast'
 import { FUSO_OPTIONS } from '../comercial/types'
 import { US_STATES, sanitizeAreaCode } from '@/lib/usStates'
@@ -12,10 +12,12 @@ import { Portal } from '@/components/ui/Portal'
 import { useDialog } from '@/components/ui/useDialog'
 import { DossieTab } from './DossieTab'
 import type { Client } from './types'
+import { useRole } from '@/components/auth/RoleProvider'
 
 interface Plan { id: string; nome: string; valor_semanal: number; valor_mensal: number | null }
 interface Seller { id: string; name: string }
-// Dia de pagamento da semana — 0=Dom..6=Sáb, MESMA convenção que o cron/payDueWeeks lê (getUTCDay civil).
+interface UpgradeHistory { id: string; old_plan_id: string | null; new_plan_id: string; changed_at: string; effective_week: number | null; bonus_usd: number; observacao: string | null }
+// Dia de pagamento da semana — 0=Dom..6=Sáb, mesma convenção do agendador automático (getUTCDay civil).
 const WEEKDAYS: { value: number; label: string }[] = [
   { value: 0, label: 'Domingo' }, { value: 1, label: 'Segunda' }, { value: 2, label: 'Terça' },
   { value: 3, label: 'Quarta' }, { value: 4, label: 'Quinta' }, { value: 5, label: 'Sexta' }, { value: 6, label: 'Sábado' },
@@ -38,6 +40,8 @@ export function ClienteModal({ client, onClose, onSaved, initialTab }: {
   initialTab?: 'editar' | 'dossie'   // abre direto numa aba (default: Editar)
 }) {
   const supabase = createClient()
+  const role = useRole()
+  const canManageFinance = role === 'owner' || role === 'admin'
   const { toast } = useToast()
   const [view, setView] = useState<'editar' | 'dossie'>(initialTab ?? 'editar')
   const [plans, setPlans] = useState<Plan[]>([])
@@ -49,6 +53,8 @@ export function ClienteModal({ client, onClose, onSaved, initialTab }: {
   const [upgradeWeek, setUpgradeWeek] = useState('')
   const [upgradeNote, setUpgradeNote] = useState('')
   const [upgrading, setUpgrading] = useState(false)
+  const [upgradeHistory, setUpgradeHistory] = useState<UpgradeHistory[]>([])
+  const [voidingUpgrade, setVoidingUpgrade] = useState<string | null>(null)
   const [geoSug, setGeoSug] = useState<PhoneGeo | null>(null)   // sugestão de cidade/estado a partir do telefone (Parte 2)
   const [form, setForm] = useState({
     name: client.name, company: client.company ?? '', email: client.email ?? '', phone: client.phone ?? '',
@@ -76,6 +82,11 @@ export function ClienteModal({ client, onClose, onSaved, initialTab }: {
         setSellers(rows)
         setUpgradeSeller(rows.find(s => s.name.trim().toLowerCase() === 'lucas')?.id ?? rows[0]?.id ?? '')
       })
+    if (canManageFinance) {
+      supabase.from('plan_changes').select('id, old_plan_id, new_plan_id, changed_at, effective_week, bonus_usd, observacao')
+        .eq('client_id', client.id).is('voided_at', null).order('changed_at', { ascending: false })
+        .then(({ data }) => setUpgradeHistory((data ?? []) as UpgradeHistory[]))
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
@@ -147,7 +158,7 @@ export function ClienteModal({ client, onClose, onSaved, initialTab }: {
       if (res.createdMeeting) parts.push('reunião')
       if (res.createdDeal) parts.push('venda')
       if (res.stageEvents) parts.push(`${res.stageEvents} fase(s)`)
-      if (res.marked.length) parts.push(`${res.marked.length} semana(s)`)
+      if (res.marked.length) parts.push(`${res.marked.length} semana(s) agendada(s)`)
       if (res.redated) parts.push(`${res.redated} corrigida(s)`)
       toast({ type: 'success', message: parts.length ? `Salvo · histórico: ${parts.join(' · ')}.` : 'Cliente salvo e histórico reconstruído.' })
     } else {
@@ -174,8 +185,27 @@ export function ClienteModal({ client, onClose, onSaved, initialTab }: {
       setUpgradePlan('')
       setUpgradeWeek('')
       setUpgradeNote('')
+      const { data: history } = await supabase.from('plan_changes').select('id, old_plan_id, new_plan_id, changed_at, effective_week, bonus_usd, observacao')
+        .eq('client_id', client.id).is('voided_at', null).order('changed_at', { ascending: false })
+      setUpgradeHistory((history ?? []) as UpgradeHistory[])
       toast({ type: 'success', message: res.bonus > 0 ? `Upgrade registrado · comissão US$${res.bonus} em 4× US$${res.weeklyBonus}, liberada conforme o cliente paga.` : `Upgrade registrado (vendedor sem perfil de upgrade ativo).` })
     } finally { setUpgrading(false) }
+  }
+
+  const cancelUpgrade = async (upgrade: UpgradeHistory) => {
+    if (voidingUpgrade || !window.confirm('Cancelar este upgrade e estornar as parcelas de bônus vinculadas?')) return
+    const reason = window.prompt('Motivo da correção (opcional):')
+    if (reason === null) return
+    setVoidingUpgrade(upgrade.id)
+    try {
+      const res = await voidPlanUpgradeAction(upgrade.id, reason)
+      if (!res.ok) { toast({ type: 'error', message: res.error }); return }
+      setUpgradeHistory(rows => rows.filter(row => row.id !== upgrade.id))
+      const previous = plans.find(p => p.id === upgrade.old_plan_id)
+      setForm(p => ({ ...p, plano_id: upgrade.old_plan_id ?? '' }))
+      onSaved({ ...client, plano_id: upgrade.old_plan_id, plan_weekly: previous?.valor_semanal ?? client.plan_weekly } as Client)
+      toast({ type: 'success', message: 'Upgrade cancelado e bônus vinculado estornado.' })
+    } finally { setVoidingUpgrade(null) }
   }
 
   const { ref, dialogProps } = useDialog(onClose)
@@ -304,7 +334,7 @@ export function ClienteModal({ client, onClose, onSaved, initialTab }: {
           </div>
           {/* Upgrade de plano (F3) — muda o cliente p/ um plano MAIOR e lança o bônus (SÓ a diferença) na
               comissão do mês, pela config do vendedor. Não duplica; competência = data do upgrade. */}
-          <div className="rounded-btn border border-bento-border/60 bg-bento-bg p-3 space-y-2">
+          {canManageFinance && <div className="rounded-btn border border-bento-border/60 bg-bento-bg p-3 space-y-2">
             <p className="text-xs font-medium text-bento-text">Upgrade de plano</p>
             <p className="font-tech text-[10px] text-bento-muted leading-relaxed">Define o novo plano, a semana em que passa a valer e quem realizou o upgrade. Lucas vem selecionado por padrão.</p>
             <div className="flex gap-2">
@@ -332,7 +362,14 @@ export function ClienteModal({ client, onClose, onSaved, initialTab }: {
               className="w-full px-3 py-2 rounded-btn text-xs font-semibold border border-lime/40 text-lime-fg hover:bg-lime/10 transition-colors disabled:opacity-50">
               {upgrading ? 'Registrando…' : 'Registrar upgrade'}
             </button>
-          </div>
+            {upgradeHistory.length > 0 && <div className="pt-2 border-t border-bento-border/60 space-y-1.5">
+              <p className="font-tech text-[10px] uppercase tracking-wider text-bento-muted">Histórico de upgrades</p>
+              {upgradeHistory.map((upgrade, index) => <div key={upgrade.id} className="flex items-center gap-2 text-[11px]">
+                <span className="text-bento-dim flex-1">{upgrade.changed_at} · semana {upgrade.effective_week ?? 'automática'} · bônus ${Number(upgrade.bonus_usd).toFixed(2)}</span>
+                {index === 0 && <button type="button" disabled={voidingUpgrade === upgrade.id} onClick={() => cancelUpgrade(upgrade)} className="text-red-300 hover:text-red-200 disabled:opacity-50">Cancelar</button>}
+              </div>)}
+            </div>}
+          </div>}
           <div>
             <label className="block text-xs font-medium text-bento-dim mb-1">Nicho</label>
             <input value={form.nicho} onChange={e => setForm(p => ({ ...p, nicho: e.target.value }))} placeholder="Ex: Roofing, HVAC..." className={inputCls} />

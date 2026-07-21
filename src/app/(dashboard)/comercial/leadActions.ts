@@ -51,7 +51,9 @@ export async function runWonFlow(supabase: SupaClient, lead: MovableLead, userNa
 
   // 1) Cliente idempotente: reusa se já existe (por nome); senão cria. Reativa se inativo.
   let clientId: string | null = null
-  const { data: existing } = await supabase.from('clients').select('id, status').eq('name', lead.name).limit(1)
+  let existingQuery = supabase.from('clients').select('id, status').eq('name', lead.name)
+  if (teamId) existingQuery = existingQuery.eq('team_id', teamId)
+  const { data: existing } = await existingQuery.limit(1)
   if (existing && existing.length) {
     clientId = existing[0].id
     if (existing[0].status !== 'ativo') {
@@ -71,12 +73,15 @@ export async function runWonFlow(supabase: SupaClient, lead: MovableLead, userNa
     let novoPlanoId: string | null = null
     let novoPlanWeekly = 0
     if (planoId) {
-      const { data: pl } = await supabase.from('plans').select('id, valor_semanal').eq('id', planoId).maybeSingle()
+      let planQuery = supabase.from('plans').select('id, valor_semanal').eq('id', planoId)
+      if (teamId) planQuery = planQuery.eq('team_id', teamId)
+      const { data: pl } = await planQuery.maybeSingle()
       if (pl) { novoPlanoId = pl.id as string; novoPlanWeekly = Number(pl.valor_semanal) || 0 }
     }
     if (!novoPlanoId || novoPlanWeekly <= 0) {
-      const { data: def } = await supabase.from('plans').select('id, valor_semanal')
-        .eq('ativo', true).order('ordem', { ascending: true, nullsFirst: false }).order('valor_semanal').limit(1).maybeSingle()
+      let defaultPlanQuery = supabase.from('plans').select('id, valor_semanal').eq('ativo', true)
+      if (teamId) defaultPlanQuery = defaultPlanQuery.eq('team_id', teamId)
+      const { data: def } = await defaultPlanQuery.order('ordem', { ascending: true, nullsFirst: false }).order('valor_semanal').limit(1).maybeSingle()
       if (def) { novoPlanoId = def.id as string; novoPlanWeekly = Number(def.valor_semanal) || 0 }
     }
     const { data: newClient, error: clientErr } = await supabase.from('clients').insert({
@@ -119,10 +124,14 @@ export async function runWonFlow(supabase: SupaClient, lead: MovableLead, userNa
     let vps = LEGACY_VPS_USD
     let pctUsed: number | null = null
     if (planoId) {
-      await supabase.from('clients').update({ plano_id: planoId }).eq('id', clientId)
-      const { data: pl } = await supabase.from('plans').select('valor_semanal, comissao_percentual').eq('id', planoId).maybeSingle()
+      let selectedPlanQuery = supabase.from('plans').select('id, valor_semanal, comissao_percentual').eq('id', planoId)
+      if (teamId) selectedPlanQuery = selectedPlanQuery.eq('team_id', teamId)
+      const { data: pl } = await selectedPlanQuery.maybeSingle()
       const pct = pl?.comissao_percentual != null ? Number(pl.comissao_percentual) : null
-      if (pl && hasCommissionPct(pct)) { pctUsed = pct; vps = weeklyCommissionUsd(Number(pl.valor_semanal), pct) }
+      if (pl) {
+        await supabase.from('clients').update({ plano_id: pl.id, plan_weekly: pl.valor_semanal }).eq('id', clientId).eq('team_id', teamId)
+        if (hasCommissionPct(pct)) { pctUsed = pct; vps = weeklyCommissionUsd(Number(pl.valor_semanal), pct) }
+      }
     }
     const tetoSemanas = DEFAULT_TETO_SEMANAS
     const valorTotalUsd = Math.round(vps * tetoSemanas * 100) / 100

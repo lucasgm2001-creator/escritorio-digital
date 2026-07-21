@@ -91,6 +91,23 @@ export async function resolveClientPlan(
   return { planoId, valorUsd: valor }
 }
 
+// Snapshot do plano por número de semana. Evita que um catch-up criado depois de um upgrade
+// cobre semanas antigas pelo preço novo.
+export async function resolveClientPlanTimeline(supabase: SupaClient, clientId: string) {
+  const current = await resolveClientPlan(supabase, clientId)
+  const { data } = await supabase.from('plan_changes')
+    .select('old_plan_id, new_plan_id, old_valor_semanal, new_valor_semanal, effective_week, changed_at')
+    .eq('client_id', clientId).is('voided_at', null).order('effective_week', { ascending: true })
+  const changes = (data ?? []).filter(c => Number(c.effective_week) > 0)
+  return (week: number): { planoId: string | null; valorUsd: number } => {
+    const applicable = changes.filter(c => Number(c.effective_week) <= week).at(-1)
+    if (applicable) return { planoId: applicable.new_plan_id as string | null, valorUsd: Number(applicable.new_valor_semanal) }
+    const first = changes[0]
+    if (first) return { planoId: first.old_plan_id as string | null, valorUsd: Number(first.old_valor_semanal) }
+    return current
+  }
+}
+
 export type CommissionOutcome = 'paid' | 'capped' | 'no_deal' | 'dup' | 'frozen' | 'error'
 
 // Deriva a semana de comissão a partir da semana paga do cliente — pelo MESMO payWeek
@@ -124,7 +141,8 @@ export async function payClientWeek(
   supabase: SupaClient, clientId: string, numero: number, paidOn: string, rate: number, teamId?: string | null,
 ): Promise<{ ok: boolean; reason?: 'dup' | 'invalid' | 'db'; message?: string; valorUsd?: number; commission?: CommissionOutcome }> {
   if (!Number.isInteger(numero) || numero < 1) return { ok: false, reason: 'invalid' }
-  const { planoId, valorUsd } = await resolveClientPlan(supabase, clientId)
+  const planAtWeek = await resolveClientPlanTimeline(supabase, clientId)
+  const { planoId, valorUsd } = planAtWeek(numero)
 
   const { error } = await supabase.from('client_payments').insert({
     client_id: clientId, numero_semana: numero, valor_usd: valorUsd, paid_on: paidOn, cotacao_usd_brl: rate, plano_id: planoId,
@@ -158,35 +176,6 @@ export function dueDateFor(startYmd: string, diaPagamento: number, n: number): s
   return addDaysYmd(startYmd, offset + 7 * (n - 1))
 }
 
-// Marca as semanas VENCIDAS até hoje (paid_on = DATA REAL da semana), via payClientWeek (receita +
-// comissão derivada). NUNCA marca semana futura. Anuladas ocupam o número → não re-marca. Inativo congela.
-export async function payDueWeeks(
-  supabase: SupaClient, clientId: string, rate: number, maxWeeks = 12, teamId?: string | null,
-): Promise<{ marked: number[]; reason: string }> {
-  const { data: cli } = await supabase.from('clients').select('status, start_date, billing_anchor_date, dia_pagamento_semana').eq('id', clientId).is('deleted_at', null).maybeSingle()
-  if (!cli) return { marked: [], reason: 'nao_encontrado' }
-  if (cli.status !== 'ativo') return { marked: [], reason: 'inativo' }
-  if (!cli.start_date) return { marked: [], reason: 'sem_inicio' }
-  const start = String(cli.billing_anchor_date ?? cli.start_date).slice(0, 10)
-  const dia = cli.dia_pagamento_semana ?? dowOfYmd(start)
-  const today = spToday()
-
-  const { data: cps } = await supabase.from('client_payments').select('numero_semana').eq('client_id', clientId)
-  const registered = new Set((cps ?? []).map(r => r.numero_semana as number)) // inclui anuladas → não re-marca
-
-  const marked: number[] = []
-  for (let i = 0; i < maxWeeks; i++) {
-    let n = 1; while (registered.has(n)) n++
-    const due = dueDateFor(start, dia, n)
-    if (due > today) break          // ainda não venceu → para (NUNCA marca futura)
-    registered.add(n)               // ocupa n (evita loop mesmo se falhar)
-    const res = await payClientWeek(supabase, clientId, n, due, rate, teamId) // paid_on = due (data REAL, não hoje)
-    if (res.ok) marked.push(n)
-    else if (res.reason !== 'dup') break // erro real → para; 'dup' (corrida) segue
-  }
-  return { marked, reason: marked.length ? 'ok' : 'nada_vencido' }
-}
-
 // Agenda semanas vencidas sem fingir que houve recebimento. A linha ocupa o número da semana,
 // mas fica anulado=true/status=vencida, portanto não entra em receita nem libera comissão.
 // Usado exclusivamente pelos robôs; confirmação de pagamento é sempre uma ação humana.
@@ -203,7 +192,7 @@ export async function scheduleDueWeeks(
   const start = String(cli.billing_anchor_date ?? cli.start_date).slice(0, 10)
   const dia = cli.dia_pagamento_semana ?? dowOfYmd(start)
   const today = spToday()
-  const { planoId, valorUsd } = await resolveClientPlan(supabase, clientId)
+  const planAtWeek = await resolveClientPlanTimeline(supabase, clientId)
   const { data: rows } = await supabase.from('client_payments').select('numero_semana').eq('client_id', clientId)
   const registered = new Set((rows ?? []).map(r => r.numero_semana as number))
   const scheduled: number[] = []
@@ -213,6 +202,7 @@ export async function scheduleDueWeeks(
     const due = dueDateFor(start, dia, n)
     if (due > today) break
     registered.add(n)
+    const { planoId, valorUsd } = planAtWeek(n)
     const { error } = await supabase.from('client_payments').insert({
       client_id: clientId, numero_semana: n, valor_usd: valorUsd, paid_on: null,
       cotacao_usd_brl: rate, plano_id: planoId, status: 'vencida', due_on: due,
@@ -247,7 +237,9 @@ export async function ensureClient(
 ): Promise<string | null> {
   const nm = (name ?? '').trim()
   if (!nm) return null
-  const { data: existing } = await supabase.from('clients').select('id, status').ilike('name', nm).is('deleted_at', null).limit(1)
+  let existingQuery = supabase.from('clients').select('id, status').ilike('name', nm).is('deleted_at', null)
+  if (teamId) existingQuery = existingQuery.eq('team_id', teamId)
+  const { data: existing } = await existingQuery.limit(1)
   if (existing && existing.length) {
     if (existing[0].status !== 'ativo') await supabase.from('clients').update({ status: 'ativo' }).eq('id', existing[0].id)
     return existing[0].id
@@ -262,17 +254,15 @@ export async function ensureClient(
 }
 
 // ─── Reconstrução histórica (CLIENT-HISTORY-F1) ──────────────────────────────────────────────
-// Coloca TODAS as semanas do cliente na DATA HISTÓRICA real, a partir do start_date já gravado.
-// NÃO cria motor novo nem muda regra de dinheiro: reusa dueDateFor + payDueWeeks + payWeek/calc.
+// Coloca as semanas do cliente na DATA HISTÓRICA real, a partir do start_date já gravado.
+// Semanas faltantes são apenas agendadas; editar cadastro nunca confirma recebimento.
 //   (1) alinha data_fechamento do deal ao start_date (a "venda" fechou quando o cliente entrou);
 //   (2) RE-DATA semanas ativas já registradas cuja paid_on ≠ vencimento real — corrige a semana
 //       carimbada "hoje" na criação (won-flow). USD e cotação INTOCADOS: só a COMPETÊNCIA corrige,
 //       então nada é "recalculado" (o valor gravado é o mesmo; muda só o mês em que ele cai);
-//   (3) faz o backfill das semanas vencidas que faltam via payDueWeeks (receita + comissão derivada,
-//       teto do deal respeitado, paid_on = vencimento). Idempotente (repetir não duplica).
-// Comissão respeita o teto_semanas do deal (regra existente): recebe todas as semanas vencidas,
-// mas a comissão só é derivada dentro do teto — igual ao fluxo normal. Requer um deal em_andamento
-// para gerar comissão; sem deal, reconstrói só a receita e sinaliza (hadDeal=false).
+//   (3) agenda semanas vencidas faltantes via scheduleDueWeeks, aguardando confirmação humana.
+// A comissão só será derivada quando uma dessas pendências for confirmada como paga. O deal é
+// reconstruído quando necessário, mas nenhuma edição de cadastro reconhece receita sozinha.
 export async function reconstructClientHistory(
   supabase: SupaClient, clientId: string, rate: number, teamId?: string | null,
 ): Promise<{ ok: boolean; reason?: string; redated: number; marked: number[]; dueCount: number; hadDeal: boolean }> {
@@ -317,9 +307,9 @@ export async function reconstructClientHistory(
     redated++
   }
 
-  // Backfill das semanas vencidas que faltam (paid_on = vencimento; receita + comissão derivada).
-  const { marked } = await payDueWeeks(supabase, clientId, rate, Math.max(dueCount, 12), teamId)
-  return { ok: true, redated, marked, dueCount, hadDeal }
+  // Backfill seguro: cria pendências vencidas, sem receita e sem comissão automática.
+  const { scheduled } = await scheduleDueWeeks(supabase, clientId, rate, Math.max(dueCount, 12), teamId)
+  return { ok: true, redated, marked: scheduled, dueCount, hadDeal }
 }
 
 // ─── Pagamento MENSAL (F2) ────────────────────────────────────────────────────────────────────
@@ -353,84 +343,6 @@ export async function payMonth(
     else if (res.reason !== 'dup') break
   }
   return { marked, reason: marked.length ? 'ok' : 'nada_no_mes', monthRef }
-}
-
-// ─── Upgrade de plano (F3) ────────────────────────────────────────────────────────────────────
-// CONECTA o upgrade ao motor VIVO (não cria 2º motor). O bônus = SÓ a diferença (config
-// upgrade_commission_* do vendedor, base=plan_difference), lançado UMA vez na competência do upgrade
-// como um weekly_payment num "deal-delta" (status 'upgrade_bonus' ≠ 'em_andamento' → a derivação semanal
-// o ignora; Minha Remuneração/PDF/relatórios somam por paid_on → aparece sozinho). Registra o evento em
-// plan_changes (auditoria) e move o cliente para o novo plano (billing futuro). NÃO duplica: só o incremento.
-const round2u = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100
-export async function applyPlanUpgrade(
-  supabase: SupaClient, args: { clientId: string; newPlanId: string; changedAt: string; rate: number; teamId?: string | null },
-): Promise<{ ok: boolean; reason?: string; bonus: number; deltaMensal: number; sellerId: string | null }> {
-  const { clientId, newPlanId, changedAt, rate, teamId } = args
-  const base0 = { bonus: 0, deltaMensal: 0, sellerId: null as string | null }
-  const { data: cli } = await supabase.from('clients').select('name, plano_id, plan_weekly, status, assigned_name').eq('id', clientId).is('deleted_at', null).maybeSingle()
-  if (!cli) return { ok: false, reason: 'nao_encontrado', ...base0 }
-  if (cli.status !== 'ativo') return { ok: false, reason: 'inativo', ...base0 }
-  if (cli.plano_id === newPlanId) return { ok: false, reason: 'mesmo_plano', ...base0 }
-
-  const ids = [cli.plano_id, newPlanId].filter(Boolean) as string[]
-  const { data: plans } = await supabase.from('plans').select('id, nome, valor_semanal, valor_mensal').in('id', ids)
-  const oldPlan = (plans ?? []).find(p => p.id === cli.plano_id) ?? null
-  const newPlan = (plans ?? []).find(p => p.id === newPlanId)
-  if (!newPlan) return { ok: false, reason: 'plano_invalido', ...base0 }
-  const oldMensal = Number(oldPlan?.valor_mensal ?? (Number(cli.plan_weekly) || 0) * 4)
-  const newMensal = Number(newPlan.valor_mensal ?? Number(newPlan.valor_semanal) * 4)
-  const deltaMensal = round2u(newMensal - oldMensal)
-  if (deltaMensal <= 0) return { ok: false, reason: 'nao_e_upgrade', bonus: 0, deltaMensal, sellerId: null }
-
-  // Vendedor = dono do deal ativo do cliente (fallback: 1º vendedor ativo — mesma regra do won-flow).
-  const { data: deals } = await supabase.from('deals').select('seller_id').eq('client_id', clientId).eq('status', 'em_andamento').order('data_fechamento', { ascending: false }).limit(1)
-  let sellerId: string | null = deals?.[0]?.seller_id ?? null
-  if (!sellerId) { const { data: s } = await supabase.from('sellers').select('id').eq('status', 'ativo').order('created_at').limit(1); sellerId = s?.[0]?.id ?? null }
-
-  // Responsável sem comissão (Parte 3): Daniel & cia. NÃO recebem bônus de upgrade. O plano ainda muda (billing)
-  // e o evento é auditado (plan_changes) — só o BÔNUS na comissão não é lançado. Resolve pelo RESPONSÁVEL do
-  // cliente (não pelo vendedor de fallback), senão um cliente do Daniel sem deal cairia no 1º ativo e ganharia bônus.
-  const { geraComissao } = await resolveSellerForCommission(supabase, (cli as { assigned_name?: string | null }).assigned_name ?? null, teamId)
-
-  // Bônus a partir da config JÁ EXISTENTE do vendedor (nada de regra nova; só é lida e aplicada).
-  let bonus = 0
-  if (sellerId && geraComissao) {
-    const { data: cfg } = await supabase.from('collaborator_compensation_settings')
-      .select('upgrade_commission_enabled, upgrade_commission_type, upgrade_commission_value, upgrade_commission_base').eq('seller_id', sellerId).maybeSingle()
-    if (cfg?.upgrade_commission_enabled) {
-      const cfgBase = cfg.upgrade_commission_base === 'full_value' ? newMensal : deltaMensal // padrão: só a diferença
-      const val = Number(cfg.upgrade_commission_value) || 0
-      bonus = cfg.upgrade_commission_type === 'fixed' ? round2u(val) : round2u(cfgBase * val / 100)
-    }
-  }
-
-  // Bônus na comissão (motor vivo) via deal-delta + weekly_payment — PRIMEIRO (se falhar, aborta limpo,
-  // nada gravado). Status 'concluido' (permitido pelo deals_status_check) ≠ 'em_andamento' → a derivação
-  // semanal e o "receber esta semana" IGNORAM este deal; Minha Remuneração/PDF/relatórios somam a semana
-  // por paid_on. teto=1, 1 semana = o bônus exato. Só se houver bônus e vendedor.
-  if (bonus > 0 && sellerId) {
-    const { data: dd, error: ddErr } = await supabase.from('deals').insert({
-      seller_id: sellerId, client_id: clientId, client_name: `${cli.name} (upgrade ${oldPlan?.nome ?? '—'}→${newPlan.nome})`,
-      valor_total_usd: bonus, teto_semanas: 1, valor_por_semana_usd: bonus, comissao_percentual: null,
-      status: 'concluido', data_fechamento: changedAt, ...withTeam(teamId),
-    }).select('id').single()
-    if (ddErr || !dd) return { ok: false, reason: 'bonus_deal', bonus, deltaMensal, sellerId }
-    const { error: wErr } = await supabase.from('weekly_payments').insert({
-      deal_id: dd.id, numero_semana: 1, valor_usd: bonus, paid_on: changedAt, cotacao_usd_brl: rate, ...withTeam(teamId),
-    })
-    if (wErr) { await supabase.from('deals').delete().eq('id', dd.id); return { ok: false, reason: 'bonus_week', bonus, deltaMensal, sellerId } }
-  }
-
-  // Evento auditável (grava depois do bônus estar garantido; grava mesmo com bônus 0 = config desligada).
-  await supabase.from('plan_changes').insert({
-    client_id: clientId, seller_id: sellerId, old_plan_id: cli.plano_id ?? null, new_plan_id: newPlanId,
-    old_valor_semanal: oldPlan?.valor_semanal ?? cli.plan_weekly, new_valor_semanal: newPlan.valor_semanal,
-    delta_mensal_usd: deltaMensal, bonus_usd: bonus, changed_at: changedAt, ...withTeam(teamId),
-  })
-
-  // Cliente passa a valer pelo novo plano (billing futuro = novo valor_semanal). Não altera semanas já pagas.
-  await supabase.from('clients').update({ plano_id: newPlanId, plan_weekly: newPlan.valor_semanal }).eq('id', clientId)
-  return { ok: true, bonus, deltaMensal, sellerId }
 }
 
 // Mês de competência da PRÓXIMA semana não paga (YYYY-MM) — usado pela UI p/ "pagar o próximo mês".
@@ -576,7 +488,9 @@ export async function saveClientHistory(
   const firstContact = ymdOnly(input.firstContact)
   const proposalDate = ymdOnly(input.proposalDate)
 
-  const { data: cli } = await supabase.from('clients').select('name, assigned_to, assigned_name, status, plano_id').eq('id', clientId).is('deleted_at', null).maybeSingle()
+  let clientQuery = supabase.from('clients').select('name, assigned_to, assigned_name, status, plano_id').eq('id', clientId).is('deleted_at', null)
+  if (teamId) clientQuery = clientQuery.eq('team_id', teamId)
+  const { data: cli } = await clientQuery.maybeSingle()
   if (!cli) return fail('nao_encontrado')
   if (cli.status !== 'ativo') return fail('inativo')
   const clientName = String(cli.name ?? '').trim()
@@ -597,7 +511,12 @@ export async function saveClientHistory(
   // (esse valor é EXCLUÍDO das métricas de período): é um lead ganho real e deve contar no funil/relatórios.
   let leadId: string | null = (deal?.lead_id as string | null) ?? null
   let createdLead = false
-  if (!leadId && clientName) { const { data } = await supabase.from('leads').select('id').ilike('name', clientName).limit(1); leadId = data?.[0]?.id ?? null }
+  if (!leadId && clientName) {
+    let leadQuery = supabase.from('leads').select('id').ilike('name', clientName)
+    if (teamId) leadQuery = leadQuery.eq('team_id', teamId)
+    const { data } = await leadQuery.limit(1)
+    leadId = data?.[0]?.id ?? null
+  }
   if (!leadId && clientName) {
     const { data: nl } = await supabase.from('leads').insert({
       name: clientName, status: wonSlugStr, received_at: leadDate, stage_changed_at: atNoon(close),
@@ -622,7 +541,9 @@ export async function saveClientHistory(
   if (!deal && sellerId && leadId && geraComissao) {
     let vps = LEGACY_VPS_USD; let pctUsed: number | null = null
     if (cli.plano_id) {
-      const { data: pl } = await supabase.from('plans').select('valor_semanal, comissao_percentual').eq('id', cli.plano_id).maybeSingle()
+      let planQuery = supabase.from('plans').select('valor_semanal, comissao_percentual').eq('id', cli.plano_id)
+      if (teamId) planQuery = planQuery.eq('team_id', teamId)
+      const { data: pl } = await planQuery.maybeSingle()
       const pct = pl?.comissao_percentual != null ? Number(pl.comissao_percentual) : null
       if (pl && hasCommissionPct(pct)) { pctUsed = pct; vps = weeklyCommissionUsd(Number(pl.valor_semanal), pct) }
     }
@@ -682,7 +603,9 @@ export async function saveLeadHistory(
   const firstContact = ymdOnly(input.firstContact)
   const proposalDate = ymdOnly(input.proposalDate)
 
-  const { data: lead } = await supabase.from('leads').select('name, assigned_name, received_at').eq('id', leadId).maybeSingle()
+  let sourceLeadQuery = supabase.from('leads').select('name, assigned_name, received_at').eq('id', leadId)
+  if (teamId) sourceLeadQuery = sourceLeadQuery.eq('team_id', teamId)
+  const { data: lead } = await sourceLeadQuery.maybeSingle()
   if (!lead) return { ok: false, reason: 'nao_encontrado', stageEvents: 0, createdMeeting: false }
   const leadName = String(lead.name ?? '').trim()
   const sellerName = (lead.assigned_name as string | null) ?? null
