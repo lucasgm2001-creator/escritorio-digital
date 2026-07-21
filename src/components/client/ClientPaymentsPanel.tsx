@@ -53,14 +53,24 @@ const STATUS_TONE: Record<ClientWeekStatus, string> = {
 const inputCls = 'w-full bg-bento-bg border border-bento-border rounded-btn px-3 py-2 text-sm text-bento-text focus:outline-none focus:border-lime'
 const normalizedStatus = (p: ClientPayment): ClientWeekStatus => p.status ?? (p.anulado ? 'anulada' : 'paga')
 
-export function ClientPaymentsPanel({ clients }: { clients: { id: string; name: string }[] }) {
+export function ClientPaymentsPanel({
+  clients,
+  defaultOpen = false,
+  defaultClientId = null,
+  title = 'Financeiro semanal dos clientes',
+}: {
+  clients: { id: string; name: string }[]
+  defaultOpen?: boolean
+  defaultClientId?: string | null
+  title?: string
+}) {
   const supabase = createClient()
   const { toast } = useToast()
-  const [open, setOpen] = useState(false)
+  const [open, setOpen] = useState(defaultOpen)
   const [payments, setPayments] = useState<Record<string, ClientPayment[]>>({})
   const [meta, setMeta] = useState<Record<string, ClientMeta>>({})
   const [plans, setPlans] = useState<Plan[]>([])
-  const [openId, setOpenId] = useState<string | null>(null)
+  const [openId, setOpenId] = useState<string | null>(defaultClientId)
   const [editor, setEditor] = useState<Editor | null>(null)
   const [saving, setSaving] = useState(false)
   const dialog = useDialog<HTMLDivElement>(() => setEditor(null), !!editor)
@@ -144,7 +154,7 @@ export function ClientPaymentsPanel({ clients }: { clients: { id: string; name: 
     <div className="bento-fx overflow-hidden">
       <button onClick={() => setOpen(v => !v)} aria-expanded={open} className="w-full flex items-center gap-2.5 px-4 py-3 text-left">
         <Wallet className="w-4 h-4 text-lime-fg" />
-        <span className="font-display font-bold text-bento-text text-sm flex-1">Financeiro semanal dos clientes</span>
+        <span className="font-display font-bold text-bento-text text-sm flex-1">{title}</span>
         <span className="font-tech text-[10px] text-bento-muted">{clients.length} cliente(s)</span>
         <ChevronRight className={cn('w-4 h-4 text-bento-muted transition-transform', open && 'rotate-90')} />
       </button>

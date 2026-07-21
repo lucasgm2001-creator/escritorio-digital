@@ -26,7 +26,7 @@ import { meetingCommissionCounts } from '@/lib/commission/constants'
 import { payWeekMessage } from '@/lib/commission/actions'
 import type { SalaryPeriod, WeeklyPayment, FxConfig, DealStatus } from '@/lib/commission/types'
 import { usd, brl } from '@/lib/format'
-import { ClientPaymentsPanel } from './ClientPaymentsPanel'
+import { ClientPaymentsPanel } from '@/components/client/ClientPaymentsPanel'
 import {
   inputCls, pad2, monthName, fmtMonthYear, fmtDayMonth, fmtDayMonthYear, FX_FALLBACK, fxSourceMeta,
   CLIENT_STATUS, todayISO, toDealUI, toWeek, toMeeting, type DealUI, type MeetingUI,
