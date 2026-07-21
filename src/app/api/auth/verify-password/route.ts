@@ -9,13 +9,13 @@ const VERIFY_LIMIT = 5
 const VERIFY_WINDOW_MS = 15 * 60 * 1000
 
 export async function POST(req: Request) {
-  const authResult = await requireAuth()
+  const authResult = await requireAuth(req)
   if ('error' in authResult) {
     return authResult.error
   }
 
   // Bucket próprio (prefixo) para não competir com a cota das rotas de IA.
-  const rate = checkRateLimit(`verify-password:${authResult.user.id}`, {
+  const rate = await checkRateLimit(`verify-password:${authResult.user.id}`, {
     limit: VERIFY_LIMIT,
     windowMs: VERIFY_WINDOW_MS,
   })

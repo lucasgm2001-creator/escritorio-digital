@@ -13,7 +13,7 @@ import {
 // achar lead, cria (fallback) igual ao inbound, mas origem='formulario'. Sem sessão → service-role.
 // Reaproveita o parsing PURO do inbound (src/lib/leadIntake.ts). Mesmo segredo do inbound.
 //
-// Envs: INBOUND_WEBHOOK_SECRET (header "x-webhook-secret" ou ?secret=) · NEXT_PUBLIC_SUPABASE_URL +
+// Envs: INBOUND_WEBHOOK_SECRET (somente header "x-webhook-secret") · NEXT_PUBLIC_SUPABASE_URL +
 //       SUPABASE_SERVICE_ROLE_KEY (via createServiceClient).
 
 export const runtime = 'nodejs'
@@ -30,10 +30,7 @@ const INBOUND_TEAM_ID = process.env.INBOUND_TEAM_ID ?? '7cf9b5d3-e42f-48d7-bfdf-
 function secretOk(req: Request): boolean {
   const expected = process.env.INBOUND_WEBHOOK_SECRET
   if (!expected) return false
-  const provided =
-    req.headers.get('x-webhook-secret') ??
-    new URL(req.url).searchParams.get('secret') ??
-    ''
+  const provided = req.headers.get('x-webhook-secret') ?? ''
   if (!provided) return false
   return timingSafeEqual(
     createHash('sha256').update(provided).digest(),

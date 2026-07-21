@@ -29,9 +29,12 @@ let pdfJsPromise: Promise<typeof import('pdfjs-dist')> | null = null
 export function loadPdfJs() {
   if (!pdfJsPromise) {
     pdfJsPromise = import('pdfjs-dist').then(pdfjs => {
-      // Mantém o worker atual, casado com a versão instalada. A sprint altera o momento do
-      // carregamento, não a origem/estratégia do worker.
-      pdfjs.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`
+      // Empacota o worker da mesma dependência do app. Evita executar JavaScript de CDN
+      // durante uma apresentação e elimina risco de troca externa do arquivo.
+      pdfjs.GlobalWorkerOptions.workerSrc = new URL(
+        'pdfjs-dist/build/pdf.worker.min.mjs',
+        import.meta.url,
+      ).toString()
       return pdfjs
     }).catch(error => {
       pdfJsPromise = null

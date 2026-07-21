@@ -32,6 +32,7 @@ export async function signUp(name: string, email: string, password: string) {
   const nm = (name ?? '').trim()
   const em = (email ?? '').trim().toLowerCase()
   if (!nm || !em || !password) return { error: 'Preencha nome, e-mail e senha.' }
+  if (password.length < 12) return { error: 'Senha fraca — use ao menos 12 caracteres.' }
 
   const supabase = createClient()
   // Confirmação de e-mail volta pro DOMÍNIO REAL (não localhost): o link aponta para /auth/callback,
@@ -44,7 +45,7 @@ export async function signUp(name: string, email: string, password: string) {
   if (error) {
     const m = error.message.toLowerCase()
     if (m.includes('already') || m.includes('registered')) return { error: 'Este e-mail já tem conta. Faça login.' }
-    if (m.includes('password')) return { error: 'Senha fraca — use ao menos 6 caracteres.' }
+    if (m.includes('password')) return { error: 'Senha fraca — use ao menos 12 caracteres.' }
     return { error: 'Não foi possível criar a conta. Tente novamente.' }
   }
 
@@ -96,7 +97,7 @@ export async function requestPasswordReset(email: string) {
 
 // Define a nova senha usando a sessão de recuperação já estabelecida pelo /auth/callback.
 export async function updatePassword(password: string) {
-  if (!password || password.length < 6) return { error: 'Senha fraca — use ao menos 6 caracteres.' }
+  if (!password || password.length < 12) return { error: 'Senha fraca — use ao menos 12 caracteres.' }
   const supabase = createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: 'Sessão de recuperação ausente ou expirada. Reenvie o e-mail de recuperação.' }

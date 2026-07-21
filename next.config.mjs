@@ -1,5 +1,6 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  poweredByHeader: false,
   experimental: {
     // lucide-react e o unico pacote-barril grande usado (29 arquivos). Declaracao explicita/defensiva:
     // o Next 14.2 ja inclui lucide-react na lista default de optimizePackageImports, entao o ganho

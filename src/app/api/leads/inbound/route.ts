@@ -23,7 +23,7 @@ import { areaCodeFromPhone } from '@/lib/leadIntake'
 // origem='magnetic' direto. A fonte/payload completo segue também em raw_payload.
 //
 // Envs esperadas:
-//   - INBOUND_WEBHOOK_SECRET   (segredo compartilhado; header "x-webhook-secret" ou ?secret=)
+//   - INBOUND_WEBHOOK_SECRET   (segredo compartilhado; somente header "x-webhook-secret")
 //   - NEXT_PUBLIC_SUPABASE_URL  +  SUPABASE_SERVICE_ROLE_KEY  (lidas dentro de createServiceClient)
 
 export const runtime = 'nodejs'
@@ -50,10 +50,7 @@ const US_NAME_TO_CODE = new Map(US_STATES.map(s => [s.name.toLowerCase(), s.code
 function secretOk(req: Request): boolean {
   const expected = process.env.INBOUND_WEBHOOK_SECRET
   if (!expected) return false
-  const provided =
-    req.headers.get('x-webhook-secret') ??
-    new URL(req.url).searchParams.get('secret') ??
-    ''
+  const provided = req.headers.get('x-webhook-secret') ?? ''
   if (!provided) return false
   return timingSafeEqual(
     createHash('sha256').update(provided).digest(),

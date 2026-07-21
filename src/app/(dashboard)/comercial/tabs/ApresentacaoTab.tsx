@@ -193,7 +193,7 @@ function LeadBriefModal({ leadId, fallbackName, onContinue, onClose }: {
   )
 }
 
-export function ApresentacaoTab() {
+export function ApresentacaoTab({ activeTeamId = null }: { activeTeamId?: string | null }) {
   const { toast } = useToast()
   const supabase = createClient()   // storage (upload/remoção) + leituras. ESCRITAS das tabelas vão por action.
   const inputRef = useRef<HTMLInputElement>(null)
@@ -256,7 +256,19 @@ export function ApresentacaoTab() {
         setFetchError(matRes.error.code === '42P01'
           ? 'Tabela presentation_materials não encontrada. Rode a migration 018 no Supabase.'
           : `Erro ao carregar materiais: ${matRes.error.message}`)
-      } else { setMaterials((matRes.data ?? []) as Material[]); setFetchError(null) }
+      } else {
+        const rows = (matRes.data ?? []) as Material[]
+        const signed = await Promise.all(rows.map(async material => {
+          const { data, error } = await supabase.storage.from('materiais')
+            .createSignedUrl(material.storage_path, 4 * 60 * 60)
+          return { ...material, url: error || !data?.signedUrl ? '' : data.signedUrl }
+        }))
+        const inaccessible = signed.filter(material => !material.url).length
+        setMaterials(signed)
+        setFetchError(inaccessible > 0
+          ? `${inaccessible} material(is) não puderam ser acessados. Verifique as permissões da equipe.`
+          : null)
+      }
       setLeads((leadRes.data ?? []) as Lead[])
       if (presRes.error) {
         setPresError(presRes.error.code === '42P01'
@@ -285,13 +297,24 @@ export function ApresentacaoTab() {
     const uploaded: Material[] = []
     for (const file of valid) {
       const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '-')
-      const path = `${crypto.randomUUID()}-${safeName}`
+      if (!activeTeamId) {
+        toast({ type: 'error', message: 'Selecione uma equipe antes de enviar materiais.' })
+        break
+      }
+      // O primeiro segmento identifica a equipe e é validado também pela RLS do Storage.
+      const path = `${activeTeamId}/${crypto.randomUUID()}-${safeName}`
       const { error: upErr } = await supabase.storage.from('materiais').upload(path, file, { contentType: file.type || undefined, upsert: false })
       if (upErr) { toast({ type: 'error', message: `Falha ao enviar "${file.name}": ${upErr.message}` }); continue }
-      const { data: { publicUrl } } = supabase.storage.from('materiais').getPublicUrl(path)
+      const { data: signedData, error: signedError } = await supabase.storage.from('materiais')
+        .createSignedUrl(path, 4 * 60 * 60)
+      if (signedError || !signedData?.signedUrl) {
+        await supabase.storage.from('materiais').remove([path])
+        toast({ type: 'error', message: `Falha ao proteger "${file.name}".` })
+        continue
+      }
       // Servidor: can(commercial,edit) + team_id. A linha da tabela vai por action; o arquivo já está no storage.
       const { data, error } = await createMaterialAction({
-        name: file.name, storage_path: path, url: publicUrl, mime_type: file.type || null,
+        name: file.name, storage_path: path, url: path, mime_type: file.type || null,
         size_bytes: file.size, pasta: uploadPasta.trim() || null, nicho: uploadNicho.trim() || null,
       })
       if (error || !data) {
@@ -299,7 +322,7 @@ export function ApresentacaoTab() {
         toast({ type: 'error', message: `Falha ao salvar "${file.name}": ${error?.message ?? 'erro'}` })
         continue
       }
-      uploaded.push(data as unknown as Material)
+      uploaded.push({ ...(data as unknown as Material), url: signedData.signedUrl })
     }
     if (uploaded.length) {
       setMaterials(prev => [...uploaded.reverse(), ...prev])
@@ -319,7 +342,6 @@ export function ApresentacaoTab() {
     setDeletingId(m.id)
     const { error } = await deleteMaterialAction(m.id)
     if (error) { toast({ type: 'error', message: `Não foi possível excluir: ${error.message}` }); setDeletingId(null); return }
-    await supabase.storage.from('materiais').remove([m.storage_path])
     setMaterials(prev => prev.filter(x => x.id !== m.id))
     setSelectedIds(prev => prev.filter(id => id !== m.id))
     setConfirmingId(null); setDeletingId(null)
@@ -489,7 +511,7 @@ export function ApresentacaoTab() {
         </div>
       </div>
 
-      <input ref={inputRef} type="file" multiple accept=".pdf,.ppt,.pptx,.png,.jpg,.jpeg,.gif,.webp,.svg" className="hidden" onChange={pickFiles} />
+      <input ref={inputRef} type="file" multiple accept=".pdf,.ppt,.pptx,.png,.jpg,.jpeg,.gif,.webp" className="hidden" onChange={pickFiles} />
       <datalist id="pasta-list">{pastas.map(p => <option key={p} value={p} />)}</datalist>
       <datalist id="nicho-list">{nichos.map(n => <option key={n} value={n} />)}</datalist>
 

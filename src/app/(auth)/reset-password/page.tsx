@@ -20,7 +20,7 @@ export default function ResetPasswordPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!password) return
-    if (password.length < 6) { setError('Senha fraca — use ao menos 6 caracteres.'); return }
+    if (password.length < 12) { setError('Senha fraca — use ao menos 12 caracteres.'); return }
     if (password !== confirm) { setError('As senhas não coincidem.'); return }
     setLoading(true); setError('')
     try {

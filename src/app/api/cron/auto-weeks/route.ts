@@ -2,16 +2,22 @@ import { NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase/service'
 import { scheduleDueWeeks, dueDateFor, resolveClientPlanTimeline } from '@/lib/commission/actions'
 import { todaySP } from '@/lib/date'
+import { createHash, timingSafeEqual } from 'crypto'
 
 // Robô diário: agenda semanas vencidas. Nunca confirma recebimento e nunca gera comissão sozinho.
 // ?dryRun=1 retorna o que ELA INSERIRIA hoje, SEM gravar nada (auditoria).
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
+function secretsMatch(a: string, b: string): boolean {
+  return timingSafeEqual(createHash('sha256').update(a).digest(), createHash('sha256').update(b).digest())
+}
+
 export async function GET(req: Request) {
   // Auth: Vercel Cron envia Authorization: Bearer ${CRON_SECRET}. Sem secret válido → 401.
   const secret = process.env.CRON_SECRET
-  if (!secret || req.headers.get('authorization') !== `Bearer ${secret}`) {
+  const provided = req.headers.get('authorization')?.replace(/^Bearer\s+/i, '') ?? ''
+  if (!secret || !provided || !secretsMatch(provided, secret)) {
     return NextResponse.json({ ok: false, error: 'unauthorized' }, { status: 401 })
   }
 

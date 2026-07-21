@@ -4,6 +4,7 @@ import { Space_Grotesk, JetBrains_Mono, Inter } from 'next/font/google'
 import './globals.css'
 import { ServiceWorkerRegister } from '@/components/system/ServiceWorkerRegister'
 import { NoPinchZoom } from '@/components/system/NoPinchZoom'
+import { headers } from 'next/headers'
 
 const geistSans = localFont({
   src: './fonts/GeistVF.woff',
@@ -47,7 +48,8 @@ export const viewport: Viewport = {
   interactiveWidget: 'resizes-content',
 }
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  const nonce = (await headers()).get('x-nonce') ?? undefined
   return (
     // suppressHydrationWarning: o script de tema abaixo injeta classes em <html> antes do React
     // hidratar (no-flash) — sem isso o React reclamaria da diferença de className.
@@ -55,7 +57,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <head>
         <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
         {/* Aplica o tema salvo antes do React hidratar — evita flash de tema errado */}
-        <script dangerouslySetInnerHTML={{ __html: `
+        <script nonce={nonce} dangerouslySetInnerHTML={{ __html: `
 (function(){try{
   var el=document.documentElement;
   var t=localStorage.getItem('theme');

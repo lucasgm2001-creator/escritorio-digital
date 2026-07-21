@@ -10,6 +10,6 @@ const ApresentacaoTab = dynamic(() => import('../comercial/tabs/ApresentacaoTab'
   loading: () => <div className="p-6 text-sm text-bento-muted font-body">Carregando Studio…</div>,
 })
 
-export function StudioGate() {
-  return <ApresentacaoTab />
+export function StudioGate({ activeTeamId }: { activeTeamId: string | null }) {
+  return <ApresentacaoTab activeTeamId={activeTeamId} />
 }

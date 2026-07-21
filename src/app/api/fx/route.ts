@@ -40,10 +40,10 @@ async function fetchUsdBrl(): Promise<{ value: number } | { error: string }> {
 // barrava o write da sessão (cotacao_referencia/updated_at nunca gravavam). Service-role é o correto
 // p/ endpoint de sistema que atualiza config global (funciona inclusive sem sessão / via cron futuro).
 export async function POST(req: Request) {
-  const auth = await requireAuth()
+  const auth = await requireAuth(req)
   if ('error' in auth) return auth.error
 
-  const rl = checkRateLimit(`fx:${auth.user.id}`)
+  const rl = await checkRateLimit(`fx:${auth.user.id}`)
   if (!rl.allowed) return NextResponse.json({ error: 'Muitas requisições.' }, { status: 429 })
 
   const force = await req.json().then(b => !!b?.force).catch(() => false)

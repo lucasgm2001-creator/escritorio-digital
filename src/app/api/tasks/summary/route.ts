@@ -15,10 +15,10 @@ export const runtime = 'nodejs'
 export const maxDuration = 60
 
 export async function POST(req: Request) {
-  const authResult = await requireAuth()
+  const authResult = await requireAuth(req)
   if ('error' in authResult) return authResult.error
 
-  const rl = checkRateLimit(`tasks-summary:${authResult.user.id}`)
+  const rl = await checkRateLimit(`tasks-summary:${authResult.user.id}`)
   if (!rl.allowed) {
     return NextResponse.json(
       { error: 'Muitas requisições. Aguarde um momento.' },

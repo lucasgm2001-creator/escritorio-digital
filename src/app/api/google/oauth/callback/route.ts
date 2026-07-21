@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
 import { verifyState, exchangeCodeForTokens, fetchGoogleEmail, saveTokensForUser } from '@/lib/google/oauth'
+import { getSiteURL } from '@/lib/site-url'
 
 // Retorno do consentimento Google. VALIDA o state assinado (CSRF) → user_id; CONFERE o nonce contra o cookie
 // de USO ÚNICO (anti-replay, M15) e o LIMPA; troca code por tokens; descobre o email (userinfo); UPSERT
@@ -11,7 +12,7 @@ export async function GET(req: Request) {
   const url = new URL(req.url)
   // Toda saída LIMPA o cookie de nonce (uso único — vale p/ sucesso, replay ou erro).
   const to = (q: string) => {
-    const res = NextResponse.redirect(new URL(`/configuracoes?google=${q}`, url.origin))
+    const res = NextResponse.redirect(new URL(`/configuracoes?google=${q}`, getSiteURL()))
     res.cookies.delete('g_oauth_nonce')
     return res
   }

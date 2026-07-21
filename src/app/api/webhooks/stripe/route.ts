@@ -4,8 +4,25 @@ import { IntegrationError } from '@/server/integrations/errors'
 import { isIntegrationEnabled } from '@/server/integrations/feature-flags'
 import { integrationJsonError } from '@/server/integrations/http'
 import { createRequestId } from '@/server/integrations/logger'
+import { createHmac, timingSafeEqual } from 'crypto'
 
 export const dynamic = 'force-dynamic'
+
+function verifyStripeSignature(rawBody: string, header: string, secret: string): boolean {
+  const parts = header.split(',').map(part => part.trim())
+  const timestamp = parts.find(part => part.startsWith('t='))?.slice(2)
+  const signatures = parts.filter(part => part.startsWith('v1=')).map(part => part.slice(3))
+  if (!timestamp || signatures.length === 0 || !/^\d+$/.test(timestamp)) return false
+  // Rejeita replay de eventos assinados há mais de cinco minutos (ou muito no futuro).
+  if (Math.abs(Date.now() / 1000 - Number(timestamp)) > 300) return false
+  const expected = createHmac('sha256', secret).update(`${timestamp}.${rawBody}`).digest('hex')
+  const expectedBuffer = Buffer.from(expected, 'hex')
+  return signatures.some(signature => {
+    if (!/^[0-9a-f]{64}$/i.test(signature)) return false
+    const provided = Buffer.from(signature, 'hex')
+    return provided.length === expectedBuffer.length && timingSafeEqual(provided, expectedBuffer)
+  })
+}
 
 export async function POST(req: Request) {
   const requestId = createRequestId()
@@ -16,11 +33,15 @@ export async function POST(req: Request) {
     }
 
     const signature = req.headers.get('stripe-signature')
-    if (!signature || !process.env.STRIPE_WEBHOOK_SECRET) {
+    const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET
+    if (!signature || !webhookSecret) {
       throw new IntegrationError('invalid_signature', 'Stripe webhook sem assinatura/configuração válida.', 400)
     }
 
     const rawBody = await req.text()
+    if (!verifyStripeSignature(rawBody, signature, webhookSecret)) {
+      throw new IntegrationError('invalid_signature', 'Assinatura Stripe inválida ou expirada.', 400)
+    }
     const payload = JSON.parse(rawBody) as { id?: string; type?: string; data?: { object?: Record<string, unknown> } }
     if (!payload.id || !payload.type) {
       throw new IntegrationError('invalid_request', 'Payload Stripe inválido.', 400)

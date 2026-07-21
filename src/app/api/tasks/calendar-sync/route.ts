@@ -12,7 +12,7 @@ export async function POST(req: Request) {
   try {
     // Auth + dono. syncTaskCalendar lê a task via service-role (ignora RLS), então a checagem de dono
     // tem que ser feita AQUI: o usuário logado só pode sincronizar/excluir evento de tarefa DELE (anti-IDOR).
-    const auth = await requireAuth()
+    const auth = await requireAuth(req)
     if ('error' in auth) return auth.error
     const { user, supabase } = auth
 

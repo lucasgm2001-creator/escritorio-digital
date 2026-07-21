@@ -15,10 +15,7 @@ export const runtime = 'nodejs'
 function secretOk(req: Request): boolean {
   const expected = process.env.INBOUND_WEBHOOK_SECRET
   if (!expected) return false
-  const provided =
-    req.headers.get('x-webhook-secret') ??
-    new URL(req.url).searchParams.get('secret') ??
-    ''
+  const provided = req.headers.get('x-webhook-secret') ?? ''
   if (!provided) return false
   return timingSafeEqual(
     createHash('sha256').update(provided).digest(),

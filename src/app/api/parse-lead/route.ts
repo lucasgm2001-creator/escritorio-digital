@@ -11,13 +11,13 @@ export const maxDuration = 60
 
 export async function POST(req: Request) {
   // Verificar autenticação
-  const authResult = await requireAuth()
+  const authResult = await requireAuth(req)
   if ('error' in authResult) {
     return authResult.error
   }
 
   // Verificar rate limiting (20 req/min por usuário)
-  const rateLimitInfo = checkRateLimit(authResult.user.id)
+  const rateLimitInfo = await checkRateLimit(authResult.user.id)
   if (!rateLimitInfo.allowed) {
     return NextResponse.json(
       { error: 'Muitas requisições. Aguarde um momento.' },

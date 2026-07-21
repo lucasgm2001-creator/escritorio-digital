@@ -6,6 +6,7 @@ import { assertLeadOwnership } from '@/server/security/team-ownership'
 import { checkRateLimit } from '@/lib/rate-limit'
 import { createServiceClient } from '@/lib/supabase/service'
 import { aiErrorMessage } from '@/lib/aiError'
+import { sameOriginError } from '@/server/security/request-origin'
 
 // Briefing do lead: lê notas (leads.notes) + histórico (lead_interactions), pede um resumo à IA
 // (mesmo modelo do SuperAgent) e SALVA como interação type='briefing'. SÓ LEITURA dos dados +
@@ -24,10 +25,12 @@ const VALID_STATUS = ['novo', 'interagiu', 'nao_interagiu', 'reuniao', 'no_show'
 const str = (v: unknown): string => (v == null ? '' : String(v).trim())
 
 export async function POST(req: Request) {
+  const originError = sameOriginError(req)
+  if (originError) return originError
   // Acesso: rota chamada pela UI logada (não é webhook). Auth + equipe ativa via getRequestContext.
   const context = await getRequestContext()
   if (!context) return NextResponse.json({ ok: false, reason: 'unauthorized' }, { status: 401 })
-  const rl = checkRateLimit(context.user.id)
+  const rl = await checkRateLimit(context.user.id)
   if (!rl.allowed) {
     return NextResponse.json({ ok: false, reason: 'rate' }, {
       status: 429,

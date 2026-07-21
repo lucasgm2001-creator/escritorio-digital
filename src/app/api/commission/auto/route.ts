@@ -6,6 +6,7 @@ import { createServiceClient } from '@/lib/supabase/service'
 import { scheduleDueWeeks } from '@/lib/commission/actions'
 import { resolveRate } from '@/lib/commission/calc'
 import type { FxConfig } from '@/lib/commission/types'
+import { sameOriginError } from '@/server/security/request-origin'
 
 export const runtime = 'nodejs'
 export const maxDuration = 60
@@ -40,6 +41,10 @@ export async function POST(req: Request) {
 
   // Auth: token do agendador (cron, sem sessão) OU usuário logado (gatilho manual da tela).
   const byToken = authorizedByToken(req)
+  if (!byToken) {
+    const originError = sameOriginError(req)
+    if (originError) return originError
+  }
   const context = byToken ? null : await getRequestContext()
   if (!byToken && !context) return NextResponse.json({ ok: false, reason: 'unauthorized' }, { status: 401 })
 

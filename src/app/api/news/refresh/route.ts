@@ -71,7 +71,7 @@ function isInsufficientCredit(e: unknown): boolean {
 export async function POST(req: Request) {
   // Auth dupla: token do agendador OU usuário logado (fallback do Hall). Senão 401.
   if (!authorizedByToken(req)) {
-    const auth = await requireAuth()
+    const auth = await requireAuth(req)
     if ('error' in auth) return auth.error
   }
 

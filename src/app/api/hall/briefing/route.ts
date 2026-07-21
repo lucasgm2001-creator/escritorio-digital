@@ -6,6 +6,7 @@ import { checkRateLimit } from '@/lib/rate-limit'
 import { createServiceClient } from '@/lib/supabase/service'
 import { aiErrorMessage } from '@/lib/aiError'
 import { dayBR } from '@/lib/date'
+import { sameOriginError } from '@/server/security/request-origin'
 
 // Briefing matinal do Hall (resumo do dia). SÓ LEITURA: lê tarefas/leads/reuniões/atividades já
 // salvos e pede à IA (mesmo cliente/modelo do /api/leads/briefing) um resumo curto. NÃO recalcula
@@ -18,11 +19,13 @@ const MODEL = 'claude-sonnet-4-6'   // mesmo do /api/leads/briefing
 const DAY_MS = 86_400_000
 const str = (v: unknown): string => (v == null ? '' : String(v).trim())
 
-export async function POST() {
+export async function POST(req: Request) {
+  const originError = sameOriginError(req)
+  if (originError) return originError
   // Chamado pela UI logada: auth + equipe ativa via getRequestContext + rate-limit.
   const context = await getRequestContext()
   if (!context) return NextResponse.json({ ok: false, reason: 'unauthorized' }, { status: 401 })
-  const rl = checkRateLimit(context.user.id)
+  const rl = await checkRateLimit(context.user.id)
   if (!rl.allowed) {
     return NextResponse.json({ ok: true, briefing: 'Muitas requisições agora — tente o briefing em alguns segundos.' })
   }

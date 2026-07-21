@@ -208,7 +208,7 @@ export function ContaSection() {
 
   const trocarSenha = async () => {
     setMsg(null)
-    if (pw.length < 6) { setMsg({ t: 'err', m: 'A senha precisa de ao menos 6 caracteres.' }); return }
+    if (pw.length < 12) { setMsg({ t: 'err', m: 'A senha precisa de ao menos 12 caracteres.' }); return }
     if (pw !== pw2) { setMsg({ t: 'err', m: 'As senhas não conferem.' }); return }
     setBusy(true)
     const { error } = await supabase.auth.updateUser({ password: pw })

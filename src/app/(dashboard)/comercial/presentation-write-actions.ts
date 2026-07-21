@@ -2,6 +2,7 @@
 
 import { createClient } from '@/lib/supabase/server'
 import { pickAllowed, requireActionContext, toActionError, type ActionError } from '@/server/actions/safe-action'
+import { createServiceClient } from '@/lib/supabase/service'
 
 // Escritas do Studio de Apresentação (dentro do Comercial — PERMISSIONS-004). Editar materiais/apresentações
 // = commercial.edit. O UPLOAD/REMOÇÃO no storage segue client-side (RLS de storage); aqui só as LINHAS das
@@ -53,10 +54,25 @@ export async function deleteMaterialAction(id: string): Promise<{ error: WriteEr
   if (!g.context) return { error: g.error }
   const supabase = createClient()
   const teamId = g.context.activeTeamId
+  let lookup = supabase.from('presentation_materials').select('storage_path').eq('id', id)
+  if (teamId) lookup = lookup.eq('team_id', teamId)
+  const { data: material, error: lookupError } = await lookup.maybeSingle()
+  if (lookupError) return { error: toActionError(lookupError) }
+  if (!material) return { error: { message: 'Material não encontrado.' } }
+
   let q = supabase.from('presentation_materials').delete().eq('id', id)
   if (teamId) q = q.eq('team_id', teamId)
   const { error } = await q
-  return { error: toActionError(error) }
+  if (error) return { error: toActionError(error) }
+
+  // Remove com service-role somente depois de confirmar equipe/permissão e apagar a linha.
+  // Isso também cobre arquivos legados sem o prefixo de equipe.
+  const storagePath = typeof material.storage_path === 'string' ? material.storage_path : ''
+  if (storagePath) {
+    const { error: storageError } = await createServiceClient().storage.from('materiais').remove([storagePath])
+    if (storageError) console.error('[studio] material órfão no Storage:', storageError.message)
+  }
+  return { error: null }
 }
 
 // ── presentations ────────────────────────────────────────────────────────────────────────────────────
