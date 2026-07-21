@@ -21,9 +21,9 @@ export function CommercialMasterDetail({ leads, children }: { leads: MasterLead[
   const shown = q ? leads.filter(lead => `${lead.name} ${lead.company ?? ''}`.toLowerCase().includes(q)) : leads
 
   return (
-    <div className="flex flex-col lg:flex-row gap-4 lg:gap-5">
+    <div className="flex min-w-0 flex-col lg:flex-row gap-4 lg:gap-5 p-3 sm:p-4 lg:p-5 pb-[max(1.5rem,env(safe-area-inset-bottom))]">
       {/* MASTER — lista (sticky no desktop; some no mobile quando há detalhe aberto) */}
-      <aside className={cn('lg:w-80 xl:w-96 shrink-0', hasSelection ? 'hidden lg:block' : 'block')}>
+      <aside className={cn('min-w-0 lg:w-72 xl:w-80 2xl:w-96 shrink-0', hasSelection ? 'hidden lg:block' : 'block')}>
         <div className="lg:sticky lg:top-4 lg:max-h-[calc(100dvh-6rem)] lg:overflow-y-auto lg:pr-1 space-y-3">
           <div className="flex items-center justify-between gap-2">
             <Link href="/comercial" className="inline-flex items-center gap-1 text-sm text-bento-muted min-h-[44px] lg:min-h-0">

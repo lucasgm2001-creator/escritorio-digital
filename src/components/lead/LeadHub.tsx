@@ -47,13 +47,13 @@ function ProfileFieldTile({ field }: { field: ProfileField }) {
 
   return (
     <div className={cn(
-      'min-w-0 rounded-btn border border-bento-border/70 bg-bento-panel/35 px-3 py-2.5',
-      field.priority === 'hero' && 'sm:col-span-2 xl:col-span-2',
+      'min-w-0 min-h-[5.5rem] rounded-btn border border-bento-border/70 bg-bento-panel/35 p-3',
+      field.priority === 'hero' && 'sm:col-span-2',
       field.priority === 'wide' && 'sm:col-span-2',
     )}>
-      <div className="flex items-center gap-2 text-[11px] text-bento-muted">
-        <ActionIcon icon={Icon} className="h-6 w-6 rounded-[7px] border-transparent bg-transparent" />
-        <span className="break-words">{field.label}</span>
+      <div className="flex min-w-0 items-center gap-2.5 text-[11px] text-bento-muted">
+        <ActionIcon icon={Icon} className="h-7 w-7 rounded-[7px] border-transparent bg-bento-bg/40" />
+        <span className="min-w-0 break-words leading-snug">{field.label}</span>
       </div>
       <div className={cn('mt-1 leading-snug text-bento-text break-words', field.priority === 'hero' ? 'text-base font-semibold' : 'text-sm font-medium')}>
         {field.value}
@@ -129,13 +129,13 @@ export function LeadHub({ vm, embedded = false }: { vm: LeadHubVM; embedded?: bo
         {/* Contexto */}
         <div className="space-y-4 xl:col-span-5 2xl:col-span-3">
           <Panel label="Resumo">
-            <div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,13rem),1fr))] gap-2.5">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
               {resumo.map(field => <ProfileFieldTile key={field.label} field={field} />)}
             </div>
           </Panel>
 
           <Panel label="Atividade recente">
-            <div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,12rem),1fr))] gap-2.5">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
               {atividade.map(field => <ProfileFieldTile key={field.label} field={field} />)}
             </div>
           </Panel>
@@ -143,52 +143,57 @@ export function LeadHub({ vm, embedded = false }: { vm: LeadHubVM; embedded?: bo
           <Panel label="Lead Health"><LeadHealthPanel health={vm.health} /></Panel>
         </div>
 
-        {/* História (centro) */}
-        <div className="space-y-4 xl:col-span-7 2xl:col-span-6">
-          <Panel label="Observações">
-            <div className="space-y-3">
-              <LeadObservationComposer leadId={vm.id} />
-              <LeadNotes items={vm.timeline} />
-            </div>
-          </Panel>
-          <Panel label="Timeline"><LeadTimeline items={vm.timeline} /></Panel>
-        </div>
+        {/* Notebook: história + complementos formam uma coluna contínua (sem o grande vazio provocado
+            por uma segunda linha do grid). Desktop largo: `contents` devolve história e lateral como
+            colunas independentes 6/3, ao lado do contexto 3. */}
+        <div className="space-y-4 xl:col-span-7 2xl:contents 2xl:space-y-0">
+          {/* História (centro) */}
+          <div className="space-y-4 2xl:col-span-6">
+            <Panel label="Observações">
+              <div className="space-y-3">
+                <LeadObservationComposer leadId={vm.id} />
+                <LeadNotes items={vm.timeline} />
+              </div>
+            </Panel>
+            <Panel label="Timeline"><LeadTimeline items={vm.timeline} /></Panel>
+          </div>
 
-        {/* Painel lateral */}
-        <div className="space-y-4 xl:col-span-12 xl:grid xl:grid-cols-[repeat(auto-fit,minmax(min(100%,18rem),1fr))] xl:gap-4 xl:space-y-0 2xl:col-span-3 2xl:block 2xl:space-y-4">
-          <Panel label="Histórico comercial"><LeadPipeline steps={vm.pipeline} /></Panel>
+          {/* Painel lateral */}
+          <div className="space-y-4 xl:grid xl:grid-cols-[repeat(auto-fit,minmax(min(100%,18rem),1fr))] xl:gap-4 xl:space-y-0 2xl:col-span-3 2xl:block 2xl:space-y-4">
+            <Panel label="Histórico comercial"><LeadPipeline steps={vm.pipeline} /></Panel>
 
-          <Panel label="Próximas ações">
-            <ul className="space-y-1.5">
-              {NEXT_ACTIONS.map(action => {
-                const Icon = action.icon
-                return (
-                  <li key={action.label} className="flex items-center gap-2.5 rounded-btn border border-bento-border px-2.5 py-2">
-                    <Icon className="w-4 h-4 text-bento-dim shrink-0" />
-                    <span className="text-[13px] text-bento-text">{action.label}</span>
+            <Panel label="Próximas ações">
+              <ul className="space-y-1.5">
+                {NEXT_ACTIONS.map(action => {
+                  const Icon = action.icon
+                  return (
+                    <li key={action.label} className="flex items-center gap-2.5 rounded-btn border border-bento-border px-2.5 py-2.5 min-w-0">
+                      <Icon className="w-4 h-4 text-bento-dim shrink-0" />
+                      <span className="min-w-0 text-[13px] text-bento-text break-words">{action.label}</span>
+                    </li>
+                  )
+                })}
+                {vm.nextContact && (
+                  <li className="flex items-center gap-2.5 rounded-btn border border-lime/25 bg-lime/10 px-2.5 py-2.5 min-w-0">
+                    <CalendarDays className="w-4 h-4 text-lime-fg shrink-0" />
+                    <span className="min-w-0 text-[13px] text-lime-fg break-words">Próximo contato: {fmtDate(vm.nextContact)}</span>
                   </li>
-                )
-              })}
-              {vm.nextContact && (
-                <li className="flex items-center gap-2.5 rounded-btn border border-lime/25 bg-lime/10 px-2.5 py-2">
-                  <CalendarDays className="w-4 h-4 text-lime-fg shrink-0" />
-                  <span className="text-[13px] text-lime-fg">Próximo contato: {fmtDate(vm.nextContact)}</span>
-                </li>
-              )}
-              {vm.health.daysStuck >= 5 && (
-                <li className="flex items-center gap-2.5 rounded-btn border border-amber-700/40 bg-amber-900/20 px-2.5 py-2">
-                  <Clock className="w-4 h-4 text-amber-400 shrink-0" />
-                  <span className="text-[13px] text-amber-300">Parado há {vm.health.daysStuck} dias</span>
-                </li>
-              )}
-            </ul>
-            <p className="text-[11px] text-bento-dim mt-2">Sugestões visuais — viram automação no AUTOMATION-001.</p>
-          </Panel>
+                )}
+                {vm.health.daysStuck >= 5 && (
+                  <li className="flex items-center gap-2.5 rounded-btn border border-amber-700/40 bg-amber-900/20 px-2.5 py-2.5 min-w-0">
+                    <Clock className="w-4 h-4 text-amber-400 shrink-0" />
+                    <span className="min-w-0 text-[13px] text-amber-300 break-words">Parado há {vm.health.daysStuck} dias</span>
+                  </li>
+                )}
+              </ul>
+              <p className="text-[11px] text-bento-dim mt-2 break-words">Sugestões visuais — viram automação no AUTOMATION-001.</p>
+            </Panel>
 
-          <AiInsightsPanel items={AI_ITEMS} />
+            <AiInsightsPanel items={AI_ITEMS} />
 
-          <Panel label="Arquivos"><LeadAttachments /></Panel>
-          <Panel label="Comentários"><LeadComments /></Panel>
+            <Panel label="Arquivos"><LeadAttachments /></Panel>
+            <Panel label="Comentários"><LeadComments /></Panel>
+          </div>
         </div>
       </div>
     </div>
