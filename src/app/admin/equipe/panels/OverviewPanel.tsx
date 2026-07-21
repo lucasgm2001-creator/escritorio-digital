@@ -1,4 +1,5 @@
-import { Users, ShieldCheck, Ticket, Building2 } from 'lucide-react'
+import Link from 'next/link'
+import { Users, ShieldCheck, Ticket, Building2, ArrowRight } from 'lucide-react'
 import { MetricCard } from '@/components/ui/MetricCard'
 import { ROLE_LABEL, type WorkspaceRole } from '../shared'
 
@@ -25,7 +26,10 @@ export function OverviewPanel({ teamName, currentRole, memberCount, adminCount, 
       </div>
 
       <div className="rounded-bento border border-bento-border bg-bento-surface/40 p-5 sm:p-6">
-        <p className="font-tech text-[10px] uppercase tracking-[0.12em] text-bento-muted mb-4">Resumo do workspace</p>
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+          <p className="font-tech text-[10px] uppercase tracking-[0.12em] text-bento-muted">Resumo do workspace</p>
+          {currentRole === 'owner' && <Link href="/admin/empresa" className="inline-flex items-center gap-1.5 text-xs font-medium text-lime-fg hover:underline">Editar dados da empresa <ArrowRight className="h-3.5 w-3.5" /></Link>}
+        </div>
         <dl className="grid grid-cols-1 sm:grid-cols-3 gap-x-6 gap-y-4 text-sm">
           <div className="space-y-0.5">
             <dt className="text-[12px] text-bento-dim">Workspace ativo</dt>
