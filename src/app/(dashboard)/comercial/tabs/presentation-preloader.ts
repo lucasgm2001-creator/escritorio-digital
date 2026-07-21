@@ -75,7 +75,7 @@ async function prepareImage(material: PreloadableMaterial): Promise<PreparedMate
   const loadStartedAt = performance.now()
   await new Promise<void>((resolve, reject) => {
     image.onload = () => resolve()
-    image.onerror = () => reject(new Error('Não foi possível carregar a primeira imagem.'))
+    image.onerror = () => reject(new Error(`Não foi possível carregar “${material.name}”.`))
     image.src = material.url
   })
   const loadedAt = performance.now()
@@ -85,12 +85,12 @@ async function prepareImage(material: PreloadableMaterial): Promise<PreparedMate
     try {
       await image.decode()
     } catch {
-      throw new Error('Não foi possível decodificar a primeira imagem.')
+      throw new Error(`Não foi possível preparar “${material.name}”.`)
     }
   }
   const decodedAt = performance.now()
   if (image.naturalWidth <= 0 || image.naturalHeight <= 0) {
-    throw new Error('A primeira imagem não possui dimensões válidas.')
+    throw new Error(`O arquivo “${material.name}” não possui dimensões válidas.`)
   }
   image.onload = null
   image.onerror = null

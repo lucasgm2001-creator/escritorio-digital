@@ -1,7 +1,7 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
-import { ArrowLeft, Check, Loader2, Play, RotateCcw, X } from 'lucide-react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { ArrowLeft, Check, Loader2, Play, RotateCcw, Sparkles, X } from 'lucide-react'
 import { BrandMark } from '@/components/brand/BrandMark'
 import { Portal } from '@/components/ui/Portal'
 import { useDialog } from '@/components/ui/useDialog'
@@ -12,11 +12,11 @@ import { PresentationPreparationCache } from './presentation-preloader'
 type MeetingStatus = 'idle' | 'preparing' | 'ready' | 'error' | 'starting'
 
 const STATUS_COPY: Record<MeetingStatus, string> = {
-  idle: 'Preparação ainda não iniciada',
-  preparing: 'Carregando primeiro material…',
-  ready: 'Apresentação pronta',
-  error: 'Não foi possível preparar o primeiro material',
-  starting: 'Iniciando apresentação…',
+  idle: 'Preparando sua experiência',
+  preparing: 'Cuidando dos últimos detalhes…',
+  ready: 'Tudo pronto para começar',
+  error: 'Precisamos de mais um instante',
+  starting: 'Abrindo apresentação…',
 }
 
 export function MeetingMode({ name, client, materials, onClose }: {
@@ -27,39 +27,55 @@ export function MeetingMode({ name, client, materials, onClose }: {
 }) {
   const [status, setStatus] = useState<MeetingStatus>('idle')
   const [error, setError] = useState<string | null>(null)
+  const [preparedCount, setPreparedCount] = useState(0)
   const [playing, setPlaying] = useState(false)
   const [fullscreenAlreadyRequested, setFullscreenAlreadyRequested] = useState(false)
+  const preparationRun = useRef(0)
+  const disposeTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const { ref, dialogProps } = useDialog<HTMLDivElement>(onClose, !playing)
   const cache = useMemo(() => new PresentationPreparationCache(() => {
     const padding = window.innerWidth >= 640 ? 64 : 32
     return Math.max(window.innerWidth - padding - 16, 100)
   }), [])
-  const first = materials[0]
 
   const prepare = useCallback(async () => {
-    if (!first) {
-      setError('Esta apresentação não possui um primeiro material disponível.')
+    const run = ++preparationRun.current
+    if (materials.length === 0) {
+      setError('Nenhum material está disponível nesta apresentação.')
       setStatus('error')
       return
     }
     setError(null)
+    setPreparedCount(0)
     setStatus('preparing')
     try {
-      await cache.prepare(first)
-      setStatus('ready')
-      // O segundo material aquece depois do primeiro frame, sem bloquear o botão.
-      if (materials[1]) cache.prepare(materials[1]).catch(() => { /* segue sob demanda no player */ })
+      // Só libera o início quando TODOS os materiais renderizáveis tiverem sido
+      // carregados e decodificados. Assim o último slide não estreia em branco.
+      await Promise.all(materials.map(material => cache.prepare(material).then(result => {
+        if (preparationRun.current === run) setPreparedCount(count => count + 1)
+        return result
+      })))
+      if (preparationRun.current === run) setStatus('ready')
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : 'Não foi possível preparar o primeiro material.')
+      if (preparationRun.current !== run) return
+      setError(cause instanceof Error ? cause.message : 'Não foi possível carregar todos os materiais.')
       setStatus('error')
     }
-  }, [cache, first, materials])
+  }, [cache, materials])
 
   useEffect(() => {
     prepare()
   }, [prepare])
 
-  useEffect(() => () => cache.dispose(), [cache])
+  // O descarte adiado evita que o ciclo de verificação do React Strict Mode
+  // invalide o cache entre o primeiro e o segundo setup em desenvolvimento.
+  useEffect(() => {
+    if (disposeTimer.current) clearTimeout(disposeTimer.current)
+    return () => {
+      preparationRun.current += 1
+      disposeTimer.current = setTimeout(() => cache.dispose(), 0)
+    }
+  }, [cache])
 
   const start = async () => {
     if (status !== 'ready') return
@@ -99,22 +115,25 @@ export function MeetingMode({ name, client, materials, onClose }: {
               <BrandMark size={36} decorative />
               <div className="min-w-0">
                 <p className="font-display font-semibold text-sm text-white">Escritório Digital</p>
-                <p className="font-tech text-[10px] uppercase tracking-[0.14em] text-white/45">Modo de Reunião</p>
+                <p className="font-tech text-[10px] uppercase tracking-[0.14em] text-white/45">Apresentação Executiva</p>
               </div>
             </div>
-            <button type="button" onClick={onClose} aria-label="Voltar ao Studio"
+            <button type="button" onClick={onClose} aria-label="Encerrar apresentação"
               className="inline-flex items-center gap-2 rounded-btn border border-white/15 bg-white/5 px-3 py-2 text-xs font-medium text-white/65 hover:border-white/30 hover:text-white transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lime">
               <ArrowLeft className="w-4 h-4" />
-              <span className="hidden sm:inline">Voltar ao Studio</span>
+              <span className="hidden sm:inline">Encerrar</span>
               <X className="w-4 h-4 sm:hidden" />
             </button>
           </header>
 
           <main className="flex-1 flex items-center justify-center py-12">
             <section className="w-full max-w-2xl text-center">
-              <p className="font-tech text-[10px] uppercase tracking-[0.18em] text-lime-fg">Reunião preparada para compartilhar</p>
-              <h1 id="meeting-title" className="mt-4 font-display text-3xl sm:text-5xl font-bold tracking-tight text-white text-balance">{name}</h1>
-              {client && <p className="mt-3 text-sm sm:text-base text-white/50">{client}</p>}
+              <div className="mx-auto inline-flex items-center gap-2 rounded-full border border-lime/20 bg-lime/[0.07] px-3 py-1.5 text-lime-fg">
+                <Sparkles className="w-3.5 h-3.5" />
+                <span className="font-tech text-[10px] uppercase tracking-[0.18em]">Escritório Digital apresenta</span>
+              </div>
+              <h1 id="meeting-title" className="mt-5 font-display text-3xl sm:text-5xl font-bold tracking-tight text-white text-balance">{name}</h1>
+              {client && <p className="mt-3 text-sm sm:text-base text-white/55">Preparado especialmente para <span className="font-semibold text-white/80">{client}</span></p>}
 
               <div className="mx-auto mt-10 max-w-md rounded-frame border border-white/10 bg-white/[0.035] p-5 sm:p-6 shadow-2xl backdrop-blur-sm">
                 <div className="flex items-center justify-center">
@@ -131,8 +150,19 @@ export function MeetingMode({ name, client, materials, onClose }: {
                   <p className={cn('text-sm font-semibold', status === 'ready' ? 'text-lime-fg' : status === 'error' ? 'text-red-300' : 'text-white/75')}>
                     {STATUS_COPY[status]}
                   </p>
-                  {error && <p className="mt-1 text-xs text-white/45">{error}</p>}
+                  {status === 'ready' && <p className="mt-1.5 text-xs leading-relaxed text-white/45">Uma conversa pensada para gerar clareza, direção e próximos passos.</p>}
+                  {status === 'preparing' && (
+                    <p className="mt-1.5 text-xs text-white/45">Preparando {preparedCount + 1 > materials.length ? materials.length : preparedCount + 1} de {materials.length}</p>
+                  )}
+                  {error && <p className="mt-1.5 text-xs text-white/45">{error}</p>}
                 </div>
+
+                {status === 'preparing' && (
+                  <div className="mt-3 h-1 overflow-hidden rounded-full bg-white/[0.07]" aria-hidden="true">
+                    <div className="h-full rounded-full bg-lime transition-[width] duration-300"
+                      style={{ width: `${Math.max(6, (preparedCount / materials.length) * 100)}%` }} />
+                  </div>
+                )}
 
                 {status === 'error' ? (
                   <button type="button" onClick={prepare}
@@ -148,7 +178,7 @@ export function MeetingMode({ name, client, materials, onClose }: {
               </div>
 
               <p className="mt-6 font-tech text-[10px] uppercase tracking-[0.12em] text-white/25">
-                Compartilhe esta tela quando a apresentação estiver pronta
+                Estratégia, clareza e próximos passos em uma experiência feita para você
               </p>
             </section>
           </main>
