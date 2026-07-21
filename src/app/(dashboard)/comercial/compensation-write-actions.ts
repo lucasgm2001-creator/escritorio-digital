@@ -45,6 +45,29 @@ export async function addSalaryAction(input: { sellerId: string; valorUsd: numbe
   return { data: (data as Row) ?? null, error: toActionError(error) }
 }
 
+// Renovação trimestral: configuração individual do vendedor. O valor é fixo em US$50 por regra de negócio;
+// esta ação controla apenas se o vendedor está ou não elegível.
+export async function updateRenewalBonusAction(sellerId: string, enabled: boolean): Promise<{ error: WriteError }> {
+  const g = await guardFinanceAdmin()
+  if (!g.context) return { error: g.error }
+  const supabase = createClient()
+  const teamId = g.context.activeTeamId
+  if (!teamId) return { error: { message: 'Equipe ativa não encontrada.' } }
+  const { data: seller } = await supabase.from('sellers').select('id').eq('id', sellerId).eq('team_id', teamId).maybeSingle()
+  if (!seller) return { error: { message: 'Vendedor não encontrado nesta equipe.' } }
+
+  const { data: current, error: readError } = await supabase.from('collaborator_compensation_settings')
+    .select('id').eq('seller_id', sellerId).eq('team_id', teamId)
+    .lte('effective_from', new Date().toISOString().slice(0, 10))
+    .order('effective_from', { ascending: false }).limit(1).maybeSingle()
+  if (readError) return { error: toActionError(readError) }
+  const payload = { renewal_bonus_enabled: enabled, renewal_bonus_type: 'fixed', renewal_bonus_value: 50, updated_at: new Date().toISOString() }
+  const result = current
+    ? await supabase.from('collaborator_compensation_settings').update(payload).eq('id', current.id).eq('team_id', teamId)
+    : await supabase.from('collaborator_compensation_settings').insert({ seller_id: sellerId, team_id: teamId, effective_from: new Date().toISOString().slice(0, 10), ...payload })
+  return { error: toActionError(result.error) }
+}
+
 // ── deals ────────────────────────────────────────────────────────────────────────────────────────────
 export async function createDealAction(input: {
   sellerId: string; client: string; sellerName: string | null; total: number; semanas: number; vps: number; dataFechamento: string

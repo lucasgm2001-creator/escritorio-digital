@@ -78,5 +78,7 @@ export async function GET(req: Request) {
     if (scheduled.length) results.push({ client: c.name as string, marked: scheduled, reason })
   }
   const totalMarked = results.reduce((s, r) => s + r.marked.length, 0)
-  return NextResponse.json({ ok: true, dryRun: false, today, rate, eligibleClients: eligible.length, totalMarked, results })
+  const { data: renewals, error: renewalError } = await supabase.rpc('process_due_renewals', { p_as_of: today })
+  if (renewalError) console.error('[cron/auto-weeks] renovacoes:', renewalError.message)
+  return NextResponse.json({ ok: true, dryRun: false, today, rate, eligibleClients: eligible.length, totalMarked, results, renewals: Number(renewals ?? 0), renewalError: renewalError?.message ?? null })
 }

@@ -19,6 +19,7 @@ import {
   updateFxConfigAction, addSalaryAction, createDealAction, updateDealStatusAction, deleteDealAction,
   updateDealAction, payWeekAction, deleteWeekAction, updateWeekDateAction, registerMeetingAction,
   deleteMeetingAction, updateMeetingAction,
+  updateRenewalBonusAction,
 } from '../compensation-write-actions'
 import { cn } from '@/lib/utils'
 import { monthlySummary, resolveRate, dealTotal, pendingCommission } from '@/lib/commission/calc'
@@ -71,6 +72,8 @@ export function CommissionSection({ sellerId, sellerName }: { sellerId: string; 
   const [salMonth, setSalMonth] = useState(`${now.getFullYear()}-${pad2(now.getMonth() + 1)}`)
   const [savingSal, setSavingSal] = useState(false)
   const [salError, setSalError] = useState('')
+  const [renewalEnabled, setRenewalEnabled] = useState(false)
+  const [savingRenewal, setSavingRenewal] = useState(false)
 
   // Form venda
   const [showNewDeal, setShowNewDeal] = useState(false)
@@ -87,13 +90,15 @@ export function CommissionSection({ sellerId, sellerName }: { sellerId: string; 
 
   const load = useCallback(async () => {
     setLoading(true)
-    const [salRes, mtgRes, dealRes, fxRes, cliRes, leadRes] = await Promise.all([
+    const [salRes, mtgRes, dealRes, fxRes, cliRes, leadRes, renewalRes] = await Promise.all([
       supabase.from('seller_salaries').select('seller_id, valor_usd, effective_from').eq('seller_id', sellerId).order('effective_from', { ascending: false }),
       supabase.from('meetings').select('id, seller_id, met_on, valor_usd, cotacao_usd_brl, client_name').eq('seller_id', sellerId).order('met_on', { ascending: false }),
       supabase.from('deals').select('id, seller_id, client_name, valor_total_usd, teto_semanas, valor_por_semana_usd, status, data_fechamento').eq('seller_id', sellerId).order('data_fechamento', { ascending: false }),
       supabase.from('fx_config').select('cotacao_manual, cotacao_travada, cotacao_referencia').eq('id', 1).maybeSingle(),
       supabase.from('clients').select('id, name').order('name'),
       supabase.from('leads').select('id, name').order('name'),
+      supabase.from('collaborator_compensation_settings').select('renewal_bonus_enabled')
+        .eq('seller_id', sellerId).lte('effective_from', todayISO()).order('effective_from', { ascending: false }).limit(1).maybeSingle(),
     ])
 
     setSalaries((salRes.data ?? []).map(s => ({ sellerId: s.seller_id, valorUsd: Number(s.valor_usd), effectiveFrom: s.effective_from })))
@@ -103,6 +108,7 @@ export function CommissionSection({ sellerId, sellerName }: { sellerId: string; 
     setDeals(ds)
     setClients((cliRes.data ?? []) as { id: string; name: string }[])
     setLeads((leadRes.data ?? []) as { id: string; name: string }[])
+    setRenewalEnabled(!!renewalRes.data?.renewal_bonus_enabled)
 
     const dealIds = ds.map(d => d.id)
     if (dealIds.length) {
@@ -122,6 +128,16 @@ export function CommissionSection({ sellerId, sellerName }: { sellerId: string; 
   }, [sellerId, supabase])
 
   useEffect(() => { load() }, [load])
+
+  const changeRenewal = async (enabled: boolean) => {
+    if (savingRenewal) return
+    setSavingRenewal(true)
+    const result = await updateRenewalBonusAction(sellerId, enabled)
+    setSavingRenewal(false)
+    if (result.error) { toast({ type: 'error', message: result.error.message }); return }
+    setRenewalEnabled(enabled)
+    toast({ type: 'success', message: enabled ? 'Bônus trimestral de US$ 50 ativado.' : 'Bônus de renovação desativado.' })
+  }
 
   // Cotação automática (regra 5): busca server-side com cache diário + fallback. NÃO
   // bloqueia a tela — o valor aparece na hora (referência do DB) e atualiza quando volta.
@@ -531,6 +547,24 @@ export function CommissionSection({ sellerId, sellerName }: { sellerId: string; 
         <button onClick={gerarPdf} className="flex items-center justify-center gap-1.5 w-full border border-bento-border text-bento-dim hover:border-lime hover:text-bento-text py-2 rounded-btn text-sm font-medium transition-colors min-h-[44px]">
           <Download className="w-4 h-4" /> Gerar PDF do mês
         </button>
+      </Collapsible>
+
+      <Collapsible icon={<RefreshCw className="w-4 h-4 text-lime-fg" />} title="Renovação trimestral"
+        peek={renewalEnabled ? 'Ativa · US$ 50' : 'Desativada'} open={!!open.renewal} onToggle={() => toggle('renewal')}>
+        <div className="rounded-btn border border-bento-border/60 bg-bento-bg p-3 space-y-3">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <p className="text-sm font-medium text-bento-text">Bônus por renovação</p>
+              <p className="text-[11px] text-bento-muted">US$ 50 a cada 3 meses, contados da primeira semana paga, para clientes sob responsabilidade deste vendedor.</p>
+            </div>
+            <button type="button" role="switch" aria-checked={renewalEnabled} disabled={savingRenewal}
+              onClick={() => changeRenewal(!renewalEnabled)}
+              className={cn('relative h-6 w-11 rounded-full transition-colors disabled:opacity-50', renewalEnabled ? 'bg-lime' : 'bg-bento-border')}>
+              <span className={cn('absolute left-1 top-1 h-4 w-4 rounded-full bg-white transition-transform', renewalEnabled ? 'translate-x-5' : 'translate-x-0')} />
+            </button>
+          </div>
+          <p className="font-tech text-[10px] text-bento-muted">Exemplo: primeira semana paga em 01/04 → renovações em 01/07, 01/10, 01/01… O lançamento acontece uma única vez em cada data.</p>
+        </div>
       </Collapsible>
 
       {/* ── COMISSÃO POR SEMANA (mês selecionado) ──────────────────────── */}
