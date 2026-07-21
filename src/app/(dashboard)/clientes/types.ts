@@ -14,6 +14,7 @@ export interface Client {
   forma_pagamento?: string | null         // método (PIX/cartão/transferência...) — só cadastro (Parte 2, migration 054)
   status: 'ativo' | 'inativo' | 'prospect'
   start_date?: string
+  billing_anchor_date?: string | null   // primeira semana paga; ancora a recorrência sem alterar o início do contrato
   end_date?: string
   assigned_name?: string
   nicho?: string

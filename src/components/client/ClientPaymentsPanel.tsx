@@ -25,7 +25,7 @@ type ClientPayment = {
   observacao?: string | null
   anulado?: boolean
 }
-type ClientMeta = { id: string; start_date: string | null; dia_pagamento_semana: number | null; plano_id: string | null; plan_weekly: number | null }
+type ClientMeta = { id: string; start_date: string | null; billing_anchor_date: string | null; dia_pagamento_semana: number | null; plano_id: string | null; plan_weekly: number | null }
 type Plan = { id: string; nome: string; valor_semanal: number }
 type Editor = {
   clientId: string
@@ -82,7 +82,7 @@ export function ClientPaymentsPanel({
     let active = true
     Promise.all([
       supabase.from('client_payments').select('*').in('client_id', ids),
-      supabase.from('clients').select('id, start_date, dia_pagamento_semana, plano_id, plan_weekly').in('id', ids),
+      supabase.from('clients').select('id, start_date, billing_anchor_date, dia_pagamento_semana, plano_id, plan_weekly').in('id', ids),
       supabase.from('plans').select('id, nome, valor_semanal').eq('ativo', true).order('ordem'),
     ]).then(([payRes, clientRes, planRes]) => {
       if (!active) return
@@ -106,7 +106,7 @@ export function ClientPaymentsPanel({
     const used = new Set(rows.map(r => r.numero_semana))
     let numero = 1; while (used.has(numero)) numero++
     const c = meta[client.id]
-    const start = c?.start_date?.slice(0, 10) || todaySP()
+    const start = c?.billing_anchor_date?.slice(0, 10) || c?.start_date?.slice(0, 10) || todaySP()
     const dia = c?.dia_pagamento_semana ?? new Date(`${start}T12:00:00Z`).getUTCDay()
     const dueOn = dueDateFor(start, dia, numero)
     const status: ClientWeekStatus = dueOn < todaySP() ? 'vencida' : 'prevista'
@@ -144,6 +144,10 @@ export function ClientPaymentsPanel({
       })
       if (!res.ok) { toast({ type: 'error', message: res.error }); return }
       await reload(editor.clientId)
+      if (editor.numero === 1 && editor.status === 'paga' && editor.paidOn) {
+        const weekday = new Date(`${editor.paidOn}T12:00:00Z`).getUTCDay()
+        setMeta(prev => ({ ...prev, [editor.clientId]: { ...prev[editor.clientId], billing_anchor_date: editor.paidOn, dia_pagamento_semana: weekday } }))
+      }
       setEditor(null)
       toast({ type: 'success', message: `Semana ${editor.numero} atualizada como ${STATUS_LABEL[editor.status].toLowerCase()}.` })
     } finally { setSaving(false) }
@@ -210,6 +214,7 @@ export function ClientPaymentsPanel({
           <div><label className="block text-xs text-bento-dim mb-1">Observação</label><textarea rows={3} value={editor.observacao} onChange={e => setEditor(v => v && ({ ...v, observacao: e.target.value }))} placeholder="Ex.: cliente pediu prazo até sexta-feira" className={inputCls} /></div>
           <div className="rounded-btn bg-bento-bg border border-bento-border/60 p-3 text-xs text-bento-muted">
             {editor.status === 'paga' ? 'Ao salvar, a receita será confirmada e a comissão vinculada será liberada.' : editor.status === 'parcial' ? 'O valor parcial entra na receita; a comissão aguarda o pagamento completo.' : 'Esta semana não entrará na receita e não gerará comissão.'}
+            {editor.numero === 1 && editor.status === 'paga' && <span className="block mt-1 text-lime-fg">A primeira semana define o dia fixo das próximas cobranças.</span>}
           </div>
           <div className="flex gap-2"><button onClick={() => setEditor(null)} className="flex-1 border border-bento-border text-bento-dim py-2 rounded-btn text-sm">Cancelar</button><button onClick={save} disabled={saving} className="bento-btn flex-1 py-2 rounded-btn text-sm font-semibold disabled:opacity-50">{saving ? 'Salvando…' : 'Salvar semana'}</button></div>
         </div>

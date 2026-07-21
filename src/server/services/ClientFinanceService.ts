@@ -45,12 +45,14 @@ export async function getClientFinance(context: RequestContext, clientId: string
   const totalRecebido = receivedRevenue(payments.map(p => ({ valor_usd: p.valorUsd, paid_on: p.paidOn, anulado: p.anulado })))
   const semanasPagas = active.length
   const paidNums = new Set(active.map(p => p.numeroSemana))
+  const registeredNums = new Set(payments.map(p => p.numeroSemana))
 
   let semanasPendentes = 0
   let proximaSemana: number | null = null
   let proximaCobranca: string | null = null
 
-  const start = client.start_date ? String(client.start_date).slice(0, 10) : null
+  const anchor = client.billing_anchor_date ?? client.start_date
+  const start = anchor ? String(anchor).slice(0, 10) : null
   if (start && client.status === 'ativo') {
     const dia = client.dia_pagamento_semana ?? dowOfYmd(start)
     const today = todaySP()
@@ -61,7 +63,7 @@ export async function getClientFinance(context: RequestContext, clientId: string
     for (let n = 1; n <= dueCount; n++) if (!paidNums.has(n)) semanasPendentes++
     // Próxima semana a receber = menor n ainda não pago ativamente + seu vencimento.
     let n = 1
-    while (paidNums.has(n)) n++
+    while (registeredNums.has(n)) n++
     proximaSemana = n
     proximaCobranca = dueDateFor(start, dia, n)
   }

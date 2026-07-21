@@ -163,11 +163,11 @@ export function dueDateFor(startYmd: string, diaPagamento: number, n: number): s
 export async function payDueWeeks(
   supabase: SupaClient, clientId: string, rate: number, maxWeeks = 12, teamId?: string | null,
 ): Promise<{ marked: number[]; reason: string }> {
-  const { data: cli } = await supabase.from('clients').select('status, start_date, dia_pagamento_semana').eq('id', clientId).is('deleted_at', null).maybeSingle()
+  const { data: cli } = await supabase.from('clients').select('status, start_date, billing_anchor_date, dia_pagamento_semana').eq('id', clientId).is('deleted_at', null).maybeSingle()
   if (!cli) return { marked: [], reason: 'nao_encontrado' }
   if (cli.status !== 'ativo') return { marked: [], reason: 'inativo' }
   if (!cli.start_date) return { marked: [], reason: 'sem_inicio' }
-  const start = String(cli.start_date).slice(0, 10)
+  const start = String(cli.billing_anchor_date ?? cli.start_date).slice(0, 10)
   const dia = cli.dia_pagamento_semana ?? dowOfYmd(start)
   const today = spToday()
 
@@ -194,13 +194,13 @@ export async function scheduleDueWeeks(
   supabase: SupaClient, clientId: string, rate: number, maxWeeks = 12, teamId?: string | null,
 ): Promise<{ scheduled: number[]; reason: string }> {
   const { data: cli } = await supabase.from('clients')
-    .select('status, start_date, dia_pagamento_semana, plano_id, plan_weekly')
+    .select('status, start_date, billing_anchor_date, dia_pagamento_semana, plano_id, plan_weekly')
     .eq('id', clientId).is('deleted_at', null).maybeSingle()
   if (!cli) return { scheduled: [], reason: 'nao_encontrado' }
   if (cli.status !== 'ativo') return { scheduled: [], reason: 'inativo' }
   if (!cli.start_date) return { scheduled: [], reason: 'sem_inicio' }
 
-  const start = String(cli.start_date).slice(0, 10)
+  const start = String(cli.billing_anchor_date ?? cli.start_date).slice(0, 10)
   const dia = cli.dia_pagamento_semana ?? dowOfYmd(start)
   const today = spToday()
   const { planoId, valorUsd } = await resolveClientPlan(supabase, clientId)
@@ -277,11 +277,11 @@ export async function reconstructClientHistory(
   supabase: SupaClient, clientId: string, rate: number, teamId?: string | null,
 ): Promise<{ ok: boolean; reason?: string; redated: number; marked: number[]; dueCount: number; hadDeal: boolean }> {
   const empty = { redated: 0, marked: [] as number[], dueCount: 0, hadDeal: false }
-  const { data: cli } = await supabase.from('clients').select('status, start_date, dia_pagamento_semana').eq('id', clientId).is('deleted_at', null).maybeSingle()
+  const { data: cli } = await supabase.from('clients').select('status, start_date, billing_anchor_date, dia_pagamento_semana').eq('id', clientId).is('deleted_at', null).maybeSingle()
   if (!cli) return { ok: false, reason: 'nao_encontrado', ...empty }
   if (cli.status !== 'ativo') return { ok: false, reason: 'inativo', ...empty }
   if (!cli.start_date) return { ok: false, reason: 'sem_inicio', ...empty }
-  const start = String(cli.start_date).slice(0, 10)
+  const start = String(cli.billing_anchor_date ?? cli.start_date).slice(0, 10)
   const dia = cli.dia_pagamento_semana ?? dowOfYmd(start)
   const today = spToday()
 
@@ -303,22 +303,17 @@ export async function reconstructClientHistory(
 
   // RE-DATA as semanas ATIVAS cuja data ≠ vencimento real (corrige a semana carimbada "hoje").
   // USD/cotação preservados — muda só paid_on (a competência). Não mexe em anuladas.
-  const { data: cps } = await supabase.from('client_payments').select('numero_semana, paid_on, anulado').eq('client_id', clientId)
+  const { data: cps } = await supabase.from('client_payments').select('numero_semana, paid_on, due_on, status, anulado').eq('client_id', clientId)
   let redated = 0
   for (const p of cps ?? []) {
-    if (p.anulado) continue
     const n = Number(p.numero_semana)
     const due = dueDateFor(start, dia, n)
-    if (String(p.paid_on ?? '').slice(0, 10) === due) continue
-    let uq = supabase.from('client_payments').update({ paid_on: due }).eq('client_id', clientId).eq('numero_semana', n)
+    if (String(p.due_on ?? '').slice(0, 10) === due) continue
+    // Corrige somente o vencimento. A data real do recebimento nunca é reescrita por reconstrução.
+    let uq = supabase.from('client_payments').update({ due_on: due }).eq('client_id', clientId).eq('numero_semana', n)
     if (teamId) uq = uq.eq('team_id', teamId)
     const { error: e1 } = await uq
     if (e1) continue
-    if (deal) {
-      let wq = supabase.from('weekly_payments').update({ paid_on: due }).eq('deal_id', deal.id).eq('numero_semana', n)
-      if (teamId) wq = wq.eq('team_id', teamId)
-      await wq
-    }
     redated++
   }
 
@@ -336,11 +331,11 @@ export async function reconstructClientHistory(
 export async function payMonth(
   supabase: SupaClient, clientId: string, monthRef: string, rate: number, teamId?: string | null,
 ): Promise<{ marked: number[]; reason: string; monthRef: string }> {
-  const { data: cli } = await supabase.from('clients').select('status, start_date, dia_pagamento_semana').eq('id', clientId).is('deleted_at', null).maybeSingle()
+  const { data: cli } = await supabase.from('clients').select('status, start_date, billing_anchor_date, dia_pagamento_semana').eq('id', clientId).is('deleted_at', null).maybeSingle()
   if (!cli) return { marked: [], reason: 'nao_encontrado', monthRef }
   if (cli.status !== 'ativo') return { marked: [], reason: 'inativo', monthRef }
   if (!cli.start_date) return { marked: [], reason: 'sem_inicio', monthRef }
-  const start = String(cli.start_date).slice(0, 10)
+  const start = String(cli.billing_anchor_date ?? cli.start_date).slice(0, 10)
   const dia = cli.dia_pagamento_semana ?? dowOfYmd(start)
 
   const { data: cps } = await supabase.from('client_payments').select('numero_semana').eq('client_id', clientId)
@@ -442,9 +437,9 @@ export async function applyPlanUpgrade(
 export async function nextUnpaidMonth(
   supabase: SupaClient, clientId: string,
 ): Promise<string | null> {
-  const { data: cli } = await supabase.from('clients').select('start_date, dia_pagamento_semana').eq('id', clientId).is('deleted_at', null).maybeSingle()
+  const { data: cli } = await supabase.from('clients').select('start_date, billing_anchor_date, dia_pagamento_semana').eq('id', clientId).is('deleted_at', null).maybeSingle()
   if (!cli?.start_date) return null
-  const start = String(cli.start_date).slice(0, 10)
+  const start = String(cli.billing_anchor_date ?? cli.start_date).slice(0, 10)
   const dia = cli.dia_pagamento_semana ?? dowOfYmd(start)
   const { data: cps } = await supabase.from('client_payments').select('numero_semana').eq('client_id', clientId)
   const registered = new Set((cps ?? []).map(r => r.numero_semana as number))
