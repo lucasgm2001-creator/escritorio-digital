@@ -17,9 +17,12 @@ const R = 196
 
 const usd = (n: number): string => `US$ ${Math.round(n).toLocaleString('en-US')}`
 const pct = (whole: number): string => `${Math.round(whole)}%`   // conversão do exec já vem 0..100
-const signInt = (d: number): string => `${d >= 0 ? '+' : '−'}${Math.abs(Math.round(d))}`
-const signUsd = (d: number): string => `${d >= 0 ? '+' : '−'}${usd(Math.abs(d))}`
-const signPp = (d: number): string => `${d >= 0 ? '+' : '−'}${Math.abs(Math.round(d))} pp`
+// A fonte Helvetica embutida no jsPDF não cobre U+2212 (sinal de menos matemático) nem
+// o delta grego com confiabilidade. Use apenas glifos WinAnsi/ASCII no conteúdo do PDF:
+// evita o caractere quebrado que aparecia como aspas antes dos valores negativos.
+const signInt = (d: number): string => `${d >= 0 ? '+' : '-'}${Math.abs(Math.round(d))}`
+const signUsd = (d: number): string => `US$ ${d >= 0 ? '+' : '-'}${Math.round(Math.abs(d)).toLocaleString('en-US')}`
+const signPp = (d: number): string => `${d >= 0 ? '+' : '-'}${Math.abs(Math.round(d))} pp`
 
 export async function buildExecutivePdf(input: {
   exec: ExecutiveMetricsVM
@@ -104,7 +107,7 @@ export async function buildExecutivePdf(input: {
     body.push(['Conversão', pct(exec.conversao), pct(execPrev.conversao), signPp(exec.conversao - execPrev.conversao)])
     const deltaVals = [...cRows.map(r => r[3]), exec.receitaRecebida - execPrev.receitaRecebida, exec.conversao - execPrev.conversao]
     autoTable(doc, {
-      startY: y, head: [['Métrica', 'Atual', 'Anterior', 'Δ']],
+      startY: y, head: [['Métrica', 'Atual', 'Anterior', 'Diferença']],
       body,
       styles: { fontSize: 8.5, cellPadding: 2.2 }, headStyles: { fillColor: GREEN, textColor: [20, 20, 20] }, alternateRowStyles: { fillColor: [245, 247, 240] },
       columnStyles: { 1: { fontStyle: 'bold', textColor: DARK }, 3: { fontStyle: 'bold', halign: 'right' } },
