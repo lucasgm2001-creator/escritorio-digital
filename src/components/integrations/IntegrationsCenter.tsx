@@ -152,7 +152,7 @@ export function IntegrationsCenter() {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
               {HEALTH_STATES.map(h => (
                 <div key={h.state} className="bento-fx p-3 flex items-start gap-3">
-                  <span className={cn('mt-0.5 text-[9px] font-tech uppercase tracking-wide rounded-full border px-1.5 py-0.5 shrink-0', HEALTH_TONE_CLASS[h.tone])}>{h.label}</span>
+                  <span className={cn('mt-0.5 text-[10px] font-tech uppercase tracking-wide rounded-full border px-1.5 py-0.5 shrink-0', HEALTH_TONE_CLASS[h.tone])}>{h.label}</span>
                   <p className="text-[12px] text-bento-muted leading-relaxed">{h.description}</p>
                 </div>
               ))}

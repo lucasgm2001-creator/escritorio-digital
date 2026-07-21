@@ -414,7 +414,7 @@ export function FasesTab() {
         <Portal>
         <div className="fixed inset-0 z-[300] flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-black/50" onClick={() => setDelState(null)} />
-          <div ref={delDialog.ref} {...delDialog.dialogProps} aria-labelledby="delstate-title" className="relative w-full max-w-sm bg-bento-panel border border-bento-border rounded-bento shadow-card-hover p-4 space-y-3">
+          <div ref={delDialog.ref} {...delDialog.dialogProps} aria-labelledby="delstate-title" className="relative w-full max-w-sm max-h-[calc(100dvh-2rem)] overflow-y-auto overscroll-contain bg-bento-panel border border-bento-border rounded-bento shadow-card-hover p-4 space-y-3">
             <div className="flex items-center justify-between">
               <h3 id="delstate-title" className="font-display font-bold text-bento-text">Excluir “{delState.stage.nome}”</h3>
               <button onClick={() => setDelState(null)} aria-label="Fechar" className="p-1 text-bento-muted hover:text-bento-text"><X className="w-4 h-4" /></button>
@@ -458,7 +458,7 @@ function SortableFase({ stage, selected, onSelect }: { stage: FunnelStage; selec
       <span className="w-2.5 h-2.5 rounded-full flex-none" style={{ backgroundColor: stage.cor || '#64748b' }} />
       <span className="flex-1 text-sm text-bento-text truncate">{stage.nome}</span>
       {prot && <Lock className="w-3.5 h-3.5 text-bento-muted shrink-0" />}
-      <span className={cn('text-[9px] px-1.5 py-0.5 rounded-full border font-semibold shrink-0', ROLE_CLS[role])}>{ROLE_LABEL[role]}</span>
+      <span className={cn('text-[10px] px-1.5 py-0.5 rounded-full border font-semibold shrink-0', ROLE_CLS[role])}>{ROLE_LABEL[role]}</span>
     </div>
   )
 }

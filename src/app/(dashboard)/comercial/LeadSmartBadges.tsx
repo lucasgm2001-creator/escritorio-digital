@@ -24,7 +24,7 @@ export function LeadSmartBadges({ lead, max = 3, className }: { lead: Lead; max?
           key={badge.key}
           title={badge.title}
           className={cn(
-            'inline-flex h-4 max-w-[5.8rem] shrink-0 items-center truncate rounded border px-1 font-tech text-[9px] font-semibold leading-none',
+            'inline-flex h-4 max-w-[5.8rem] shrink-0 items-center truncate rounded border px-1 font-tech text-[10px] font-semibold leading-none',
             BADGE_TONE[badge.tone],
           )}
         >

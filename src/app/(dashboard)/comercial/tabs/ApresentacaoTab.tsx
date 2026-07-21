@@ -597,8 +597,8 @@ export function ApresentacaoTab({ activeTeamId = null }: { activeTeamId?: string
                   <p className="font-tech text-[10px] text-bento-muted mt-0.5">{fmtSize(m.size_bytes)} · {formatDate(m.created_at)}</p>
                   {(m.pasta || m.nicho) && (
                     <div className="flex items-center gap-2 mt-1 max-w-full">
-                      {m.pasta && <span className="inline-flex items-center gap-1 min-w-0 font-tech text-[9px] text-bento-dim"><Folder className="w-2.5 h-2.5 flex-none" /><span className="truncate">{m.pasta}</span></span>}
-                      {m.nicho && <span className="inline-flex items-center gap-1 min-w-0 font-tech text-[9px] text-lime-fg"><Tag className="w-2.5 h-2.5 flex-none" /><span className="truncate">{m.nicho}</span></span>}
+                      {m.pasta && <span className="inline-flex items-center gap-1 min-w-0 font-tech text-[10px] text-bento-dim"><Folder className="w-2.5 h-2.5 flex-none" /><span className="truncate">{m.pasta}</span></span>}
+                      {m.nicho && <span className="inline-flex items-center gap-1 min-w-0 font-tech text-[10px] text-lime-fg"><Tag className="w-2.5 h-2.5 flex-none" /><span className="truncate">{m.nicho}</span></span>}
                     </div>
                   )}
                 </div>
@@ -818,7 +818,7 @@ export function ApresentacaoTab({ activeTeamId = null }: { activeTeamId?: string
         <Portal>
         <div className="fixed inset-0 z-[300] flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-black/50" onClick={() => setEditMat(null)} />
-          <div ref={editMatDialog.ref} {...editMatDialog.dialogProps} aria-labelledby="editmat-title" className="relative w-full max-w-sm bg-bento-panel border border-bento-border rounded-bento shadow-card-hover p-4 space-y-3">
+          <div ref={editMatDialog.ref} {...editMatDialog.dialogProps} aria-labelledby="editmat-title" className="relative w-full max-w-sm max-h-[calc(100dvh-2rem)] overflow-y-auto overscroll-contain bg-bento-panel border border-bento-border rounded-bento shadow-card-hover p-4 space-y-3">
             <div className="flex items-center justify-between">
               <h3 id="editmat-title" className="font-display font-bold text-bento-text">Editar material</h3>
               <button onClick={() => setEditMat(null)} aria-label="Fechar" className="min-h-9 min-w-9 rounded-lg text-bento-muted hover:text-bento-text hover:bg-bento-bg transition-colors flex items-center justify-center"><X className="w-4 h-4" /></button>

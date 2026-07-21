@@ -75,7 +75,7 @@ export function ClientResumo({ client, finance, lastActivityAt, lastMeetingAt, l
           <h1 className="font-display font-bold text-2xl text-bento-text truncate">{client.name}</h1>
           <p className="text-sm text-bento-muted mt-0.5 truncate">{[client.company, client.nicho].filter(Boolean).join(' · ') || '—'}</p>
         </div>
-        <div className="flex items-center gap-2 shrink-0">
+        <div className="flex w-full sm:w-auto items-center gap-2 flex-wrap sm:justify-end">
           <ClientEditLauncher client={client} />
           <span title={health.hint} className={cn('inline-flex items-center gap-1.5 text-[11px] font-tech uppercase tracking-wide px-2.5 py-1 rounded-full border', health.cls)}>
             <span className={cn('w-1.5 h-1.5 rounded-full', health.dot)} /> Saúde: {health.label}
@@ -99,10 +99,10 @@ export function ClientResumo({ client, finance, lastActivityAt, lastMeetingAt, l
             {info.map(field => {
               const Icon = field.icon
               return (
-                <div key={field.label} className="flex items-center gap-2.5">
+                <div key={field.label} className="flex items-start sm:items-center gap-2.5 min-w-0">
                   <Icon className="w-4 h-4 text-bento-dim shrink-0" />
-                  <span className="text-[11px] text-bento-muted w-32 shrink-0">{field.label}</span>
-                  <span className="text-sm text-bento-text truncate">{field.value}</span>
+                  <span className="text-[11px] text-bento-muted w-24 sm:w-32 shrink-0">{field.label}</span>
+                  <span className="text-sm text-bento-text min-w-0 break-words [overflow-wrap:anywhere]">{field.value}</span>
                 </div>
               )
             })}
@@ -115,10 +115,10 @@ export function ClientResumo({ client, finance, lastActivityAt, lastMeetingAt, l
               {activity.map(field => {
                 const Icon = field.icon
                 return (
-                  <div key={field.label} className="flex items-center gap-2.5">
+                  <div key={field.label} className="flex items-start sm:items-center gap-2.5 min-w-0">
                     <Icon className="w-4 h-4 text-bento-dim shrink-0" />
-                    <span className="text-[11px] text-bento-muted w-32 shrink-0">{field.label}</span>
-                    <span className="text-sm text-bento-text truncate">{field.value}</span>
+                    <span className="text-[11px] text-bento-muted w-24 sm:w-32 shrink-0">{field.label}</span>
+                    <span className="text-sm text-bento-text min-w-0 break-words">{field.value}</span>
                   </div>
                 )
               })}

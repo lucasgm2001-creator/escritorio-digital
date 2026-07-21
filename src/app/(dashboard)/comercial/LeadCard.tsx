@@ -58,14 +58,14 @@ function LeadCardBody({ lead }: { lead: Lead }) {
 
         {signal !== 'none' ? (
           <span className={cn(
-            'inline-flex items-center gap-1 px-1.5 py-px rounded font-tech text-[9px] font-bold uppercase tracking-wide',
+            'inline-flex items-center gap-1 px-1.5 py-px rounded font-tech text-[10px] font-bold uppercase tracking-wide',
             SIGNAL_TAG[signal],
           )}>
             <span className="w-1 h-1 rounded-full bg-current flex-none" />
             {signal === 'hot' ? 'Quente' : `${daysStopped(lead)}d`}
           </span>
         ) : nextAction ? (
-          <span className="inline-flex items-center gap-1.5 font-tech text-[9px] coarse:text-[11px] text-bento-muted truncate">
+          <span className="inline-flex items-center gap-1.5 font-tech text-[10px] coarse:text-[11px] text-bento-muted truncate">
             <span className="w-1 h-1 rounded-full bg-bento-muted flex-none" />
             {nextAction}
           </span>

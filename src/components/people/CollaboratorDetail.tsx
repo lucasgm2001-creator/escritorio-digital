@@ -104,7 +104,7 @@ export function CollaboratorDetail({ collaborator, teamName, canEditPermissions,
                   return (
                     <div key={mod.key} className="flex items-center justify-between gap-2 rounded-bento border border-bento-border px-2.5 py-1.5 min-w-0">
                       <span className="text-[12px] text-bento-text truncate">{mod.label}</span>
-                      <span className={cn('text-[9px] font-tech uppercase tracking-wide px-1.5 py-0.5 rounded-full border shrink-0', lvl.cls)}>{lvl.label}</span>
+                      <span className={cn('text-[10px] font-tech uppercase tracking-wide px-1.5 py-0.5 rounded-full border shrink-0', lvl.cls)}>{lvl.label}</span>
                     </div>
                   )
                 })}

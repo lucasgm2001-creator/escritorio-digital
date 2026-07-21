@@ -233,7 +233,7 @@ export function RelatorioComercial() {
               <div key={f.stage}>
                 <div className="flex items-center justify-between text-[12px] mb-1 gap-2">
                   <span className="text-bento-text truncate">
-                    {f.stage}{i === 0 && <span className="ml-2 text-[9px] font-tech uppercase tracking-wide text-amber-400">gargalo</span>}
+                    {f.stage}{i === 0 && <span className="ml-2 text-[10px] font-tech uppercase tracking-wide text-amber-400">gargalo</span>}
                   </span>
                   <span className="text-bento-muted shrink-0 tabular-nums">{f.count}{f.avgDays != null ? ` · ${f.avgDays}d` : ''}</span>
                 </div>

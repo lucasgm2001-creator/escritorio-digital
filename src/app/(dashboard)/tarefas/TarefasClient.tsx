@@ -391,7 +391,7 @@ export function TarefasClient({ tasks, setTasks, deletedIds, linkOptions, curren
                 {t.title}
               </span>
               {!t.done && t.priority !== 'normal' && (
-                <span className={cn('text-[9px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded', PRIORITY_TAG[t.priority])}>
+                <span className={cn('text-[10px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded', PRIORITY_TAG[t.priority])}>
                   {t.priority}
                 </span>
               )}

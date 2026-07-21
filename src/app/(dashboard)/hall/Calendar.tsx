@@ -224,7 +224,7 @@ export function Calendar({ userId, events, tasks, onEventsChange, focusEvent, on
                   ))}
                   {pend.length > 0 && <span className={cn('w-1.5 h-1.5 rounded-full', pend.some(t => (t.due_date ?? '') < todayStr) ? 'bg-red-500' : 'bg-lime')} />}
                 </div>
-                {pend.length > 0 && <span className="block text-[9px] text-bento-dim leading-tight truncate mt-0.5">{pend[0].title}{pend.length > 1 ? ` +${pend.length - 1}` : ''}</span>}
+                {pend.length > 0 && <span className="block text-[10px] text-bento-dim leading-tight truncate mt-0.5">{pend[0].title}{pend.length > 1 ? ` +${pend.length - 1}` : ''}</span>}
               </button>
             )
           })}
@@ -248,12 +248,12 @@ export function Calendar({ userId, events, tasks, onEventsChange, focusEvent, on
             <button key={dateStr} onClick={() => { setDailyDate(date); setView('daily') }}
               className={cn('flex flex-col items-center gap-0.5 rounded-md border px-0.5 py-1.5 text-center transition-colors min-h-[52px]',
                 isToday ? 'bg-lime/15 border-lime/40' : 'bg-bento-bg border-bento-border')}>
-              <span className={cn('font-tech text-[9px] uppercase tracking-tight', isToday ? 'text-lime-fg' : 'text-bento-muted')}>{label}</span>
+              <span className={cn('font-tech text-[10px] uppercase tracking-tight', isToday ? 'text-lime-fg' : 'text-bento-muted')}>{label}</span>
               <span className={cn('font-display text-sm font-bold tabular-nums leading-none', isToday ? 'text-lime-fg' : 'text-bento-text')}>{date.getDate()}</span>
               <span className="flex items-center justify-center gap-0.5 h-1.5">
                 {dayEvents.slice(0, 2).map(e => <span key={e.id} className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: e.color }} />)}
                 {pend.length > 0 && <span className={cn('w-1.5 h-1.5 rounded-full', pend.some(t => (t.due_date ?? '') < todayStr) ? 'bg-red-500' : 'bg-lime')} />}
-                {dayEvents.length + pend.length > 3 && <span className="font-tech text-[8px] text-bento-muted leading-none">+</span>}
+                {dayEvents.length + pend.length > 3 && <span className="font-tech text-[10px] text-bento-muted leading-none">+</span>}
               </span>
             </button>
           )
@@ -280,7 +280,7 @@ export function Calendar({ userId, events, tasks, onEventsChange, focusEvent, on
                   {dayEvents.slice(0, 3).map(e => (
                     <span key={e.id} className="w-2 h-2 rounded-sm" style={{ backgroundColor: e.color }} />
                   ))}
-                  {dayEvents.length > 3 && <span className="text-[9px] text-bento-muted w-full text-center">+{dayEvents.length - 3}</span>}
+                  {dayEvents.length > 3 && <span className="text-[10px] text-bento-muted w-full text-center">+{dayEvents.length - 3}</span>}
                 </div>
               )}
               {pend.length > 0 && (
@@ -288,10 +288,10 @@ export function Calendar({ userId, events, tasks, onEventsChange, focusEvent, on
                   {pend.slice(0, 2).map(t => (
                     <div key={t.id} className="flex items-center gap-1">
                       <span className={cn('w-1.5 h-1.5 rounded-full flex-none', (t.due_date ?? '') < todayStr ? 'bg-red-500' : 'bg-lime')} />
-                      <span className="text-[9px] text-bento-dim leading-tight truncate">{t.title}</span>
+                      <span className="text-[10px] text-bento-dim leading-tight truncate">{t.title}</span>
                     </div>
                   ))}
-                  {pend.length > 2 && <span className="block text-[9px] text-bento-muted">+{pend.length - 2}</span>}
+                  {pend.length > 2 && <span className="block text-[10px] text-bento-muted">+{pend.length - 2}</span>}
                 </div>
               )}
             </button>

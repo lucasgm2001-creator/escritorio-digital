@@ -59,9 +59,9 @@ export function ClientFinance({ vm }: { vm: ClientFinanceVM }) {
           ) : (
             <div className="space-y-1.5 max-h-80 overflow-y-auto pr-1">
               {periods.map(period => (
-                <div key={period.key} className="flex items-center justify-between gap-2 text-[13px]">
-                  <span className="font-tech text-bento-dim tabular-nums">{period.label} · {dateOrDash(period.paidOn)}</span>
-                  <span className="flex items-center gap-2">
+                <div key={period.key} className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1 sm:gap-2 text-[13px] min-w-0">
+                  <span className="font-tech text-bento-dim tabular-nums break-words">{period.label} · {dateOrDash(period.paidOn)}</span>
+                  <span className="flex items-center gap-2 flex-wrap sm:justify-end">
                     <span className={cn('font-tech tabular-nums', period.anulado ? 'line-through text-bento-muted' : 'text-bento-text')}>{usd(period.valorUsd)}</span>
                     <span className={cn('text-[10px] font-semibold', period.status === 'paga' ? 'text-emerald-400' : period.status === 'prevista' ? 'text-bento-muted' : 'text-amber-300')}>{situationLabel[period.status] ?? period.status}</span>
                   </span>

@@ -28,12 +28,12 @@ export function LeadNotes({ items }: { items: LeadTimelineItem[] }) {
               {note.description || note.title}
             </p>
             <div className="flex items-center gap-2 mt-2.5 flex-wrap">
-              <span className="w-5 h-5 rounded-full bg-lime/15 text-lime-fg flex items-center justify-center text-[9px] font-bold shrink-0">
+              <span className="w-5 h-5 rounded-full bg-lime/15 text-lime-fg flex items-center justify-center text-[10px] font-bold shrink-0">
                 {initials(note.author)}
               </span>
               <span className="text-[11px] text-bento-muted break-words">{note.author ?? 'Sistema'}</span>
               <span className="text-[10px] text-bento-dim ml-auto shrink-0">{fmtWhen(note.at)}</span>
-              <span className={`text-[9px] font-tech uppercase tracking-wide px-1.5 py-0.5 rounded-full border ${cat.cls}`}>{cat.label}</span>
+              <span className={`text-[10px] font-tech uppercase tracking-wide px-1.5 py-0.5 rounded-full border ${cat.cls}`}>{cat.label}</span>
             </div>
           </article>
         )

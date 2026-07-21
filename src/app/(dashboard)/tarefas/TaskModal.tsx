@@ -352,7 +352,7 @@ export function TaskModal({ onClose, onSaved, linkOptions, task, prefill, aiFill
               <div className="flex items-center justify-between gap-2 bg-bento-bg border border-bento-border rounded-btn px-3 py-2">
                 <span className="flex items-center gap-2 min-w-0">
                   <span className={cn(
-                    'text-[9px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded',
+                    'text-[10px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded',
                     link.type === 'lead' ? 'text-blue-400 bg-blue-900/30' : 'text-lime-fg bg-lime/15',
                   )}>
                     {link.type === 'lead' ? 'Lead' : 'Cliente'}
@@ -386,7 +386,7 @@ export function TaskModal({ onClose, onSaved, linkOptions, task, prefill, aiFill
                         className="w-full flex items-center gap-2 px-3 py-2 text-left hover:bg-bento-bg transition-colors"
                       >
                         <span className={cn(
-                          'text-[9px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded shrink-0',
+                          'text-[10px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded shrink-0',
                           o.type === 'lead' ? 'text-blue-400 bg-blue-900/30' : 'text-lime-fg bg-lime/15',
                         )}>
                           {o.type === 'lead' ? 'Lead' : 'Cliente'}

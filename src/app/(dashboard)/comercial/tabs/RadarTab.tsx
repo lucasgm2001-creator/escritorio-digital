@@ -184,10 +184,10 @@ export function RadarTab({ leads, stages = [] }: { leads: Lead[]; stages?: Funne
                 <span className={cn('text-label font-tech uppercase tracking-label px-2 py-0.5 rounded-full border shrink-0', ACTION_BADGE[priority.tone])}>{priority.label}</span>
               </div>
               {/* 2) Situação (por quê) — manual ou derivada honesta */}
-              <p className={cn('text-note leading-snug pl-[18px]', view.situationDerived ? 'text-bento-dim' : 'text-bento-muted')}>{priority.reason} · {view.situation}</p>
+              <p className={cn('text-note leading-snug pl-[18px] break-words [overflow-wrap:anywhere]', view.situationDerived ? 'text-bento-dim' : 'text-bento-muted')}>{priority.reason} · {view.situation}</p>
               {/* 3) Próxima ação + quando */}
-              <div className="flex items-center justify-between gap-3 pl-[18px]">
-                <span className="min-w-0 flex items-center gap-1.5 text-caption">
+              <div className="flex items-center justify-between gap-3 pl-[18px] min-w-0">
+                <span className="min-w-0 flex flex-wrap items-center gap-1.5 text-caption">
                   <ArrowRight className="w-3.5 h-3.5 text-bento-dim shrink-0" />
                   <span className={cn('truncate', view.nextText === '—' ? 'text-bento-dim' : 'text-bento-text')}>{view.nextText}</span>
                   {view.nextWhen && <span className={cn('shrink-0 font-tech', view.nextWhen <= today ? 'text-red-400 font-semibold' : 'text-bento-muted')}>· {relativeDayLabel(view.nextWhen, today)}</span>}

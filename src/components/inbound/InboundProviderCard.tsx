@@ -28,7 +28,7 @@ export function InboundProviderCard({ provider }: { provider: InboundProvider })
           <p className="text-sm font-semibold text-bento-text truncate">{provider.name}</p>
           <p className="text-[10px] text-bento-dim">{CATEGORY_LABEL[provider.category]}</p>
         </div>
-        <span className="text-[9px] font-tech uppercase tracking-wide text-bento-dim border border-bento-border rounded-full px-1.5 py-0.5 shrink-0 text-right">{STATUS_LABEL[provider.status]}</span>
+        <span className="text-[10px] font-tech uppercase tracking-wide text-bento-dim border border-bento-border rounded-full px-1.5 py-0.5 shrink-0 text-right">{STATUS_LABEL[provider.status]}</span>
       </div>
 
       <p className="text-[12px] text-bento-muted leading-relaxed min-h-[2.5rem]">{provider.description}</p>

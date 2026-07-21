@@ -57,7 +57,7 @@ export function LeadTasks({ leadId, leadName, compact = true }: {
   const { toast } = useToast()
 
   const txt = compact ? 'text-[10px]' : 'text-xs'
-  const mono = compact ? 'text-[9px]' : 'text-[10px]'
+  const mono = compact ? 'text-[10px]' : 'text-[10px]'
 
   const load = useCallback(async () => {
     const { data } = await supabase

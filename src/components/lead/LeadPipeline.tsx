@@ -24,7 +24,7 @@ export function LeadPipeline({ steps }: { steps: LeadPipelineStep[] }) {
           )}>
             <div className="flex items-start justify-between gap-2">
               <p className={cn('text-sm font-semibold leading-snug break-words', step.current ? 'text-lime-fg' : 'text-bento-text')}>{step.stage}</p>
-              {step.current && <span className="text-[9px] font-tech uppercase tracking-wide text-lime-fg shrink-0">atual</span>}
+              {step.current && <span className="text-[10px] font-tech uppercase tracking-wide text-lime-fg shrink-0">atual</span>}
             </div>
             <p className="text-[11px] text-bento-muted mt-0.5">
               {fmtDate(step.enteredAt)}{step.durationDays != null ? ` · ${step.durationDays}d na fase` : ''}

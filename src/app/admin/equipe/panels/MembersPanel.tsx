@@ -135,7 +135,7 @@ export function MembersPanel({ members, currentUserId, currentRole, teamName, ac
                     {menuFor === member.id && (
                       <>
                         <button type="button" aria-hidden tabIndex={-1} onClick={() => setMenuFor(null)} className="fixed inset-0 z-10 cursor-default" />
-                        <div className="absolute right-0 mt-1 z-20 w-52 rounded-bento border border-bento-border bg-bento-surface shadow-lg p-1">
+                        <div className="absolute right-0 mt-1 z-20 w-52 max-w-[calc(100vw-2rem)] max-h-[min(20rem,calc(100dvh-4rem))] overflow-y-auto rounded-bento border border-bento-border bg-bento-surface shadow-lg p-1">
                           {canPromote && (
                             <button type="button" onClick={() => run(member, () => changeMemberRoleAction(member.userId, 'admin'))}
                               className="w-full flex items-center gap-2 px-3 py-2 rounded-btn text-xs text-bento-text hover:bg-bento-bg transition-colors">
@@ -179,7 +179,7 @@ export function MembersPanel({ members, currentUserId, currentRole, teamName, ac
                     <input value={confirmText} onChange={e => setConfirmText(e.target.value)} disabled={pending} placeholder={transferWord}
                       className="w-full bg-bento-bg border border-bento-border rounded-btn px-3 min-h-[40px] text-sm text-bento-text placeholder:text-bento-muted focus:outline-none focus:border-amber-500/50 disabled:opacity-50" />
                   </div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 flex-wrap">
                     <button type="button" onClick={() => run(member, () => transferOwnershipAction(member.userId))} disabled={pending || confirmText.trim() !== transferWord}
                       className="inline-flex items-center gap-1.5 px-3 py-2 rounded-btn text-xs font-semibold bg-amber-500/15 border border-amber-500/40 text-amber-300 hover:bg-amber-500/25 disabled:opacity-50 min-h-[40px]">
                       <ArrowRightLeft className="w-3.5 h-3.5" /> {busy ? 'Transferindo...' : 'Confirmar transferência'}
@@ -202,7 +202,7 @@ export function MembersPanel({ members, currentUserId, currentRole, teamName, ac
                       </p>
                     </div>
                   </div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 flex-wrap">
                     <button type="button" onClick={() => run(member, () => removeMemberAction(member.userId))} disabled={pending}
                       className="inline-flex items-center gap-1.5 px-3 py-2 rounded-btn text-xs font-semibold bg-red-500/15 border border-red-500/40 text-red-400 hover:bg-red-500/25 disabled:opacity-50 min-h-[40px]">
                       <Trash2 className="w-3.5 h-3.5" /> {busy ? 'Removendo...' : 'Remover membro'}

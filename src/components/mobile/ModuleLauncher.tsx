@@ -26,7 +26,7 @@ export function ModuleLauncher({ open, onClose }: { open: boolean; onClose: () =
             <X className="w-5 h-5" />
           </button>
         </div>
-        <div className="p-4 grid grid-cols-3 gap-2.5 overflow-y-auto">
+        <div className="p-4 grid grid-cols-2 min-[360px]:grid-cols-3 gap-2.5 overflow-y-auto overscroll-contain">
           {modules.map(m => {
             const active = pathname === m.href || pathname.startsWith(m.href + '/')
             const Icon = m.Icon

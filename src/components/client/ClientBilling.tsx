@@ -24,9 +24,9 @@ export function ClientBilling({ billing }: { billing: CustomerBillingProfile }) 
       <Panel label="Cobrança">
         <div className="divide-y divide-bento-border/60">
           {rows.map(row => (
-            <div key={row.label} className="flex items-center justify-between gap-3 py-2.5 first:pt-0 last:pb-0">
+            <div key={row.label} className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1 sm:gap-3 py-2.5 first:pt-0 last:pb-0 min-w-0">
               <span className="text-[13px] text-bento-muted">{row.label}</span>
-              <span className="text-[13px] text-bento-text text-right">{row.value}</span>
+              <span className="text-[13px] text-bento-text sm:text-right break-words [overflow-wrap:anywhere]">{row.value}</span>
             </div>
           ))}
         </div>

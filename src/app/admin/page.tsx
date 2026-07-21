@@ -63,7 +63,7 @@ export default async function AdminHomePage() {
                 </div>
                 <span className="text-sm font-medium text-bento-text truncate flex-1">{section.label}</span>
                 {!REAL.has(section.key) && (
-                  <span className="text-[9px] font-tech uppercase text-bento-dim border border-bento-border rounded-full px-1.5 py-0.5 shrink-0">roadmap</span>
+                  <span className="text-[10px] font-tech uppercase text-bento-dim border border-bento-border rounded-full px-1.5 py-0.5 shrink-0">roadmap</span>
                 )}
               </Link>
             )

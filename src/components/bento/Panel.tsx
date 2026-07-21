@@ -43,16 +43,16 @@ export function Panel({ span = '1', hero = false, label, action, className, body
       )}
     >
       {(label || action) && (
-        <div className={cn('flex items-center justify-between gap-2 mb-4 shrink-0', headerClassName)}>
+        <div className={cn('flex items-center justify-between gap-2 mb-4 shrink-0 min-w-0', headerClassName)}>
           {label && (
             <span className="font-tech text-[10px] uppercase tracking-[0.12em] text-bento-muted truncate">
               {label}
             </span>
           )}
-          {action && <div className="shrink-0">{action}</div>}
+          {action && <div className="shrink-0 max-w-[65%] overflow-x-auto">{action}</div>}
         </div>
       )}
-      <div className={cn('flex flex-col min-h-0 flex-1', bodyClassName)}>{children}</div>
+      <div className={cn('flex flex-col min-h-0 min-w-0 flex-1', bodyClassName)}>{children}</div>
     </section>
   )
 }

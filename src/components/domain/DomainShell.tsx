@@ -52,7 +52,7 @@ export function DomainShell({ configKey, config: configProp, visibleSectionKeys,
       <DomainNav
         config={config}
         subtitle={subtitle}
-        className="hidden md:flex w-64 xl:w-72 shrink-0 border-r border-bento-border overflow-hidden pt-[env(safe-area-inset-top)]"
+        className="hidden md:flex w-56 lg:w-60 2xl:w-64 shrink-0 border-r border-bento-border overflow-hidden pt-[env(safe-area-inset-top)]"
       />
 
       <div className="flex-1 min-w-0 flex flex-col">
@@ -81,14 +81,14 @@ export function DomainShell({ configKey, config: configProp, visibleSectionKeys,
         </div>
 
         <main className="flex-1 min-h-0 overflow-y-auto">
-          <div className="mx-auto w-full max-w-4xl px-4 md:px-6 pt-5 md:pt-8 pb-[max(2rem,env(safe-area-inset-bottom))]">
+          <div className="mx-auto w-full min-w-0 max-w-6xl px-4 md:px-6 lg:px-8 pt-5 md:pt-8 pb-[max(2rem,env(safe-area-inset-bottom))]">
             {children}
           </div>
         </main>
       </div>
 
       {/* Contexto — multi-painel só no desktop grande. */}
-      <aside className="hidden xl:flex w-72 shrink-0 border-l border-bento-border flex-col gap-4 p-5">
+      <aside className="hidden 2xl:flex w-64 shrink-0 border-l border-bento-border flex-col gap-4 p-5 overflow-y-auto">
         <div className="bento-fx p-4">
           <p className="font-tech text-[10px] uppercase tracking-[0.12em] text-bento-muted">Sessão</p>
           <p className="text-sm font-semibold text-bento-text mt-2 truncate">{userName}</p>

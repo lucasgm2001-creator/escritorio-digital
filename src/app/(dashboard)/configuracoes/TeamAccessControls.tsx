@@ -107,7 +107,7 @@ export function TeamAccessControls({
                   <p className="text-sm font-medium text-bento-text truncate flex items-center gap-2">
                     <Users className="w-3.5 h-3.5 text-bento-dim shrink-0" />
                     <span className="truncate">{t.name}</span>
-                    {active && <span className="font-tech text-[9px] uppercase tracking-wide text-lime-fg border border-lime/40 rounded-full px-1.5 py-px shrink-0">Ativa</span>}
+                    {active && <span className="font-tech text-[10px] uppercase tracking-wide text-lime-fg border border-lime/40 rounded-full px-1.5 py-px shrink-0">Ativa</span>}
                   </p>
                   <p className="text-[11px] text-bento-muted mt-0.5 pl-5">{ROLE_LABEL[t.role] ?? t.role}</p>
                 </div>

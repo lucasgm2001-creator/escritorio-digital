@@ -22,7 +22,7 @@ export function CollaboratorCard({ collaborator }: { collaborator: CollaboratorC
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
             <span className="font-semibold text-sm text-bento-text truncate">{collaborator.name}</span>
-            <span className={cn('text-[9px] font-tech uppercase tracking-wide px-1.5 py-0.5 rounded-full border shrink-0', role.cls)}>
+            <span className={cn('text-[10px] font-tech uppercase tracking-wide px-1.5 py-0.5 rounded-full border shrink-0', role.cls)}>
               {role.label}
             </span>
           </div>

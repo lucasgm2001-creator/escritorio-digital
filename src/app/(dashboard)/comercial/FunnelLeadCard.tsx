@@ -61,7 +61,7 @@ export function FunnelLeadCard({ lead, moveTargets, onMove, onOpenDiary, onLog, 
           )}
         </div>
         {lead.contact_code && (
-          <span className="font-tech text-[9px] text-bento-muted bg-bento-bg border border-bento-border rounded px-1 py-px flex-none" title="Código do contato">{lead.contact_code}</span>
+          <span className="font-tech text-[10px] text-bento-muted bg-bento-bg border border-bento-border rounded px-1 py-px flex-none" title="Código do contato">{lead.contact_code}</span>
         )}
         <ChevronDown className={cn('w-3.5 h-3.5 text-bento-muted flex-none transition-transform', open && 'rotate-180')} />
       </div>

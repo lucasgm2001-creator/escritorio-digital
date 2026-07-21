@@ -32,10 +32,10 @@ export function WorkspaceHeader({ eyebrow, breadcrumb, title, subtitle, kpis, ac
           ) : eyebrow ? (
             <p className="font-tech text-[11px] uppercase tracking-[0.14em] text-lime-fg">{eyebrow}</p>
           ) : null}
-          <h1 className={`font-display font-bold text-bento-text ${size === 'compact' ? 'text-xl' : 'text-2xl'}`}>{title}</h1>
-          {subtitle && <p className="text-sm text-bento-muted max-w-prose">{subtitle}</p>}
+          <h1 className={`font-display font-bold text-bento-text break-words ${size === 'compact' ? 'text-xl' : 'text-2xl'}`}>{title}</h1>
+          {subtitle && <p className="text-sm text-bento-muted max-w-prose break-words">{subtitle}</p>}
         </div>
-        {actions && <div className="flex items-center gap-2 shrink-0">{actions}</div>}
+        {actions && <div className="flex w-full sm:w-auto items-center gap-2 flex-wrap sm:justify-end">{actions}</div>}
       </div>
       {kpis && <div>{kpis}</div>}
     </header>

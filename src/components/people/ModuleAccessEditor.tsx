@@ -39,7 +39,7 @@ export function ModuleAccessEditor({ userId, rows, editable }: { userId: string;
               <span className="min-w-0 flex items-center gap-2">
                 <span className="text-sm text-bento-text truncate">{row.label}</span>
                 {row.overridden && (
-                  <span className="text-[9px] font-tech uppercase tracking-wide text-lime-fg/70 shrink-0">personalizado</span>
+                  <span className="text-[10px] font-tech uppercase tracking-wide text-lime-fg/70 shrink-0">personalizado</span>
                 )}
               </span>
               {editable ? (

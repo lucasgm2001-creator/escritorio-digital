@@ -40,7 +40,7 @@ export function EventCenter({ published }: { published: { total: number; recent:
           <ul className="-my-1 divide-y divide-bento-border">
             {published.recent.map(ev => (
               <li key={ev.id} className="flex items-start gap-3 py-2.5">
-                <span className="mt-0.5 text-[9px] font-tech uppercase tracking-wide text-bento-dim border border-bento-border rounded-full px-1.5 py-0.5 shrink-0">{ev.type}</span>
+                <span className="mt-0.5 text-[10px] font-tech uppercase tracking-wide text-bento-dim border border-bento-border rounded-full px-1.5 py-0.5 shrink-0">{ev.type}</span>
                 <div className="min-w-0 flex-1">
                   <p className="text-sm text-bento-text leading-snug">{ev.description}</p>
                   <p className="text-[11px] text-bento-muted mt-0.5">

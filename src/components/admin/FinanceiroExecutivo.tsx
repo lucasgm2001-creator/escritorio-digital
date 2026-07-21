@@ -62,17 +62,17 @@ export function FinanceiroExecutivo({ vm }: { vm: FinancialViewVM }) {
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           <div className="bento-fx p-5">
             <p className="font-tech text-[10px] uppercase tracking-wide text-bento-muted">Receita Recebida</p>
-            <p className="font-display text-3xl xl:text-4xl font-bold text-lime-fg tabular-nums leading-none mt-2">{usd(vm.receitaRecebida)}</p>
+            <p className="font-display text-2xl md:text-3xl 2xl:text-4xl font-bold text-lime-fg tabular-nums leading-none mt-2 break-words">{usd(vm.receitaRecebida)}</p>
             <p className="text-[11px] text-bento-dim mt-1.5">dinheiro no caixa (client_payments)</p>
           </div>
           <div className="bento-fx p-5">
             <p className="font-tech text-[10px] uppercase tracking-wide text-bento-muted">Receita Prevista</p>
-            <p className="font-display text-3xl xl:text-4xl font-bold text-bento-text tabular-nums leading-none mt-2">{usd(vm.receitaPrevista)}</p>
+            <p className="font-display text-2xl md:text-3xl 2xl:text-4xl font-bold text-bento-text tabular-nums leading-none mt-2 break-words">{usd(vm.receitaPrevista)}</p>
             <p className="text-[11px] text-bento-dim mt-1.5">cobranças agendadas até o fim do mês</p>
           </div>
           <div className="bento-fx p-5">
             <p className="font-tech text-[10px] uppercase tracking-wide text-bento-muted">Valor Fechado</p>
-            <p className="font-display text-3xl xl:text-4xl font-bold text-bento-text tabular-nums leading-none mt-2">{usd(vm.valorFechado)}</p>
+            <p className="font-display text-2xl md:text-3xl 2xl:text-4xl font-bold text-bento-text tabular-nums leading-none mt-2 break-words">{usd(vm.valorFechado)}</p>
             <p className="text-[11px] text-bento-dim mt-1.5">contratos fechados (deals) — não é caixa</p>
           </div>
         </div>
@@ -82,7 +82,7 @@ export function FinanceiroExecutivo({ vm }: { vm: FinancialViewVM }) {
       {/* ═══════════════ CARTEIRA ═══════════════ */}
       <section className="space-y-2.5">
         <GroupHeader>Carteira</GroupHeader>
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-3 2xl:grid-cols-6 gap-2.5">
           <MetricCard title="MRR" value={usd(vm.mrr)} tone="positive" size="sm" />
           <MetricCard title="ARR" value={usd(vm.arr)} size="sm" />
           <MetricCard title="Ticket Médio" value={usd(vm.ticketMedio)} size="sm" />
@@ -95,7 +95,7 @@ export function FinanceiroExecutivo({ vm }: { vm: FinancialViewVM }) {
       {/* ═══════════════ COBRANÇA ═══════════════ */}
       <section className="space-y-2.5">
         <GroupHeader>Cobrança · cobranças do mês por vencimento</GroupHeader>
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-3 2xl:grid-cols-6 gap-2.5">
           {cobrancas.map(c => {
             const meta = CHARGE_META[c.state] ?? { label: c.state, tone: 'default' as MetricTone }
             return <MetricCard key={c.state} title={meta.label} value={usd(c.valor)} subtitle={`${c.count} cobrança(s)`} size="sm" tone={meta.tone} />
@@ -142,9 +142,9 @@ export function FinanceiroExecutivo({ vm }: { vm: FinancialViewVM }) {
           <Panel label={`Próximos recebimentos${vm.recebimentosPendentesUsd > 0 ? ` · ${usd(vm.recebimentosPendentesUsd)} pendente` : ''}`}>
             <div className="divide-y divide-bento-border/60">
               {vm.proximosRecebimentos.map((p, i) => (
-                <div key={`${p.client}-${i}`} className="flex items-center justify-between gap-3 py-2 text-[13px]">
-                  <span className="text-bento-text truncate">{p.client}</span>
-                  <div className="flex items-center gap-4 shrink-0 tabular-nums">
+                <div key={`${p.client}-${i}`} className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1.5 sm:gap-3 py-2 text-[13px] min-w-0">
+                  <span className="text-bento-text break-words min-w-0">{p.client}</span>
+                  <div className="flex items-center gap-4 flex-wrap sm:justify-end tabular-nums">
                     <span className="text-bento-dim">{fmtBR(p.dueYMD)}</span>
                     <span className="text-bento-text font-medium w-20 text-right">{usd(p.valor)}</span>
                   </div>

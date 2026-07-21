@@ -31,9 +31,9 @@ export function IntegrationProviderCard({ provider }: { provider: IntegrationPro
           <p className="text-[10px] text-bento-dim">{CATEGORY_LABELS[provider.category]}</p>
         </div>
         {live ? (
-          <span className="text-[9px] font-tech uppercase tracking-wide text-emerald-400 border border-emerald-500/30 bg-emerald-500/10 rounded-full px-1.5 py-0.5 shrink-0">atual</span>
+          <span className="text-[10px] font-tech uppercase tracking-wide text-emerald-400 border border-emerald-500/30 bg-emerald-500/10 rounded-full px-1.5 py-0.5 shrink-0">atual</span>
         ) : (
-          <span className="text-[9px] font-tech uppercase tracking-wide text-bento-dim border border-bento-border rounded-full px-1.5 py-0.5 shrink-0">desconectado</span>
+          <span className="text-[10px] font-tech uppercase tracking-wide text-bento-dim border border-bento-border rounded-full px-1.5 py-0.5 shrink-0">desconectado</span>
         )}
       </div>
 

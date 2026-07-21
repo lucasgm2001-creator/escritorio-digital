@@ -63,7 +63,7 @@ export function CommercialMasterDetail({ leads, children }: { leads: MasterLead[
                     </div>
                     <div className="flex items-start justify-between gap-2 mt-1">
                       <span className="text-[11px] leading-snug text-bento-muted break-words">{lead.company ?? '—'}</span>
-                      <span className="text-[9px] font-tech uppercase tracking-wide px-1.5 py-0.5 rounded-full border border-bento-border text-bento-dim shrink-0 max-w-[50%] break-words text-right">{lead.stageName}</span>
+                      <span className="text-[10px] font-tech uppercase tracking-wide px-1.5 py-0.5 rounded-full border border-bento-border text-bento-dim shrink-0 max-w-[50%] break-words text-right">{lead.stageName}</span>
                     </div>
                   </Link>
                 </li>

@@ -336,8 +336,8 @@ export function ContatosTab({ leads, clients, onOpenLead, onClientUpdated }: Pro
         <Portal>
         <div className="fixed inset-0 z-[300] flex items-end sm:items-center justify-center p-0 sm:p-4">
           <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={() => { if (!deleting) setConfirm(null) }} />
-          <div ref={confirmDialog.ref} {...confirmDialog.dialogProps} aria-labelledby="contato-del-title" className="relative bento-fx rounded-t-frame sm:rounded-frame shadow-card-hover w-full sm:max-w-md animate-slide-up">
-            <div className="p-5 space-y-4">
+          <div ref={confirmDialog.ref} {...confirmDialog.dialogProps} aria-labelledby="contato-del-title" className="relative bento-fx rounded-t-frame sm:rounded-frame shadow-card-hover w-full sm:max-w-md max-h-[92dvh] overflow-y-auto overscroll-contain animate-slide-up">
+            <div className="p-4 sm:p-5 space-y-4">
               <div className="flex items-center gap-3">
                 <span className="w-9 h-9 rounded-full bg-destructive/15 flex items-center justify-center flex-none">
                   <Trash2 className="w-4 h-4 text-destructive" />

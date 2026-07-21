@@ -33,7 +33,7 @@ export default async function AuditoriaPage() {
           <ul className="-my-1 divide-y divide-bento-border">
             {activities.map(a => (
               <li key={a.id} className="flex items-start gap-3 py-2.5">
-                <span className="mt-0.5 text-[9px] font-tech uppercase tracking-wide text-bento-dim border border-bento-border rounded-full px-1.5 py-0.5 shrink-0">
+                <span className="mt-0.5 text-[10px] font-tech uppercase tracking-wide text-bento-dim border border-bento-border rounded-full px-1.5 py-0.5 shrink-0">
                   {a.type}
                 </span>
                 <div className="min-w-0 flex-1">

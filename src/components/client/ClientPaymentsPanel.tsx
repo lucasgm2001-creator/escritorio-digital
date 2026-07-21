@@ -162,11 +162,11 @@ export function ClientPaymentsPanel({
   if (!clients.length) return null
   return (
     <div className="bento-fx overflow-hidden">
-      <button onClick={() => setOpen(v => !v)} aria-expanded={open} className="w-full flex items-center gap-2.5 px-4 py-3 text-left">
-        <Wallet className="w-4 h-4 text-lime-fg" />
-        <span className="font-display font-bold text-bento-text text-sm flex-1">{title}</span>
-        <span className="font-tech text-[10px] text-bento-muted">{clients.length} cliente(s)</span>
-        <ChevronRight className={cn('w-4 h-4 text-bento-muted transition-transform', open && 'rotate-90')} />
+      <button onClick={() => setOpen(v => !v)} aria-expanded={open} className="w-full flex items-center gap-2.5 px-4 py-3 text-left min-w-0">
+        <Wallet className="w-4 h-4 text-lime-fg shrink-0" />
+        <span className="font-display font-bold text-bento-text text-sm flex-1 min-w-0 break-words">{title}</span>
+        <span className="hidden sm:inline font-tech text-[10px] text-bento-muted shrink-0">{clients.length} cliente(s)</span>
+        <ChevronRight className={cn('w-4 h-4 shrink-0 text-bento-muted transition-transform', open && 'rotate-90')} />
       </button>
       {open && <div className="px-3 pb-3 pt-2 border-t border-bento-border/60 space-y-2">
         <p className="font-tech text-[10px] text-bento-muted px-1">Vencimento não é pagamento. A receita e a comissão só são liberadas após confirmação.</p>
@@ -185,11 +185,11 @@ export function ClientPaymentsPanel({
               {rows.map(p => {
                 const status = normalizedStatus(p)
                 const amount = ['paga', 'parcial'].includes(status) ? Number(p.valor_pago_usd ?? p.valor_usd) : Number(p.valor_previsto_usd ?? p.valor_usd)
-                return <button key={p.id} onClick={() => openEdit(client, p)} className="w-full flex items-center gap-2 rounded-btn px-2 py-1.5 hover:bg-white/[0.03] text-left">
-                  <span className="font-tech text-xs text-bento-dim w-20">S{p.numero_semana} · {formatDateBR(p.due_on || p.paid_on)}</span>
+                return <button key={p.id} onClick={() => openEdit(client, p)} className="w-full grid grid-cols-[minmax(0,1fr)_auto] sm:flex sm:items-center gap-1.5 sm:gap-2 rounded-btn px-2 py-2 hover:bg-white/[0.03] text-left">
+                  <span className="font-tech text-xs text-bento-dim sm:w-20 truncate">S{p.numero_semana} · {formatDateBR(p.due_on || p.paid_on)}</span>
                   <span className={cn('rounded px-1.5 py-0.5 text-[10px] font-semibold', STATUS_TONE[status])}>{STATUS_LABEL[status]}</span>
-                  <span className="font-tech text-xs text-bento-text ml-auto">{formatCurrency(amount, 'en-US', 'USD')}</span>
-                  <Pencil className="w-3.5 h-3.5 text-bento-muted" />
+                  <span className="font-tech text-xs text-bento-text sm:ml-auto truncate">{formatCurrency(amount, 'en-US', 'USD')}</span>
+                  <Pencil className="w-3.5 h-3.5 text-bento-muted justify-self-end" />
                 </button>
               })}
               <button onClick={() => openNew(client)} className="flex items-center gap-1.5 px-3 py-1.5 rounded-btn text-xs border border-lime/40 text-lime-fg hover:bg-lime/10">
@@ -202,17 +202,17 @@ export function ClientPaymentsPanel({
 
       {editor && <Portal><div className="fixed inset-0 z-[300] flex items-center justify-center p-4">
         <div className="absolute inset-0 bg-black/60" onClick={() => setEditor(null)} />
-        <div ref={dialog.ref} {...dialog.dialogProps} aria-labelledby="week-editor-title" className="relative w-full max-w-lg bg-bento-panel border border-bento-border rounded-bento shadow-card-hover p-5 space-y-4 max-h-[90dvh] overflow-y-auto">
+        <div ref={dialog.ref} {...dialog.dialogProps} aria-labelledby="week-editor-title" className="relative w-full max-w-lg bg-bento-panel border border-bento-border rounded-bento shadow-card-hover p-4 sm:p-5 space-y-4 max-h-[calc(100dvh-2rem)] overflow-y-auto overscroll-contain">
           <div className="flex items-start justify-between gap-3">
             <div><h3 id="week-editor-title" className="font-display font-bold text-bento-text">Semana {editor.numero}</h3><p className="text-xs text-bento-muted">{editor.clientName}</p></div>
             <button onClick={() => setEditor(null)} aria-label="Fechar" className="text-bento-muted hover:text-bento-text"><X className="w-4 h-4" /></button>
           </div>
           <div><label className="block text-xs text-bento-dim mb-1">Situação</label><select value={editor.status} onChange={e => changeStatus(e.target.value as ClientWeekStatus)} className={inputCls}>{Object.entries(STATUS_LABEL).map(([v, label]) => <option key={v} value={v}>{label}</option>)}</select></div>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div><label className="block text-xs text-bento-dim mb-1">Vencimento</label><input type="date" value={editor.dueOn} onChange={e => setEditor(v => v && ({ ...v, dueOn: e.target.value }))} className={inputCls} /></div>
             <div><label className="block text-xs text-bento-dim mb-1">Plano da semana</label><select value={editor.planoId} onChange={e => setEditor(v => v && ({ ...v, planoId: e.target.value }))} className={inputCls}><option value="">Valor personalizado</option>{plans.map(p => <option key={p.id} value={p.id}>{p.nome}</option>)}</select></div>
           </div>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div><label className="block text-xs text-bento-dim mb-1">Valor previsto (USD)</label><input type="number" min="0" step="0.01" value={editor.valorPrevisto} onChange={e => setEditor(v => v && ({ ...v, valorPrevisto: e.target.value }))} className={inputCls} /></div>
             <div><label className="block text-xs text-bento-dim mb-1">Valor recebido (USD)</label><input type="number" min="0" step="0.01" disabled={!['paga', 'parcial'].includes(editor.status)} value={editor.valorPago} onChange={e => setEditor(v => v && ({ ...v, valorPago: e.target.value }))} className={cn(inputCls, 'disabled:opacity-50')} /></div>
           </div>
@@ -222,7 +222,7 @@ export function ClientPaymentsPanel({
             {editor.status === 'paga' ? 'Ao salvar, a receita será confirmada e a comissão vinculada será liberada.' : editor.status === 'parcial' ? 'O valor parcial entra na receita; a comissão aguarda o pagamento completo.' : 'Esta semana não entrará na receita e não gerará comissão.'}
             {editor.numero === 1 && editor.status === 'paga' && <span className="block mt-1 text-lime-fg">A primeira semana define o dia fixo das próximas cobranças.</span>}
           </div>
-          <div className="flex gap-2"><button onClick={() => setEditor(null)} className="flex-1 border border-bento-border text-bento-dim py-2 rounded-btn text-sm">Cancelar</button><button onClick={save} disabled={saving} className="bento-btn flex-1 py-2 rounded-btn text-sm font-semibold disabled:opacity-50">{saving ? 'Salvando…' : 'Salvar semana'}</button></div>
+          <div className="flex flex-col-reverse sm:flex-row gap-2"><button onClick={() => setEditor(null)} className="flex-1 min-h-[44px] border border-bento-border text-bento-dim py-2 rounded-btn text-sm">Cancelar</button><button onClick={save} disabled={saving} className="bento-btn flex-1 min-h-[44px] py-2 rounded-btn text-sm font-semibold disabled:opacity-50">{saving ? 'Salvando…' : 'Salvar semana'}</button></div>
         </div>
       </div></Portal>}
     </div>

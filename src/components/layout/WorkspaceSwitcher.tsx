@@ -81,7 +81,7 @@ export function WorkspaceSwitcher({ userName, userEmail, avatarUrl, teams }: {
       {open && (
         <>
           <button type="button" aria-hidden tabIndex={-1} onClick={close} className="fixed inset-0 z-40 cursor-default" />
-          <div className="absolute right-0 top-12 z-50 w-72 rounded-bento border border-bento-border bg-bento-surface shadow-xl overflow-hidden">
+          <div className="absolute right-0 top-12 z-50 w-72 max-w-[calc(100vw-1rem)] max-h-[min(36rem,calc(100dvh-4rem))] rounded-bento border border-bento-border bg-bento-surface shadow-xl overflow-y-auto overscroll-contain">
             {/* Identidade */}
             <div className="px-4 py-3 border-b border-bento-border">
               <p className="text-sm font-semibold text-bento-text truncate">{userName}</p>

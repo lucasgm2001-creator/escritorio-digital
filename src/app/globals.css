@@ -142,8 +142,21 @@ html.light {
   input, textarea, select {
     background-color: rgb(var(--c-input));
     color: rgb(var(--c-foreground));
+    max-width: 100%;
   }
   input::placeholder, textarea::placeholder { color: rgb(var(--c-muted-foreground)); }
+
+  img, video, canvas { max-width: 100%; }
+}
+
+/* Rede de segurança visual: superfícies nunca forçam a página além da viewport. */
+.bento-fx, .stat-card, .glass-card { min-width: 0; max-width: 100%; }
+
+/* No celular, evita zoom automático do Safari ao focar formulários e eleva os raros
+   rótulos legados de 8/9px ao piso de leitura do produto. */
+@media (max-width: 639px) {
+  input, textarea, select { font-size: 16px !important; }
+  [class~="text-[8px]"], [class~="text-[9px]"] { font-size: 10px !important; line-height: 14px !important; }
 }
 
 /* Scroll lateral SÓ nos trilhos horizontais (funil/kanban, abas que rolam, agenda): reativa pan-x
