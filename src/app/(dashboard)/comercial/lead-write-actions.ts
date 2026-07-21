@@ -243,6 +243,7 @@ export async function setLeadTaskDoneAction(taskId: string, done: boolean): Prom
 // current_situation vazio → usa o rótulo do resultado (honesto, não fake). next_action_at reusa next_contact.
 export async function updateLeadSituationAction(input: {
   leadId: string
+  sourceTaskId?: string | null
   currentSituation?: string | null
   lastAction: LastAction
   nextAction: NextAction
@@ -293,16 +294,42 @@ export async function updateLeadSituationAction(input: {
     ...(teamId ? { team_id: teamId } : {}),
   })
 
-  // 3) próxima tarefa (quando há ação concreta a fazer — 'aguardar'/'nenhuma' não geram tarefa)
+  // 3) próxima tarefa. Quando a interação nasceu de uma tarefa, REUTILIZA a mesma linha em vez de
+  // criar cópias a cada tentativa. Assim "não atendeu" registra trabalho realizado e só volta à fila
+  // se o usuário escolher uma nova ação com data. 'aguardar'/'nenhuma' encerram a tentativa atual.
   let nextTask: Record<string, unknown> | null = null
   if (input.nextAction !== 'nenhuma' && input.nextAction !== 'aguardar') {
-    const { data: task } = await supabase.from('tasks').insert({
-      user_id: g.context.user.id, title: `${NEXT_ACTION_LABEL[input.nextAction]}: ${lead.name}`, done: false,
-      linked_type: 'lead', linked_id: input.leadId, linked_name: lead.name,
-      ...(input.nextAction === 'ligar' ? { add_call: true } : {}),
-      ...(nextContact ? { due_date: nextContact } : {}),
-      ...(teamId ? { team_id: teamId } : {}),
-    }).select('id, title, due_date, done').single()
+    const taskPatch = {
+      title: `${NEXT_ACTION_LABEL[input.nextAction]}: ${lead.name}`,
+      done: false,
+      completed_at: null,
+      linked_type: 'lead' as const,
+      linked_id: input.leadId,
+      linked_name: lead.name,
+      add_call: input.nextAction === 'ligar',
+      due_date: nextContact ?? null,
+    }
+    let task: Record<string, unknown> | null = null
+    if (input.sourceTaskId) {
+      let tq = supabase.from('tasks').update(taskPatch)
+        .eq('id', input.sourceTaskId)
+        .eq('linked_type', 'lead')
+        .eq('linked_id', input.leadId)
+      if (teamId) tq = tq.eq('team_id', teamId)
+      const { data, error: taskError } = await tq.select().single()
+      if (taskError || !data) return { ok: false, error: taskError?.message ?? 'Não foi possível reagendar a tarefa atual.' }
+      task = (data as Record<string, unknown>) ?? null
+    } else {
+      const { data, error: taskError } = await supabase.from('tasks').insert({
+        ...taskPatch,
+        user_id: g.context.user.id,
+        responsavel_id: DEFAULT_TASK_OWNER_ID,
+        responsavel_nome: DEFAULT_TASK_OWNER_NAME,
+        ...(teamId ? { team_id: teamId } : {}),
+      }).select().single()
+      if (taskError || !data) return { ok: false, error: taskError?.message ?? 'Não foi possível criar a próxima tarefa.' }
+      task = (data as Record<string, unknown>) ?? null
+    }
     nextTask = (task as Record<string, unknown>) ?? null
   }
 

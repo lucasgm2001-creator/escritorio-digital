@@ -53,7 +53,7 @@ export function LeadTasks({ leadId, leadName, compact = true }: {
   const [adding, setAdding] = useState(false)
   const [newTitle, setNewTitle] = useState('')
   const [saving, setSaving] = useState(false)
-  const [showSituation, setShowSituation] = useState(false)
+  const [situationTask, setSituationTask] = useState<LeadTask | null>(null)
   const { toast } = useToast()
 
   const txt = compact ? 'text-[10px]' : 'text-xs'
@@ -79,7 +79,7 @@ export function LeadTasks({ leadId, leadName, compact = true }: {
       setTasks(prev => sortTasks(prev.map(x => x.id === t.id ? { ...x, done: t.done } : x)))
       toast({ type: 'error', message: res.error || 'Não foi possível atualizar a tarefa.' })
     } else if (next) {
-      setShowSituation(true)
+      setSituationTask(t)
     }
   }
 
@@ -173,12 +173,25 @@ export function LeadTasks({ leadId, leadName, compact = true }: {
         </ul>
       )}
 
-      {showSituation && (
+      {situationTask && (
         <SituationDrawer
           lead={{ id: leadId, name: leadName }}
-          onClose={() => setShowSituation(false)}
-          onSkip={() => setShowSituation(false)}
-          onSaved={() => setShowSituation(false)}
+          sourceTaskId={situationTask.id}
+          onClose={() => setSituationTask(null)}
+          onSkip={() => setSituationTask(null)}
+          onSaved={({ nextTask }) => {
+            if (nextTask) {
+              setTasks(prev => sortTasks(prev.map(task => task.id === situationTask.id ? { ...task, ...nextTask } as LeadTask : task)))
+              fetch('/api/tasks/calendar-sync', {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ taskId: situationTask.id }), keepalive: true,
+              }).catch(() => toast({ type: 'error', message: 'Tarefa reagendada, mas o Google Agenda não sincronizou.' }))
+              toast({ type: 'success', message: 'Tentativa registrada e tarefa reagendada.' })
+            } else {
+              toast({ type: 'success', message: 'Tentativa registrada sem nova pendência.' })
+            }
+            setSituationTask(null)
+          }}
         />
       )}
     </div>

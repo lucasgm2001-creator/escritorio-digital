@@ -68,7 +68,7 @@ type SectionId = 'atrasadas' | 'hoje' | 'amanha' | 'semana' | 'depois'
 type MobileChip = 'hoje' | 'proximas' | 'atrasadas' | 'concluidas'
 
 const SECTIONS: { id: SectionId; label: string; danger?: boolean; muted?: boolean }[] = [
-  { id: 'atrasadas', label: 'Pendentes', danger: true },
+  { id: 'atrasadas', label: 'Atrasadas', danger: true },
   { id: 'hoje',      label: 'Hoje' },
   { id: 'amanha',    label: 'Amanhã' },
   { id: 'semana',    label: 'Esta semana' },
@@ -224,8 +224,9 @@ export function TarefasClient({ tasks, setTasks, deletedIds, linkOptions, curren
 
   // ── Celular + iPad (<1280): abas horizontais. Computador usa as SECTIONS acima (inalterado). ──
   const [mobileChip, setMobileChip] = useState<MobileChip>('hoje')
-  // RADAR-COMERCIAL-001: fluxo "atualizar situação do lead" ao concluir uma tarefa de lead (pode pular).
-  const [situationLead, setSituationLead] = useState<{ id: string; name: string } | null>(null)
+  // Uma tentativa concluída sai da carga pendente. O resultado pode encerrar a ação (aguardar cliente)
+  // ou reagendar ESTA MESMA tarefa, preservando histórico sem gerar cópias.
+  const [situationTask, setSituationTask] = useState<Task | null>(null)
   const proximas = useMemo(() => [...groups.amanha, ...groups.semana, ...groups.depois]
     .sort((a, b) => (a.due_date ?? '9999-99-99') < (b.due_date ?? '9999-99-99') ? -1 : 1), [groups])
   const weekStartISO = useMemo(() => {
@@ -250,7 +251,7 @@ export function TarefasClient({ tasks, setTasks, deletedIds, linkOptions, curren
       router.refresh()                                          // reconcilia com o server
       // Ao CONCLUIR uma tarefa vinculada a lead, oferece atualizar a situação (incentiva, não obriga).
       if (nowDone && t.linked_type === 'lead' && t.linked_id) {
-        setSituationLead({ id: t.linked_id, name: t.linked_name || 'Lead' })
+        setSituationTask(t)
       }
     }
   }
@@ -549,7 +550,8 @@ export function TarefasClient({ tasks, setTasks, deletedIds, linkOptions, curren
       {/* Header */}
       <div className="flex items-center justify-between gap-2 flex-wrap px-4 sm:px-6 pt-5 pb-3 sticky top-0 bg-bento-bg/95 backdrop-blur z-10 border-b border-bento-border">
         <div className="flex items-center gap-3 flex-wrap">
-          <span className="font-tech text-xs text-bento-muted tabular-nums">{pendingCount} pendentes</span>
+          <span className="font-tech text-xs text-bento-muted tabular-nums">{pendingCount} compromissos em aberto</span>
+          <span className="font-tech text-xs text-lime-fg/80 tabular-nums">{doneWeek.length} feitas esta semana</span>
           {view === 'tarefas' && sellers.length > 0 && (
             <label className="hidden xl:flex items-center gap-1.5 font-tech text-[10px] uppercase tracking-wide text-bento-muted">
               Responsável
@@ -628,7 +630,7 @@ export function TarefasClient({ tasks, setTasks, deletedIds, linkOptions, curren
             {([
               { id: 'hoje', label: 'Hoje', count: groups.hoje.length, dot: 'bg-lime' },
               { id: 'proximas', label: 'Próximas', count: proximas.length },
-              { id: 'atrasadas', label: 'Pendentes', count: groups.atrasadas.length, dot: 'bg-red-500' },
+              { id: 'atrasadas', label: 'Atrasadas', count: groups.atrasadas.length, dot: 'bg-red-500' },
               { id: 'concluidas', label: 'Concluídas', count: doneWeek.length },
             ] as { id: MobileChip; label: string; count: number; dot?: string }[]).map(c => (
               <button key={c.id} type="button" onClick={() => setMobileChip(c.id)}
@@ -792,12 +794,26 @@ export function TarefasClient({ tasks, setTasks, deletedIds, linkOptions, curren
         />
       )}
 
-      {situationLead && (
+      {situationTask?.linked_id && (
         <SituationDrawer
-          lead={situationLead}
-          onClose={() => setSituationLead(null)}
-          onSkip={() => setSituationLead(null)}
-          onSaved={() => { setSituationLead(null); router.refresh() }}
+          lead={{ id: situationTask.linked_id, name: situationTask.linked_name || 'Lead' }}
+          sourceTaskId={situationTask.id}
+          onClose={() => setSituationTask(null)}
+          onSkip={() => setSituationTask(null)}
+          onSaved={({ nextTask }) => {
+            if (nextTask) {
+              setTasks(prev => prev.map(task => task.id === situationTask.id ? { ...task, ...nextTask } as Task : task))
+              fetch('/api/tasks/calendar-sync', {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ taskId: situationTask.id }), keepalive: true,
+              }).catch(() => toast({ type: 'error', message: 'Tarefa reagendada, mas o Google Agenda não sincronizou.' }))
+              toast({ type: 'success', message: 'Tentativa registrada e a mesma tarefa foi reagendada.' })
+            } else {
+              toast({ type: 'success', message: 'Tentativa registrada. Nenhuma nova pendência foi criada.' })
+            }
+            setSituationTask(null)
+            router.refresh()
+          }}
         />
       )}
     </div>

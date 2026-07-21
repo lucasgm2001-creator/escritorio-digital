@@ -19,7 +19,6 @@ export type DashKpiGroup = { title: string; kpis: DashKpi[] }
 export type DashAlert = { message: string; href?: string }
 export type DashRevenueRow = { label: string; value: number; count: number }
 export type DashboardData = {
-  leadsAwaiting: { count: number; sample: { id: string; name: string }[] }
   kpiGroups: DashKpiGroup[]
   alerts: DashAlert[]
   receitaPorVendedor: DashRevenueRow[]
@@ -27,10 +26,9 @@ export type DashboardData = {
 }
 
 export const EMPTY_DASHBOARD: DashboardData = {
-  leadsAwaiting: { count: 0, sample: [] }, kpiGroups: [], alerts: [], receitaPorVendedor: [], receitaPorPlano: [],
+  kpiGroups: [], alerts: [], receitaPorVendedor: [], receitaPorPlano: [],
 }
 
-const TERMINAL = new Set(['fechado', 'perdido', 'lixeira'])
 const usd = (n: number): string => `US$ ${Math.round(n).toLocaleString('en-US')}`
 
 export async function getDashboardData(context: RequestContext): Promise<DashboardData> {
@@ -45,24 +43,18 @@ export async function getDashboardData(context: RequestContext): Promise<Dashboa
   // Carrega UMA vez (mesma fonte do Dashboard) e compõe os KPIs aqui — sem chamar getExecutiveMetrics (que
   // recarregaria payments/clients). client_payments deixa de ser lido 2× no Hall. Números idênticos.
   const mRange = rangeFor('mes')
-  const [raw, revenue, carteira, openLeadsRes, integrationsOnRes, integrationsOffRes, openTasksRes, invitesRes] = await Promise.all([
+  const [raw, revenue, carteira, integrationsOnRes, integrationsOffRes, openTasksRes, invitesRes] = await Promise.all([
     getCommercialRaw(teamId),
     getClientRevenueForMetrics(),
     getExecutiveClients(teamId),
-    supabase.from('leads').select('id, name, status, next_contact, last_contact_at').eq('team_id', teamId).limit(500),
     supabase.from('client_integrations').select('id', { count: 'exact', head: true }).eq('team_id', teamId).eq('ativo', true),
     supabase.from('client_integrations').select('id', { count: 'exact', head: true }).eq('team_id', teamId).eq('ativo', false),
-    supabase.from('tasks').select('id', { count: 'exact', head: true }).eq('team_id', teamId).eq('done', false),
+    supabase.from('tasks').select('id, due_date', { count: 'exact' }).eq('team_id', teamId).eq('done', false),
     canManage
       ? supabase.from('team_invites').select('id, used_at, expires_at').eq('team_id', teamId)
       : Promise.resolve({ data: [] as { id: string; used_at: string | null; expires_at: string | null }[] }),
   ])
   const exec = composeExecutiveMetrics(raw, revenue, carteira, ymd(mRange.start), ymd(mRange.end), mRange.label)
-
-  // ── Prioridades: leads aguardando contato (follow-up vencido OU nunca contatado), fora dos terminais ──
-  const openLeads = (openLeadsRes.data ?? []) as { id: string; name: string; status: string; next_contact: string | null; last_contact_at: string | null }[]
-  const awaiting = openLeads.filter(l =>
-    !TERMINAL.has(l.status) && ((l.next_contact != null && l.next_contact <= today) || l.last_contact_at == null))
 
   // ── Operacional: clientes com pagamento em atraso (gap > 9 dias) — FONTE ÚNICA (mesma do Financeiro) ──
   const clientesEmAtraso = clientsWithLatePay(revenue.payments as PaymentRowWithClient[], staleDay)
@@ -70,6 +62,7 @@ export async function getDashboardData(context: RequestContext): Promise<Dashboa
   const integrationsOn = integrationsOnRes.count ?? 0
   const integrationsOff = integrationsOffRes.count ?? 0
   const openTasks = openTasksRes.count ?? 0
+  const overdueTasks = (openTasksRes.data ?? []).filter(task => task.due_date && task.due_date < today).length
   const invites = (invitesRes.data ?? []) as { used_at: string | null; expires_at: string | null }[]
   const expiredInvites = invites.filter(i => !i.used_at && (i.expires_at ?? '') <= now.toISOString()).length
 
@@ -78,10 +71,9 @@ export async function getDashboardData(context: RequestContext): Promise<Dashboa
   if (clientesEmAtraso > 0) alerts.push({ message: `${clientesEmAtraso} cliente(s) ativo(s) sem pagamento recente.`, href: '/admin/clientes' })
   if (integrationsOff > 0) alerts.push({ message: `${integrationsOff} integração(ões) desligada(s).`, href: '/admin/clientes' })
   if (canManage && expiredInvites > 0) alerts.push({ message: `${expiredInvites} convite(s) expirado(s).`, href: '/admin/equipe' })
-  if (openTasks >= 10) alerts.push({ message: `${openTasks} tarefas pendentes acumuladas.`, href: '/tarefas' })
+  if (overdueTasks >= 10) alerts.push({ message: `${overdueTasks} tarefas realmente atrasadas.`, href: '/tarefas' })
 
   return {
-    leadsAwaiting: { count: awaiting.length, sample: awaiting.slice(0, 4).map(l => ({ id: l.id, name: l.name })) },
     kpiGroups: [
       {
         title: 'Receita',
@@ -106,7 +98,7 @@ export async function getDashboardData(context: RequestContext): Promise<Dashboa
         title: 'Operação',
         kpis: [
           { label: 'Integrações ativas', value: integrationsOn, href: '/admin/clientes' },
-          { label: 'Tarefas pendentes', value: openTasks, href: '/tarefas' },
+          { label: 'Compromissos abertos', value: openTasks, href: '/tarefas' },
           { label: 'Clientes em atraso', value: clientesEmAtraso, href: '/admin/clientes' },
         ],
       },

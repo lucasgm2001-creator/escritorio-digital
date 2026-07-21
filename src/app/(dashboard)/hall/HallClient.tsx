@@ -10,7 +10,7 @@ import { LiveDot } from '@/components/bento/LiveDot'
 import { NewsSection } from './NewsSection'
 import { CollapsibleSection } from '@/components/mobile/CollapsibleSection'
 import { MetricCard } from '@/components/ui/MetricCard'
-import { CalendarDays, Activity as ActivityIcon, Newspaper, UserPlus, ArrowRight, AlertTriangle } from 'lucide-react'
+import { CalendarDays, Activity as ActivityIcon, Newspaper, AlertTriangle } from 'lucide-react'
 import type { Activity } from '@/types'
 import type { Task, LinkOption } from '../tarefas/types'
 import type { MapLead, MapClient } from '../comercial/mapTypes'
@@ -164,7 +164,14 @@ export function HallClient({ initialActivities, initialTasks, linkOptions, userN
   // Resumo do topo da aba Tarefas — próximos 7 dias e concluídas. Dados JÁ carregados (sem query nova).
   const semanaLimite = dayBR(new Date(Date.now() + 7 * 86400000))
   const tarefasSemana = tasks.filter(t => !t.done && !!t.due_date && t.due_date >= hojeStr && t.due_date <= semanaLimite)
-  const tarefasConcluidas = tasks.filter(t => t.done)
+  const inicioSemana = useMemo(() => {
+    const date = new Date()
+    const day = date.getDay()
+    date.setHours(0, 0, 0, 0)
+    date.setDate(date.getDate() + (day === 0 ? -6 : 1 - day))
+    return date.toISOString()
+  }, [])
+  const tarefasConcluidasSemana = tasks.filter(t => t.done && (t.completed_at ?? t.updated_at) >= inicioSemana)
   const eventosHoje = calEvents.filter(e => e.date === hojeStr).sort((a, b) => (a.start_time || '99:99').localeCompare(b.start_time || '99:99'))
   // Resumo do cabecalho executivo — contagem de dados JA carregados (sem query/metrica nova).
   const reunioesHoje = eventosHoje.filter(e => e.type === 'reuniao').length
@@ -208,14 +215,14 @@ export function HallClient({ initialActivities, initialTasks, linkOptions, userN
         <p className="text-sm leading-relaxed">
           {tarefasAtrasadas.length > 0 ? (
             <>
-              <strong className="font-semibold text-amber-400">{tarefasAtrasadas.length} {tarefasAtrasadas.length === 1 ? 'tarefa pendente' : 'tarefas pendentes'}</strong>
-              <span className="text-bento-muted">{' · '}{tarefasHoje.length} para hoje{' · '}{reunioesHoje} {reunioesHoje === 1 ? 'reunião' : 'reuniões'}{dashboard.leadsAwaiting.count > 0 ? ` · ${dashboard.leadsAwaiting.count} ${dashboard.leadsAwaiting.count === 1 ? 'lead aguardando' : 'leads aguardando'}` : ''}</span>
+              <strong className="font-semibold text-amber-400">{tarefasAtrasadas.length} {tarefasAtrasadas.length === 1 ? 'tarefa atrasada' : 'tarefas atrasadas'}</strong>
+              <span className="text-bento-muted">{' · '}{tarefasHoje.length} para hoje{' · '}{reunioesHoje} {reunioesHoje === 1 ? 'reunião' : 'reuniões'}</span>
             </>
           ) : (
             <span className="text-bento-muted">
               Hoje: <strong className="font-semibold text-bento-text">{tarefasHoje.length} {tarefasHoje.length === 1 ? 'tarefa' : 'tarefas'}</strong>
               {' · '}<strong className="font-semibold text-bento-text">{reunioesHoje} {reunioesHoje === 1 ? 'reunião' : 'reuniões'}</strong>
-              {dashboard.leadsAwaiting.count > 0 ? ` · ${dashboard.leadsAwaiting.count} ${dashboard.leadsAwaiting.count === 1 ? 'lead aguardando' : 'leads aguardando'}` : (tarefasHoje.length === 0 && reunioesHoje === 0 ? ' · agenda livre' : '')}
+              {tarefasHoje.length === 0 && reunioesHoje === 0 ? ' · agenda livre' : ''}
             </span>
           )}
         </p>
@@ -274,7 +281,7 @@ export function HallClient({ initialActivities, initialTasks, linkOptions, userN
                     {tarefasAtrasadas.length > 4 && (
                       <button type="button" onClick={() => router.push('/tarefas')}
                         className="w-full text-left font-tech text-caption uppercase tracking-label text-amber-400 hover:text-amber-300 transition-colors py-1">
-                        +{tarefasAtrasadas.length - 4} pendentes — ver todas
+                        +{tarefasAtrasadas.length - 4} atrasadas — ver todas
                       </button>
                     )}
                     {/* Hoje: reuniões + tarefas do dia */}
@@ -287,26 +294,6 @@ export function HallClient({ initialActivities, initialTasks, linkOptions, userN
                   </div>
                 </Panel>
               </CollapsibleSection>
-            )}
-
-            {/* Leads aguardando contato — do DashboardService (follow-up vencido OU nunca contatado). Ação → Comercial. */}
-            {dashboard.leadsAwaiting.count > 0 && (
-              <button type="button" onClick={() => router.push('/comercial')}
-                className="w-full text-left bento-fx p-3 flex items-center gap-3 hover:border-lime/40 transition-colors">
-                <div className="w-8 h-8 rounded-bento bg-lime/10 border border-lime/20 flex items-center justify-center shrink-0">
-                  <UserPlus className="w-4 h-4 text-lime-fg" />
-                </div>
-                <div className="min-w-0 flex-1">
-                  <p className="text-sm text-bento-text">
-                    <strong className="font-semibold">{dashboard.leadsAwaiting.count}</strong>{' '}
-                    {dashboard.leadsAwaiting.count === 1 ? 'lead aguardando contato' : 'leads aguardando contato'}
-                  </p>
-                  {dashboard.leadsAwaiting.sample.length > 0 && (
-                    <p className="text-xs text-bento-muted truncate">{dashboard.leadsAwaiting.sample.map(s => s.name).join(' · ')}</p>
-                  )}
-                </div>
-                <ArrowRight className="w-4 h-4 text-bento-dim shrink-0" />
-              </button>
             )}
 
             {/* ══ INDICADORES ══ Comercial/Financeiro/Operação — do DashboardService (mesma fonte do /comercial),
@@ -465,10 +452,10 @@ export function HallClient({ initialActivities, initialTasks, linkOptions, userN
             {/* Resumo do topo — protagonista: Atrasadas (âmbar). Contagens de dados JÁ carregados (sem query
                 nova); a lista completa, filtros e "nova tarefa" seguem no TarefasClient abaixo, intacto. */}
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-              <MetricCard title="Pendentes" value={tarefasAtrasadas.length} size="sm" tone={tarefasAtrasadas.length > 0 ? 'warning' : 'muted'} />
+              <MetricCard title="Atrasadas" value={tarefasAtrasadas.length} size="sm" tone={tarefasAtrasadas.length > 0 ? 'warning' : 'muted'} />
               <MetricCard title="Hoje" value={tarefasHoje.length} size="sm" />
               <MetricCard title="Esta semana" value={tarefasSemana.length} size="sm" />
-              <MetricCard title="Concluídas" value={tarefasConcluidas.length} size="sm" tone="muted" />
+              <MetricCard title="Feitas esta semana" value={tarefasConcluidasSemana.length} size="sm" tone="muted" />
             </div>
             <TarefasClient tasks={tasks} setTasks={setTasks} deletedIds={deletedIds} linkOptions={linkOptions} currentUser={{ id: userId, name: userName }} />
           </div>

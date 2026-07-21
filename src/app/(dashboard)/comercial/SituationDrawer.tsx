@@ -189,8 +189,9 @@ function whenLabel(when: WhenChoice | null, date: string): string | null {
   return parsed.toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: '2-digit' })
 }
 
-export function SituationDrawer({ lead, onClose, onSaved, onSkip }: {
+export function SituationDrawer({ lead, sourceTaskId = null, onClose, onSaved, onSkip }: {
   lead: { id: string; name: string }
+  sourceTaskId?: string | null
   onClose: () => void
   onSaved?: (result: { nextTask: Record<string, unknown> | null; patch: Record<string, unknown> }) => void
   onSkip?: () => void
@@ -237,7 +238,7 @@ export function SituationDrawer({ lead, onClose, onSaved, onSkip }: {
     if (when === 'data' && !date) { setError('Escolha a data da próxima ação.'); return }
     setSaving(true); setError(null)
     const res = await updateLeadSituationAction({
-      leadId: lead.id, lastAction, nextAction,
+      leadId: lead.id, sourceTaskId, lastAction, nextAction,
       when: needsWhen ? when : null, explicitDate: when === 'data' ? (date || null) : null,
       temperature, response, note: note.trim() || null, currentSituation: note.trim() || LAST_ACTION_LABEL[lastAction],
     })
@@ -307,10 +308,22 @@ export function SituationDrawer({ lead, onClose, onSaved, onSkip }: {
                       ? 'border-lime/60 bg-lime/10 text-lime-fg'
                       : 'border-bento-border bg-bento-bg/40 text-bento-muted hover:border-bento-text/30 hover:bg-bento-bg hover:text-bento-text',
                   )}>
-                  {NEXT_ACTION_LABEL[a]}
+                  {sourceTaskId && a === 'nenhuma'
+                    ? 'Encerrar esta tentativa'
+                    : sourceTaskId && a === 'aguardar'
+                      ? 'Aguardar cliente (sem tarefa)'
+                      : NEXT_ACTION_LABEL[a]}
                 </button>
               ))}
             </Group>
+
+            {sourceTaskId && (
+              <p className="rounded-btn border border-blue-500/20 bg-blue-500/[0.06] px-3 py-2 text-caption leading-relaxed text-blue-200/80">
+                <strong className="font-semibold text-blue-200">Sem acúmulo:</strong>{' '}
+                “Aguardar cliente” encerra esta tentativa sem criar pendência. Se você definir um novo contato,
+                esta mesma tarefa será reagendada — não será criada uma cópia.
+              </p>
+            )}
 
             {needsWhen && (
               <Group label="5. Quando realizar">
