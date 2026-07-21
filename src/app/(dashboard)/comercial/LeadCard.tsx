@@ -43,11 +43,11 @@ function LeadCardBody({ lead }: { lead: Lead }) {
 
   return (
     <>
-      <p className="font-semibold text-bento-text text-xs coarse:text-sm leading-snug truncate">{lead.name}</p>
+      <p className="font-semibold text-bento-text text-xs coarse:text-sm leading-snug line-clamp-2 break-words" title={lead.name}>{lead.name}</p>
       {(sub || hasSmartBadges) && (
-        <div className="mt-0.5 flex min-w-0 items-center gap-1">
-          {sub && <span className="min-w-0 flex-1 truncate font-tech text-[10px] coarse:text-[13px] text-bento-muted">{sub}</span>}
-          <LeadSmartBadges lead={lead} max={sub ? 2 : 3} />
+        <div className="mt-1 min-w-0 space-y-1">
+          {sub && <span className="block w-full truncate font-tech text-[10px] coarse:text-[13px] text-bento-muted" title={sub}>{sub}</span>}
+          <LeadSmartBadges lead={lead} max={sub ? 2 : 3} className="w-full" />
         </div>
       )}
 

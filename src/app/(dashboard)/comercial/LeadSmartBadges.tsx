@@ -18,17 +18,17 @@ export function LeadSmartBadges({ lead, max = 3, className }: { lead: Lead; max?
   if (badges.length === 0) return null
 
   return (
-    <div className={cn('flex min-w-0 items-center gap-1 overflow-hidden', className)}>
+    <div className={cn('flex min-w-0 max-w-full flex-wrap items-center gap-1', className)}>
       {badges.map(badge => (
         <span
           key={badge.key}
           title={badge.title}
           className={cn(
-            'inline-flex h-4 max-w-[5.8rem] shrink-0 items-center truncate rounded border px-1 font-tech text-[10px] font-semibold leading-none',
+            'inline-flex min-h-4 max-w-full shrink-0 items-center rounded border px-1.5 py-0.5 font-tech text-[10px] font-semibold leading-none whitespace-nowrap',
             BADGE_TONE[badge.tone],
           )}
         >
-          <span className="truncate">{badge.label}</span>
+          <span>{badge.label}</span>
         </span>
       ))}
     </div>

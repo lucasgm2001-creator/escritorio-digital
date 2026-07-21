@@ -49,21 +49,23 @@ export function FunnelLeadCard({ lead, moveTargets, onMove, onOpenDiary, onLog, 
       )}
     >
       {/* Topo (sempre visível) */}
-      <div className="flex items-center gap-2">
+      <div className="flex items-start gap-2 min-w-0">
         {dotClass && <span className={cn('w-2 h-2 rounded-full flex-none', dotClass)} />}
         <div className="min-w-0 flex-1">
-          <p className="font-semibold text-bento-text text-xs leading-snug truncate">{lead.name}</p>
+          <div className="flex items-center gap-1.5 min-w-0">
+            <p className="font-semibold text-bento-text text-xs leading-snug line-clamp-2 break-words flex-1 min-w-0" title={lead.name}>{lead.name}</p>
+            {lead.contact_code && (
+              <span className="font-tech text-[10px] text-bento-muted bg-bento-bg border border-bento-border rounded px-1 py-px flex-none" title="Código do contato">{lead.contact_code}</span>
+            )}
+            <ChevronDown className={cn('w-3.5 h-3.5 text-bento-muted flex-none transition-transform', open && 'rotate-180')} />
+          </div>
           {(sub || hasSmartBadges) && (
-            <div className="mt-0.5 flex min-w-0 items-center gap-1">
-              {sub && <span className="min-w-0 flex-1 truncate font-tech text-[10px] text-bento-muted">{sub}</span>}
-              <LeadSmartBadges lead={lead} max={sub ? 2 : 3} />
+            <div className="mt-1 min-w-0 space-y-1">
+              {sub && <span className="block w-full truncate font-tech text-[10px] text-bento-muted" title={sub}>{sub}</span>}
+              <LeadSmartBadges lead={lead} max={sub ? 2 : 3} className="w-full" />
             </div>
           )}
         </div>
-        {lead.contact_code && (
-          <span className="font-tech text-[10px] text-bento-muted bg-bento-bg border border-bento-border rounded px-1 py-px flex-none" title="Código do contato">{lead.contact_code}</span>
-        )}
-        <ChevronDown className={cn('w-3.5 h-3.5 text-bento-muted flex-none transition-transform', open && 'rotate-180')} />
       </div>
 
       {/* Expandido */}
