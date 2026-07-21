@@ -46,7 +46,6 @@ export function ClienteModal({ client, onClose, onSaved, initialTab }: {
   const [upgradePlan, setUpgradePlan] = useState('')
   const [upgradeDate, setUpgradeDate] = useState(new Date().toISOString().slice(0, 10))
   const [upgradeSeller, setUpgradeSeller] = useState('')
-  const [upgradeBonus, setUpgradeBonus] = useState('')
   const [upgradeWeek, setUpgradeWeek] = useState('')
   const [upgradeNote, setUpgradeNote] = useState('')
   const [upgrading, setUpgrading] = useState(false)
@@ -71,7 +70,7 @@ export function ClienteModal({ client, onClose, onSaved, initialTab }: {
   useEffect(() => {
     supabase.from('plans').select('id, nome, valor_semanal, valor_mensal').eq('ativo', true).order('ordem')
       .then(({ data }) => setPlans((data ?? []) as Plan[]))
-    supabase.from('sellers').select('id, name').eq('status', 'ativo').order('name')
+    supabase.from('sellers').select('id, name').eq('status', 'ativo').eq('gera_comissao', true).order('name')
       .then(({ data }) => {
         const rows = (data ?? []) as Seller[]
         setSellers(rows)
@@ -162,11 +161,9 @@ export function ClienteModal({ client, onClose, onSaved, initialTab }: {
     if (upgrading || !upgradePlan) return
     setUpgrading(true)
     try {
-      const bonus = upgradeBonus.trim() === '' ? null : Number(upgradeBonus)
       const effectiveWeek = upgradeWeek.trim() === '' ? null : Number(upgradeWeek)
       const res = await registerPlanUpgradeAction(client.id, upgradePlan, upgradeDate, {
         sellerId: upgradeSeller || null,
-        bonusOverrideUsd: bonus != null && Number.isFinite(bonus) ? bonus : null,
         effectiveWeek: effectiveWeek != null && Number.isInteger(effectiveWeek) && effectiveWeek > 0 ? effectiveWeek : null,
         observacao: upgradeNote || null,
       })
@@ -175,10 +172,9 @@ export function ClienteModal({ client, onClose, onSaved, initialTab }: {
       onSaved({ ...client, plano_id: upgradePlan, plan_weekly: np?.valor_semanal ?? client.plan_weekly } as Client)
       setForm(p => ({ ...p, plano_id: upgradePlan }))
       setUpgradePlan('')
-      setUpgradeBonus('')
       setUpgradeWeek('')
       setUpgradeNote('')
-      toast({ type: 'success', message: res.bonus > 0 ? `Upgrade registrado · bônus US$${res.bonus} (diferença US$${res.deltaMensal}/mês).` : `Upgrade registrado (sem bônus configurado).` })
+      toast({ type: 'success', message: res.bonus > 0 ? `Upgrade registrado · comissão US$${res.bonus} em 4× US$${res.weeklyBonus}, liberada conforme o cliente paga.` : `Upgrade registrado (vendedor sem perfil de upgrade ativo).` })
     } finally { setUpgrading(false) }
   }
 
@@ -330,10 +326,7 @@ export function ClienteModal({ client, onClose, onSaved, initialTab }: {
                 <input type="number" min="1" step="1" value={upgradeWeek} onChange={e => setUpgradeWeek(e.target.value)} placeholder="Próxima" className={inputCls} />
               </div>
             </div>
-            <div>
-              <label className="block text-[10px] text-bento-muted mb-1">Bônus do upgrade (USD)</label>
-              <input type="number" min="0" step="0.01" value={upgradeBonus} onChange={e => setUpgradeBonus(e.target.value)} placeholder="Vazio usa a regra de remuneração" className={inputCls} />
-            </div>
+            <p className="font-tech text-[10px] text-bento-muted">Comissão: 20% da diferença mensal em 4 parcelas. Só libera cada parcela após o pagamento da semana pelo cliente.</p>
             <textarea rows={2} value={upgradeNote} onChange={e => setUpgradeNote(e.target.value)} placeholder="Observação do upgrade (opcional)" className={inputCls} />
             <button type="button" onClick={handleUpgrade} disabled={upgrading || !upgradePlan}
               className="w-full px-3 py-2 rounded-btn text-xs font-semibold border border-lime/40 text-lime-fg hover:bg-lime/10 transition-colors disabled:opacity-50">

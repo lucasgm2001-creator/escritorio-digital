@@ -20,6 +20,7 @@ import {
   updateDealAction, payWeekAction, deleteWeekAction, updateWeekDateAction, registerMeetingAction,
   deleteMeetingAction, updateMeetingAction,
   updateRenewalBonusAction,
+  updateUpgradeCommissionAction,
 } from '../compensation-write-actions'
 import { cn } from '@/lib/utils'
 import { monthlySummary, resolveRate, dealTotal, pendingCommission } from '@/lib/commission/calc'
@@ -74,6 +75,8 @@ export function CommissionSection({ sellerId, sellerName }: { sellerId: string; 
   const [salError, setSalError] = useState('')
   const [renewalEnabled, setRenewalEnabled] = useState(false)
   const [savingRenewal, setSavingRenewal] = useState(false)
+  const [upgradeEnabled, setUpgradeEnabled] = useState(false)
+  const [savingUpgrade, setSavingUpgrade] = useState(false)
 
   // Form venda
   const [showNewDeal, setShowNewDeal] = useState(false)
@@ -97,7 +100,7 @@ export function CommissionSection({ sellerId, sellerName }: { sellerId: string; 
       supabase.from('fx_config').select('cotacao_manual, cotacao_travada, cotacao_referencia').eq('id', 1).maybeSingle(),
       supabase.from('clients').select('id, name').order('name'),
       supabase.from('leads').select('id, name').order('name'),
-      supabase.from('collaborator_compensation_settings').select('renewal_bonus_enabled')
+      supabase.from('collaborator_compensation_settings').select('renewal_bonus_enabled, upgrade_commission_enabled')
         .eq('seller_id', sellerId).lte('effective_from', todayISO()).order('effective_from', { ascending: false }).limit(1).maybeSingle(),
     ])
 
@@ -109,6 +112,7 @@ export function CommissionSection({ sellerId, sellerName }: { sellerId: string; 
     setClients((cliRes.data ?? []) as { id: string; name: string }[])
     setLeads((leadRes.data ?? []) as { id: string; name: string }[])
     setRenewalEnabled(!!renewalRes.data?.renewal_bonus_enabled)
+    setUpgradeEnabled(!!renewalRes.data?.upgrade_commission_enabled)
 
     const dealIds = ds.map(d => d.id)
     if (dealIds.length) {
@@ -137,6 +141,16 @@ export function CommissionSection({ sellerId, sellerName }: { sellerId: string; 
     if (result.error) { toast({ type: 'error', message: result.error.message }); return }
     setRenewalEnabled(enabled)
     toast({ type: 'success', message: enabled ? 'Bônus trimestral de US$ 50 ativado.' : 'Bônus de renovação desativado.' })
+  }
+
+  const changeUpgrade = async (enabled: boolean) => {
+    if (savingUpgrade) return
+    setSavingUpgrade(true)
+    const result = await updateUpgradeCommissionAction(sellerId, enabled)
+    setSavingUpgrade(false)
+    if (result.error) { toast({ type: 'error', message: result.error.message }); return }
+    setUpgradeEnabled(enabled)
+    toast({ type: 'success', message: enabled ? 'Comissão parcelada de upgrade ativada.' : 'Comissão de upgrade desativada.' })
   }
 
   // Cotação automática (regra 5): busca server-side com cache diário + fallback. NÃO
@@ -547,6 +561,24 @@ export function CommissionSection({ sellerId, sellerName }: { sellerId: string; 
         <button onClick={gerarPdf} className="flex items-center justify-center gap-1.5 w-full border border-bento-border text-bento-dim hover:border-lime hover:text-bento-text py-2 rounded-btn text-sm font-medium transition-colors min-h-[44px]">
           <Download className="w-4 h-4" /> Gerar PDF do mês
         </button>
+      </Collapsible>
+
+      <Collapsible icon={<RefreshCw className="w-4 h-4 text-lime-fg" />} title="Comissão de upgrade"
+        peek={upgradeEnabled ? 'Ativa · 20% em 4x' : 'Desativada'} open={!!open.upgradeProfile} onToggle={() => toggle('upgradeProfile')}>
+        <div className="rounded-btn border border-bento-border/60 bg-bento-bg p-3 space-y-3">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <p className="text-sm font-medium text-bento-text">Upgrade parcelado</p>
+              <p className="text-[11px] text-bento-muted">20% da diferença mensal entre os planos, dividido em 4 parcelas. Cada parcela só é liberada quando o cliente paga a semana.</p>
+            </div>
+            <button type="button" role="switch" aria-checked={upgradeEnabled} disabled={savingUpgrade}
+              onClick={() => changeUpgrade(!upgradeEnabled)}
+              className={cn('relative h-6 w-11 rounded-full transition-colors disabled:opacity-50', upgradeEnabled ? 'bg-lime' : 'bg-bento-border')}>
+              <span className={cn('absolute left-1 top-1 h-4 w-4 rounded-full bg-white transition-transform', upgradeEnabled ? 'translate-x-5' : 'translate-x-0')} />
+            </button>
+          </div>
+          <p className="font-tech text-[10px] text-bento-muted">Exemplo: diferença de US$ 200/mês → comissão total de US$ 40 → quatro parcelas de US$ 10. Semana não paga não libera parcela.</p>
+        </div>
       </Collapsible>
 
       <Collapsible icon={<RefreshCw className="w-4 h-4 text-lime-fg" />} title="Renovação trimestral"

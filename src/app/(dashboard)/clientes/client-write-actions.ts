@@ -248,8 +248,8 @@ export async function registerPlanUpgradeAction(
   clientId: string,
   newPlanId: string,
   changedAt?: string,
-  options?: { sellerId?: string | null; bonusOverrideUsd?: number | null; effectiveWeek?: number | null; observacao?: string | null },
-): Promise<Res<{ bonus: number; deltaMensal: number; sellerId: string }>> {
+  options?: { sellerId?: string | null; effectiveWeek?: number | null; observacao?: string | null },
+): Promise<Res<{ bonus: number; weeklyBonus: number; installments: number; deltaMensal: number; sellerId: string }>> {
   const g = await guardEdit()
   if (!g.context) return { ok: false, error: g.error }
   const supabase = createServiceClient()
@@ -263,12 +263,12 @@ export async function registerPlanUpgradeAction(
     p_new_plan_id: newPlanId,
     p_changed_at: changed,
     p_seller_id: options?.sellerId || null,
-    p_bonus_override_usd: options?.bonusOverrideUsd ?? null,
+    p_bonus_override_usd: null,
     p_effective_week: options?.effectiveWeek ?? null,
     p_cotacao_usd_brl: rate,
     p_observacao: options?.observacao?.trim() || null,
   })
   if (error || !data) return { ok: false, error: error?.message ?? 'Não foi possível registrar o upgrade.' }
-  const result = data as { bonus?: number; deltaMensal?: number; sellerId?: string }
-  return { ok: true, bonus: Number(result.bonus ?? 0), deltaMensal: Number(result.deltaMensal ?? 0), sellerId: String(result.sellerId ?? '') }
+  const result = data as { bonus?: number; weeklyBonus?: number; installments?: number; deltaMensal?: number; sellerId?: string }
+  return { ok: true, bonus: Number(result.bonus ?? 0), weeklyBonus: Number(result.weeklyBonus ?? 0), installments: Number(result.installments ?? 0), deltaMensal: Number(result.deltaMensal ?? 0), sellerId: String(result.sellerId ?? '') }
 }
