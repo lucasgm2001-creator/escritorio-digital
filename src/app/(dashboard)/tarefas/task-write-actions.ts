@@ -2,6 +2,7 @@
 
 import { createClient } from '@/lib/supabase/server'
 import { pickAllowed, requireActionContext, toActionError, type ActionError } from '@/server/actions/safe-action'
+import { withDefaultTaskOwner } from '@/lib/tasks/default-task-owner'
 
 // Escritas de TAREFAS (PERMISSIONS-005). `tasks` não é um módulo da matriz — é produtividade da equipe,
 // escopada por team_id (RLS team_scope) e com dono (user_id). Regra: membro autenticado da equipe gerencia
@@ -27,8 +28,9 @@ export async function createTaskAction(input: Record<string, unknown>): Promise<
   const g = await guard()
   if (!g.context) return { data: null, error: g.error }
   const supabase = createClient()
+  const clean = withDefaultTaskOwner(pickAllowed(input, TASK_COLS))
   const { data, error } = await supabase.from('tasks')
-    .insert({ ...pickAllowed(input, TASK_COLS), user_id: g.context.user.id, done: false, team_id: g.context.activeTeamId })
+    .insert({ ...clean, user_id: g.context.user.id, done: false, team_id: g.context.activeTeamId })
     .select().single()
   return { data: (data as Row) ?? null, error: toActionError(error) }
 }

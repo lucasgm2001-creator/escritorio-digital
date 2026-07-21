@@ -9,6 +9,7 @@ import { createTaskAction, updateTaskAction } from './task-write-actions'
 import { cn } from '@/lib/utils'
 import { useToast } from '@/components/ui/toast'
 import type { Task, TaskPriority, LinkOption } from './types'
+import { DEFAULT_TASK_OWNER_ID, DEFAULT_TASK_OWNER_NAME } from '@/lib/tasks/default-task-owner'
 
 export interface TaskPrefill {
   title?: string
@@ -55,10 +56,6 @@ const TIMEZONES: { v: string; l: string }[] = [
   { v: 'America/Denver', l: 'EUA Montanha' },
   { v: 'America/Los_Angeles', l: 'EUA Oeste' },
 ]
-
-// ID de public.sellers (não é o user_id/profile id do Lucas).
-const DEFAULT_TASK_OWNER_ID = 'd129ace7-424b-4434-88af-baa3781cb568'
-const DEFAULT_TASK_OWNER_NAME = 'Lucas'
 
 // IMPORTANTE: Field em escopo de MÓDULO (não dentro do componente). Dentro do
 // render seria recriado a cada keystroke → o input remonta e perde foco
@@ -122,8 +119,10 @@ export function TaskModal({ onClose, onSaved, linkOptions, task, prefill, aiFill
   const [linkQuery, setLinkQuery] = useState('')
   const [linkOpen, setLinkOpen]   = useState(false)
   const [saving, setSaving]       = useState(false)
-  const [sellers, setSellers]     = useState<{ id: string; name: string }[]>([])
-  const [responsavelId, setResponsavelId] = useState<string>(task?.responsavel_id ?? '')
+  const [sellers, setSellers]     = useState<{ id: string; name: string }[]>(() => task?.responsavel_id
+    ? [{ id: task.responsavel_id, name: task.responsavel_nome || 'Responsável atual' }]
+    : [{ id: DEFAULT_TASK_OWNER_ID, name: DEFAULT_TASK_OWNER_NAME }])
+  const [responsavelId, setResponsavelId] = useState<string>(task?.responsavel_id ?? DEFAULT_TASK_OWNER_ID)
   const [addCall, setAddCall]     = useState<boolean>(task?.add_call ?? false)   // gera um Google Meet pro evento (caminho OAuth)
   // Duração/Fuso do evento (toda tarefa com data vai pro Google Agenda). NÃO há mais "modo reunião".
   const [durationMin, setDurationMin] = useState<number>(task?.duration_min ?? 30)
@@ -137,12 +136,19 @@ export function TaskModal({ onClose, onSaved, linkOptions, task, prefill, aiFill
   // Vendedores p/ o campo Responsável. Nova tarefa nasce explicitamente com Lucas;
   // não dependemos da ordem alfabética retornada pelo banco.
   useEffect(() => {
-    supabase.from('sellers').select('id, name').eq('status', 'ativo').order('name').then(({ data }) => {
+    supabase.from('sellers').select('id, name').eq('status', 'ativo').order('name').then(({ data, error }) => {
       const list = (data ?? []) as { id: string; name: string }[]
-      setSellers(list)
-      const lucas = list.find(s => s.id === DEFAULT_TASK_OWNER_ID)
-        ?? list.find(s => s.name.trim().toLocaleLowerCase('pt-BR') === DEFAULT_TASK_OWNER_NAME.toLocaleLowerCase('pt-BR'))
-      setResponsavelId(prev => prev || task?.responsavel_id || lucas?.id || list[0]?.id || '')
+      if (error || list.length === 0) return
+      const merged = [...list]
+      if (!merged.some(s => s.id === DEFAULT_TASK_OWNER_ID)) {
+        merged.unshift({ id: DEFAULT_TASK_OWNER_ID, name: DEFAULT_TASK_OWNER_NAME })
+      }
+      if (task?.responsavel_id && !merged.some(s => s.id === task.responsavel_id)) {
+        merged.unshift({ id: task.responsavel_id, name: task.responsavel_nome || 'Responsável atual' })
+      }
+      setSellers(merged)
+      const lucas = merged.find(s => s.id === DEFAULT_TASK_OWNER_ID)
+      setResponsavelId(prev => prev || task?.responsavel_id || lucas?.id || merged[0]?.id || '')
     })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
@@ -176,20 +182,20 @@ export function TaskModal({ onClose, onSaved, linkOptions, task, prefill, aiFill
       timezone:      timezone,
     }
 
-    if (editing && task) {
-      const { data, error } = await updateTaskAction(task.id, payload)   // servidor: sessão + equipe + allowlist
-      if (!error && data) { syncCalendar((data as unknown as Task).id); onSaved(data as unknown as Task); onClose() }
-      else {
-        setSaving(false)
+    try {
+      if (editing && task) {
+        const { data, error } = await updateTaskAction(task.id, payload)   // servidor: sessão + equipe + allowlist
+        if (!error && data) { syncCalendar((data as unknown as Task).id); onSaved(data as unknown as Task); onClose(); return }
         toast({ type: 'error', message: error?.message || 'Não foi possível salvar a tarefa.' })
-      }
-    } else {
-      const { data, error } = await createTaskAction(payload)   // servidor: user_id/team_id carimbados
-      if (!error && data) { syncCalendar((data as unknown as Task).id); onSaved(data as unknown as Task); onClose() }
-      else {
-        setSaving(false)
+      } else {
+        const { data, error } = await createTaskAction(payload)   // servidor: user_id/team_id carimbados
+        if (!error && data) { syncCalendar((data as unknown as Task).id); onSaved(data as unknown as Task); onClose(); return }
         toast({ type: 'error', message: error?.message || 'Não foi possível criar a tarefa.' })
       }
+    } catch {
+      toast({ type: 'error', message: editing ? 'Não foi possível salvar a tarefa.' : 'Não foi possível criar a tarefa.' })
+    } finally {
+      setSaving(false)
     }
   }
 

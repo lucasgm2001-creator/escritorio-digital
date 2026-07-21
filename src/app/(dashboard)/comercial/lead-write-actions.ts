@@ -1,6 +1,7 @@
 'use server'
 
 import { createClient } from '@/lib/supabase/server'
+import { DEFAULT_TASK_OWNER_ID, DEFAULT_TASK_OWNER_NAME } from '@/lib/tasks/default-task-owner'
 import { pickAllowed, requireActionContext } from '@/server/actions/safe-action'
 import { getStages } from '@/lib/funnelStages.server'
 import { wonSlug } from '@/lib/funnelStages'
@@ -205,6 +206,7 @@ export async function createLeadTaskAction(input: { leadId: string; leadName: st
   const { data, error } = await supabase.from('tasks').insert({
     user_id: g.context.user.id, title, done: false,
     linked_type: 'lead', linked_id: input.leadId, linked_name: input.leadName,
+    responsavel_id: DEFAULT_TASK_OWNER_ID, responsavel_nome: DEFAULT_TASK_OWNER_NAME,
     ...(teamId ? { team_id: teamId } : {}),
   }).select('id, title, due_date, due_time, done').single()
   if (error || !data) return { ok: false, error: error?.message ?? 'Não foi possível criar a tarefa.' }

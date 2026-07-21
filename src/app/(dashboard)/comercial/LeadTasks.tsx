@@ -5,6 +5,8 @@ import { Plus, Check, Clock } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { createLeadTaskAction, setLeadTaskDoneAction } from './lead-write-actions'
 import { cn } from '@/lib/utils'
+import { SituationDrawer } from './SituationDrawer'
+import { useToast } from '@/components/ui/toast'
 
 // Tarefa vinculada a um lead (tasks.linked_type='lead' + linked_id). Só os campos
 // que esta seção exibe — o CRUD completo continua na página Tarefas.
@@ -51,6 +53,8 @@ export function LeadTasks({ leadId, leadName, compact = true }: {
   const [adding, setAdding] = useState(false)
   const [newTitle, setNewTitle] = useState('')
   const [saving, setSaving] = useState(false)
+  const [showSituation, setShowSituation] = useState(false)
+  const { toast } = useToast()
 
   const txt = compact ? 'text-[10px]' : 'text-xs'
   const mono = compact ? 'text-[9px]' : 'text-[10px]'
@@ -71,7 +75,12 @@ export function LeadTasks({ leadId, leadName, compact = true }: {
     const next = !t.done
     setTasks(prev => sortTasks(prev.map(x => x.id === t.id ? { ...x, done: next } : x)))
     const res = await setLeadTaskDoneAction(t.id, next)
-    if (!res.ok) setTasks(prev => sortTasks(prev.map(x => x.id === t.id ? { ...x, done: t.done } : x)))
+    if (!res.ok) {
+      setTasks(prev => sortTasks(prev.map(x => x.id === t.id ? { ...x, done: t.done } : x)))
+      toast({ type: 'error', message: res.error || 'Não foi possível atualizar a tarefa.' })
+    } else if (next) {
+      setShowSituation(true)
+    }
   }
 
   const addTask = async () => {
@@ -84,7 +93,7 @@ export function LeadTasks({ leadId, leadName, compact = true }: {
       setTasks(prev => sortTasks([...prev, res.task as unknown as LeadTask]))
       setNewTitle('')
       setAdding(false)
-    }
+    } else toast({ type: 'error', message: res.error || 'Não foi possível criar a tarefa.' })
   }
 
   return (
@@ -162,6 +171,15 @@ export function LeadTasks({ leadId, leadName, compact = true }: {
             )
           })}
         </ul>
+      )}
+
+      {showSituation && (
+        <SituationDrawer
+          lead={{ id: leadId, name: leadName }}
+          onClose={() => setShowSituation(false)}
+          onSkip={() => setShowSituation(false)}
+          onSaved={() => setShowSituation(false)}
+        />
       )}
     </div>
   )

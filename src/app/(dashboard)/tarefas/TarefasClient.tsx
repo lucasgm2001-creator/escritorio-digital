@@ -249,8 +249,8 @@ export function TarefasClient({ tasks, setTasks, deletedIds, linkOptions, curren
     } else {
       router.refresh()                                          // reconcilia com o server
       // Ao CONCLUIR uma tarefa vinculada a lead, oferece atualizar a situação (incentiva, não obriga).
-      if (nowDone && t.linked_type === 'lead' && t.linked_id && t.linked_name) {
-        setSituationLead({ id: t.linked_id, name: t.linked_name })
+      if (nowDone && t.linked_type === 'lead' && t.linked_id) {
+        setSituationLead({ id: t.linked_id, name: t.linked_name || 'Lead' })
       }
     }
   }
