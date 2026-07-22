@@ -11,9 +11,14 @@ export type LastAction =
   | 'whatsapp_pediu_proposta' | 'whatsapp_marcou_reuniao' | 'whatsapp_parou_responder'
   | 'cliente_pediu_proposta' | 'cliente_quer_reuniao' | 'cliente_tirou_duvidas'
   | 'cliente_quer_fechar' | 'cliente_quer_negociar' | 'cliente_pediu_retorno'
+  | 'reuniao_compareceu' | 'reuniao_nao_compareceu' | 'reuniao_pediu_reagendamento'
+  | 'reuniao_pediu_proposta' | 'reuniao_proposta_apresentada' | 'reuniao_cancelada'
+  | 'proposta_enviada' | 'proposta_aceita' | 'proposta_pediu_ajuste' | 'proposta_recusada' | 'proposta_sem_resposta'
+  | 'followup_respondeu' | 'followup_sem_resposta' | 'followup_pediu_retorno'
+  | 'agendamento_confirmado' | 'agendamento_sem_resposta' | 'agendamento_pediu_retorno' | 'agendamento_recusado'
 export type NextAction =
   | 'nenhuma' | 'ligar' | 'mensagem' | 'cobrar_retorno' | 'enviar_proposta' | 'marcar_reuniao' | 'aguardar'
-  | 'encerrar_oportunidade'
+  | 'encerrar_oportunidade' | 'fechar_venda'
 export type Temperature =
   | 'frio' | 'morno' | 'quente' | 'muito_quente'
   | 'muito_interessado' | 'interessado' | 'em_duvida' | 'pensando'
@@ -38,11 +43,20 @@ export const LAST_ACTION_LABEL: Record<LastAction, string> = {
   cliente_quer_reuniao: 'Cliente quer reunião', cliente_tirou_duvidas: 'Cliente tirou dúvidas',
   cliente_quer_fechar: 'Cliente quer fechar', cliente_quer_negociar: 'Cliente quer negociar',
   cliente_pediu_retorno: 'Cliente pediu retorno',
+  reuniao_compareceu: 'Reunião realizada', reuniao_nao_compareceu: 'Não compareceu à reunião',
+  reuniao_pediu_reagendamento: 'Pediu para reagendar a reunião', reuniao_pediu_proposta: 'Pediu proposta na reunião',
+  reuniao_proposta_apresentada: 'Proposta apresentada na reunião', reuniao_cancelada: 'Cancelou a reunião',
+  proposta_enviada: 'Proposta enviada', proposta_aceita: 'Proposta aceita',
+  proposta_pediu_ajuste: 'Pediu ajuste na proposta', proposta_recusada: 'Proposta recusada',
+  proposta_sem_resposta: 'Não respondeu à proposta', followup_respondeu: 'Respondeu ao follow-up',
+  followup_sem_resposta: 'Não respondeu ao follow-up', followup_pediu_retorno: 'Pediu retorno no follow-up',
+  agendamento_confirmado: 'Reunião marcada', agendamento_sem_resposta: 'Não respondeu ao agendamento',
+  agendamento_pediu_retorno: 'Pediu retorno para marcar', agendamento_recusado: 'Não quis marcar reunião',
 }
 export const NEXT_ACTION_LABEL: Record<NextAction, string> = {
   nenhuma: 'Nenhuma', ligar: 'Ligar novamente', mensagem: 'Enviar WhatsApp', cobrar_retorno: 'Cobrar retorno',
   enviar_proposta: 'Enviar proposta', marcar_reuniao: 'Agendar reunião', aguardar: 'Aguardar cliente',
-  encerrar_oportunidade: 'Encerrar oportunidade',
+  encerrar_oportunidade: 'Encerrar oportunidade', fechar_venda: 'Registrar venda',
 }
 export const TEMPERATURE_LABEL: Record<Temperature, string> = {
   frio: 'Frio', morno: 'Morno', quente: 'Quente', muito_quente: 'Muito quente',
@@ -60,12 +74,24 @@ export const isTemperature = (x: unknown): x is Temperature => typeof x === 'str
 
 // Deriva o estado de acompanhamento a partir do resultado + próxima ação + quando (no servidor).
 export function deriveFollowupState(lastAction: LastAction, nextAction: NextAction, when: WhenChoice | null): FollowupState {
-  if (lastAction === 'desistiu') return 'desistiu'
+  if (lastAction === 'desistiu' || lastAction === 'proposta_recusada' || lastAction === 'agendamento_recusado') return 'desistiu'
   if (lastAction === 'fechou' || lastAction === 'ja_e_cliente' || lastAction === 'ligacao_ja_cliente') return 'fechado'
   if (nextAction === 'nenhuma') return lastAction === 'nao_respondeu' || lastAction === 'ligacao_nao_atendeu' ? 'sem_atualizacao' : 'aguardando'
   if (nextAction === 'aguardar') return 'aguardando'
   if (when === 'hoje') return 'precisa_agir'
   return 'agendado'
+}
+
+// A situação influencia o funil sem permitir que este fluxo rápido feche uma venda e gere efeitos
+// financeiros por acidente. Fechamento continua no fluxo próprio, com plano e confirmação.
+export function suggestedStageFromSituation(lastAction: LastAction, currentStatus: string): string | null {
+  if (lastAction === 'reuniao_nao_compareceu') return 'no_show'
+  if (lastAction === 'reuniao_pediu_reagendamento') return 'reagendamento'
+  if (lastAction === 'reuniao_proposta_apresentada' || lastAction === 'proposta_enviada') return 'proposta'
+  if (lastAction === 'ligacao_marcou_reuniao' || lastAction === 'whatsapp_marcou_reuniao' || lastAction === 'agendamento_confirmado') return 'reuniao'
+  if ((lastAction === 'ligacao_nao_atendeu' || lastAction === 'whatsapp_nao_visualizou' || lastAction === 'followup_sem_resposta' || lastAction === 'agendamento_sem_resposta') && currentStatus === 'novo') return 'nao_interagiu'
+  if ((lastAction === 'ligacao_conversou' || lastAction === 'whatsapp_respondeu' || lastAction === 'followup_respondeu') && (currentStatus === 'novo' || currentStatus === 'nao_interagiu')) return 'interagiu'
+  return null
 }
 
 // Temperatura aproximada a partir do score — fallback do Radar quando não há temperatura explícita.

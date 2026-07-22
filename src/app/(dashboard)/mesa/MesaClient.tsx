@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import {
   AlertTriangle, CalendarDays, Check, CheckCircle2, ChevronRight, CircleDot, Clock3,
-  ExternalLink, Mail, MessageCircle, Phone, Plus, RefreshCw, UserRound, Video,
+  ExternalLink, FileText, Mail, MessageCircle, Phone, Plus, RefreshCw, UserRound, Video,
   type LucideIcon,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -20,7 +20,8 @@ import { TaskModal, type TaskPrefill } from '../tarefas/TaskModal'
 import type { LinkOption, Task } from '../tarefas/types'
 import { SituationDrawer } from '../comercial/SituationDrawer'
 import { ALL_COLUMNS, type LeadStatus } from '../comercial/types'
-import { TEMPERATURE_LABEL } from '@/lib/commercial/situation'
+import { NEXT_ACTION_LABEL, TEMPERATURE_LABEL, isNextAction } from '@/lib/commercial/situation'
+import { inferTaskKind } from '@/lib/tasks/task-kind'
 
 export interface MesaLead {
   id: string
@@ -114,7 +115,7 @@ export function MesaClient({ initialTasks, initialLeads, linkOptions, currentUse
   const today = ymd(new Date())
   const pending = useMemo(() => tasks.filter(task => !task.done).sort(taskSort), [tasks])
   const todayTasks = useMemo(() => pending.filter(task => !!task.due_date && task.due_date <= today), [pending, today])
-  const meetingTasks = useMemo(() => pending.filter(task => task.is_meeting), [pending])
+  const meetingTasks = useMemo(() => pending.filter(task => inferTaskKind(task.title, task.kind) === 'reuniao'), [pending])
   const upcomingTasks = useMemo(() => pending.filter(task => !task.due_date || task.due_date > today), [pending, today])
   const doneTasks = useMemo(() => tasks.filter(task => task.done).sort((a, b) => (b.completed_at ?? b.updated_at).localeCompare(a.completed_at ?? a.updated_at)).slice(0, 30), [tasks])
   const waitingLeads = useMemo(() => leads.filter(lead => !TERMINAL.has(lead.status) && isWaiting(lead)), [leads])
@@ -292,7 +293,11 @@ export function MesaClient({ initialTasks, initialLeads, linkOptions, currentUse
       )}
 
       {situation && (
-        <SituationDrawer lead={{ id: situation.lead.id, name: situation.lead.name }} sourceTaskId={situation.taskId}
+        <SituationDrawer lead={{ id: situation.lead.id, name: situation.lead.name, status: situation.lead.status }} sourceTaskId={situation.taskId}
+          taskContext={(() => {
+            const task = situation.taskId ? tasks.find(row => row.id === situation.taskId) : null
+            return task ? { title: task.title, kind: inferTaskKind(task.title, task.kind) } : null
+          })()}
           onClose={() => setSituation(null)} onSkip={() => setSituation(null)}
           onSaved={({ nextTask, patch }) => {
             setLeads(current => current.map(lead => lead.id === situation.lead.id ? { ...lead, ...patch } : lead))
@@ -330,6 +335,7 @@ function TaskRow({ task, active, today, busy, onSelect, onToggle, onEdit }: {
   task: Task; active: boolean; today: string; busy: boolean; onSelect: () => void; onToggle: () => void; onEdit: () => void
 }) {
   const overdue = !task.done && !!task.due_date && task.due_date < today
+  const kind = inferTaskKind(task.title, task.kind)
   return (
     <div className={cn('group flex items-start gap-3 rounded-bento border p-3 transition-colors',
         active ? 'border-lime/50 bg-lime/[0.07]' : 'border-bento-border bg-bento-bg/35 hover:border-bento-dim/60')}>
@@ -343,7 +349,13 @@ function TaskRow({ task, active, today, busy, onSelect, onToggle, onEdit }: {
           <span className={cn('font-tech text-[10px] whitespace-nowrap', overdue ? 'text-red-400' : 'text-bento-muted')}>{dateLabel(task.due_date, task.due_time)}</span>
         </div>
         <div className="flex items-center gap-2 mt-1.5 min-w-0">
-          {task.is_meeting ? <Video className="w-3.5 h-3.5 text-purple-400" /> : task.add_call ? <Phone className="w-3.5 h-3.5 text-blue-400" /> : <CircleDot className="w-3.5 h-3.5 text-bento-muted" />}
+          {kind === 'reuniao' ? <Video className="w-3.5 h-3.5 text-purple-400" />
+            : kind === 'agendamento' ? <CalendarDays className="w-3.5 h-3.5 text-cyan-400" />
+            : kind === 'ligacao' ? <Phone className="w-3.5 h-3.5 text-blue-400" />
+            : kind === 'whatsapp' ? <MessageCircle className="w-3.5 h-3.5 text-emerald-400" />
+            : kind === 'proposta' ? <FileText className="w-3.5 h-3.5 text-amber-400" />
+            : kind === 'followup' ? <RefreshCw className="w-3.5 h-3.5 text-lime-fg" />
+            : <CircleDot className="w-3.5 h-3.5 text-bento-muted" />}
           <span className="text-[11px] text-bento-muted truncate">{task.linked_name ?? 'Tarefa geral'}</span>
           {task.priority !== 'normal' && <span className={cn('text-[9px] uppercase font-semibold', task.priority === 'urgente' ? 'text-red-400' : 'text-amber-400')}>{task.priority}</span>}
           <ChevronRight className="w-3.5 h-3.5 text-bento-muted ml-auto opacity-0 group-hover:opacity-100" />
@@ -407,7 +419,12 @@ function LeadContext({ lead, task, interactions, loading, onNewTask, onEditTask,
         <ContextBlock label="Situação atual" value={lead.current_situation || 'Nenhuma situação registrada.'} />
         <div className="grid grid-cols-2 gap-3">
           <ContextBlock label="Responsável" value={lead.assigned_name || '—'} />
-          <ContextBlock label="Próxima ação" value={lead.next_action && lead.next_action !== 'nenhuma' ? lead.next_action.replaceAll('_', ' ') : 'Não definida'} />
+          <ContextBlock
+            label="Próxima ação"
+            value={lead.next_action && lead.next_action !== 'nenhuma'
+              ? (isNextAction(lead.next_action) ? NEXT_ACTION_LABEL[lead.next_action] : lead.next_action.replaceAll('_', ' '))
+              : 'Não definida'}
+          />
           <ContextBlock label="Último contato" value={lead.last_contact_at ? new Date(lead.last_contact_at).toLocaleDateString('pt-BR') : 'Ainda não registrado'} />
           <ContextBlock label="Próximo contato" value={lead.next_contact ? dateLabel(lead.next_contact) : 'Sem data'} />
         </div>

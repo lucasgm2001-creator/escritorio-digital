@@ -118,6 +118,7 @@ const NEXT_COMPACT: Partial<Record<NextAction, string>> = {
   marcar_reuniao: 'Reunião',
   aguardar: 'Aguardar',
   encerrar_oportunidade: 'Encerrar',
+  fechar_venda: 'Fechar',
 }
 
 function firstName(name: string): string {

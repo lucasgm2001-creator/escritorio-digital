@@ -5,7 +5,7 @@ import { createServiceClient } from '@/lib/supabase/service'
 import { DEFAULT_TASK_OWNER_ID, DEFAULT_TASK_OWNER_NAME } from '@/lib/tasks/default-task-owner'
 import { pickAllowed, requireActionContext } from '@/server/actions/safe-action'
 import { getStages } from '@/lib/funnelStages.server'
-import { wonSlug } from '@/lib/funnelStages'
+import { wonSlug, marcosForSlug } from '@/lib/funnelStages'
 import { markMilestones } from '@/lib/leadMilestones'
 import { logStageEvent } from '@/lib/stageEvents'
 import { saveLeadHistory, type LeadHistoryInput } from '@/lib/commission/actions'
@@ -15,9 +15,10 @@ import { moveLead, type ActionNote, type MovableLead } from './leadActions'
 import { eventBus, createDomainEvent } from '@/lib/events/runtime'
 import {
   LAST_ACTION_LABEL, NEXT_ACTION_LABEL, deriveFollowupState, nextContactFromWhen,
-  isLastAction, isNextAction, isTemperature,
+  isLastAction, isNextAction, isTemperature, suggestedStageFromSituation,
   type LastAction, type NextAction, type Temperature, type LeadResponse, type WhenChoice,
 } from '@/lib/commercial/situation'
+import { taskKindForNextAction, inferTaskKind } from '@/lib/tasks/task-kind'
 import { withDefaultLeadOwner } from '@/lib/commercial/default-lead-owner'
 import type { Lead, LeadStatus } from './types'
 
@@ -214,11 +215,11 @@ export async function createLeadTaskAction(input: { leadId: string; leadName: st
   const supabase = createClient()
   const teamId = g.context.activeTeamId
   const { data, error } = await supabase.from('tasks').insert({
-    user_id: g.context.user.id, title, done: false,
+    user_id: g.context.user.id, title, kind: inferTaskKind(title), done: false,
     linked_type: 'lead', linked_id: input.leadId, linked_name: input.leadName,
     responsavel_id: DEFAULT_TASK_OWNER_ID, responsavel_nome: DEFAULT_TASK_OWNER_NAME,
     ...(teamId ? { team_id: teamId } : {}),
-  }).select('id, title, due_date, due_time, done').single()
+  }).select('id, title, due_date, due_time, done, kind').single()
   if (error || !data) return { ok: false, error: error?.message ?? 'Não foi possível criar a tarefa.' }
   return { ok: true, task: data as Record<string, unknown> }
 }
@@ -266,6 +267,14 @@ export async function updateLeadSituationAction(input: {
   const followupState = deriveFollowupState(input.lastAction, input.nextAction, when)
   const situation = input.currentSituation?.trim() || LAST_ACTION_LABEL[input.lastAction]
 
+  let ownedQuery = supabase.from('leads')
+    .select('id, name, status, assigned_to, assigned_name')
+    .eq('id', input.leadId)
+  if (teamId) ownedQuery = ownedQuery.eq('team_id', teamId)
+  const { data: currentLead } = await ownedQuery.maybeSingle()
+  if (!currentLead) return { ok: false, error: 'Lead não encontrado nesta equipe.' }
+  const suggestedStage = suggestedStageFromSituation(input.lastAction, currentLead.status)
+
   // next_contact (= data da próxima ação): 'nenhuma' limpa; com "quando" define; senão não mexe.
   let nextContact: string | null | undefined = undefined
   if (input.nextAction === 'nenhuma') nextContact = null
@@ -280,12 +289,33 @@ export async function updateLeadSituationAction(input: {
     situation_updated_at: now.toISOString(),
     last_contact_at: now.toISOString(),
   }
+  if (suggestedStage && suggestedStage !== currentLead.status) {
+    patch.status = suggestedStage
+    patch.stage_changed_at = now.toISOString()
+    patch.updated_at = now.toISOString()
+  }
   if (input.temperature != null) patch.temperature = input.temperature
   if (nextContact !== undefined) patch.next_contact = nextContact
   let lq = supabase.from('leads').update(patch).eq('id', input.leadId)
   if (teamId) lq = lq.eq('team_id', teamId)   // defense-in-depth (teamId já resolvido acima)
   const { data: lead, error } = await lq.select('id, name').single()
   if (error || !lead) return { ok: false, error: error?.message ?? 'Não foi possível atualizar a situação.' }
+
+  // A resposta atualiza a fase do funil e, por consequência, Radar, métricas e histórico. Este fluxo só
+  // sugere fases operacionais; fechamento financeiro continua no fluxo específico do funil.
+  if (suggestedStage && suggestedStage !== currentLead.status) {
+    await logStageEvent(supabase, {
+      leadId: lead.id, leadName: lead.name, fromStage: currentLead.status, toStage: suggestedStage,
+      sellerId: currentLead.assigned_to ?? null, sellerName: currentLead.assigned_name ?? null,
+    }, teamId)
+    const stages = await getStages()
+    await markMilestones(supabase, lead.id, marcosForSlug(stages, suggestedStage), teamId)
+    await supabase.from('activities').insert({
+      type: 'lead', description: `${lead.name}: ${LAST_ACTION_LABEL[input.lastAction]}`,
+      user_name: g.context.profile?.name ?? null, user_id: g.context.user.id, entity_id: lead.id,
+      ...(teamId ? { team_id: teamId } : {}),
+    })
+  }
 
   // 2) histórico (reusa lead_interactions — sem duplicar timeline)
   await supabase.from('lead_interactions').insert({
@@ -299,14 +329,16 @@ export async function updateLeadSituationAction(input: {
   // se o usuário escolher uma nova ação com data. 'aguardar'/'nenhuma' encerram a tentativa atual.
   let nextTask: Record<string, unknown> | null = null
   if (input.nextAction !== 'nenhuma' && input.nextAction !== 'aguardar') {
+    const confirmedMeeting = input.lastAction === 'agendamento_confirmado'
     const taskPatch = {
-      title: `${NEXT_ACTION_LABEL[input.nextAction]}: ${lead.name}`,
+      title: confirmedMeeting ? `Reunião: ${lead.name}` : `${NEXT_ACTION_LABEL[input.nextAction]}: ${lead.name}`,
       done: false,
       completed_at: null,
       linked_type: 'lead' as const,
       linked_id: input.leadId,
       linked_name: lead.name,
       add_call: input.nextAction === 'ligar',
+      kind: confirmedMeeting ? 'reuniao' : taskKindForNextAction(input.nextAction),
       due_date: nextContact ?? null,
     }
     let task: Record<string, unknown> | null = null

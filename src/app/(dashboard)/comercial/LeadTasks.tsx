@@ -7,6 +7,7 @@ import { createLeadTaskAction, setLeadTaskDoneAction } from './lead-write-action
 import { cn } from '@/lib/utils'
 import { SituationDrawer } from './SituationDrawer'
 import { useToast } from '@/components/ui/toast'
+import { inferTaskKind, type TaskKind } from '@/lib/tasks/task-kind'
 
 // Tarefa vinculada a um lead (tasks.linked_type='lead' + linked_id). Só os campos
 // que esta seção exibe — o CRUD completo continua na página Tarefas.
@@ -16,6 +17,7 @@ interface LeadTask {
   due_date: string | null
   due_time: string | null
   done: boolean
+  kind?: TaskKind | null
 }
 
 // Ordena: pendentes primeiro; dentro de cada grupo, por data e depois hora
@@ -62,7 +64,7 @@ export function LeadTasks({ leadId, leadName, compact = true }: {
   const load = useCallback(async () => {
     const { data } = await supabase
       .from('tasks')
-      .select('id, title, due_date, due_time, done')
+      .select('id, title, due_date, due_time, done, kind')
       .eq('linked_type', 'lead')
       .eq('linked_id', leadId)
     setTasks(sortTasks(data ?? []))
@@ -177,6 +179,7 @@ export function LeadTasks({ leadId, leadName, compact = true }: {
         <SituationDrawer
           lead={{ id: leadId, name: leadName }}
           sourceTaskId={situationTask.id}
+          taskContext={{ title: situationTask.title, kind: inferTaskKind(situationTask.title, situationTask.kind) }}
           onClose={() => setSituationTask(null)}
           onSkip={() => setSituationTask(null)}
           onSaved={({ nextTask }) => {

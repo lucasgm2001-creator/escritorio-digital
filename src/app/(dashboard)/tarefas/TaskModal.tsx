@@ -10,12 +10,14 @@ import { cn } from '@/lib/utils'
 import { useToast } from '@/components/ui/toast'
 import type { Task, TaskPriority, LinkOption } from './types'
 import { DEFAULT_TASK_OWNER_ID, DEFAULT_TASK_OWNER_NAME } from '@/lib/tasks/default-task-owner'
+import { TASK_KIND_LABEL, inferTaskKind, type TaskKind } from '@/lib/tasks/task-kind'
 
 export interface TaskPrefill {
   title?: string
   due_date?: string
   due_time?: string
   priority?: TaskPriority
+  kind?: TaskKind
   link?: LinkOption | null
 }
 
@@ -44,6 +46,7 @@ const PRIORITIES: { value: TaskPriority; label: string; on: string }[] = [
   { value: 'alta',    label: 'Alta',    on: 'text-amber-400 bg-amber-900/30 border-amber-800/50' },
   { value: 'urgente', label: 'Urgente', on: 'text-red-400 bg-red-900/30 border-red-800/50' },
 ]
+const TASK_KINDS = Object.entries(TASK_KIND_LABEL) as [TaskKind, string][]
 
 // Reunião: duração em MINUTOS (grava tasks.duration_min) e fuso IANA (grava tasks.timezone).
 const DURATIONS: { v: number; l: string }[] = [
@@ -110,6 +113,8 @@ export function TaskModal({ onClose, onSaved, linkOptions, task, prefill, aiFill
   const [dueDate, setDueDate]   = useState(editing ? (task?.due_date ?? '') : (prefill?.due_date ?? todayLocal()))
   const [dueTime, setDueTime]   = useState((task?.due_time ?? prefill?.due_time ?? '').slice(0, 5))
   const [priority, setPriority] = useState<TaskPriority>(task?.priority ?? prefill?.priority ?? 'normal')
+  const [kind, setKind] = useState<TaskKind>(prefill?.kind ?? inferTaskKind(task?.title ?? prefill?.title ?? '', task?.kind))
+  const [kindTouched, setKindTouched] = useState(!!task?.kind || !!prefill?.kind)
   const [link, setLink]         = useState<LinkOption | null>(
     task?.linked_id && task?.linked_type
       ? linkOptions.find(o => o.id === task.linked_id)
@@ -170,6 +175,7 @@ export function TaskModal({ onClose, onSaved, linkOptions, task, prefill, aiFill
       due_date: dueDate || null,
       due_time: dueTime || null,   // hora independente da data (data já vem com hoje preenchida)
       priority,
+      kind,
       linked_type: link?.type ?? null,
       linked_id:   link?.id ?? null,
       linked_name: link?.name ?? null,
@@ -264,10 +270,25 @@ export function TaskModal({ onClose, onSaved, linkOptions, task, prefill, aiFill
             <input
               autoFocus
               value={title}
-              onChange={e => setTitle(e.target.value)}
+              onChange={e => {
+                setTitle(e.target.value)
+                if (!kindTouched) setKind(inferTaskKind(e.target.value))
+              }}
               className={inputCls}
               placeholder="Ex: Ligar para o Flávio sobre a proposta"
             />
+          </Field>
+
+          <Field label="Tipo de ação">
+            <div className="grid grid-cols-3 gap-1.5">
+              {TASK_KINDS.map(([value, label]) => (
+                <button key={value} type="button" onClick={() => { setKind(value); setKindTouched(true) }}
+                  className={cn('min-h-[38px] rounded-btn border px-2 text-xs font-medium transition-colors',
+                    kind === value ? 'border-lime/50 bg-lime/10 text-lime-fg' : 'border-bento-border bg-bento-bg text-bento-muted hover:text-bento-text')}>
+                  {label}
+                </button>
+              ))}
+            </div>
           </Field>
 
           <Field label="Briefing / contexto">

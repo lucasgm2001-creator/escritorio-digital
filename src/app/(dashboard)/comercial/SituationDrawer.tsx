@@ -19,6 +19,9 @@ import {
   PhoneMissed,
   PhoneOff,
   Send,
+  Video,
+  FileText,
+  RefreshCcw,
   UserRound,
   Voicemail,
   X,
@@ -29,15 +32,17 @@ import { useDialog } from '@/components/ui/useDialog'
 import { cn } from '@/lib/utils'
 import { updateLeadSituationAction } from './lead-write-actions'
 import {
-  LAST_ACTION_LABEL, NEXT_ACTION_LABEL, deriveFollowupState, nextContactFromWhen,
+  LAST_ACTION_LABEL, NEXT_ACTION_LABEL, deriveFollowupState, nextContactFromWhen, suggestedStageFromSituation,
   type LastAction, type NextAction, type LeadResponse, type Temperature, type WhenChoice,
 } from '@/lib/commercial/situation'
+import { TASK_KIND_LABEL, type TaskKind } from '@/lib/tasks/task-kind'
+import { ALL_COLUMNS } from './types'
 
 // Fluxo RÁPIDO de "Atualizar situação do lead" (RADAR-COMERCIAL-001, Part 2/11). Drawer compacto — perguntas
 // essenciais em chips, salvável em <20s. Reusado pela "Ação rápida" do Radar e ao concluir tarefa com lead.
 // Ao concluir tarefa: `onSkip` conclui só a tarefa (não obriga). Salvar chama a action (autoridade no servidor).
 
-type ContactAction = 'ligacao' | 'whatsapp' | 'cliente_contatou'
+type ContactAction = 'ligacao' | 'whatsapp' | 'agendamento' | 'reuniao' | 'proposta' | 'followup' | 'cliente_contatou'
 
 type OptionTone = 'neutral' | 'success' | 'warning' | 'danger' | 'hot'
 type IconOption<T extends string> = { key: T; label: string; icon: LucideIcon; tone?: OptionTone }
@@ -45,6 +50,10 @@ type IconOption<T extends string> = { key: T; label: string; icon: LucideIcon; t
 const CONTACT_ACTIONS: (IconOption<ContactAction> & { summary: string })[] = [
   { key: 'ligacao', label: 'Ligação', summary: 'Ligação realizada', icon: PhoneCall },
   { key: 'whatsapp', label: 'WhatsApp', summary: 'WhatsApp enviado', icon: MessageCircle },
+  { key: 'agendamento', label: 'Agendamento', summary: 'Agendamento atualizado', icon: CalendarCheck },
+  { key: 'reuniao', label: 'Reunião', summary: 'Reunião atualizada', icon: Video },
+  { key: 'proposta', label: 'Proposta', summary: 'Proposta atualizada', icon: FileText },
+  { key: 'followup', label: 'Follow-up', summary: 'Follow-up realizado', icon: RefreshCcw },
   { key: 'cliente_contatou', label: 'Cliente entrou em contato', summary: 'Cliente entrou em contato', icon: UserRound },
 ]
 
@@ -75,14 +84,87 @@ const RESULT_OPTIONS: Record<ContactAction, (IconOption<LastAction> & { response
     { key: 'cliente_quer_negociar', label: 'Quer negociar', response: 'sim', icon: MailCheck, tone: 'warning' },
     { key: 'cliente_pediu_retorno', label: 'Pediu retorno', response: 'sim', icon: Clock, tone: 'neutral' },
   ],
+  reuniao: [
+    { key: 'reuniao_compareceu', label: 'Compareceu', response: 'sim', icon: Video, tone: 'success' },
+    { key: 'reuniao_nao_compareceu', label: 'Não compareceu', response: 'nao_falei', icon: UserRound, tone: 'danger' },
+    { key: 'reuniao_pediu_reagendamento', label: 'Pediu reagendamento', response: 'sim', icon: CalendarCheck, tone: 'warning' },
+    { key: 'reuniao_pediu_proposta', label: 'Pediu proposta', response: 'sim', icon: Send, tone: 'success' },
+    { key: 'reuniao_proposta_apresentada', label: 'Proposta apresentada', response: 'sim', icon: FileText, tone: 'success' },
+    { key: 'reuniao_cancelada', label: 'Cancelou', response: 'nao', icon: Ban, tone: 'danger' },
+  ],
+  proposta: [
+    { key: 'proposta_enviada', label: 'Foi enviada', response: 'sim', icon: Send, tone: 'success' },
+    { key: 'proposta_aceita', label: 'Foi aceita', response: 'sim', icon: BadgeCheck, tone: 'success' },
+    { key: 'proposta_pediu_ajuste', label: 'Pediu ajuste', response: 'sim', icon: RefreshCcw, tone: 'warning' },
+    { key: 'proposta_sem_resposta', label: 'Não respondeu', response: 'nao_falei', icon: Clock, tone: 'warning' },
+    { key: 'proposta_recusada', label: 'Foi recusada', response: 'nao', icon: Ban, tone: 'danger' },
+  ],
+  followup: [
+    { key: 'followup_respondeu', label: 'Respondeu', response: 'sim', icon: MessageCircle, tone: 'success' },
+    { key: 'followup_sem_resposta', label: 'Não respondeu', response: 'nao_falei', icon: Clock, tone: 'warning' },
+    { key: 'followup_pediu_retorno', label: 'Pediu retorno', response: 'sim', icon: CalendarCheck, tone: 'neutral' },
+    { key: 'whatsapp_marcou_reuniao', label: 'Marcou reunião', response: 'sim', icon: CalendarCheck, tone: 'success' },
+    { key: 'whatsapp_pediu_proposta', label: 'Pediu proposta', response: 'sim', icon: Send, tone: 'success' },
+    { key: 'whatsapp_parou_responder', label: 'Parou de responder', response: 'nao', icon: MessageSquareOff, tone: 'warning' },
+  ],
+  agendamento: [
+    { key: 'agendamento_confirmado', label: 'Reunião marcada', response: 'sim', icon: CalendarCheck, tone: 'success' },
+    { key: 'agendamento_sem_resposta', label: 'Não respondeu', response: 'nao_falei', icon: Clock, tone: 'warning' },
+    { key: 'agendamento_pediu_retorno', label: 'Pediu retorno', response: 'sim', icon: RefreshCcw, tone: 'neutral' },
+    { key: 'agendamento_recusado', label: 'Não quis marcar', response: 'nao', icon: Ban, tone: 'danger' },
+  ],
 }
 
 const AUTO_NO_PERCEPTION_RESULTS = new Set<LastAction>([
   'ligacao_nao_atendeu',
+  'ligacao_ocupado',
   'ligacao_caixa_postal',
   'ligacao_numero_invalido',
   'whatsapp_nao_visualizou',
+  'whatsapp_visualizou',
+  'reuniao_nao_compareceu',
+  'proposta_sem_resposta',
+  'followup_sem_resposta',
+  'agendamento_sem_resposta',
 ])
+
+const RESULT_DEFAULTS: Partial<Record<LastAction, { next: NextAction; when?: WhenChoice }>> = {
+  ligacao_nao_atendeu: { next: 'ligar', when: 'amanha' },
+  ligacao_ocupado: { next: 'ligar', when: 'hoje' },
+  ligacao_caixa_postal: { next: 'mensagem', when: 'hoje' },
+  ligacao_marcou_reuniao: { next: 'marcar_reuniao', when: 'amanha' },
+  ligacao_pediu_proposta: { next: 'enviar_proposta', when: 'hoje' },
+  whatsapp_nao_visualizou: { next: 'cobrar_retorno', when: 'em_3_dias' },
+  whatsapp_visualizou: { next: 'cobrar_retorno', when: 'amanha' },
+  whatsapp_parou_responder: { next: 'cobrar_retorno', when: 'em_3_dias' },
+  cliente_pediu_proposta: { next: 'enviar_proposta', when: 'hoje' },
+  cliente_quer_reuniao: { next: 'marcar_reuniao', when: 'amanha' },
+  cliente_quer_fechar: { next: 'fechar_venda', when: 'hoje' },
+  cliente_quer_negociar: { next: 'ligar', when: 'hoje' },
+  cliente_pediu_retorno: { next: 'ligar', when: 'amanha' },
+  reuniao_nao_compareceu: { next: 'mensagem', when: 'amanha' },
+  reuniao_pediu_reagendamento: { next: 'marcar_reuniao', when: 'amanha' },
+  reuniao_pediu_proposta: { next: 'enviar_proposta', when: 'hoje' },
+  reuniao_proposta_apresentada: { next: 'aguardar', when: 'em_3_dias' },
+  proposta_enviada: { next: 'aguardar', when: 'em_3_dias' },
+  proposta_aceita: { next: 'fechar_venda', when: 'hoje' },
+  proposta_pediu_ajuste: { next: 'enviar_proposta', when: 'amanha' },
+  proposta_sem_resposta: { next: 'cobrar_retorno', when: 'amanha' },
+  proposta_recusada: { next: 'encerrar_oportunidade', when: 'hoje' },
+  followup_sem_resposta: { next: 'mensagem', when: 'em_3_dias' },
+  followup_pediu_retorno: { next: 'ligar', when: 'amanha' },
+  whatsapp_marcou_reuniao: { next: 'marcar_reuniao', when: 'amanha' },
+  whatsapp_pediu_proposta: { next: 'enviar_proposta', when: 'hoje' },
+  agendamento_confirmado: { next: 'marcar_reuniao', when: 'amanha' },
+  agendamento_sem_resposta: { next: 'mensagem', when: 'em_3_dias' },
+  agendamento_pediu_retorno: { next: 'ligar', when: 'amanha' },
+  agendamento_recusado: { next: 'encerrar_oportunidade', when: 'hoje' },
+}
+
+function actionFromKind(kind?: TaskKind | null): ContactAction | null {
+  if (kind === 'geral' || !kind) return null
+  return kind
+}
 
 const PERCEPTION_OPTIONS: (IconOption<Temperature> & { hint: string })[] = [
   { key: 'muito_interessado', label: 'Quer fechar', hint: 'Demonstrou vontade clara de avançar.', icon: Flame, tone: 'hot' },
@@ -98,7 +180,7 @@ const PERCEPTION_OPTIONS: (IconOption<Temperature> & { hint: string })[] = [
 
 const NEXT_OPTIONS: NextAction[] = [
   'nenhuma', 'ligar', 'mensagem', 'enviar_proposta', 'cobrar_retorno',
-  'marcar_reuniao', 'aguardar', 'encerrar_oportunidade',
+  'marcar_reuniao', 'aguardar', 'fechar_venda', 'encerrar_oportunidade',
 ]
 
 const WHENS: { key: WhenChoice; label: string }[] = [
@@ -189,15 +271,16 @@ function whenLabel(when: WhenChoice | null, date: string): string | null {
   return parsed.toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: '2-digit' })
 }
 
-export function SituationDrawer({ lead, sourceTaskId = null, onClose, onSaved, onSkip }: {
-  lead: { id: string; name: string }
+export function SituationDrawer({ lead, sourceTaskId = null, taskContext, onClose, onSaved, onSkip }: {
+  lead: { id: string; name: string; status?: string | null }
   sourceTaskId?: string | null
+  taskContext?: { title: string; kind?: TaskKind | null } | null
   onClose: () => void
   onSaved?: (result: { nextTask: Record<string, unknown> | null; patch: Record<string, unknown> }) => void
   onSkip?: () => void
 }) {
   const [response, setResponse] = useState<LeadResponse | null>(null)
-  const [contactAction, setContactAction] = useState<ContactAction | null>(null)
+  const [contactAction, setContactAction] = useState<ContactAction | null>(() => actionFromKind(taskContext?.kind))
   const [lastAction, setLastAction] = useState<LastAction | null>(null)
   const [temperature, setTemperature] = useState<Temperature | null>(null)
   const [nextAction, setNextAction] = useState<NextAction>('nenhuma')
@@ -214,6 +297,8 @@ export function SituationDrawer({ lead, sourceTaskId = null, onClose, onSaved, o
   const summaryResult = contactAction && lastAction ? RESULT_OPTIONS[contactAction].find(o => o.key === lastAction)?.label ?? LAST_ACTION_LABEL[lastAction] : null
   const summaryWhen = needsWhen ? whenLabel(when, date) : null
   const hasSummary = !!contactAction || !!summaryResult || !!temperature || nextAction !== 'nenhuma' || !!summaryWhen
+  const suggestedStage = lastAction ? suggestedStageFromSituation(lastAction, lead.status ?? '') : null
+  const suggestedStageLabel = suggestedStage ? ALL_COLUMNS.find(column => column.key === suggestedStage)?.label ?? suggestedStage : null
 
   function selectContactAction(action: ContactAction) {
     setContactAction(action)
@@ -227,6 +312,10 @@ export function SituationDrawer({ lead, sourceTaskId = null, onClose, onSaved, o
     setLastAction(option.key)
     setResponse(option.response)
     setTemperature(AUTO_NO_PERCEPTION_RESULTS.has(option.key) ? 'nao_avaliado' : null)
+    const defaults = RESULT_DEFAULTS[option.key]
+    setNextAction(defaults?.next ?? 'nenhuma')
+    setWhen(defaults?.when ?? null)
+    setDate('')
     setError(null)
   }
 
@@ -251,6 +340,10 @@ export function SituationDrawer({ lead, sourceTaskId = null, onClose, onSaved, o
         last_action: lastAction, next_action: nextAction, temperature, followup_state,
         situation_updated_at: new Date().toISOString(),
       }
+      if (suggestedStage) {
+        patch.status = suggestedStage
+        patch.stage_changed_at = new Date().toISOString()
+      }
       if (nextAction === 'nenhuma') patch.next_contact = null
       else if (needsWhen && when) patch.next_contact = nextContactFromWhen(when, when === 'data' ? (date || null) : null, new Date())
       onSaved?.({ nextTask: res.nextTask ?? null, patch })
@@ -269,14 +362,17 @@ export function SituationDrawer({ lead, sourceTaskId = null, onClose, onSaved, o
         >
           <div className="flex shrink-0 items-start justify-between gap-2 border-b border-bento-border p-5 pb-3">
             <div className="min-w-0">
-              <p id="situation-drawer-title" className="text-caption font-tech uppercase tracking-label text-bento-muted">Atualizar situação</p>
+              <p id="situation-drawer-title" className="text-caption font-tech uppercase tracking-label text-bento-muted">
+                {taskContext?.kind && taskContext.kind !== 'geral' ? `Resultado da ${TASK_KIND_LABEL[taskContext.kind].toLocaleLowerCase('pt-BR')}` : 'Atualizar situação'}
+              </p>
               <p className="text-sm font-semibold text-bento-text truncate">{lead.name}</p>
+              {taskContext?.title && <p className="mt-0.5 text-note text-bento-muted truncate">{taskContext.title}</p>}
             </div>
             <button type="button" onClick={onClose} className="text-bento-muted hover:text-bento-text shrink-0"><X className="w-5 h-5" /></button>
           </div>
 
           <div className="flex-1 min-h-0 space-y-4 overflow-y-auto overscroll-contain p-5">
-            <Group label="1. Ação realizada">
+            <Group label="1. O que foi realizado?">
               {CONTACT_ACTIONS.map(a => (
                 <OptionChip key={a.key} option={a} active={contactAction === a.key} onClick={() => selectContactAction(a.key)} />
               ))}
@@ -316,6 +412,17 @@ export function SituationDrawer({ lead, sourceTaskId = null, onClose, onSaved, o
                 </button>
               ))}
             </Group>
+
+            {lastAction && (
+              <div className="rounded-bento border border-lime/20 bg-lime/[0.05] p-3">
+                <p className="text-caption font-tech uppercase tracking-label text-lime-fg">O que será atualizado</p>
+                <div className="mt-2 space-y-1.5 text-note text-bento-dim">
+                  <SummaryLine>Situação: <strong className="text-bento-text">{LAST_ACTION_LABEL[lastAction]}</strong></SummaryLine>
+                  {suggestedStageLabel && <SummaryLine>Funil e Radar: <strong className="text-bento-text">{suggestedStageLabel}</strong></SummaryLine>}
+                  <SummaryLine>Próxima ação: <strong className="text-bento-text">{NEXT_ACTION_LABEL[nextAction]}{summaryWhen ? ` · ${summaryWhen}` : ''}</strong></SummaryLine>
+                </div>
+              </div>
+            )}
 
             {sourceTaskId && (
               <p className="rounded-btn border border-blue-500/20 bg-blue-500/[0.06] px-3 py-2 text-caption leading-relaxed text-blue-200/80">

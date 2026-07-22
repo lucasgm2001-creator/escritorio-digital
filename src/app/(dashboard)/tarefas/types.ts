@@ -1,3 +1,5 @@
+import type { TaskKind } from '@/lib/tasks/task-kind'
+
 export type TaskPriority = 'normal' | 'alta' | 'urgente'
 export type LinkedType = 'lead' | 'client'
 
@@ -11,6 +13,7 @@ export interface Task {
   done: boolean
   completed_at?: string | null
   priority: TaskPriority
+  kind?: TaskKind | null
   linked_type?: LinkedType | null
   linked_id?: string | null
   linked_name?: string | null

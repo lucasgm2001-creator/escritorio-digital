@@ -8,11 +8,12 @@ import { updateTaskAction, deleteTaskAction } from './task-write-actions'
 import { cn } from '@/lib/utils'
 import { TaskModal, type TaskPrefill } from './TaskModal'
 import { SituationDrawer } from '../comercial/SituationDrawer'
+import { inferTaskKind } from '@/lib/tasks/task-kind'
 import { copyText } from '@/lib/clipboard'
 import { ymd } from '@/lib/date'
 import type { Task, LinkOption, ParsedTask } from './types'
 import { useToast } from '@/components/ui/toast'
-import { Phone, Video, MessageCircle, Building2, CircleDot, type LucideIcon } from 'lucide-react'
+import { Phone, Video, MessageCircle, Building2, CircleDot, FileText, type LucideIcon } from 'lucide-react'
 
 // Título a partir do texto digitado (rede de segurança local — espelha o servidor).
 // Garante que o título NUNCA fique vazio mesmo se a IA falhar/não responder.
@@ -82,21 +83,21 @@ const PRIORITY_TAG: Record<string, string> = {
   urgente: 'text-red-400 bg-red-900/30',
 }
 
-// Identidade da tarefa (TASK-EXPERIENCE-001, Part 3): inferida SÓ de campos REAIS já existentes — sem IA,
-// sem dado novo. is_meeting → reunião · add_call → ligação · lead vinculado → follow-up · cliente vinculado
-// → cliente · resto → geral. (Documento/e-mail/pendência não têm fonte confiável no schema → não inventamos.)
-type TaskKind = 'meeting' | 'call' | 'followup' | 'client' | 'general'
-const KIND_META: Record<TaskKind, { Icon: LucideIcon; tint: string }> = {
-  meeting:  { Icon: Video,         tint: 'text-purple-400' },
-  call:     { Icon: Phone,         tint: 'text-blue-400' },
+// Identidade comercial persistida. Tarefas antigas caem no inferidor por título até o backfill chegar.
+type DisplayTaskKind = 'agendamento' | 'reuniao' | 'ligacao' | 'whatsapp' | 'proposta' | 'followup' | 'client' | 'general'
+const KIND_META: Record<DisplayTaskKind, { Icon: LucideIcon; tint: string }> = {
+  reuniao:  { Icon: Video,         tint: 'text-purple-400' },
+  agendamento: { Icon: Video,      tint: 'text-cyan-400' },
+  ligacao:  { Icon: Phone,         tint: 'text-blue-400' },
+  whatsapp: { Icon: MessageCircle, tint: 'text-emerald-400' },
+  proposta: { Icon: FileText,      tint: 'text-amber-400' },
   followup: { Icon: MessageCircle, tint: 'text-lime-fg' },
   client:   { Icon: Building2,     tint: 'text-emerald-400' },
   general:  { Icon: CircleDot,     tint: 'text-bento-dim' },
 }
-function taskKind(t: Task): TaskKind {
-  if (t.is_meeting) return 'meeting'
-  if (t.add_call) return 'call'
-  if (t.linked_type === 'lead') return 'followup'
+function taskKind(t: Task): DisplayTaskKind {
+  const commercialKind = inferTaskKind(t.title, t.kind)
+  if (commercialKind !== 'geral') return commercialKind
   if (t.linked_type === 'client') return 'client'
   return 'general'
 }
@@ -798,6 +799,7 @@ export function TarefasClient({ tasks, setTasks, deletedIds, linkOptions, curren
         <SituationDrawer
           lead={{ id: situationTask.linked_id, name: situationTask.linked_name || 'Lead' }}
           sourceTaskId={situationTask.id}
+          taskContext={{ title: situationTask.title, kind: inferTaskKind(situationTask.title, situationTask.kind) }}
           onClose={() => setSituationTask(null)}
           onSkip={() => setSituationTask(null)}
           onSaved={({ nextTask }) => {
