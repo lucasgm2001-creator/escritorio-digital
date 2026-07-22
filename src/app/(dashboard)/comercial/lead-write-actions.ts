@@ -319,7 +319,9 @@ export async function updateLeadSituationAction(input: {
 
   // 2) histórico (reusa lead_interactions — sem duplicar timeline)
   await supabase.from('lead_interactions').insert({
-    lead_id: input.leadId, type: 'situacao', note: input.note?.trim() || situation, score_delta: 0,
+    // A fase/resultado já vive nos campos estruturados do lead. Só grava como observação quando a pessoa
+    // realmente escreveu contexto; assim a aba permanente não é poluída por rótulos automáticos.
+    lead_id: input.leadId, type: 'situacao', note: input.note?.trim() || null, score_delta: 0,
     created_by: g.context.user.id, created_by_name: g.context.profile?.name ?? null,
     ...(teamId ? { team_id: teamId } : {}),
   })

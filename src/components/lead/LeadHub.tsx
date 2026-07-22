@@ -13,12 +13,11 @@ import { LeadPipeline } from './LeadPipeline'
 import { LeadHealthPanel } from './LeadHealthPanel'
 import { LeadExecutivePanel } from './LeadExecutivePanel'
 import { LeadJourney } from './LeadJourney'
-import { LeadObservationComposer } from './LeadObservationComposer'
-import { LeadNotes } from './LeadNotes'
 import { LeadAttachments } from './LeadAttachments'
 import { LeadComments } from './LeadComments'
 import { AiInsightsPanel } from '@/components/ai/AiInsightsPanel'
 import { ActionIcon, HealthIndicator, LeadStatusBadge, LeadTemperatureBadge } from './lead-profile-primitives'
+import { LeadProfileTabs } from './LeadProfileTabs'
 
 function usd(value: number | null): string {
   return value == null ? '—' : `US$ ${Number(value).toLocaleString('en-US')}`
@@ -120,6 +119,8 @@ export function LeadHub({ vm, embedded = false }: { vm: LeadHubVM; embedded?: bo
         </span>
       </header>
 
+      <LeadProfileTabs leadId={vm.id} active="overview" />
+
       {/* Painel executivo + jornada — o "entenda em 30 segundos" */}
       <LeadExecutivePanel executive={vm.executive} />
       <Panel label="Jornada"><LeadJourney steps={vm.journey} /></Panel>
@@ -149,12 +150,6 @@ export function LeadHub({ vm, embedded = false }: { vm: LeadHubVM; embedded?: bo
         <div className="space-y-4 xl:col-span-7 2xl:contents 2xl:space-y-0">
           {/* História (centro) */}
           <div className="space-y-4 2xl:col-span-6">
-            <Panel label="Observações">
-              <div className="space-y-3">
-                <LeadObservationComposer leadId={vm.id} />
-                <LeadNotes items={vm.timeline} />
-              </div>
-            </Panel>
             <Panel label="Timeline"><LeadTimeline items={vm.timeline} /></Panel>
           </div>
 

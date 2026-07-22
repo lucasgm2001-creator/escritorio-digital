@@ -457,7 +457,7 @@ export function SituationDrawer({ lead, sourceTaskId = null, taskContext, onClos
               <p className="text-caption font-tech uppercase tracking-label text-bento-muted">6. Observação</p>
               <textarea value={note} onChange={e => setNote(e.target.value)} rows={2} placeholder="O que aconteceu nesta interação?"
                 className="w-full bg-bento-bg border border-bento-border rounded-btn px-3 py-2 text-sm text-bento-text placeholder:text-bento-muted focus:outline-none focus:border-lime resize-none" />
-              <p className="text-caption text-bento-muted">Ex.: vai conversar com o sócio, pediu retorno sexta, solicitou proposta por WhatsApp.</p>
+              <p className="text-caption text-bento-muted">Fica salva permanentemente nas Observações do lead. Ex.: vai conversar com o sócio, pediu retorno sexta.</p>
             </div>
 
             {hasSummary && (

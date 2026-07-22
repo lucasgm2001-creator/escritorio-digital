@@ -1,4 +1,4 @@
-import { Building2, Clock, Wallet, TrendingUp, Briefcase, FolderOpen, Users, CalendarDays, FileText, Sparkles, ExternalLink, ShieldCheck } from 'lucide-react'
+import { Building2, Clock, Wallet, TrendingUp, Briefcase, FolderOpen, Users, CalendarDays, FileText, Sparkles, ExternalLink, ShieldCheck, ClipboardList } from 'lucide-react'
 import type { DomainConfig, DomainGroup, DomainSection } from '@/lib/domain/nav'
 
 // Fundação do WORKSPACE DO CLIENTE (CLIENT-001). Estrutura/navegação — nenhuma integração, banco ou IA.
@@ -14,6 +14,8 @@ export const CLIENT_GROUPS: DomainGroup[] = [
 export const CLIENT_SECTIONS: DomainSection[] = [
   { key: 'resumo', group: 'visao', label: 'Resumo', href: '', icon: Building2,
     tagline: 'Dashboard executivo do cliente.', objetivo: 'Empresa, plano, responsável e saúde num só lugar.', proximaEtapa: 'Conectar reuniões, relatórios e campanhas.' },
+  { key: 'observacoes', group: 'visao', label: 'Observações', href: 'observacoes', icon: ClipboardList,
+    tagline: 'Evolução permanente do relacionamento.', objetivo: 'Centralizar notas de tarefas, situações, financeiro e plano.', proximaEtapa: 'Manter todo o contexto em um histórico editável.' },
   { key: 'timeline', group: 'visao', label: 'Timeline', href: 'timeline', icon: Clock,
     tagline: 'História do relacionamento.', objetivo: 'Reusar a timeline universal do Lead Hub.', proximaEtapa: 'Ligar as interações do cliente.' },
   { key: 'financeiro', group: 'operacao', label: 'Financeiro', href: 'financeiro', icon: Wallet,

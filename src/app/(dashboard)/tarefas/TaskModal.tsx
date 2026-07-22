@@ -291,7 +291,7 @@ export function TaskModal({ onClose, onSaved, linkOptions, task, prefill, aiFill
             </div>
           </Field>
 
-          <Field label="Briefing / contexto">
+          <Field label="Observação / contexto">
             <textarea
               value={notes}
               onChange={e => setNotes(e.target.value)}
@@ -299,6 +299,7 @@ export function TaskModal({ onClose, onSaved, linkOptions, task, prefill, aiFill
               className={`${inputCls} resize-none`}
               placeholder="Resumo da última conversa, pontos a tocar, links..."
             />
+            {link && <p className="mt-1 text-[11px] text-bento-muted">Ficará salva permanentemente nas Observações {link.type === 'lead' ? 'do lead' : 'do cliente'}.</p>}
           </Field>
 
           <div className="grid grid-cols-2 gap-3">
