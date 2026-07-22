@@ -62,7 +62,7 @@ export function TeamAccessControls({
     startTransition(async () => {
       const res = await switchTeamAction(teamId)
       if (!res.ok) { setMessage({ type: 'error', text: res.error }); return }
-      router.push('/hall')   // "Equipe alterada" — recarrega no Hall já com a nova equipe ativa (novo cookie).
+      router.push('/mesa')   // "Equipe alterada" — recarrega a mesa já com a nova equipe ativa (novo cookie).
       router.refresh()
     })
   }

@@ -26,7 +26,6 @@ export function DomainShell({ configKey, config: configProp, visibleSectionKeys,
   children: React.ReactNode
 }) {
   const [sheetOpen, setSheetOpen] = useState(false)
-  const [railOpen, setRailOpen] = useState(false)   // rail global colapsada por padrão (60px); expande no toggle
   const pathname = usePathname()
   const resolved = configProp ?? DOMAIN_CONFIGS[configKey!]
   // Filtro de seções por PERMISSÃO (HOTFIX-ADMIN-001): recebe só as CHAVES (serializável) e resolve/filtra AQUI, no
@@ -47,7 +46,8 @@ export function DomainShell({ configKey, config: configProp, visibleSectionKeys,
           celular a navegação segue pelo cabeçalho + sheet. O DomainShell é a RAIZ dessas áreas (fora do grupo
           (dashboard)); o Workspace do Cliente NÃO usa esta casca (tem a própria, leve) — sem duplicação. */}
       <div className="hidden md:flex shrink-0">
-        <Sidebar open={railOpen} onToggle={() => setRailOpen(o => !o)} activeTeamName={subtitle} />
+        <Sidebar open={false} activeTeamName={subtitle} userName={userName} userEmail={userEmail}
+          avatarUrl={avatarUrl} teams={teams} />
       </div>
       <DomainNav
         config={config}

@@ -71,7 +71,7 @@ export async function getDashboardData(context: RequestContext): Promise<Dashboa
   if (clientesEmAtraso > 0) alerts.push({ message: `${clientesEmAtraso} cliente(s) ativo(s) sem pagamento recente.`, href: '/admin/clientes' })
   if (integrationsOff > 0) alerts.push({ message: `${integrationsOff} integração(ões) desligada(s).`, href: '/admin/clientes' })
   if (canManage && expiredInvites > 0) alerts.push({ message: `${expiredInvites} convite(s) expirado(s).`, href: '/admin/equipe' })
-  if (overdueTasks >= 10) alerts.push({ message: `${overdueTasks} tarefas realmente atrasadas.`, href: '/tarefas' })
+  if (overdueTasks >= 10) alerts.push({ message: `${overdueTasks} tarefas realmente atrasadas.`, href: '/mesa' })
 
   return {
     kpiGroups: [
@@ -98,7 +98,7 @@ export async function getDashboardData(context: RequestContext): Promise<Dashboa
         title: 'Operação',
         kpis: [
           { label: 'Integrações ativas', value: integrationsOn, href: '/admin/clientes' },
-          { label: 'Compromissos abertos', value: openTasks, href: '/tarefas' },
+          { label: 'Compromissos abertos', value: openTasks, href: '/mesa' },
           { label: 'Clientes em atraso', value: clientesEmAtraso, href: '/admin/clientes' },
         ],
       },

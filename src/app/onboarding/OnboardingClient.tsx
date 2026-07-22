@@ -17,7 +17,7 @@ export function OnboardingClient({ userEmail }: { userEmail: string | null }) {
   const [busy, setBusy] = useState<'create' | 'join' | null>(null)
   const [error, setError] = useState('')
 
-  const go = () => { router.refresh(); router.push('/hall') }
+  const go = () => { router.refresh(); router.push('/mesa') }
 
   const createTeam = async () => {
     const name = teamName.trim()

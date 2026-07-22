@@ -31,7 +31,7 @@ export function TeamsPanel({ teams }: { teams: WorkspaceTeam[] }) {
       const res = await switchTeamAction(id)
       setBusyId(null)
       if (!res.ok) { setError(res.error); return }
-      router.push('/hall'); router.refresh()
+      router.push('/mesa'); router.refresh()
     })
   }
 

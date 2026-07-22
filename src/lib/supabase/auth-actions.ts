@@ -23,7 +23,7 @@ export async function signIn(email: string, password: string) {
   }
 
   revalidatePath('/', 'layout')
-  redirect('/hall')
+  redirect('/mesa')
 }
 
 // Cadastro ABERTO (multi-tenant): qualquer e-mail+senha cria conta. O acesso aos dados é controlado pela
@@ -54,7 +54,7 @@ export async function signUp(name: string, email: string, password: string) {
   if (data.user && data.session) {
     await supabase.from('profiles').upsert({ id: data.user.id, name: nm }, { onConflict: 'id' })
     revalidatePath('/', 'layout')
-    redirect('/hall')
+    redirect('/mesa')
   }
   // Confirmação de e-mail ligada → ainda sem sessão.
   return { needsConfirm: true }

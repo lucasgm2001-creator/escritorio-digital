@@ -1,6 +1,6 @@
 import { redirect } from 'next/navigation'
 
-// Tarefas virou ABA do Hall. Mantém a rota antiga redirecionando.
+// Tarefas foi absorvido pela Minha Mesa. Mantém a rota antiga funcionando.
 export default function TarefasPage() {
-  redirect('/hall?tab=tarefas')
+  redirect('/mesa')
 }

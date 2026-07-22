@@ -11,7 +11,7 @@ import { CollapsibleSection } from '@/components/mobile/CollapsibleSection'
 import { MetricCard } from '@/components/ui/MetricCard'
 import { CalendarDays, Activity as ActivityIcon, Newspaper, AlertTriangle } from 'lucide-react'
 import type { Activity } from '@/types'
-import type { Task, LinkOption } from '../tarefas/types'
+import type { Task } from '../tarefas/types'
 import type { MapLead, MapClient } from '../comercial/mapTypes'
 import type { DashboardData } from '@/server/services/DashboardService'
 import { useTasksState } from '../tarefas/useTasksState'
@@ -49,14 +49,13 @@ function LazyVisible({ children, force = false }: { children: React.ReactNode; f
   }, [force, ready])
   return <div ref={ref}>{ready || force ? children : <div className="min-h-20" aria-hidden />}</div>
 }
-// Componentes pesados EXCLUSIVOS de abas nao-default (agent/relatorio/tarefas) — fora do bundle
+// Componentes pesados EXCLUSIVOS de abas nao-default (agent/relatorio) — fora do bundle
 // inicial da /hall. So baixam ao abrir a aba; nao aparecem no first paint da Visao Geral (PERF-003).
-// (AgentChat arrasta react-markdown/remark-gfm; TarefasClient ~43KB; RelatorioComercial idem.)
+// (AgentChat arrasta react-markdown/remark-gfm; RelatorioComercial idem.)
 const AgentChat = dynamic(() => import('./AgentChat').then(m => m.AgentChat), { ssr: false, loading: HallSectionLoading })
-const TarefasClient = dynamic(() => import('../tarefas/TarefasClient').then(m => m.TarefasClient), { ssr: false, loading: HallSectionLoading })
 const RelatorioComercial = dynamic(() => import('../tarefas/RelatorioComercial').then(m => m.RelatorioComercial), { ssr: false, loading: HallSectionLoading })
 
-type Tab = 'activities' | 'mapa' | 'tarefas' | 'relatorio' | 'agent'
+type Tab = 'activities' | 'mapa' | 'relatorio' | 'agent'
 
 interface Props {
   initialActivities: Activity[]
@@ -64,7 +63,6 @@ interface Props {
   initialCalendarEvents: CalendarEvent[]
   initialMapLeads: MapLead[]
   initialMapClients: MapClient[]
-  linkOptions: LinkOption[]
   userName: string
   userId: string
   activeTeamId: string | null
@@ -84,9 +82,9 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
   )
 }
 
-export function HallClient({ initialActivities, initialTasks, initialCalendarEvents, initialMapLeads, initialMapClients, linkOptions, userName, userId, activeTeamId, dashboard }: Props) {
-  // M6: estado de tarefas VIVO e ÚNICO — Tarefas + Mural + Agenda leem a MESMA fonte (realtime + merge A5).
-  const { tasks, setTasks, deletedIds } = useTasksState(initialTasks)
+export function HallClient({ initialActivities, initialTasks, initialCalendarEvents, initialMapLeads, initialMapClients, userName, userId, activeTeamId, dashboard }: Props) {
+  // Estado de tarefas vivo — Mural e Agenda leem a mesma fonte da Minha Mesa.
+  const { tasks } = useTasksState(initialTasks)
   const [activeTab, setActiveTab]     = useState<Tab>('activities')
   const [activities, setActivities]   = useState<Activity[]>(initialActivities)
   // Reflete dados frescos do servidor após router.refresh() (revalidação ao focar a aba).
@@ -107,10 +105,10 @@ export function HallClient({ initialActivities, initialTasks, initialCalendarEve
   const [hallCfg, setHallCfg]     = useState<HallSettings>(DEFAULT_HALL_SETTINGS)
   const router = useRouter()
 
-  // Deep-link: /hall?tab=tarefas (vindo do redirect de /tarefas) abre a aba certa.
+  // Mantém os deep-links das abas próprias do Hall.
   useEffect(() => {
     const t = new URLSearchParams(window.location.search).get('tab')
-    if (t === 'tarefas' || t === 'agent' || t === 'activities' || t === 'mapa' || t === 'relatorio') setActiveTab(t as Tab)
+    if (t === 'agent' || t === 'activities' || t === 'mapa' || t === 'relatorio') setActiveTab(t as Tab)
   }, [])
 
   useEffect(() => {
@@ -173,17 +171,6 @@ export function HallClient({ initialActivities, initialTasks, initialCalendarEve
   const tarefasAtrasadas = tasks
     .filter(t => !t.done && !!t.due_date && t.due_date < hojeStr)
     .sort((a, b) => (a.due_date || '').localeCompare(b.due_date || ''))
-  // Resumo do topo da aba Tarefas — próximos 7 dias e concluídas. Dados JÁ carregados (sem query nova).
-  const semanaLimite = dayBR(new Date(Date.now() + 7 * 86400000))
-  const tarefasSemana = tasks.filter(t => !t.done && !!t.due_date && t.due_date >= hojeStr && t.due_date <= semanaLimite)
-  const inicioSemana = useMemo(() => {
-    const date = new Date()
-    const day = date.getDay()
-    date.setHours(0, 0, 0, 0)
-    date.setDate(date.getDate() + (day === 0 ? -6 : 1 - day))
-    return date.toISOString()
-  }, [])
-  const tarefasConcluidasSemana = tasks.filter(t => t.done && (t.completed_at ?? t.updated_at) >= inicioSemana)
   const eventosHoje = calEvents.filter(e => e.date === hojeStr).sort((a, b) => (a.start_time || '99:99').localeCompare(b.start_time || '99:99'))
   // Resumo do cabecalho executivo — contagem de dados JA carregados (sem query/metrica nova).
   const reunioesHoje = eventosHoje.filter(e => e.type === 'reuniao').length
@@ -196,10 +183,6 @@ export function HallClient({ initialActivities, initialTasks, initialCalendarEve
     {
       id: 'mapa' as Tab, label: 'Mapa',
       icon: <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M17.657 16.657L13.414 20.9a2 2 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" /><circle cx="12" cy="11" r="2.5" strokeWidth={1.75} /></svg>,
-    },
-    {
-      id: 'tarefas' as Tab, label: 'Tarefas',
-      icon: <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M9 11l3 3L22 4M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11" /></svg>,
     },
     {
       id: 'relatorio' as Tab, label: 'Relatório',
@@ -256,7 +239,7 @@ export function HallClient({ initialActivities, initialTasks, initialCalendarEve
         )}
       </div>
 
-      {/* Tabs — FIXAS: as 5 cabem distribuídas (flex-1), SEM rolagem. O gutter mobile evita que
+      {/* Tabs — FIXAS: as quatro cabem distribuídas, sem rolagem. O gutter mobile evita que
           overflow de texto do primeiro item seja cortado pela borda do container. */}
       <div className="flex border-b border-bento-border overflow-x-hidden touch-pan-y sticky top-0 z-20 bg-background max-sm:-mx-3 max-sm:px-3">
         {TABS.map(tab => {
@@ -288,10 +271,10 @@ export function HallClient({ initialActivities, initialTasks, initialCalendarEve
                   <div className="space-y-2">
                     {/* Atrasadas primeiro — protagonista (âmbar). Cap 4; excedente abre a aba Tarefas. */}
                     {tarefasAtrasadas.slice(0, 4).map(t => (
-                      <MuralTaskRow key={`late-${t.id}`} task={t} overdue onClick={() => router.push('/tarefas')} />
+                      <MuralTaskRow key={`late-${t.id}`} task={t} overdue onClick={() => router.push('/mesa')} />
                     ))}
                     {tarefasAtrasadas.length > 4 && (
-                      <button type="button" onClick={() => router.push('/tarefas')}
+                      <button type="button" onClick={() => router.push('/mesa')}
                         className="w-full text-left font-tech text-caption uppercase tracking-label text-amber-400 hover:text-amber-300 transition-colors py-1">
                         +{tarefasAtrasadas.length - 4} atrasadas — ver todas
                       </button>
@@ -301,7 +284,7 @@ export function HallClient({ initialActivities, initialTasks, initialCalendarEve
                       ? (tarefasAtrasadas.length === 0 && <p className="text-sm text-bento-muted py-6 text-center">Nada para hoje.</p>)
                       : <>
                           {eventosHoje.map(ev => <MuralAgendaRow key={`ev-${ev.id}`} ev={ev} onClick={() => setFocusEvent(ev)} />)}
-                          {tarefasHoje.map(t => <MuralTaskRow key={`tk-${t.id}`} task={t} onClick={() => router.push('/tarefas')} />)}
+                          {tarefasHoje.map(t => <MuralTaskRow key={`tk-${t.id}`} task={t} onClick={() => router.push('/mesa')} />)}
                         </>}
                   </div>
                 </Panel>
@@ -459,20 +442,6 @@ export function HallClient({ initialActivities, initialTasks, initialCalendarEve
               </div>
             </Panel>
           </>
-        )}
-
-        {activeTab === 'tarefas' && (
-          <div className="space-y-3">
-            {/* Resumo do topo — protagonista: Atrasadas (âmbar). Contagens de dados JÁ carregados (sem query
-                nova); a lista completa, filtros e "nova tarefa" seguem no TarefasClient abaixo, intacto. */}
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-              <MetricCard title="Atrasadas" value={tarefasAtrasadas.length} size="sm" tone={tarefasAtrasadas.length > 0 ? 'warning' : 'muted'} />
-              <MetricCard title="Hoje" value={tarefasHoje.length} size="sm" />
-              <MetricCard title="Esta semana" value={tarefasSemana.length} size="sm" />
-              <MetricCard title="Feitas esta semana" value={tarefasConcluidasSemana.length} size="sm" tone="muted" />
-            </div>
-            <TarefasClient tasks={tasks} setTasks={setTasks} deletedIds={deletedIds} linkOptions={linkOptions} currentUser={{ id: userId, name: userName }} />
-          </div>
         )}
 
         {activeTab === 'relatorio' && (

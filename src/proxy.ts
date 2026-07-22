@@ -83,7 +83,7 @@ export async function proxy(request: NextRequest) {
   }
 
   if (user && path === '/login') {
-    return redirectTo('/hall')
+    return redirectTo('/mesa')
   }
 
   return secure(response)

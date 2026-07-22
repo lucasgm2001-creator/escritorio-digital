@@ -71,7 +71,9 @@ export function Topbar({ onMenuToggle, userName = 'Usuário', avatarUrl, userEma
           <div className="hidden min-[360px]:block"><LiveClock timezone="America/Los_Angeles" label="EUA Oeste" short="LA" /></div>
         </div>
 
-        <WorkspaceSwitcher userName={userName} userEmail={userEmail ?? null} avatarUrl={avatarUrl ?? null} teams={teams} />
+        <div className="lg:hidden">
+          <WorkspaceSwitcher userName={userName} userEmail={userEmail ?? null} avatarUrl={avatarUrl ?? null} teams={teams} />
+        </div>
       </div>
     </header>
   )

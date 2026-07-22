@@ -23,11 +23,13 @@ function initials(name: string): string {
 // Workspace Switcher GLOBAL (TEAM-ADMIN-002, Part 5). No canto superior direito dos shells. Avatar → menu:
 // trocar equipe (todas, inline, sem abrir Configurações) · criar equipe · perfil · conta · configurações ·
 // sair. Reusa switchTeamAction/createTeamAction/signOut — nenhuma regra nova; a autoridade é o servidor.
-export function WorkspaceSwitcher({ userName, userEmail, avatarUrl, teams }: {
+export function WorkspaceSwitcher({ userName, userEmail, avatarUrl, teams, variant = 'topbar', expanded = true }: {
   userName: string
   userEmail: string | null
   avatarUrl: string | null
   teams: SwitcherTeam[]
+  variant?: 'topbar' | 'sidebar'
+  expanded?: boolean
 }) {
   const router = useRouter()
   const [open, setOpen] = useState(false)
@@ -44,7 +46,7 @@ export function WorkspaceSwitcher({ userName, userEmail, avatarUrl, teams }: {
     startTransition(async () => {
       const res = await switchTeamAction(team.id)
       if (!res.ok) { setError(res.error); return }
-      close(); router.push('/hall'); router.refresh()
+      close(); router.push('/mesa'); router.refresh()
     })
   }
 
@@ -55,7 +57,7 @@ export function WorkspaceSwitcher({ userName, userEmail, avatarUrl, teams }: {
     startTransition(async () => {
       const res = await createTeamAction(name)
       if (!res.ok) { setError(res.error); return }
-      close(); router.push('/hall'); router.refresh()
+      close(); router.push('/mesa'); router.refresh()
     })
   }
 
@@ -65,23 +67,25 @@ export function WorkspaceSwitcher({ userName, userEmail, avatarUrl, teams }: {
   return (
     <div className="relative">
       <button type="button" onClick={() => setOpen(o => !o)}
-        className="flex items-center gap-2.5 p-1.5 rounded-btn hover:bg-bento-surface transition-colors min-h-[44px]"
+        className={cn('flex items-center gap-2.5 rounded-btn hover:bg-bento-surface transition-colors min-h-[44px]',
+          variant === 'sidebar' ? 'w-full px-2.5 py-1.5' : 'p-1.5')}
         aria-label="Menu do workspace" aria-expanded={open}>
         {avatarUrl ? (
           <span className="w-7 h-7 rounded-lg overflow-hidden shrink-0"><Image src={avatarUrl} alt="" width={28} height={28} className="w-full h-full object-cover" /></span>
         ) : (
           <span className="grid place-items-center w-7 h-7 rounded-lg bg-lime text-lime-ink text-xs font-bold shrink-0">{initials(userName)}</span>
         )}
-        <span className="hidden md:block text-left leading-none">
+        <span className={cn('text-left leading-none min-w-0 flex-1', variant === 'sidebar' ? (expanded ? 'block' : 'hidden') : 'hidden md:block')}>
           <span className="block text-sm font-medium text-bento-text">{userName}</span>
         </span>
-        <ChevronDown className="w-3.5 h-3.5 text-bento-dim hidden md:block" />
+        <ChevronDown className={cn('w-3.5 h-3.5 text-bento-dim', variant === 'sidebar' ? (expanded ? 'block' : 'hidden') : 'hidden md:block')} />
       </button>
 
       {open && (
         <>
           <button type="button" aria-hidden tabIndex={-1} onClick={close} className="fixed inset-0 z-40 cursor-default" />
-          <div className="absolute right-0 top-12 z-50 w-72 max-w-[calc(100vw-1rem)] max-h-[min(36rem,calc(100dvh-4rem))] rounded-bento border border-bento-border bg-bento-surface shadow-xl overflow-y-auto overscroll-contain">
+          <div className={cn('absolute z-50 w-72 max-w-[calc(100vw-1rem)] max-h-[min(36rem,calc(100dvh-4rem))] rounded-bento border border-bento-border bg-bento-surface shadow-xl overflow-y-auto overscroll-contain',
+            variant === 'sidebar' ? 'left-full bottom-0 ml-2' : 'right-0 top-12')}>
             {/* Identidade */}
             <div className="px-4 py-3 border-b border-bento-border">
               <p className="text-sm font-semibold text-bento-text truncate">{userName}</p>

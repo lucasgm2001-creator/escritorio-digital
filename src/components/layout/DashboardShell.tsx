@@ -65,8 +65,11 @@ export function DashboardShell({ children, userName, userId, avatarUrl, pageTitl
       {!isMobile && (
         <Sidebar
           open={sidebarOpen}
-          onToggle={() => setSidebarOpen(o => !o)}
           activeTeamName={activeTeamName}
+          userName={userName}
+          userEmail={userEmail}
+          avatarUrl={avatarUrl}
+          teams={teams}
         />
       )}
 

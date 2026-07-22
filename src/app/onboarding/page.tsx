@@ -12,7 +12,7 @@ export default async function OnboardingPage() {
   const supabase = createClient()
   const { data: membership, error } = await supabase
     .from('team_members').select('id').eq('user_id', user.id).limit(1)
-  if (!error && membership && membership.length > 0) redirect('/hall')
+  if (!error && membership && membership.length > 0) redirect('/mesa')
 
   // userEmail: mostra qual conta está logada e alimenta o "Sair / trocar de conta" — a saída SEMPRE
   // disponível aqui (senão uma conta sem equipe fica presa: /login volta pro /hall → /onboarding).

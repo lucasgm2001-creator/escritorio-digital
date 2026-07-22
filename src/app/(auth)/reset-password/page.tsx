@@ -26,7 +26,7 @@ export default function ResetPasswordPage() {
     try {
       const res = await updatePassword(password)
       if (res?.error) { setError(res.error); setLoading(false) }
-      else { setDone(true); setTimeout(() => { router.push('/hall') }, 1200) }
+      else { setDone(true); setTimeout(() => { router.push('/mesa') }, 1200) }
     } catch {
       setError('Erro inesperado. Tente novamente.'); setLoading(false)
     }

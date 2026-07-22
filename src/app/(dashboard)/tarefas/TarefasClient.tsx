@@ -108,7 +108,7 @@ function taskContextHref(t: Task): string {
   if (t.linked_type === 'client') {
     return t.linked_id ? `/clientes/${encodeURIComponent(t.linked_id)}` : '/admin/clientes'
   }
-  return '/hall?tab=tarefas'
+  return '/mesa'
 }
 
 function sectionOf(t: Task, today: string, tomorrow: string, weekEnd: string): SectionId {

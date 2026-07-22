@@ -469,7 +469,7 @@ export function IntegracoesSection({ google }: { google: { connected: boolean; e
 const FLOOR_META: Record<string, { route: string; section: string; desc: string }> = {
   'andar-hall':      { route: '/hall',      section: 'hall',      desc: 'Mural de avisos, agenda e visão geral do dia.' },
   'andar-comercial': { route: '/comercial', section: 'comercial', desc: 'Funil de leads, clientes, métricas e fases.' },
-  'andar-tarefas':   { route: '/hall?tab=tarefas',   section: 'tarefas',   desc: 'Tarefas e relatório do vendedor.' },
+  'andar-tarefas':   { route: '/mesa',   section: 'tarefas',   desc: 'Mesa de trabalho, tarefas e contexto comercial.' },
   'andar-studio':    { route: '/studio',    section: 'studio',    desc: 'Apresentações e materiais.' },
   'andar-clientes':  { route: '/admin/clientes',  section: 'clientes',  desc: 'Carteira de clientes.' },
 }

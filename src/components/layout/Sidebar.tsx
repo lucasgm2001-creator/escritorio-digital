@@ -6,16 +6,20 @@ import { cn } from '@/lib/utils'
 import { BrandMark } from '@/components/brand/BrandMark'
 import { MAIN_MODULES, SYSTEM_MODULES, visibleNavModules, type NavModule } from '@/lib/navigation'
 import { useModuleAccess } from '@/components/auth/ModuleAccessProvider'
+import { WorkspaceSwitcher, type SwitcherTeam } from './WorkspaceSwitcher'
 
 interface SidebarProps {
   open: boolean
-  onToggle: () => void
   mobileClose?: () => void
   /** nome da equipe ativa (multi-workspace) — 2ª linha da marca. null/vazio = esconde a linha. */
   activeTeamName?: string | null
+  userName: string
+  userEmail: string | null
+  avatarUrl: string | null
+  teams: SwitcherTeam[]
 }
 
-export function Sidebar({ open, onToggle, mobileClose, activeTeamName }: SidebarProps) {
+export function Sidebar({ open, mobileClose, activeTeamName, userName, userEmail, avatarUrl, teams }: SidebarProps) {
   const pathname = usePathname()
   const isMobileDrawer = !!mobileClose
 
@@ -70,12 +74,7 @@ export function Sidebar({ open, onToggle, mobileClose, activeTeamName }: Sidebar
 
         {systemModules.length > 0 && (
           <>
-            {(open || isMobileDrawer) && (
-              <div className="px-2 pt-4 pb-1">
-                <p className="text-[10px] uppercase tracking-wider text-sidebar-muted font-semibold">Sistema</p>
-              </div>
-            )}
-            {!(open || isMobileDrawer) && <div className="my-2 mx-2 border-t border-sidebar-border/10" />}
+            <div className="my-3 mx-2 border-t border-sidebar-border/10" />
             {systemModules.map(item => (
               <NavLink key={item.href} item={item} pathname={pathname} open={open || isMobileDrawer} />
             ))}
@@ -83,21 +82,10 @@ export function Sidebar({ open, onToggle, mobileClose, activeTeamName }: Sidebar
         )}
       </nav>
 
-      {/* Toggle (only on desktop) */}
-      {!isMobileDrawer && (
-        <button
-          onClick={onToggle}
-          className="m-2 p-2 rounded-lg hover:bg-sidebar-accent/10 transition-colors text-sidebar-muted hover:text-sidebar-foreground flex items-center justify-center"
-          aria-label={open ? 'Fechar sidebar' : 'Abrir sidebar'}
-        >
-          <svg
-            className={cn('w-4 h-4 transition-transform duration-200', open ? 'rotate-180' : '')}
-            fill="none" stroke="currentColor" viewBox="0 0 24 24"
-          >
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M9 5l7 7-7 7" />
-          </svg>
-        </button>
-      )}
+      <div className="shrink-0 border-t border-sidebar-border/10 p-2">
+        <WorkspaceSwitcher userName={userName} userEmail={userEmail} avatarUrl={avatarUrl} teams={teams}
+          variant="sidebar" expanded={open || isMobileDrawer} />
+      </div>
     </aside>
   )
 }

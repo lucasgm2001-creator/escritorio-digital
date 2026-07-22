@@ -10,7 +10,7 @@ export async function GET(request: Request) {
   const code = searchParams.get('code')
   const nextParam = searchParams.get('next')
   // Anti open-redirect: só caminhos internos ("/..."), nunca "//" nem URL absoluta.
-  const next = nextParam && nextParam.startsWith('/') && !nextParam.startsWith('//') ? nextParam : '/hall'
+  const next = nextParam && nextParam.startsWith('/') && !nextParam.startsWith('//') ? nextParam : '/mesa'
 
   if (code) {
     const supabase = createClient()
