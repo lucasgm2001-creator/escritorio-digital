@@ -33,7 +33,7 @@ import { columnsFromStages, wonSlug, type FunnelStage } from '@/lib/funnelStages
 import { PeriodChips } from './PeriodChips'
 import { rangeFor, inPeriodByActivity, type Range } from '@/lib/period'
 import { funnelConversionLabel } from '@/lib/funnelMetrics'
-export type { LeadStatus, Lead, ColumnConfig } from './types'
+export type { LeadStatus, Lead } from './types'
 
 type Tab = 'funil' | 'radar' | 'contatos' | 'metricas'
 

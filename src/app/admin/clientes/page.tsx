@@ -5,6 +5,8 @@ import { requireModuleEntry } from '@/server/security/module-guard'
 import { getClientsFinanceSummary } from '@/server/services/ClientsFinanceSummaryService'
 import type { Client, Nicho, ClientIntegration } from '@/app/(dashboard)/clientes/types'
 
+const CLIENT_LIST_COLUMNS = 'id, name, company, email, phone, plan_weekly, plano_id, dia_pagamento_semana, periodicidade, forma_pagamento, status, start_date, billing_anchor_date, end_date, assigned_name, nicho, fuso, city, state, area_code, jobs, created_at'
+
 // Administração › Clientes (CLIENT-HISTORY-ADMIN-003): a lista de clientes vive AQUI agora — deixou de ser andar
 // principal. REUSA o MESMO ClientesFloor do domínio (sem duplicar tela) e a MESMA projeção de dados da rota
 // antiga. Gate = requireModuleEntry('clientes') (NÃO o owner/dev do /admin): quem tem o módulo entra; o
@@ -22,13 +24,14 @@ export default async function AdminClientesPage() {
 
   const activeTeamId = context?.activeTeamId ?? null
 
-  // clients mantém select('*'): o realtime funde a linha COMPLETA e há spreads {...client} (dossie/drive).
-  const { data: clients } = activeTeamId
-    ? await supabase.from('clients').select('*').eq('team_id', activeTeamId).order('created_at', { ascending: false })
-    : { data: [] }
-
-  // Resumo financeiro por cliente (Parte 5) — total recebido, próxima cobrança, pendências — na própria lista.
-  const finance = context ? await getClientsFinanceSummary(context) : {}
+  // Drive e dossiê podem ser grandes e são usados somente no detalhe; ClienteDetalhe os busca sob demanda.
+  const [clientsRes, finance] = await Promise.all([
+    activeTeamId
+      ? supabase.from('clients').select(CLIENT_LIST_COLUMNS).eq('team_id', activeTeamId).order('created_at', { ascending: false })
+      : Promise.resolve({ data: [] }),
+    context ? getClientsFinanceSummary(context) : Promise.resolve({}),
+  ])
+  const clients = clientsRes.data
 
   return (
     <ClientesFloor

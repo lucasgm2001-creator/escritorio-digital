@@ -4,6 +4,9 @@ import { getStages } from '@/lib/funnelStages.server'
 import { getRequestContext } from '@/server/context/request-context'
 import { requireModuleEntry } from '@/server/security/module-guard'
 
+const LEAD_LIST_COLUMNS = 'id, name, company, email, phone, value, status, score, operation, assigned_to, assigned_name, notes, nicho, origem, prioridade, next_contact, last_contact_at, stage_changed_at, updated_at, created_at, received_at, incluir_no_relatorio, fuso, city, state, area_code, created_manually, contact_code, current_situation, last_action, next_action, temperature, followup_state, situation_updated_at'
+const CLIENT_LIST_COLUMNS = 'id, name, company, email, phone, plan_weekly, plano_id, dia_pagamento_semana, periodicidade, forma_pagamento, status, start_date, billing_anchor_date, end_date, assigned_name, nicho, fuso, city, state, area_code, created_at'
+
 export default async function ComercialPage() {
   const supabase = createClient()
 
@@ -19,8 +22,10 @@ export default async function ComercialPage() {
 
   const [{ data: leads }, { data: clients }] = activeTeamId
     ? await Promise.all([
-        supabase.from('leads').select('*').eq('team_id', activeTeamId).order('score', { ascending: false }),
-        supabase.from('clients').select('*').eq('team_id', activeTeamId).order('created_at', { ascending: false }),
+        // O payload bruto pode ser grande e só é necessário ao abrir um lead. O LeadDiary o busca sob demanda.
+        supabase.from('leads').select(LEAD_LIST_COLUMNS).eq('team_id', activeTeamId).order('score', { ascending: false }),
+        // Dossiê/Drive são carregados somente quando essa aba do modal é aberta.
+        supabase.from('clients').select(CLIENT_LIST_COLUMNS).eq('team_id', activeTeamId).order('created_at', { ascending: false }),
       ])
     : [{ data: [] }, { data: [] }]
 

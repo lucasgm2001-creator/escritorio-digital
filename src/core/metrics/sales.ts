@@ -8,7 +8,7 @@ export type SaleDeal = { valor_total_usd: number | null; data_fechamento: string
 const round2 = (n: number): number => Math.round((n + Number.EPSILON) * 100) / 100
 
 /** Contratos fechados no período (data_fechamento civil em [fromYMD, toYMD]). */
-export function closedDealsInPeriod<T extends SaleDeal>(deals: T[], fromYMD: string, toYMD: string): T[] {
+function closedDealsInPeriod<T extends SaleDeal>(deals: T[], fromYMD: string, toYMD: string): T[] {
   return deals.filter(d => { const dt = (d.data_fechamento ?? '').slice(0, 10); return dt >= fromYMD && dt <= toYMD })
 }
 

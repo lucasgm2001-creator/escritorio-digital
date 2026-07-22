@@ -1,7 +1,8 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { updateClientAction } from './client-write-actions'
+import { createClient } from '@/lib/supabase/client'
 import { useToast } from '@/components/ui/toast'
 import { cn } from '@/lib/utils'
 import { ChevronDown, ExternalLink, FolderOpen, Pencil, Plus } from 'lucide-react'
@@ -44,6 +45,7 @@ const ghostBtn = 'flex items-center gap-1.5 px-3 py-1.5 rounded-btn text-xs font
 
 export function DossieTab({ client, onSaved }: { client: Client; onSaved: (c: Client) => void }) {
   const { toast } = useToast()
+  const [loading, setLoading] = useState(true)
 
   // Estado LOCAL (evita merge em cima de prop desatualizada dentro do modal).
   const [driveUrl, setDriveUrl] = useState(client.drive_folder_url ?? '')
@@ -55,6 +57,22 @@ export function DossieTab({ client, onSaved }: { client: Client; onSaved: (c: Cl
   const [editing, setEditing] = useState<Set<SecKey>>(new Set())    // seções em modo edição
   const [draft, setDraft] = useState<Dossie>(() => normalizeDossie(client.dossie))
   const [savingKey, setSavingKey] = useState<SecKey | null>(null)
+
+  useEffect(() => {
+    let active = true
+    createClient().from('clients').select('drive_folder_url, dossie').eq('id', client.id).maybeSingle()
+      .then(({ data }) => {
+        if (!active) return
+        if (data) {
+          const loaded = normalizeDossie(data.dossie as Client['dossie'])
+          setDriveUrl((data.drive_folder_url as string | null) ?? '')
+          setDossie(loaded)
+          setDraft(loaded)
+        }
+        setLoading(false)
+      }, () => { if (active) setLoading(false) })
+    return () => { active = false }
+  }, [client.id])
 
   const toggle = (k: SecKey) => setOpen(p => { const n = new Set(p); if (n.has(k)) n.delete(k); else n.add(k); return n })
 
@@ -96,6 +114,10 @@ export function DossieTab({ client, onSaved }: { client: Client; onSaved: (c: Cl
   }
 
   const driveValid = isValidUrl(driveUrl)
+
+  if (loading) {
+    return <div className="py-12 text-center text-sm text-bento-muted">Carregando dossiê…</div>
+  }
 
   return (
     <div className="space-y-4">

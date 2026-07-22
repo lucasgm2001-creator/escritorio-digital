@@ -83,9 +83,3 @@ export const ALL_COLUMNS: ColumnConfig[] = [
   { key: 'negocio_futuro',label: 'Negócio Futuro',     tier: 6, tone: 'neutral', textColor: 'text-zinc-400',   bgColor: 'bg-zinc-800/30',   dotColor: 'bg-zinc-500',   borderColor: 'border-zinc-700/40' },
   { key: 'lixeira',       label: 'Lixeira',            tier: 6, tone: 'neutral', textColor: 'text-bento-muted',bgColor: 'bg-bento-bg',      dotColor: 'bg-bento-muted',borderColor: 'border-bento-border' },
 ]
-
-// Agrupa as fases por tier (cada tier vira uma coluna vertical no funil).
-export const TIERS: ColumnConfig[][] = (() => {
-  const max = Math.max(...ALL_COLUMNS.map(c => c.tier))
-  return Array.from({ length: max }, (_, i) => ALL_COLUMNS.filter(c => c.tier === i + 1))
-})()

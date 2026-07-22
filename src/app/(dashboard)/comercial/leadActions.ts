@@ -37,7 +37,7 @@ export interface MovableLead {
 // Extraído do KanbanBoard pra ser reusado pelo agente do Hall — MESMA lógica, sem duplicar.
 // FIX-P0-TEAMID-WRITES: teamId (equipe ativa) carimba as escritas team-scoped — o trigger só cobre usuário
 // de 1 equipe. Opcional/último parâmetro: sem ele (ex.: chamadas antigas/servidor) volta ao trigger.
-export async function runWonFlow(supabase: SupaClient, lead: MovableLead, userName: string, planoId: string | null = null, teamId: string | null = null): Promise<ActionNote[]> {
+async function runWonFlow(supabase: SupaClient, lead: MovableLead, userName: string, planoId: string | null = null, teamId: string | null = null): Promise<ActionNote[]> {
   const notes: ActionNote[] = []
   const today = ymd(new Date())
 

@@ -18,7 +18,7 @@ export type TeamLimitContext = {
 // aqui (ex.: { pro: 10, enterprise: 50 }) — nenhum call site muda.
 const LIMIT_BY_PLAN: Record<string, number> = {}
 
-export function maxTeamsForUser(context?: TeamLimitContext): number {
+function maxTeamsForUser(context?: TeamLimitContext): number {
   const plan = context?.plan
   if (plan && plan in LIMIT_BY_PLAN) return LIMIT_BY_PLAN[plan]
   return MAX_TEAMS_PER_USER

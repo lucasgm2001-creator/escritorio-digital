@@ -20,7 +20,7 @@ export function daysStopped(lead: Lead): number {
 }
 
 /** Dias na FASE atual (deal rotting do funil novo): desde stage_changed_at (fallback: criação). */
-export function daysInStage(lead: Lead): number {
+function daysInStage(lead: Lead): number {
   const ref = lead.stage_changed_at || lead.created_at
   if (!ref) return 0
   const diff = Date.now() - new Date(ref).getTime()
@@ -31,7 +31,7 @@ export function daysInStage(lead: Lead): number {
 export type Heat = 'hot' | 'warm' | 'cold'
 
 /** Limite global padrão de "esfriando" (dias). Usado quando a fase não tem dias_esfriamento. */
-export const DEFAULT_COLD_DAYS = 5
+const DEFAULT_COLD_DAYS = 5
 
 /**
  * Temperatura do funil por dias parado na fase. 0–1 = quente; a faixa "atenção" (âmbar) vai até o

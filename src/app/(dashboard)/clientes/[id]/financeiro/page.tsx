@@ -10,10 +10,10 @@ import { getClientWorkspace } from '@/server/services/ClientWorkspaceService'
 // Financeiro do Cliente — dados REAIS (client_payments) via ClientFinanceService (ARCH-001, TEAM-001) +
 // preparação visual de cobrança/Stripe (CustomerBillingProfile, sem integração real).
 export default async function ClientFinanceiroPage(props: { params: Promise<{ id: string }> }) {
-  const params = await props.params;
-  const context = await getRequestContext()
-  const vm = context ? await getClientFinance(context, params.id) : null
-  const client = context ? await getClientWorkspace(params.id) : null
+  const [params, context] = await Promise.all([props.params, getRequestContext()])
+  const [vm, client] = context
+    ? await Promise.all([getClientFinance(context, params.id), getClientWorkspace(params.id)])
+    : [null, null]
   if (!vm || !client) notFound()
   const canManage = context?.role === 'owner' || context?.role === 'admin'
 

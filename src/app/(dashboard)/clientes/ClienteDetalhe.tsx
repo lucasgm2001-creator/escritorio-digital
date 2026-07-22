@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { ChevronLeft, MessageCircle, FolderOpen, FileDown, Power, ArrowRight, Trash2 } from 'lucide-react'
 import { useToast } from '@/components/ui/toast'
@@ -9,6 +9,7 @@ import { softDeleteClientAction, updateClientAction, deactivateClientAction } fr
 import { cn, formatCurrency } from '@/lib/utils'
 import { formatDateBR } from '@/lib/date'
 import { planLabel, healthOf, type Client, type Nicho, type ClientIntegration } from './types'
+import { createClient } from '@/lib/supabase/client'
 
 const FUSO_LABEL: Record<string, string> = { leste: 'Leste', central: 'Central', montanha: 'Montanha', pacifico: 'Pacífico' }
 
@@ -26,6 +27,30 @@ export function ClienteDetalhe({ client, nichos, integration, onBack, onUpdated 
   const [busy, setBusy] = useState(false)
   const [nicho, setNicho] = useState<string | null>(client.nicho ?? null)
   const [savingNicho, setSavingNicho] = useState(false)
+  const [supplement, setSupplement] = useState<Pick<Client, 'drive_folder_url' | 'dossie'>>({
+    drive_folder_url: client.drive_folder_url,
+    dossie: client.dossie,
+  })
+  const [loadingSupplement, setLoadingSupplement] = useState(
+    client.drive_folder_url === undefined && client.dossie === undefined,
+  )
+
+  // O Hub recebe somente a ficha leve de cada cliente. Drive e dossiê, que podem ser grandes, são
+  // buscados apenas quando este detalhe é aberto — sem multiplicar o payload pelo total de clientes.
+  useEffect(() => {
+    if (!loadingSupplement) return
+    let active = true
+    createClient()
+      .from('clients')
+      .select('drive_folder_url, dossie')
+      .eq('id', client.id)
+      .single()
+      .then(({ data }) => {
+        if (active && data) setSupplement(data as Pick<Client, 'drive_folder_url' | 'dossie'>)
+        if (active) setLoadingSupplement(false)
+      }, () => { if (active) setLoadingSupplement(false) })
+    return () => { active = false }
+  }, [client.id, loadingSupplement])
 
   // Prateleiras ATIVAS (por posicao). Se a atual não estiver entre elas, vira opção extra p/ não sumir do select.
   const activeNichos = nichos.filter(n => n.ativo).sort((a, b) => a.posicao - b.posicao)
@@ -51,7 +76,7 @@ export function ClienteDetalhe({ client, nichos, integration, onBack, onUpdated 
   const pages = integration?.landing_pages ?? []
   const cidade = [client.city, client.state].filter(Boolean).join(', ')
   // "Resultado" — usa dossie se houver conteúdo; senão placeholder discreto.
-  const dossieEntries = Object.entries(client.dossie ?? {}).filter(([, v]) => v && (v.url || v.notas))
+  const dossieEntries = Object.entries(supplement.dossie ?? {}).filter(([, v]) => v && (v.url || v.notas))
 
   const desativar = async () => {
     setBusy(true)
@@ -128,10 +153,10 @@ export function ClienteDetalhe({ client, nichos, integration, onBack, onUpdated 
               <MessageCircle className="w-3 h-3" />{waOn ? 'Ativa' : 'Inativa'}
             </span>
           </div>
-          {client.drive_folder_url && (
+          {supplement.drive_folder_url && (
             <div>
               <p className="font-tech text-[10px] uppercase tracking-wide text-bento-muted mb-1">Pasta</p>
-              <a href={client.drive_folder_url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 text-sm text-lime-fg hover:underline"><FolderOpen className="w-4 h-4" />Abrir pasta</a>
+              <a href={supplement.drive_folder_url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 text-sm text-lime-fg hover:underline"><FolderOpen className="w-4 h-4" />Abrir pasta</a>
             </div>
           )}
         </div>
@@ -139,7 +164,9 @@ export function ClienteDetalhe({ client, nichos, integration, onBack, onUpdated 
 
       {/* Resultado */}
       <Panel title="Resultado">
-        {dossieEntries.length === 0 ? (
+        {loadingSupplement ? (
+          <p className="text-sm text-bento-muted/70 font-tech">Carregando resultados…</p>
+        ) : dossieEntries.length === 0 ? (
           <p className="text-sm text-bento-muted/70 font-tech">Sem resultados registrados ainda.</p>
         ) : (
           <div className="space-y-2">

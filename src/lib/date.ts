@@ -6,7 +6,7 @@
 // Regra de ouro: campos DATE-ONLY ('YYYY-MM-DD') NUNCA passam por `new Date(string)` (viraria UTC meia-noite
 // e "pula" um dia em BRT). Para eles, montamos Date LOCAL pelas partes, ou operamos a string em UTC civil.
 
-export const pad2 = (n: number): string => String(n).padStart(2, '0')
+const pad2 = (n: number): string => String(n).padStart(2, '0')
 
 // ── Date → string (partes LOCAIS — mesma convenção do rangeFor/period) ──
 /** Date → 'YYYY-MM-DD'. */

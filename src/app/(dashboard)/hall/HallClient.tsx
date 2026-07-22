@@ -7,7 +7,6 @@ import { cn } from '@/lib/utils'
 import { TimeAgo } from '@/components/system/TimeAgo'
 import { Panel } from '@/components/bento/Panel'
 import { LiveDot } from '@/components/bento/LiveDot'
-import { NewsSection } from './NewsSection'
 import { CollapsibleSection } from '@/components/mobile/CollapsibleSection'
 import { MetricCard } from '@/components/ui/MetricCard'
 import { CalendarDays, Activity as ActivityIcon, Newspaper, AlertTriangle } from 'lucide-react'
@@ -17,7 +16,6 @@ import type { MapLead, MapClient } from '../comercial/mapTypes'
 import type { DashboardData } from '@/server/services/DashboardService'
 import { useTasksState } from '../tarefas/useTasksState'
 import { ErrorBoundary } from '@/components/system/ErrorBoundary'
-import { Calendar } from './Calendar'
 import { type CalendarEvent } from './calendarShared'
 import { dayBR } from '@/lib/date'
 import dynamic from 'next/dynamic'
@@ -28,10 +26,28 @@ import { ACTIVITY_ICONS, ACTIVITY_COLORS, computeGreeting, MuralAgendaRow, Mural
 // LeadMap (mapa de leads 3D/vidro, geografia us-atlas) — só no client, sob demanda. A config (Vista/Modo/
 // Tema/inclinação) vem de Configurações > Mapa (localStorage 'mapPrefs'); a barra de controle saiu do mapa.
 const LeadMap = dynamic(() => import('@/components/map/LeadMap'), { ssr: false })
+const Calendar = dynamic(() => import('./Calendar').then(m => m.Calendar), { ssr: false, loading: HallSectionLoading })
+const NewsSection = dynamic(() => import('./NewsSection').then(m => m.NewsSection), { ssr: false, loading: HallSectionLoading })
 
 // Fallback discreto (DS-005) enquanto o chunk da aba carrega.
 function HallSectionLoading() {
   return <div className="py-16 text-center text-sm text-bento-muted">Carregando…</div>
+}
+
+// Seções pesadas abaixo da dobra só montam quando estão perto da viewport. Em mobile, uma seção fechada
+// não intersecta e não baixa o chunk; em desktop, o preload acontece pouco antes de o usuário chegar nela.
+function LazyVisible({ children, force = false }: { children: React.ReactNode; force?: boolean }) {
+  const ref = useRef<HTMLDivElement>(null)
+  const [ready, setReady] = useState(false)
+  useEffect(() => {
+    if (force || ready || !ref.current || typeof IntersectionObserver === 'undefined') return
+    const observer = new IntersectionObserver(([entry]) => {
+      if (entry.isIntersecting) { setReady(true); observer.disconnect() }
+    }, { rootMargin: '320px 0px' })
+    observer.observe(ref.current)
+    return () => observer.disconnect()
+  }, [force, ready])
+  return <div ref={ref}>{ready || force ? children : <div className="min-h-20" aria-hidden />}</div>
 }
 // Componentes pesados EXCLUSIVOS de abas nao-default (agent/relatorio/tarefas) — fora do bundle
 // inicial da /hall. So baixam ao abrir a aba; nao aparecem no first paint da Visao Geral (PERF-003).
@@ -45,6 +61,9 @@ type Tab = 'activities' | 'mapa' | 'tarefas' | 'relatorio' | 'agent'
 interface Props {
   initialActivities: Activity[]
   initialTasks: Task[]
+  initialCalendarEvents: CalendarEvent[]
+  initialMapLeads: MapLead[]
+  initialMapClients: MapClient[]
   linkOptions: LinkOption[]
   userName: string
   userId: string
@@ -65,7 +84,7 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
   )
 }
 
-export function HallClient({ initialActivities, initialTasks, linkOptions, userName, userId, activeTeamId, dashboard }: Props) {
+export function HallClient({ initialActivities, initialTasks, initialCalendarEvents, initialMapLeads, initialMapClients, linkOptions, userName, userId, activeTeamId, dashboard }: Props) {
   // M6: estado de tarefas VIVO e ÚNICO — Tarefas + Mural + Agenda leem a MESMA fonte (realtime + merge A5).
   const { tasks, setTasks, deletedIds } = useTasksState(initialTasks)
   const [activeTab, setActiveTab]     = useState<Tab>('activities')
@@ -75,12 +94,12 @@ export function HallClient({ initialActivities, initialTasks, linkOptions, userN
   const [greeting, setGreeting]       = useState('')
   const [today, setToday]             = useState('')
   const [showHistory, setShowHistory] = useState(false)
-  const [calEvents, setCalEvents]     = useState<CalendarEvent[]>([])
+  const [calEvents, setCalEvents]     = useState<CalendarEvent[]>(initialCalendarEvents)
   const [focusEvent, setFocusEvent]   = useState<CalendarEvent | null>(null)
   const [activitiesExpanded, setActivitiesExpanded] = useState(false)
   // Mapa + métricas (leads/clientes do banco) e config da Visão Geral (por usuário).
-  const [mapLeads, setMapLeads]   = useState<MapLead[]>([])
-  const [mapClients, setMapClients] = useState<MapClient[]>([])
+  const [mapLeads, setMapLeads]   = useState<MapLead[]>(initialMapLeads)
+  const [mapClients, setMapClients] = useState<MapClient[]>(initialMapClients)
   // Mapa: config (Vista/Modo/Tema/inclinação) vem de Configurações > Mapa (mapPrefs, reativo) + dados REAIS
   // (leads/clients) convertidos em markers do LeadMap. Config salva = fonte ÚNICA da renderização.
   const mapPrefs = useMapPrefs()
@@ -111,7 +130,7 @@ export function HallClient({ initialActivities, initialTasks, linkOptions, userN
   // Leads + clientes p/ o MAPA e as MÉTRICAS (campos leves) — SÓ LEITURA. Refetcha ao montar, ao
   // voltar pra aba (foco/visível) e ao abrir a aba Mapa, p/ as métricas baterem com a aba Clientes
   // sem precisar de F5 (o problema era ficar com o snapshot do mount).
-  const lastMapFetch = useRef(0)
+  const lastMapFetch = useRef(Date.now())
   const fetchMapData = useCallback((force = false) => {
     // Throttle: no máximo 1 refetch a cada 30s (foco/visibilidade são barulhentos). force=true ignora.
     const nowMs = Date.now()
@@ -123,8 +142,7 @@ export function HallClient({ initialActivities, initialTasks, linkOptions, userN
   }, [])
 
   useEffect(() => {
-    fetchMapData(true)   // carga inicial (força)
-    // 'focus' removido (disparava a cada clique na janela/alt-tab); visibilitychange basta (e é throttled).
+    // A carga inicial já veio do servidor. Ao voltar para a página, revalida com throttle.
     const onVisible = () => { if (document.visibilityState === 'visible') fetchMapData() }
     document.addEventListener('visibilitychange', onVisible)
     return () => document.removeEventListener('visibilitychange', onVisible)
@@ -133,15 +151,9 @@ export function HallClient({ initialActivities, initialTasks, linkOptions, userN
   // Abrir/alternar p/ a aba Mapa revalida (throttled — nunca fica >30s desatualizado).
   useEffect(() => { if (activeTab === 'mapa') fetchMapData() }, [activeTab, fetchMapData])
 
-  // Agenda (uma carga) + realtime de atividades.
+  // Agenda já veio do servidor; mantém somente o realtime de atividades.
   useEffect(() => {
     const supabase = createClient()
-    // Agenda PESSOAL: eventos do usuário logado na equipe ativa (PERSONAL-WORK-001). Reuniões comerciais do
-    // lead vivem em `meetings` (outra entidade) — não entram aqui. Novo membro entra com agenda vazia.
-    let calQuery = supabase.from('calendar_events').select('*').eq('user_id', userId)
-    if (activeTeamId) calQuery = calQuery.eq('team_id', activeTeamId)
-    calQuery.order('date').then(({ data }) => { if (data) setCalEvents(data as CalendarEvent[]) })
-
     const dataChannel = supabase.channel('hall-realtime')
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'activities' },
         p => setActivities(prev => [p.new as Activity, ...prev.slice(0, 19)]))
@@ -368,7 +380,9 @@ export function HallClient({ initialActivities, initialTasks, linkOptions, userN
                 {/* ── Agenda ── colapsada por padrão; completa (4 vistas + CRUD) ao expandir. */}
                 {hallCfg.blocks.agenda && (
                   <CollapsibleSection title="Agenda" icon={CalendarDays}>
-                    <Calendar userId={userId} events={calEvents} tasks={tasks} onEventsChange={setCalEvents} focusEvent={focusEvent} onFocusHandled={() => setFocusEvent(null)} />
+                    <LazyVisible force={!!focusEvent}>
+                      <Calendar userId={userId} events={calEvents} tasks={tasks} onEventsChange={setCalEvents} focusEvent={focusEvent} onFocusHandled={() => setFocusEvent(null)} />
+                    </LazyVisible>
                   </CollapsibleSection>
                 )}
               </div>
@@ -414,7 +428,7 @@ export function HallClient({ initialActivities, initialTasks, linkOptions, userN
                   <div className="flex flex-col gap-2">
                   <SectionLabel>Informações</SectionLabel>
                   <CollapsibleSection title="Notícias do Setor" icon={Newspaper}>
-                    <NewsSection />
+                    <LazyVisible><NewsSection /></LazyVisible>
                   </CollapsibleSection>
                   </div>
                 )}

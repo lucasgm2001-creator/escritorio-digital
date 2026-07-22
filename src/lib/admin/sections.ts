@@ -209,7 +209,3 @@ export const ADMIN_SECTIONS: AdminSection[] = [
     emptyHint: 'Filtro por nível e origem; retenção configurável.',
   },
 ]
-
-export function getAdminSection(key: AdminSectionKey): AdminSection | undefined {
-  return ADMIN_SECTIONS.find(section => section.key === key)
-}

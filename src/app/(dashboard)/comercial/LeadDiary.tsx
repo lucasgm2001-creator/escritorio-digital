@@ -343,6 +343,11 @@ export function LeadDiary({ lead, onClose, onUpdated, onMoveStage, onDeleted, cu
   }
 
   useEffect(() => {
+    // raw_payload não viaja com a lista inteira do funil; carrega apenas para o lead efetivamente aberto.
+    supabase.from('leads').select('raw_payload').eq('id', lead.id).maybeSingle()
+      .then(({ data }) => {
+        if (data) setCurrentLead(current => ({ ...current, raw_payload: data.raw_payload as Record<string, unknown> | null }))
+      })
     supabase
       .from('lead_interactions')
       .select('*')

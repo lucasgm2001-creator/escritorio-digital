@@ -6,7 +6,7 @@ import { rangeFor, type Mode, type Range } from '@/lib/period'
 // Chips de período do Comercial (Funil + Contatos). MESMO visual da aba Métricas, pra ficar
 // consistente. O default fica a cargo de quem detém o estado (Funil e Contatos usam 'tudo').
 // Mobile: não estoura largura — rola na horizontal (scrollbar oculta) e cada chip é shrink-0.
-export const COMERCIAL_PERIODS: [Mode, string][] = [
+const COMERCIAL_PERIODS: [Mode, string][] = [
   ['semana', 'Esta semana'], ['mes', 'Este mês'], ['trimestre', 'Este trimestre'], ['tudo', 'Tudo'],
 ]
 

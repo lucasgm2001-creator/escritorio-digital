@@ -3,7 +3,7 @@
 // × 4 (migration 049: plans.valor_mensal = 4× valor_semanal; mesma base do SuperAgent.verificarMRR). plan_weekly
 // é o valor SEMANAL do cliente (custom ou do plano). ARR = MRR × 12 (fonte única).
 
-export const MONTH_WEEKS = 4
+const MONTH_WEEKS = 4
 
 export type PortfolioClient = {
   status: string | null
@@ -14,10 +14,10 @@ export type PortfolioClient = {
 
 const round2 = (n: number): number => Math.round((n + Number.EPSILON) * 100) / 100
 const weekly = (c: PortfolioClient): number => Number(c.plan_weekly) || 0
-export const isActiveClient = (c: PortfolioClient): boolean => c.status === 'ativo'
+const isActiveClient = (c: PortfolioClient): boolean => c.status === 'ativo'
 
 /** Receita mensal recorrente de um cliente = valor semanal × 4. */
-export function monthlyRecurring(c: PortfolioClient): number {
+function monthlyRecurring(c: PortfolioClient): number {
   return weekly(c) * MONTH_WEEKS
 }
 

@@ -12,17 +12,17 @@ export default async function ConfiguracoesPage() {
   const canManageTeam = can(context, 'teams', 'manage')
   // Membros: qualquer usuário com equipe ativa (o RLS já limita o que um member enxerga) — permite trocar/sair.
   // Convites: só quem administra (getActiveTeamInvites exige a permissão e lançaria para um member).
-  const teamMembers = context.activeTeamId ? await getActiveTeamMembers(context) : []
-  const teamInvites = canManageTeam ? await getActiveTeamInvites(context) : []
-
   // Status da conexão Google do usuário (service role — a tabela tem RLS sem policies). SÓ {connected, email}
   // cruza pro client: o refresh/access token NUNCA sai do servidor.
   const admin = createServiceClient()
-  const { data: tok } = await admin
-    .from('google_oauth_tokens')
-    .select('google_email, refresh_token, access_token')
-    .eq('user_id', context.user.id)
-    .maybeSingle()
+  const [teamMembers, teamInvites, { data: tok }] = await Promise.all([
+    context.activeTeamId ? getActiveTeamMembers(context) : Promise.resolve([]),
+    canManageTeam ? getActiveTeamInvites(context) : Promise.resolve([]),
+    admin.from('google_oauth_tokens')
+      .select('google_email, refresh_token, access_token')
+      .eq('user_id', context.user.id)
+      .maybeSingle(),
+  ])
   const google = {
     connected: !!(tok && (tok.refresh_token || tok.access_token)),
     email: (tok?.google_email as string | null) ?? null,

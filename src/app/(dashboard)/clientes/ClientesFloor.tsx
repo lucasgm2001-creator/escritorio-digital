@@ -7,10 +7,13 @@ import { useRealtimeRows } from '@/lib/hooks/useRealtimeRows'
 import { useRole } from '@/components/auth/RoleProvider'
 import { cn } from '@/lib/utils'
 import { HubTab } from './HubTab'
-import { IntegracoesTab } from './IntegracoesTab'
-import { ClienteDetalhe } from './ClienteDetalhe'
 import type { Client, Nicho, ClientIntegration } from './types'
 import type { ClientFinanceSummary } from '@/server/services/ClientsFinanceSummaryService'
+import dynamic from 'next/dynamic'
+
+const FloorLoading = () => <div className="py-16 text-center text-sm text-bento-muted">Carregando…</div>
+const IntegracoesTab = dynamic(() => import('./IntegracoesTab').then(m => m.IntegracoesTab), { ssr: false, loading: FloorLoading })
+const ClienteDetalhe = dynamic(() => import('./ClienteDetalhe').then(m => m.ClienteDetalhe), { ssr: false, loading: FloorLoading })
 
 type Tab = 'hub' | 'integracoes'
 

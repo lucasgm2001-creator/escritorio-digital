@@ -1,6 +1,5 @@
 // Tipos/consts/helpers compartilhados da Agenda do Hall — extraídos do HallClient (refactor puro,
 // sem mudança de comportamento). Importado por Calendar/EventModal e pelo HallClient.
-import { useEffect } from 'react'
 import { dayBR } from '@/lib/date'
 
 export interface CalendarEvent {
@@ -30,15 +29,6 @@ export const MONTH_ABBR  = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set
 
 // Campos de formulário no estilo Bento (superfícies theme-aware + foco no acento).
 export const bentoInput = 'w-full bg-bento-bg border border-bento-border rounded-btn px-3 py-2 text-sm text-bento-text placeholder:text-bento-muted focus:outline-none focus:border-lime'
-
-// Fecha modal no ESC (além do X e do clique fora). Reusado pelos modais da Agenda.
-export function useEscape(onClose: () => void) {
-  useEffect(() => {
-    const h = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
-    window.addEventListener('keydown', h)
-    return () => window.removeEventListener('keydown', h)
-  }, [onClose])
-}
 
 export function getWeekDays(referenceDate: Date): { label: string; date: Date; dateStr: string }[] {
   const jsDay = referenceDate.getDay()

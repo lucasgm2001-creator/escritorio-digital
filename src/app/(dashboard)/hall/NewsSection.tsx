@@ -51,7 +51,7 @@ export function NewsSection() {
 
   useEffect(() => {
     const supabase = createClient()
-    supabase.from('news').select('*').order('fetched_at', { ascending: false }).limit(60)
+    supabase.from('news').select('id, titulo, categoria, estados, severidade, resumo, impacto, fonte_url, fonte_nome, published_at, fetched_at').order('fetched_at', { ascending: false }).limit(60)
       .then(({ data }) => {
         const rows = (data ?? []) as News[]
         setNews(rows)
