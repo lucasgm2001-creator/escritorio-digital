@@ -49,13 +49,11 @@ function LazyVisible({ children, force = false }: { children: React.ReactNode; f
   }, [force, ready])
   return <div ref={ref}>{ready || force ? children : <div className="min-h-20" aria-hidden />}</div>
 }
-// Componentes pesados EXCLUSIVOS de abas nao-default (agent/relatorio) — fora do bundle
-// inicial da /hall. So baixam ao abrir a aba; nao aparecem no first paint da Visao Geral (PERF-003).
-// (AgentChat arrasta react-markdown/remark-gfm; RelatorioComercial idem.)
+// Componente pesado EXCLUSIVO da aba nao-default (agent) — fora do bundle inicial da /hall. So baixa ao
+// abrir a aba; nao aparece no first paint da Visao Geral (PERF-003). (AgentChat arrasta react-markdown/remark-gfm.)
 const AgentChat = dynamic(() => import('./AgentChat').then(m => m.AgentChat), { ssr: false, loading: HallSectionLoading })
-const RelatorioComercial = dynamic(() => import('../tarefas/RelatorioComercial').then(m => m.RelatorioComercial), { ssr: false, loading: HallSectionLoading })
 
-type Tab = 'activities' | 'mapa' | 'relatorio' | 'agent'
+type Tab = 'activities' | 'mapa' | 'agent'
 
 interface Props {
   initialActivities: Activity[]
@@ -108,7 +106,7 @@ export function HallClient({ initialActivities, initialTasks, initialCalendarEve
   // Mantém os deep-links das abas próprias do Hall.
   useEffect(() => {
     const t = new URLSearchParams(window.location.search).get('tab')
-    if (t === 'agent' || t === 'activities' || t === 'mapa' || t === 'relatorio') setActiveTab(t as Tab)
+    if (t === 'agent' || t === 'activities' || t === 'mapa') setActiveTab(t as Tab)
   }, [])
 
   useEffect(() => {
@@ -183,10 +181,6 @@ export function HallClient({ initialActivities, initialTasks, initialCalendarEve
     {
       id: 'mapa' as Tab, label: 'Mapa',
       icon: <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M17.657 16.657L13.414 20.9a2 2 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" /><circle cx="12" cy="11" r="2.5" strokeWidth={1.75} /></svg>,
-    },
-    {
-      id: 'relatorio' as Tab, label: 'Relatório',
-      icon: <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>,
     },
     {
       id: 'agent' as Tab, label: 'Agente',
@@ -442,14 +436,6 @@ export function HallClient({ initialActivities, initialTasks, initialCalendarEve
               </div>
             </Panel>
           </>
-        )}
-
-        {activeTab === 'relatorio' && (
-          <div className="max-w-5xl mx-auto px-4 sm:px-6 py-4">
-            <ErrorBoundary>
-              <RelatorioComercial />
-            </ErrorBoundary>
-          </div>
         )}
 
         {activeTab === 'agent' && (

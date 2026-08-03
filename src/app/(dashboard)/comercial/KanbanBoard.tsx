@@ -1,7 +1,6 @@
 'use client'
 
 import { useState, useCallback, useEffect, useMemo, useRef } from 'react'
-import Link from 'next/link'
 import {
   DndContext, DragOverlay, PointerSensor, TouchSensor, useSensor, useSensors,
   type DragStartEvent, type DragEndEvent,
@@ -24,6 +23,7 @@ const WonPlanModal  = dynamic(() => import('./WonPlanModal').then(m => ({ defaul
 const MetricasTab   = dynamic(() => import('./tabs/MetricasTab').then(m => ({ default: m.MetricasTab })),     { ssr: false, loading: TabLoading })
 const ContatosTab   = dynamic(() => import('./tabs/ContatosTab').then(m => ({ default: m.ContatosTab })),     { ssr: false, loading: TabLoading })
 const RadarTab      = dynamic(() => import('./tabs/RadarTab').then(m => ({ default: m.RadarTab })),           { ssr: false, loading: TabLoading })
+const VisaoGeralTab = dynamic(() => import('./tabs/VisaoGeralTab').then(m => ({ default: m.VisaoGeralTab })), { ssr: false, loading: TabLoading })
 import { moveLeadAction, addLeadInteractionAction } from './lead-write-actions'
 import { useRealtimeRows } from '@/lib/hooks/useRealtimeRows'
 import { usdCompact as fmtUSDc } from '@/lib/format'
@@ -35,7 +35,7 @@ import { rangeFor, inPeriodByActivity, type Range } from '@/lib/period'
 import { funnelConversionLabel } from '@/lib/funnelMetrics'
 export type { LeadStatus, Lead } from './types'
 
-type Tab = 'funil' | 'radar' | 'contatos' | 'metricas'
+type Tab = 'funil' | 'radar' | 'visao_geral' | 'contatos' | 'metricas'
 
 interface CurrentUser { id: string; name: string }
 
@@ -147,7 +147,7 @@ export function KanbanBoard({ initialLeads, initialStages, initialClients, curre
     if (!tabHandled.current) {
       tabHandled.current = true
       const tabParam = params.get('tab')
-      const allowedTabs = ['funil', 'radar', 'contatos', 'metricas']
+      const allowedTabs = ['funil', 'radar', 'visao_geral', 'contatos', 'metricas']
       if (tabParam && allowedTabs.includes(tabParam)) setTab(tabParam as Tab)
     }
     // lead: precisa da LISTA carregada. M16: depende de `leads` → abre assim que o id existir (uma vez só).
@@ -166,6 +166,7 @@ export function KanbanBoard({ initialLeads, initialStages, initialClients, curre
   const TABS: { key: Tab; label: string }[] = [
     { key: 'funil',        label: 'Funil' },
     { key: 'radar',        label: 'Radar' },
+    { key: 'visao_geral',  label: 'Visão Geral' },
     { key: 'contatos',     label: 'Contatos' },
     { key: 'metricas',     label: 'Métricas' },
   ]
@@ -278,15 +279,6 @@ export function KanbanBoard({ initialLeads, initialStages, initialClients, curre
           </div>
 
           <div className="flex items-center gap-2 w-full sm:w-auto">
-            <Link
-              href="/comercial/dashboard"
-              className="flex items-center justify-center gap-2 px-4 py-2 min-h-[44px] rounded-btn text-sm font-medium border border-bento-border text-bento-dim hover:border-lime hover:text-bento-text transition-colors flex-1 sm:flex-none"
-            >
-              <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6m4 6V9m4 10v-4M4 21h16" />
-              </svg>
-              Dashboard
-            </Link>
             <button
               onClick={() => setNewLeadOpen(true)}
               className="bento-btn flex items-center justify-center gap-2 px-4 py-2 min-h-[44px] rounded-btn text-sm font-semibold flex-1 sm:flex-none"
@@ -398,6 +390,7 @@ export function KanbanBoard({ initialLeads, initialStages, initialClients, curre
             <RadarTab leads={leads} stages={liveStages} />
           </div>
         )}
+        {tab === 'visao_geral'  && <VisaoGeralTab />}
         {tab === 'contatos'     && <ContatosTab leads={leads} clients={clients} onOpenLead={setSelectedLead} onClientUpdated={c => setClients(prev => prev.map(x => x.id === c.id ? c : x))} />}
         {tab === 'metricas'     && <MetricasTab />}
       </div>

@@ -22,6 +22,7 @@ import { SituationDrawer } from '../comercial/SituationDrawer'
 import { ALL_COLUMNS, type LeadStatus } from '../comercial/types'
 import { NEXT_ACTION_LABEL, TEMPERATURE_LABEL, isNextAction } from '@/lib/commercial/situation'
 import { inferTaskKind } from '@/lib/tasks/task-kind'
+import { RelatorioPanel } from './RelatorioPanel'
 
 export interface MesaLead {
   id: string
@@ -100,6 +101,8 @@ export function MesaClient({ initialTasks, initialLeads, linkOptions, currentUse
   useRealtimeRows<MesaLead>('leads', setLeads)
   useEffect(() => setLeads(initialLeads), [initialLeads])
 
+  // Alternador Tarefas/Relatório — só client-side (sem navegação de rota). Default = Tarefas.
+  const [panel, setPanel] = useState<'tarefas' | 'relatorio'>('tarefas')
   const [filter, setFilter] = useState<Filter>('hoje')
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null)
   const [selectedLeadId, setSelectedLeadId] = useState<string | null>(null)
@@ -220,71 +223,93 @@ export function MesaClient({ initialTasks, initialLeads, linkOptions, currentUse
             <h1 className="font-display text-xl sm:text-2xl font-bold text-bento-text tracking-tight">{greeting}, {currentUser.name}</h1>
             <p className="text-sm text-bento-muted mt-1">Tudo o que você precisa para conduzir o trabalho comercial de hoje.</p>
           </div>
-          <button type="button" onClick={() => openNew()} className="bento-btn inline-flex items-center gap-2 px-4 min-h-[42px] rounded-btn text-sm font-semibold">
-            <Plus className="w-4 h-4" /> Nova tarefa
-          </button>
-        </header>
-
-        <section className="grid grid-cols-2 lg:grid-cols-4 gap-2.5" aria-label="Resumo do dia">
-          <SummaryCard label="Para hoje" value={todayTasks.length} hint={todayTasks.some(task => task.due_date && task.due_date < today) ? 'inclui atrasadas' : 'em ordem'} tone="default" />
-          <SummaryCard label="Reuniões" value={meetingTasks.filter(task => task.due_date === today).length} hint="hoje" tone="default" />
-          <SummaryCard label="Aguardando" value={waitingLeads.length} hint="retorno do lead" tone="muted" />
-          <SummaryCard label="Precisam de ação" value={attentionLeads.length} hint="vencida ou ausente" tone={attentionLeads.length ? 'warning' : 'muted'} />
-        </section>
-
-        <div className="grid grid-cols-1 xl:grid-cols-[184px_minmax(0,1fr)_360px] gap-3 items-start">
-          <nav className="bento-fx p-2 xl:sticky xl:top-3" aria-label="Organização da mesa">
-            <div className="flex xl:flex-col gap-1 overflow-x-auto scrollbar-none">
-              {filters.map(item => (
-                <button key={item.id} type="button" onClick={() => setFilter(item.id)}
-                  className={cn('flex items-center gap-2.5 min-h-[42px] px-3 rounded-btn text-sm whitespace-nowrap transition-colors shrink-0 xl:w-full',
-                    filter === item.id ? 'bg-lime/12 text-lime-fg' : 'text-bento-muted hover:bg-bento-bg hover:text-bento-text')}>
-                  <item.Icon className="w-4 h-4 shrink-0" />
-                  <span className="xl:flex-1 text-left">{item.label}</span>
-                  <span className="font-tech text-[10px] tabular-nums text-current opacity-70">{item.count}</span>
-                </button>
-              ))}
-            </div>
-          </nav>
-
-          <section className="bento-fx min-w-0 overflow-hidden">
-            <div className="flex items-center justify-between gap-3 px-4 py-3 border-b border-bento-border">
-              <div>
-                <h2 className="font-display font-semibold text-bento-text">{filters.find(item => item.id === filter)?.label}</h2>
-                <p className="text-xs text-bento-muted mt-0.5">{taskRows.length || leadRows.length} {taskRows.length + leadRows.length === 1 ? 'item' : 'itens'}</p>
-              </div>
-              <button type="button" onClick={() => router.refresh()} aria-label="Atualizar" className="p-2 text-bento-muted hover:text-bento-text rounded-btn hover:bg-bento-bg">
-                <RefreshCw className="w-4 h-4" />
+          <div className="flex items-center gap-2 flex-wrap">
+            <div className="inline-flex bg-bento-bg border border-bento-border rounded-btn p-1 gap-1">
+              <button type="button" onClick={() => setPanel('tarefas')}
+                className={cn('px-3.5 py-1.5 rounded-[8px] text-xs font-medium transition-colors',
+                  panel === 'tarefas' ? 'bg-lime text-lime-ink' : 'text-bento-muted hover:text-bento-text')}>
+                Tarefas
+              </button>
+              <button type="button" onClick={() => setPanel('relatorio')}
+                className={cn('px-3.5 py-1.5 rounded-[8px] text-xs font-medium transition-colors',
+                  panel === 'relatorio' ? 'bg-lime text-lime-ink' : 'text-bento-muted hover:text-bento-text')}>
+                Relatório
               </button>
             </div>
-            <div className="p-2 sm:p-3 space-y-2">
-              {taskRows.map(task => (
-                <TaskRow key={task.id} task={task} active={selectedTaskId === task.id} today={today}
-                  busy={busyTaskId === task.id} onSelect={() => selectTask(task)} onToggle={() => toggleTask(task)} onEdit={() => openEdit(task)} />
-              ))}
-              {leadRows.map(lead => (
-                <LeadRow key={lead.id} lead={lead} active={selectedLeadId === lead.id} onSelect={() => selectLead(lead)} />
-              ))}
-              {taskRows.length === 0 && leadRows.length === 0 && <EmptyFilter filter={filter} />}
-            </div>
-          </section>
-
-          <aside className="bento-fx xl:sticky xl:top-3 min-w-0">
-            {selectedLead ? (
-              <LeadContext lead={selectedLead} task={selectedTask} interactions={interactions} loading={interactionsLoading}
-                onNewTask={() => openNew(selectedLead)} onEditTask={selectedTask ? () => openEdit(selectedTask) : undefined}
-                onSituation={() => setSituation({ lead: selectedLead, taskId: null })} />
-            ) : selectedTask ? (
-              <GenericTaskContext task={selectedTask} onEdit={() => openEdit(selectedTask)} />
-            ) : (
-              <div className="p-8 text-center">
-                <UserRound className="w-8 h-8 text-bento-muted mx-auto mb-3" />
-                <p className="text-sm font-medium text-bento-text">Selecione um item</p>
-                <p className="text-xs text-bento-muted mt-1">O contexto necessário para trabalhar aparecerá aqui.</p>
-              </div>
+            {panel === 'tarefas' && (
+              <button type="button" onClick={() => openNew()} className="bento-btn inline-flex items-center gap-2 px-4 min-h-[42px] rounded-btn text-sm font-semibold">
+                <Plus className="w-4 h-4" /> Nova tarefa
+              </button>
             )}
-          </aside>
-        </div>
+          </div>
+        </header>
+
+        {panel === 'relatorio' ? (
+          <RelatorioPanel />
+        ) : (
+          <>
+            <section className="grid grid-cols-2 lg:grid-cols-4 gap-2.5" aria-label="Resumo do dia">
+              <SummaryCard label="Para hoje" value={todayTasks.length} hint={todayTasks.some(task => task.due_date && task.due_date < today) ? 'inclui atrasadas' : 'em ordem'} tone="default" />
+              <SummaryCard label="Reuniões" value={meetingTasks.filter(task => task.due_date === today).length} hint="hoje" tone="default" />
+              <SummaryCard label="Aguardando" value={waitingLeads.length} hint="retorno do lead" tone="muted" />
+              <SummaryCard label="Precisam de ação" value={attentionLeads.length} hint="vencida ou ausente" tone={attentionLeads.length ? 'warning' : 'muted'} />
+            </section>
+
+            <div className="grid grid-cols-1 xl:grid-cols-[184px_minmax(0,1fr)_360px] gap-3 items-start">
+              <nav className="bento-fx p-2 xl:sticky xl:top-3" aria-label="Organização da mesa">
+                <div className="flex xl:flex-col gap-1 overflow-x-auto scrollbar-none">
+                  {filters.map(item => (
+                    <button key={item.id} type="button" onClick={() => setFilter(item.id)}
+                      className={cn('flex items-center gap-2.5 min-h-[42px] px-3 rounded-btn text-sm whitespace-nowrap transition-colors shrink-0 xl:w-full',
+                        filter === item.id ? 'bg-lime/12 text-lime-fg' : 'text-bento-muted hover:bg-bento-bg hover:text-bento-text')}>
+                      <item.Icon className="w-4 h-4 shrink-0" />
+                      <span className="xl:flex-1 text-left">{item.label}</span>
+                      <span className="font-tech text-[10px] tabular-nums text-current opacity-70">{item.count}</span>
+                    </button>
+                  ))}
+                </div>
+              </nav>
+
+              <section className="bento-fx min-w-0 overflow-hidden">
+                <div className="flex items-center justify-between gap-3 px-4 py-3 border-b border-bento-border">
+                  <div>
+                    <h2 className="font-display font-semibold text-bento-text">{filters.find(item => item.id === filter)?.label}</h2>
+                    <p className="text-xs text-bento-muted mt-0.5">{taskRows.length || leadRows.length} {taskRows.length + leadRows.length === 1 ? 'item' : 'itens'}</p>
+                  </div>
+                  <button type="button" onClick={() => router.refresh()} aria-label="Atualizar" className="p-2 text-bento-muted hover:text-bento-text rounded-btn hover:bg-bento-bg">
+                    <RefreshCw className="w-4 h-4" />
+                  </button>
+                </div>
+                <div className="p-2 sm:p-3 space-y-2">
+                  {taskRows.map(task => (
+                    <TaskRow key={task.id} task={task} active={selectedTaskId === task.id} today={today}
+                      busy={busyTaskId === task.id} onSelect={() => selectTask(task)} onToggle={() => toggleTask(task)} onEdit={() => openEdit(task)} />
+                  ))}
+                  {leadRows.map(lead => (
+                    <LeadRow key={lead.id} lead={lead} active={selectedLeadId === lead.id} onSelect={() => selectLead(lead)} />
+                  ))}
+                  {taskRows.length === 0 && leadRows.length === 0 && <EmptyFilter filter={filter} />}
+                </div>
+              </section>
+
+              <aside className="bento-fx xl:sticky xl:top-3 min-w-0">
+                {selectedLead ? (
+                  <LeadContext lead={selectedLead} task={selectedTask} interactions={interactions} loading={interactionsLoading}
+                    onNewTask={() => openNew(selectedLead)} onEditTask={selectedTask ? () => openEdit(selectedTask) : undefined}
+                    onSituation={() => setSituation({ lead: selectedLead, taskId: null })} />
+                ) : selectedTask ? (
+                  <GenericTaskContext task={selectedTask} onEdit={() => openEdit(selectedTask)} />
+                ) : (
+                  <div className="p-8 text-center">
+                    <UserRound className="w-8 h-8 text-bento-muted mx-auto mb-3" />
+                    <p className="text-sm font-medium text-bento-text">Selecione um item</p>
+                    <p className="text-xs text-bento-muted mt-1">O contexto necessário para trabalhar aparecerá aqui.</p>
+                  </div>
+                )}
+              </aside>
+            </div>
+          </>
+        )}
       </div>
 
       {modalOpen && (

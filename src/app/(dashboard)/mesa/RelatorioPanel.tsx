@@ -51,7 +51,7 @@ function ListPanel({ title, rows }: { title: string; rows: { label: string; valu
   )
 }
 
-export function RelatorioComercial() {
+export function RelatorioPanel() {
   const [range, setRange] = useState<Range>(() => rangeFor(rememberedMode()))   // padrão: última escolha (ou semana)
   const [res, setRes] = useState<Extract<ExecReportResult, { ok: true }> | null>(null)
   const [loading, setLoading] = useState(true)
