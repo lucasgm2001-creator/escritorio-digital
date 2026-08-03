@@ -2,12 +2,15 @@ import { Clock, Trophy, XCircle, TrendingUp } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Panel } from '@/components/bento/Panel'
 import { MetricCard, type MetricTone } from '@/components/ui/MetricCard'
+import { AcquisitionInvestmentForm } from '@/components/dashboard/AcquisitionInvestmentForm'
 import type { ExecutiveMetricsVM } from '@/core/metrics/types'
 import type { CommercialReport, ReportInsight } from '@/core/reporting/types'
 
 const usd = (v: number): string => `US$ ${Math.round(Number(v)).toLocaleString('en-US')}`
 const pctWhole = (v: number): string => `${Math.round(v)}%`      // conversão do ExecutiveMetricsService já vem 0..100
 const pctRate = (r: number): string => `${Math.round(r * 100)}%` // report.conversions.rate vem 0..1
+const usdOrDash = (v: number | null): string => (v == null ? '—' : usd(v))   // Aquisição: sem denominador → "—", nunca "0"/"Infinity"
+const roiX = (v: number | null): string => (v == null ? '—' : `${v.toFixed(1)}x`)
 
 const INSIGHT_STYLE: Record<ReportInsight['kind'], { Icon: typeof Clock; cls: string }> = {
   gargalo: { Icon: Clock, cls: 'text-amber-400' },
@@ -55,6 +58,7 @@ export function DashboardExecutivo({ vm, weekReceita, report }: { vm: ExecutiveM
     { label: 'Valor Fechado', value: usd(vm.valorFechado) },
     { label: 'ARR', value: usd(vm.arr) },
     { label: 'Ticket Médio', value: usd(vm.ticketMedio) },
+    { label: 'Reuniões Realizadas', value: report.kpis.meetingsHeld },
     { label: 'Clientes Ativos', value: vm.clientesAtivos },
     { label: 'Clientes Novos', value: vm.clientesNovos, tone: vm.clientesNovos > 0 ? 'positive' : 'default' },
   ]
@@ -154,6 +158,18 @@ export function DashboardExecutivo({ vm, weekReceita, report }: { vm: ExecutiveM
           <BarList rows={vm.receitaPorPlano.map(p => ({ label: p.plan, value: p.value, sub: `${p.count} cliente(s)` }))} max={maxPlan} />
         </Panel>
       </div>
+
+      {/* 6 · AQUISIÇÃO — custo de marketing do período (tom neutro: é custo, não dinheiro da empresa). */}
+      <Panel label={`Aquisição · ${vm.periodLabel}`}>
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5">
+          <MetricCard title="Investimento" value={usd(vm.investimento)} tone="muted" size="sm" />
+          <MetricCard title="Custo por Lead" value={usdOrDash(vm.cpl)} tone="muted" size="sm" />
+          <MetricCard title="Custo por Reunião" value={usdOrDash(vm.custoPorReuniao)} tone="muted" size="sm" />
+          <MetricCard title="Custo por Venda" value={usdOrDash(vm.custoPorVenda)} tone="muted" size="sm" />
+          <MetricCard title="ROI" value={roiX(vm.roi)} tone="muted" size="sm" />
+        </div>
+        <AcquisitionInvestmentForm />
+      </Panel>
     </div>
   )
 }

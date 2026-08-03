@@ -36,6 +36,12 @@ export type ExecutiveMetricsVM = {
   receitaPorVendedor: { name: string; value: number; count: number }[]
   receitaPorPlano: { plan: string; value: number; count: number }[]
   mrrPorPlano: { plan: string; mrr: number; count: number }[]
+  // Aquisição (marketing_investments) — período. null = sem denominador (nunca 0 nem inventado).
+  investimento: number            // Σ amount_usd no período (USD)
+  cpl: number | null              // investimento ÷ leads recebidos no período
+  custoPorReuniao: number | null  // investimento ÷ reuniões realizadas no período
+  custoPorVenda: number | null    // investimento ÷ vendas concluídas no período
+  roi: number | null              // receitaRecebida ÷ investimento (razão; exibir como multiplicador "Nx")
 }
 
 // View-model da aba Métricas (CRM-RC-002). Tudo calculado no CommercialMetricsService — a UI só apresenta.

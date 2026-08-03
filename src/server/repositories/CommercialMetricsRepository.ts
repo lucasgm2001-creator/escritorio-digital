@@ -94,3 +94,29 @@ export async function getExecutiveClients(teamId: string): Promise<{ clients: ME
     plans: (pRes.data ?? []) as MPlan[],
   }
 }
+
+// ── Investimento em marketing (EXECUTIVE-METRICS-005 · Aquisição). Ledger team-scoped, RLS já aplicada.
+//    O Service soma/derive CPL, custo por reunião/venda e ROI — o repositório só lê e agrega o bruto. ──
+export async function getMarketingInvestment(teamId: string, fromYMD: string, toYMD: string): Promise<number> {
+  const supabase = createClient()
+  const { data, error } = await supabase
+    .from('marketing_investments')
+    .select('amount_usd')
+    .eq('team_id', teamId)
+    .gte('spent_on', fromYMD)
+    .lte('spent_on', toYMD)
+  if (error) return 0
+  return (data ?? []).reduce((sum, row) => sum + (Number((row as { amount_usd: number | null }).amount_usd) || 0), 0)
+}
+
+// Reuniões do time (só met_on — leve, sem duplicar stage_events). O Service filtra por janela e aplica a MESMA
+// regra de "reunião realizada" do ReportingService (meetingCommissionCounts) para o custo-por-reunião bater
+// com "Reuniões Realizadas" do relatório.
+export type MMeetingMetric = { met_on: string | null }
+
+export async function getMeetingsForMetrics(teamId: string): Promise<MMeetingMetric[]> {
+  const supabase = createClient()
+  const { data, error } = await supabase.from('meetings').select('met_on').eq('team_id', teamId)
+  if (error) return []
+  return (data ?? []) as MMeetingMetric[]
+}

@@ -34,6 +34,7 @@ export type ReportComparison = {
   newLeads: number
   interagiram: number
   meetingsScheduled: number
+  meetingsHeld: number   // reuniões REALIZADAS (meetings) no período anterior — mesma regra de kpis.meetingsHeld
   proposals: number
   won: number
 }

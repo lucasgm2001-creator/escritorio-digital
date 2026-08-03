@@ -74,8 +74,9 @@ export async function buildExecutivePdf(input: {
   const kpis: [string, string][] = [
     ['Receita Recebida', usd(exec.receitaRecebida)], ['Valor Fechado', usd(exec.valorFechado)], ['Receita Prevista', usd(exec.receitaPrevista)],
     ['Ticket Médio', usd(exec.ticketMedio)], ['Conversão', pct(exec.conversao)], ['Leads recebidos', String(k.newLeads)],
-    ['Interagiram', String(k.interagiram)], ['Reuniões marcadas', String(k.meetingsScheduled)], ['Propostas em análise', String(k.proposals)],
-    ['Vendas concluídas', String(k.won)], ['Não interagiram', String(k.naoInteragiram)], ['No-show', String(k.noShow)],
+    ['Interagiram', String(k.interagiram)], ['Reuniões marcadas', String(k.meetingsScheduled)], ['Reuniões realizadas', String(k.meetingsHeld)],
+    ['Propostas em análise', String(k.proposals)], ['Vendas concluídas', String(k.won)], ['Não interagiram', String(k.naoInteragiram)],
+    ['No-show', String(k.noShow)],
   ]
   const kpiRows: string[][] = []
   for (let i = 0; i < kpis.length; i += 3) {
@@ -99,6 +100,7 @@ export async function buildExecutivePdf(input: {
       ['Leads recebidos', String(k.newLeads), String(cmp.newLeads), k.newLeads - cmp.newLeads],
       ['Interações', String(k.interagiram), String(cmp.interagiram), k.interagiram - cmp.interagiram],
       ['Reuniões marcadas', String(k.meetingsScheduled), String(cmp.meetingsScheduled), k.meetingsScheduled - cmp.meetingsScheduled],
+      ['Reuniões realizadas', String(k.meetingsHeld), String(cmp.meetingsHeld), k.meetingsHeld - cmp.meetingsHeld],
       ['Propostas em análise', String(k.proposals), String(cmp.proposals), k.proposals - cmp.proposals],
       ['Vendas concluídas', String(k.won), String(cmp.won), k.won - cmp.won],
     ]
@@ -158,8 +160,32 @@ export async function buildExecutivePdf(input: {
     ensure(8); doc.text(`Leads parados / críticos (> 7 dias): ${rp.stuckLeads}`, L, y); y += 8
   }
 
-  // ════════ PÁGINA 3 — Receita por vendedor + por plano + pontos de atenção ════════
+  // ════════ PÁGINA 3 — Aquisição + Receita por vendedor + por plano + pontos de atenção ════════
   doc.addPage(); y = 22
+
+  // Aquisição (marketing_investments do período) — CPL/custo por reunião/venda/ROI. NUNCA inventa número:
+  // sem investimento no período, mostra nota em vez de custos zerados/"Infinity".
+  heading('Aquisição (período)')
+  if (exec.investimento <= 0) {
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(9); doc.setTextColor(...GREY)
+    ensure(7); doc.text('Nenhum investimento lançado no período.', L, y); y += 9
+  } else {
+    const usdOrDash = (v: number | null): string => (v == null ? '—' : usd(v))
+    const roiX = (v: number | null): string => (v == null ? '—' : `${v.toFixed(1)}x`)
+    autoTable(doc, {
+      startY: y,
+      body: [
+        ['Investimento', usd(exec.investimento)],
+        ['Custo por Lead', usdOrDash(exec.cpl)],
+        ['Custo por Reunião', usdOrDash(exec.custoPorReuniao)],
+        ['Custo por Venda', usdOrDash(exec.custoPorVenda)],
+        ['ROI', roiX(exec.roi)],
+      ],
+      theme: 'grid', styles: { fontSize: 9, cellPadding: 3.2 },
+      columnStyles: { 0: { textColor: GREY }, 1: { fontStyle: 'bold', textColor: DARK } },
+    })
+    y = afterTable(y) + 9
+  }
 
   if (exec.receitaPorVendedor.length > 0) {
     heading('Receita por vendedor (período)')

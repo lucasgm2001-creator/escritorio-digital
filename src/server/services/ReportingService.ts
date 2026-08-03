@@ -75,7 +75,8 @@ export async function buildCommercialReport(context: RequestContext, period: Rep
 
   const events = raw.stageEvents.filter(e => inPeriod(e.changed_at, period))
   const dealsP = raw.deals.filter(d => inPeriod(d.data_fechamento, period))
-  const meetingsP = raw.meetings.filter(m => inPeriod(m.met_on, period) && meetingCommissionCounts(m.met_on))
+  // Reuniões REALIZADAS de uma janela — mesma regra em qualquer período (atual OU anterior, p/ o comparativo).
+  const meetingsHeldIn = (win: ReportPeriod): number => raw.meetings.filter(m => inPeriod(m.met_on, win) && meetingCommissionCounts(m.met_on)).length
   const to = (set: Set<string>): number => events.filter(e => set.has(e.to_stage)).length
 
   // Secundárias do período (Parte 2) — como EVENTOS na janela (movimentações), exceto naoInteragiram (coorte de chegada).
@@ -89,7 +90,7 @@ export async function buildCommercialReport(context: RequestContext, period: Rep
     newLeads: cur.newLeads,
     interagiram: cur.interagiram,
     meetingsScheduled: cur.reunioes,   // CUMULATIVO (alcançou ≥ reunião)
-    meetingsHeld: meetingsP.length,    // reunião registrada (meetings) no período
+    meetingsHeld: meetingsHeldIn(period),  // reunião registrada (meetings) no período
     noShow: to(noShowSlugs),
     proposals: cur.propostas,          // CUMULATIVO (alcançou ≥ proposta)
     proposalsInReview: raw.leads.filter(l => l.status && proposalSlugs.has(l.status)).length,
@@ -114,8 +115,8 @@ export async function buildCommercialReport(context: RequestContext, period: Rep
     { key: 'propostas', label: 'Propostas em análise', count: cur.propostas },
     { key: 'vendas', label: 'Vendas concluídas', count: cur.won },
   ]
-  const comparison: ReportComparison | null = prev
-    ? { newLeads: prev.newLeads, interagiram: prev.interagiram, meetingsScheduled: prev.reunioes, proposals: prev.propostas, won: prev.won }
+  const comparison: ReportComparison | null = prev && prevPeriod
+    ? { newLeads: prev.newLeads, interagiram: prev.interagiram, meetingsScheduled: prev.reunioes, meetingsHeld: meetingsHeldIn(prevPeriod), proposals: prev.propostas, won: prev.won }
     : null
 
   // Movimentações (from → to) no período.
