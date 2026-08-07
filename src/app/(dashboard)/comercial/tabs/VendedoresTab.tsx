@@ -148,7 +148,8 @@ function SellerProfile({ seller, onClose, onUpdated, onDeleted }: {
       const dealIds = dealsData.map(d => d.id)
       let weeks: WeeklyPayment[] = []
       if (dealIds.length) {
-        const { data: wk } = await supabase.from('weekly_payments').select('id, deal_id, numero_semana, valor_usd, paid_on, cotacao_usd_brl').in('deal_id', dealIds)
+        // ESTORNO (soft-delete): linha com deleted_at NÃO é comissão — sai da fonte, antes de qualquer cálculo.
+        const { data: wk } = await supabase.from('weekly_payments').select('id, deal_id, numero_semana, valor_usd, paid_on, cotacao_usd_brl').in('deal_id', dealIds).is('deleted_at', null)
         const kindByDeal = new Map(dealsData.map(d => [d.id, d.kind ?? 'sale']))
         weeks = (wk ?? []).map(w => ({ id: w.id, dealId: w.deal_id, numeroSemana: w.numero_semana, valorUsd: Number(w.valor_usd), paidOn: w.paid_on, cotacaoUsdBrl: Number(w.cotacao_usd_brl), kind: kindByDeal.get(w.deal_id) ?? 'sale' }))
       }

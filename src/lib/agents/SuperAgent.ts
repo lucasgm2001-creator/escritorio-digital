@@ -243,7 +243,8 @@ export class SuperAgent {
       this.supabase.from('clients').select('*').limit(20),
       this.supabase.from('plans').select('id, nome, valor_semanal').eq('ativo', true).order('ordem'),
       this.supabase.from('client_payments').select('*').order('paid_on', { ascending: false }).limit(20),
-      this.supabase.from('weekly_payments').select('id, deal_id, numero_semana, valor_usd, paid_on, cotacao_usd_brl').order('paid_on', { ascending: false }).limit(20),
+      // ESTORNO (soft-delete): comissão estornada não entra no contexto do agente.
+      this.supabase.from('weekly_payments').select('id, deal_id, numero_semana, valor_usd, paid_on, cotacao_usd_brl').is('deleted_at', null).order('paid_on', { ascending: false }).limit(20),
       this.supabase.from('tasks').select('id, title, due_date').eq('done', false).order('due_date').limit(30),
     ])
 
@@ -421,7 +422,7 @@ export class SuperAgent {
       else return { type: 'text', resposta: `Achei mais de uma venda para "${name}": ${matches.map(x => x.client_name).join(', ')}. De qual cliente?` }
     }
     if (d.status !== 'em_andamento') return { type: 'text', resposta: `A venda do ${d.client_name} está ${d.status === 'interrompido' ? 'interrompida' : 'concluída'} — não dá pra registrar mais semanas.` }
-    const { data: wk } = await this.supabase.from('weekly_payments').select('numero_semana').eq('deal_id', d.id)
+    const { data: wk } = await this.supabase.from('weekly_payments').select('numero_semana').eq('deal_id', d.id).is('deleted_at', null)
     const paidNums = (wk ?? []).map(w => Number(w.numero_semana))
     const numero = nextUnpaidWeek({ tetoSemanas: d.teto_semanas, status: d.status }, paidNums)
     if (numero == null) return { type: 'text', resposta: `A venda do ${d.client_name} já tem todas as ${d.teto_semanas} semanas pagas.` }

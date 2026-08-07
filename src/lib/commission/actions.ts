@@ -121,7 +121,8 @@ async function deriveCommission(
   const deal = deals?.[0]
   if (!deal) return 'no_deal'
   if (numero > deal.teto_semanas) return 'capped'
-  const { data: wk } = await supabase.from('weekly_payments').select('numero_semana').eq('deal_id', deal.id)
+  // Semana ESTORNADA (deleted_at) não conta como paga: some da comissão, então não pode ocupar o número.
+  const { data: wk } = await supabase.from('weekly_payments').select('numero_semana').eq('deal_id', deal.id).is('deleted_at', null)
   const paidNumbers = (wk ?? []).map(w => w.numero_semana as number)
   const res = await payWeek(
     supabase,

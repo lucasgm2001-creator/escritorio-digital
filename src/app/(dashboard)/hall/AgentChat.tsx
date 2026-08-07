@@ -184,7 +184,7 @@ export function AgentChat(_props: { userId: string; userName: string }) {
       // Re-confere venda + semanas na hora (anti-duplicação) e congela a cotação efetiva.
       const { data: deal } = await supabase.from('deals').select('id, valor_por_semana_usd, teto_semanas, status').eq('id', dealId).single()
       if (!deal) return `Não achei mais a venda do ${clientName}.`
-      const { data: wk } = await supabase.from('weekly_payments').select('numero_semana').eq('deal_id', dealId)
+      const { data: wk } = await supabase.from('weekly_payments').select('numero_semana').eq('deal_id', dealId).is('deleted_at', null)
       const paidNums = (wk ?? []).map(w => Number(w.numero_semana))
       const rate = await getFxRate()
       const res = await payWeek(supabase, { id: deal.id, valorPorSemanaUsd: Number(deal.valor_por_semana_usd), tetoSemanas: deal.teto_semanas, status: deal.status }, paidNums, numero, paidOn, rate, teamId)

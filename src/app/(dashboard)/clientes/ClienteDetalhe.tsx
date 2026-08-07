@@ -1,13 +1,14 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import Link from 'next/link'
-import { ChevronLeft, MessageCircle, FolderOpen, FileDown, Power, ArrowRight, Trash2 } from 'lucide-react'
+import { ChevronLeft, MessageCircle, FolderOpen, FileDown, Power, ArrowRight, Trash2, AlertTriangle } from 'lucide-react'
 import { useToast } from '@/components/ui/toast'
 import { useRole } from '@/components/auth/RoleProvider'
 import { softDeleteClientAction, updateClientAction, deactivateClientAction } from './client-write-actions'
+import { RenewalsList, fetchRenewals, type RenewalRow } from '@/components/commission/RenewalsList'
 import { cn, formatCurrency } from '@/lib/utils'
-import { formatDateBR } from '@/lib/date'
+import { formatDateBR, addDaysYmd } from '@/lib/date'
 import { planLabel, healthOf, type Client, type Nicho, type ClientIntegration } from './types'
 import { createClient } from '@/lib/supabase/client'
 
@@ -34,6 +35,10 @@ export function ClienteDetalhe({ client, nichos, integration, onBack, onUpdated 
   const [loadingSupplement, setLoadingSupplement] = useState(
     client.drive_folder_url === undefined && client.dossie === undefined,
   )
+  // Renovações trimestrais do cliente (contract_renewals). Ficam sempre visíveis: o histórico não some,
+  // só muda de status. `renewalAlert` é o aviso pós-desativação (bônus gerado perto do fim do contrato).
+  const [renewals, setRenewals] = useState<RenewalRow[]>([])
+  const [renewalAlert, setRenewalAlert] = useState<RenewalRow[]>([])
 
   // O Hub recebe somente a ficha leve de cada cliente. Drive e dossiê, que podem ser grandes, são
   // buscados apenas quando este detalhe é aberto — sem multiplicar o payload pelo total de clientes.
@@ -51,6 +56,11 @@ export function ClienteDetalhe({ client, nichos, integration, onBack, onUpdated 
       }, () => { if (active) setLoadingSupplement(false) })
     return () => { active = false }
   }, [client.id, loadingSupplement])
+
+  const loadRenewals = useCallback(async () => {
+    setRenewals(await fetchRenewals(createClient(), { clientId: client.id }))
+  }, [client.id])
+  useEffect(() => { loadRenewals() }, [loadRenewals])
 
   // Prateleiras ATIVAS (por posicao). Se a atual não estiver entre elas, vira opção extra p/ não sumir do select.
   const activeNichos = nichos.filter(n => n.ativo).sort((a, b) => a.posicao - b.posicao)
@@ -86,6 +96,14 @@ export function ClienteDetalhe({ client, nichos, integration, onBack, onUpdated 
     onUpdated({ ...client, status: 'inativo', end_date: r.endDate })
     setDeact(false)
     toast({ type: 'success', message: 'Cliente desativado.' })
+
+    // PREVENÇÃO (caso Valdemir): o robô de renovação pode ter lançado um bônus dias antes da desativação —
+    // se o cliente na verdade NÃO renovou, esse bônus é indevido. NÃO estorna nada automaticamente: apenas
+    // sinaliza as renovações confirmadas nos 30 dias anteriores ao fim do contrato. A decisão é humana.
+    const janela = addDaysYmd(r.endDate, -30)
+    const fresh = await fetchRenewals(createClient(), { clientId: client.id })
+    setRenewals(fresh)
+    setRenewalAlert(fresh.filter(x => x.status === 'confirmada' && x.renewal_date >= janela))
   }
 
   // Excluir (SOFT DELETE global, F4) — OWNER-ONLY. Diferente de Desativar (churn): "some de tudo" (receita,
@@ -179,6 +197,35 @@ export function ClienteDetalhe({ client, nichos, integration, onBack, onUpdated 
           </div>
         )}
       </Panel>
+
+      {/* AVISO pós-desativação: bônus de renovação gerado até 30 dias antes do fim do contrato. Nada é
+          estornado sozinho — o usuário decide manter (o cliente renovou mesmo) ou marcar como não renovou. */}
+      {renewalAlert.length > 0 && (
+        <div className="bento-fx p-4 border border-amber-700/50 bg-amber-500/5 space-y-3">
+          <div className="flex items-start gap-2">
+            <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+            <div className="min-w-0">
+              <p className="text-sm font-semibold text-bento-text">Confira o bônus de renovação</p>
+              <p className="text-xs text-bento-muted">
+                {renewalAlert.length === 1 ? 'Existe um bônus de renovação gerado' : `Existem ${renewalAlert.length} bônus de renovação gerados`}
+                {' '}perto do encerramento de “{client.name}”. O cliente renovou mesmo?
+              </p>
+            </div>
+          </div>
+          <RenewalsList rows={renewalAlert} showClientName={false} onChanged={() => { setRenewalAlert([]); loadRenewals() }} />
+          <button onClick={() => setRenewalAlert([])}
+            className="border border-bento-border text-bento-dim px-4 py-2 rounded-btn text-sm hover:border-lime transition-colors">
+            Manter (o cliente renovou)
+          </button>
+        </div>
+      )}
+
+      {/* Renovações de contrato — histórico sempre visível e editável (estorno/reativação por status). */}
+      {renewals.length > 0 && (
+        <Panel title="Renovações de contrato">
+          <RenewalsList rows={renewals} showClientName={false} onChanged={loadRenewals} />
+        </Panel>
+      )}
 
       {/* Desativar (rescisão) — NÃO mexe em comissão, só status/end_date/end_reason do cliente. */}
       <div className="bento-fx p-4">

@@ -29,6 +29,7 @@ import { payWeekMessage } from '@/lib/commission/actions'
 import type { SalaryPeriod, WeeklyPayment, FxConfig, DealStatus } from '@/lib/commission/types'
 import { usd, brl } from '@/lib/format'
 import { ClientPaymentsPanel } from '@/components/client/ClientPaymentsPanel'
+import { RenewalsList } from '@/components/commission/RenewalsList'
 import {
   inputCls, pad2, monthName, fmtMonthYear, fmtDayMonth, fmtDayMonthYear, FX_FALLBACK, fxSourceMeta,
   CLIENT_STATUS, todayISO, toDealUI, toWeek, toMeeting, type DealUI, type MeetingUI,
@@ -74,6 +75,9 @@ export function CommissionSection({ sellerId, sellerName }: { sellerId: string; 
   const [savingSal, setSavingSal] = useState(false)
   const [salError, setSalError] = useState('')
   const [renewalEnabled, setRenewalEnabled] = useState(false)
+  // Valor do bônus vem da configuração vigente do colaborador (collaborator_compensation_settings),
+  // nunca hardcodado na tela. O fallback só existe para o vendedor que ainda não tem linha de config.
+  const [renewalValue, setRenewalValue] = useState(50)
   const [savingRenewal, setSavingRenewal] = useState(false)
   const [upgradeEnabled, setUpgradeEnabled] = useState(false)
   const [savingUpgrade, setSavingUpgrade] = useState(false)
@@ -100,7 +104,7 @@ export function CommissionSection({ sellerId, sellerName }: { sellerId: string; 
       supabase.from('fx_config').select('cotacao_manual, cotacao_travada, cotacao_referencia').eq('id', 1).maybeSingle(),
       supabase.from('clients').select('id, name').order('name'),
       supabase.from('leads').select('id, name').order('name'),
-      supabase.from('collaborator_compensation_settings').select('renewal_bonus_enabled, upgrade_commission_enabled')
+      supabase.from('collaborator_compensation_settings').select('renewal_bonus_enabled, renewal_bonus_value, upgrade_commission_enabled')
         .eq('seller_id', sellerId).lte('effective_from', todayISO()).order('effective_from', { ascending: false }).limit(1).maybeSingle(),
     ])
 
@@ -112,11 +116,13 @@ export function CommissionSection({ sellerId, sellerName }: { sellerId: string; 
     setClients((cliRes.data ?? []) as { id: string; name: string }[])
     setLeads((leadRes.data ?? []) as { id: string; name: string }[])
     setRenewalEnabled(!!renewalRes.data?.renewal_bonus_enabled)
+    setRenewalValue(renewalRes.data?.renewal_bonus_value != null ? Number(renewalRes.data.renewal_bonus_value) : 50)
     setUpgradeEnabled(!!renewalRes.data?.upgrade_commission_enabled)
 
     const dealIds = ds.map(d => d.id)
     if (dealIds.length) {
-      const { data: wk } = await supabase.from('weekly_payments').select('id, deal_id, numero_semana, valor_usd, paid_on, cotacao_usd_brl').in('deal_id', dealIds)
+      // ESTORNO (soft-delete): linha com deleted_at NÃO é comissão — sai da fonte, antes de qualquer cálculo.
+      const { data: wk } = await supabase.from('weekly_payments').select('id, deal_id, numero_semana, valor_usd, paid_on, cotacao_usd_brl').in('deal_id', dealIds).is('deleted_at', null)
       const kindByDeal = new Map(ds.map(d => [d.id, d.kind]))
       setWeeks((wk ?? []).map(w => toWeek(w, kindByDeal.get(w.deal_id) ?? 'sale')))
     } else {
@@ -587,12 +593,12 @@ export function CommissionSection({ sellerId, sellerName }: { sellerId: string; 
       </Collapsible>
 
       <Collapsible icon={<RefreshCw className="w-4 h-4 text-lime-fg" />} title="Renovação trimestral"
-        peek={renewalEnabled ? 'Ativa · US$ 50' : 'Desativada'} open={!!open.renewal} onToggle={() => toggle('renewal')}>
+        peek={renewalEnabled ? `Ativa · ${usd(renewalValue)}` : 'Desativada'} open={!!open.renewal} onToggle={() => toggle('renewal')}>
         <div className="rounded-btn border border-bento-border/60 bg-bento-bg p-3 space-y-3">
           <div className="flex items-center justify-between gap-3">
             <div>
               <p className="text-sm font-medium text-bento-text">Bônus por renovação</p>
-              <p className="text-[11px] text-bento-muted">US$ 50 a cada 3 meses, contados da primeira semana paga, para clientes sob responsabilidade deste vendedor.</p>
+              <p className="text-[11px] text-bento-muted">{usd(renewalValue)} a cada 3 meses, contados da primeira semana paga, para clientes sob responsabilidade deste vendedor.</p>
             </div>
             <button type="button" role="switch" aria-checked={renewalEnabled} disabled={savingRenewal}
               onClick={() => changeRenewal(!renewalEnabled)}
@@ -601,6 +607,14 @@ export function CommissionSection({ sellerId, sellerName }: { sellerId: string; 
             </button>
           </div>
           <p className="font-tech text-[10px] text-bento-muted">Exemplo: primeira semana paga em 01/04 → renovações em 01/07, 01/10, 01/01… O lançamento acontece uma única vez em cada data.</p>
+        </div>
+
+        {/* Renovações JÁ geradas deste vendedor — editáveis. Marcar "não renovou" estorna o bônus (o valor sai da
+            comissão); reativar traz de volta. A linha nunca some: fica com o status, o motivo e a data da mudança. */}
+        <div className="space-y-2">
+          <p className="font-tech text-[10px] uppercase tracking-wide text-bento-muted">Renovações geradas</p>
+          <RenewalsList sellerId={sellerId} onChanged={load}
+            emptyText="Nenhuma renovação gerada para este vendedor ainda." />
         </div>
       </Collapsible>
 
