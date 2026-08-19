@@ -4,7 +4,6 @@ import type { RequestContext } from '@/server/context/request-context'
 import type { CommercialReport, ConversionStep, PeriodFunnelStep, PipelineMovement, ReportComparison, ReportInsight, ReportKpis, ReportPeriod, StageRanking } from '@/core/reporting/types'
 import { getCommercialRaw } from '@/server/repositories/CommercialMetricsRepository'
 import { getStages } from '@/lib/funnelStages.server'
-import { meetingCommissionCounts } from '@/lib/commission/constants'
 
 // ÚNICO lugar que monta o relatório comercial (Constituição: o PDF nunca calcula — consome isto).
 // Mesma fonte do Dashboard (CommercialMetricsRepository) — zero duplicação. Team-scoped (TEAM-001).
@@ -35,88 +34,92 @@ export async function buildCommercialReport(context: RequestContext, period: Rep
   const stageName = (slug: string | null): string => (slug ? stages.find(s => s.slug === slug)?.nome ?? slug : '—')
   const wonSlugs = new Set(stages.filter(s => s.is_won).map(s => s.slug))
   const lostSlugs = new Set(stages.filter(s => s.is_lost).map(s => s.slug))
-  const proposalSlugs = new Set(stages.filter(s => /propost/i.test(s.slug) || /propost/i.test(s.nome)).map(s => s.slug))
-  // reuniaoSlugs inclui proposta+fechado (conta_reuniao=true) → "visitou reunião" já cobre quem pulou direto p/ proposta/venda.
-  const reuniaoSlugs = new Set(stages.filter(s => s.conta_reuniao || /reuni/i.test(s.nome)).map(s => s.slug))
+  // Cada métrica operacional aponta para a sua etapa específica. Não inferimos etapas anteriores: uma
+  // renovação, um upgrade ou uma mudança lateral nunca pode virar uma venda/reunião no relatório.
+  const namedSlugs = (fallback: string, predicate: (slug: string, nome: string) => boolean): Set<string> => {
+    const found = stages.filter(s => predicate(s.slug, s.nome)).map(s => s.slug)
+    return new Set(found.length > 0 ? found : [fallback])
+  }
+  const interagiuSlugs = namedSlugs('interagiu', (slug, nome) => slug === 'interagiu' || /^interagiu$/i.test(nome.trim()))
+  const reuniaoSlugs = namedSlugs('reuniao', (slug, nome) => slug === 'reuniao' || /^reuni[ãa]o agendada$/i.test(nome.trim()))
+  const proposalSlugs = namedSlugs('proposta', (slug, nome) => slug === 'proposta' || /^proposta em an[aá]lise$/i.test(nome.trim()))
+  const naoInteragiuSlugs = namedSlugs('nao_interagiu', (slug, nome) => slug === 'nao_interagiu' || /^n[aã]o interagiu$/i.test(nome.trim()))
   const noShowSlugs = new Set(stages.filter(s => /no.?show/i.test(s.slug) || /no.?show/i.test(s.nome)).map(s => s.slug))
   const reagendamentoSlugs = new Set(stages.filter(s => /reagend/i.test(s.slug) || /reagend/i.test(s.nome)).map(s => s.slug))
   const negocioFuturoSlugs = new Set(stages.filter(s => /negocio.?futuro/i.test(s.slug) || /futuro/i.test(s.nome)).map(s => s.slug))
-  // Alcance por CONJUNTO de etapas visitadas — NÃO por posição (posições 6/7/9/10/11 não são "mais fundo" no funil,
-  // são estados laterais/terminais; um lead perdido cedo não pode contar como reunião/proposta).
-  const hits = (visited: Set<string>, target: Set<string>): boolean => Array.from(visited).some(s => target.has(s))
+  // Uma mesma pessoa pode ter várias mudanças na semana, mas cada métrica representa pessoas, não cliques.
+  const leadIdsFor = (events: typeof raw.stageEvents, matches: (event: typeof raw.stageEvents[number]) => boolean): Set<string> =>
+    new Set(events.filter(e => !!e.lead_id && matches(e)).map(e => e.lead_id as string))
 
-  // ── Funil ACUMULATIVO de uma janela (Parte 3): por lead, o CONJUNTO de etapas visitadas na janela conta em
-  //    TODAS as etapas logicamente anteriores (nunca substitui). Um lead que pulou Novo→Proposta conta em
-  //    interagiram, reuniões E propostas. Fechar (deal) garante proposta+reunião mesmo sem evento na janela.
+  // Métricas de movimentação: venda só existe quando a transição foi Proposta → etapa vencedora.
+  // Registros de deals são financeiros/comerciais auxiliares e não definem o funil.
   const periodFunnel = (win: ReportPeriod) => {
     const evs = raw.stageEvents.filter(e => inPeriod(e.changed_at, win))
-    const dealsW = raw.deals.filter(d => inPeriod(d.data_fechamento, win))   // ESTRITO: fechamento = data_fechamento
-    const visited = new Map<string, Set<string>>()
-    for (const e of evs) { if (!e.lead_id || !e.to_stage) continue; const set = visited.get(e.lead_id) ?? new Set<string>(); set.add(e.to_stage); visited.set(e.lead_id, set) }
-    const wonLeadIds = new Set(dealsW.map(d => d.lead_id).filter(Boolean) as string[])
-    const leadIds = new Set<string>(Array.from(visited.keys()).concat(Array.from(wonLeadIds)))  // fechar na janela também "interagiu"
-    let reunioes = 0, propostas = 0
-    Array.from(leadIds).forEach(id => {
-      const v = visited.get(id) ?? new Set<string>()
-      const won = wonLeadIds.has(id)
-      if (won || hits(v, reuniaoSlugs)) reunioes++                            // venda/proposta ⊂ reuniaoSlugs
-      if (won || hits(v, proposalSlugs) || hits(v, wonSlugs)) propostas++     // venda garante proposta
-    })
+    const wonLeadIds = leadIdsFor(evs, e => proposalSlugs.has(e.from_stage ?? '') && wonSlugs.has(e.to_stage))
     return {
-      newLeads: raw.leads.filter(l => inPeriod(l.received_at, win)).length,   // ESTRITO: chegada = received_at
-      interagiram: leadIds.size,                                             // avançou (ou fechou) na janela
-      reunioes,                                                              // alcançou ≥ reunião (cumulativo)
-      propostas,                                                             // alcançou ≥ proposta (cumulativo)
-      won: dealsW.length,                                                    // vendas concluídas na janela
+      newLeads: raw.leads.filter(l => inPeriod(l.received_at, win)).length,
+      interagiram: leadIdsFor(evs, e => interagiuSlugs.has(e.to_stage)),
+      reunioes: leadIdsFor(evs, e => reuniaoSlugs.has(e.to_stage)),
+      meetingsHeld: leadIdsFor(evs, e => reuniaoSlugs.has(e.from_stage ?? '') && proposalSlugs.has(e.to_stage)),
+      propostas: leadIdsFor(evs, e => proposalSlugs.has(e.to_stage)),
+      won: wonLeadIds,
+      noShow: leadIdsFor(evs, e => noShowSlugs.has(e.to_stage)),
+      lost: leadIdsFor(evs, e => lostSlugs.has(e.to_stage)),
+      naoInteragiu: leadIdsFor(evs, e => naoInteragiuSlugs.has(e.to_stage)),
+      negociosFuturos: leadIdsFor(evs, e => negocioFuturoSlugs.has(e.to_stage)),
+      reagendamentos: leadIdsFor(evs, e => reagendamentoSlugs.has(e.to_stage)),
     }
   }
   const cur = periodFunnel(period)
   const prev = prevPeriod ? periodFunnel(prevPeriod) : null
 
   const events = raw.stageEvents.filter(e => inPeriod(e.changed_at, period))
-  const dealsP = raw.deals.filter(d => inPeriod(d.data_fechamento, period))
-  // Reuniões REALIZADAS de uma janela — mesma regra em qualquer período (atual OU anterior, p/ o comparativo).
-  const meetingsHeldIn = (win: ReportPeriod): number => raw.meetings.filter(m => inPeriod(m.met_on, win) && meetingCommissionCounts(m.met_on)).length
-  const to = (set: Set<string>): number => events.filter(e => set.has(e.to_stage)).length
+  // Valores só são associados a vendas válidas do funil. Renovação, upgrade, anulação e qualquer deal sem
+  // Proposta → Venda ficam fora de "valor fechado", ticket e ciclo comercial.
+  const dealsP = raw.deals.filter(d =>
+    inPeriod(d.data_fechamento, period)
+    && cur.won.has(d.lead_id ?? '')
+    && (!d.kind || d.kind === 'sale')
+    && d.status !== 'interrompido'
+    && d.status !== 'anulado'
+  )
 
-  // Secundárias do período (Parte 2) — como EVENTOS na janela (movimentações), exceto naoInteragiram (coorte de chegada).
+  // "Não interagiram" é a única métrica de coorte: lead que entrou e ainda não teve nenhuma movimentação.
   const movedLeadIds = new Set(events.map(e => e.lead_id).filter(Boolean))
   const naoInteragiram = raw.leads.filter(l => inPeriod(l.received_at, period) && !movedLeadIds.has(l.id)).length
-  const negociosFuturos = to(negocioFuturoSlugs)   // movimentações para "Negócio Futuro" na janela
-  const reagendamentos = to(reagendamentoSlugs)     // movimentações para "Reagendamento" na janela
 
   const kpis: ReportKpis = {
     totalLeads: raw.leads.length,
     newLeads: cur.newLeads,
-    interagiram: cur.interagiram,
-    meetingsScheduled: cur.reunioes,   // CUMULATIVO (alcançou ≥ reunião)
-    meetingsHeld: meetingsHeldIn(period),  // reunião registrada (meetings) no período
-    noShow: to(noShowSlugs),
-    proposals: cur.propostas,          // CUMULATIVO (alcançou ≥ proposta)
-    proposalsInReview: raw.leads.filter(l => l.status && proposalSlugs.has(l.status)).length,
-    won: cur.won,
-    lost: to(lostSlugs),
-    conversionRate: rate(cur.won, cur.newLeads || raw.leads.length),
-    avgCycleDays: cur.won > 0 ? Math.round(sum(dealsP.map(d => {
+    interagiram: cur.interagiram.size,
+    meetingsScheduled: cur.reunioes.size,
+    meetingsHeld: cur.meetingsHeld.size,
+    noShow: cur.noShow.size,
+    proposals: cur.propostas.size,
+    proposalsInReview: cur.propostas.size,
+    won: cur.won.size,
+    lost: cur.lost.size,
+    conversionRate: rate(cur.won.size, cur.newLeads),
+    avgCycleDays: dealsP.length > 0 ? Math.round(sum(dealsP.map(d => {
       const lead = raw.leads.find(l => l.id === d.lead_id)
       const start = lead?.received_at ?? lead?.created_at ?? null
       return start && d.data_fechamento ? Math.max(0, (new Date(d.data_fechamento).getTime() - new Date(start).getTime()) / DAY) : 0
-    })) / cur.won) : 0,
-    avgTicket: cur.won > 0 ? Math.round(sum(dealsP.map(d => num(d.valor_total_usd))) / cur.won) : 0,
+    })) / dealsP.length) : 0,
+    avgTicket: dealsP.length > 0 ? Math.round(sum(dealsP.map(d => num(d.valor_total_usd))) / dealsP.length) : 0,
     totalValue: Math.round(sum(dealsP.map(d => num(d.valor_total_usd)))),
-    naoInteragiram, negociosFuturos, reagendamentos,
+    naoInteragiram, negociosFuturos: cur.negociosFuturos.size, reagendamentos: cur.reagendamentos.size,
   }
 
-  // Funil ACUMULATIVO (topo do relatório) + comparativo com o período anterior (mesma duração).
+  // Funil de movimentações reais no período + comparativo equivalente.
   const cumulativeFunnel: PeriodFunnelStep[] = [
     { key: 'leads', label: 'Leads recebidos', count: cur.newLeads },
-    { key: 'interagiram', label: 'Interagiram', count: cur.interagiram },
-    { key: 'reunioes', label: 'Reuniões marcadas', count: cur.reunioes },
-    { key: 'propostas', label: 'Propostas em análise', count: cur.propostas },
-    { key: 'vendas', label: 'Vendas concluídas', count: cur.won },
+    { key: 'interagiram', label: 'Interagiram', count: cur.interagiram.size },
+    { key: 'reunioes', label: 'Reuniões marcadas', count: cur.reunioes.size },
+    { key: 'propostas', label: 'Propostas em análise', count: cur.propostas.size },
+    { key: 'vendas', label: 'Vendas concluídas', count: cur.won.size },
   ]
   const comparison: ReportComparison | null = prev && prevPeriod
-    ? { newLeads: prev.newLeads, interagiram: prev.interagiram, meetingsScheduled: prev.reunioes, meetingsHeld: meetingsHeldIn(prevPeriod), proposals: prev.propostas, won: prev.won }
+    ? { newLeads: prev.newLeads, interagiram: prev.interagiram.size, meetingsScheduled: prev.reunioes.size, meetingsHeld: prev.meetingsHeld.size, proposals: prev.propostas.size, won: prev.won.size, conversionRate: rate(prev.won.size, prev.newLeads) }
     : null
 
   // Movimentações (from → to) no período.
@@ -129,12 +132,12 @@ export async function buildCommercialReport(context: RequestContext, period: Rep
   }
   const movements = Array.from(moveMap.values()).sort((a, b) => b.count - a.count)
 
-  // Conversões (por alcance de etapa no período).
+  // Conversões entre movimentos reais do funil no período.
   const conversions: ConversionStep[] = [
-    { label: 'Lead → Contato', rate: rate(events.filter(e => reuniaoSlugs.has(e.to_stage) || proposalSlugs.has(e.to_stage)).length + kpis.meetingsHeld, kpis.totalLeads) },
-    { label: 'Contato → Reunião', rate: rate(kpis.meetingsScheduled, kpis.totalLeads) },
-    { label: 'Reunião → Proposta', rate: rate(kpis.proposals, Math.max(1, kpis.meetingsScheduled)) },
-    { label: 'Proposta → Fechado', rate: rate(kpis.won, Math.max(1, kpis.proposals)) },
+    { label: 'Lead → Contato', rate: rate(kpis.interagiram, kpis.newLeads) },
+    { label: 'Contato → Reunião', rate: rate(kpis.meetingsScheduled, kpis.interagiram) },
+    { label: 'Reunião → Proposta', rate: rate(kpis.meetingsHeld, kpis.meetingsScheduled) },
+    { label: 'Proposta → Fechado', rate: rate(kpis.won, kpis.proposals) },
   ]
 
   // Ranking/gargalos por fase (leads atualmente parados em cada etapa). Agrupa por status UMA vez

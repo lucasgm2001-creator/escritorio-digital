@@ -169,9 +169,9 @@ export function RelatorioPanel() {
 
       {error && <div className="bg-amber-900/20 border border-amber-800/40 rounded-btn px-4 py-3 text-xs text-amber-400">{error}</div>}
 
-      {/* Funil do período (ACUMULATIVO) — alta prioridade. trend = Δ vs. período anterior de mesma duração. */}
+      {/* Funil do período por movimentações reais. trend = Δ vs. período anterior de mesma duração. */}
       <section>
-        <SectionLabel>Funil do período (acumulado) · {range.label}</SectionLabel>
+        <SectionLabel>Funil do período (movimentações) · {range.label}</SectionLabel>
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5">
           <MetricCard title="Leads recebidos" value={dash ?? (k?.newLeads ?? 0)} size="sm" trend={trend(k?.newLeads ?? 0, cmp?.newLeads)} />
           <MetricCard title="Interagiram" value={dash ?? (k?.interagiram ?? 0)} size="sm" trend={trend(k?.interagiram ?? 0, cmp?.interagiram)} />
@@ -201,7 +201,7 @@ export function RelatorioPanel() {
           <MetricCard title="Receita Prevista" value={dash ?? usd(exec?.receitaPrevista ?? 0)} size="sm" />
           <MetricCard title="Valor Fechado" value={dash ?? usd(exec?.valorFechado ?? 0)} size="sm" />
           <MetricCard title="Ticket Médio" value={dash ?? usd(exec?.ticketMedio ?? 0)} size="sm" />
-          <MetricCard title="Conversão" value={dash ?? `${Math.round(exec?.conversao ?? 0)}%`} size="sm" trend={trend(exec?.conversao ?? 0, execPrev?.conversao, 'pp')} />
+          <MetricCard title="Conversão" value={dash ?? `${Math.round((k?.conversionRate ?? 0) * 100)}%`} size="sm" trend={trend((k?.conversionRate ?? 0) * 100, (cmp?.conversionRate ?? 0) * 100, 'pp')} />
         </div>
       </section>
 

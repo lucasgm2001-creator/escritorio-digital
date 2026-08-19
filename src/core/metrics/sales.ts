@@ -3,13 +3,25 @@
 // recebido (isso é core/metrics/revenue — client_payments). Ticket médio = valor fechado ÷ nº de clientes
 // conquistados (contratos fechados) no período — indicador COMERCIAL, não financeiro.
 
-export type SaleDeal = { valor_total_usd: number | null; data_fechamento: string | null }
+export type SaleDeal = {
+  valor_total_usd: number | null
+  data_fechamento: string | null
+  /** Renovação e upgrade são movimentos de carteira; não são novas vendas comerciais. */
+  kind?: string | null
+  /** Um registro interrompido/anulado não pode compor valor fechado. */
+  status?: string | null
+}
 
 const round2 = (n: number): number => Math.round((n + Number.EPSILON) * 100) / 100
 
 /** Contratos fechados no período (data_fechamento civil em [fromYMD, toYMD]). */
 function closedDealsInPeriod<T extends SaleDeal>(deals: T[], fromYMD: string, toYMD: string): T[] {
-  return deals.filter(d => { const dt = (d.data_fechamento ?? '').slice(0, 10); return dt >= fromYMD && dt <= toYMD })
+  return deals.filter(d => {
+    const dt = (d.data_fechamento ?? '').slice(0, 10)
+    const isSale = !d.kind || d.kind === 'sale'
+    const isActive = d.status !== 'interrompido' && d.status !== 'anulado'
+    return dt >= fromYMD && dt <= toYMD && isSale && isActive
+  })
 }
 
 /** Valor fechado (USD) = soma dos contratos fechados no período. */

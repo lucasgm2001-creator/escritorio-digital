@@ -3,7 +3,7 @@ import type { ExecutiveMetricsVM } from '@/core/metrics/types'
 
 // Gerador do PDF Executivo Comercial (EXECUTIVE-METRICS-004 · REPORTS-PERIOD-TRUTH-001). Recebe os view-models
 // PRONTOS — exec (ExecutiveMetricsService, fonte única, JANELA atual) + execPrev (mesma fonte, período ANTERIOR
-// de mesma duração) + report (ReportingService: funil acumulativo/comparativo/insights). NÃO calcula KPI nem
+// de mesma duração) + report (ReportingService: movimentações/comparativo/insights). NÃO calcula KPI nem
 // toca no banco: os MESMOS números da tela do Relatório → PDF = tela 1:1. Receita Recebida = client_payments no
 // período; Valor Fechado = deals no período; nunca all-time. Carteira (MRR/ARR/ativos) é SNAPSHOT — sai do topo,
 // vai para o rodapé da P3, rotulada "não é do período". 3 páginas; seção sem dado não aparece.
@@ -64,7 +64,7 @@ export async function buildExecutivePdf(input: {
   heading('Resumo do período')
   doc.setFont('helvetica', 'normal'); doc.setFontSize(9.5); doc.setTextColor(...GREY)
   const summary = [
-    `${k.newLeads} leads recebidos · ${k.interagiram} interagiram · ${k.meetingsScheduled} reuniões · ${k.proposals} propostas · ${k.won} vendas (conversão ${pct(exec.conversao)}).`,
+    `${k.newLeads} leads recebidos · ${k.interagiram} interagiram · ${k.meetingsScheduled} reuniões · ${k.proposals} propostas · ${k.won} vendas (conversão ${pct(k.conversionRate * 100)}).`,
     `Receita recebida ${usd(exec.receitaRecebida)} · valor fechado ${usd(exec.valorFechado)} · prevista ${usd(exec.receitaPrevista)} · ticket ${usd(exec.ticketMedio)}.`,
   ]
   for (const line of summary) { ensure(7); doc.text(line, L, y, { maxWidth: R - L }); y += 6.5 }
@@ -73,7 +73,7 @@ export async function buildExecutivePdf(input: {
   heading('KPIs principais do período')
   const kpis: [string, string][] = [
     ['Receita Recebida', usd(exec.receitaRecebida)], ['Valor Fechado', usd(exec.valorFechado)], ['Receita Prevista', usd(exec.receitaPrevista)],
-    ['Ticket Médio', usd(exec.ticketMedio)], ['Conversão', pct(exec.conversao)], ['Leads recebidos', String(k.newLeads)],
+    ['Ticket Médio', usd(exec.ticketMedio)], ['Conversão', pct(k.conversionRate * 100)], ['Leads recebidos', String(k.newLeads)],
     ['Interagiram', String(k.interagiram)], ['Reuniões marcadas', String(k.meetingsScheduled)], ['Reuniões realizadas', String(k.meetingsHeld)],
     ['Propostas em análise', String(k.proposals)], ['Vendas concluídas', String(k.won)], ['Não interagiram', String(k.naoInteragiram)],
     ['No-show', String(k.noShow)],
@@ -106,8 +106,8 @@ export async function buildExecutivePdf(input: {
     ]
     const body = cRows.map(([label, cur, prev, d]) => [label, cur, prev, signInt(d)])
     body.push(['Receita recebida', usd(exec.receitaRecebida), usd(execPrev.receitaRecebida), signUsd(exec.receitaRecebida - execPrev.receitaRecebida)])
-    body.push(['Conversão', pct(exec.conversao), pct(execPrev.conversao), signPp(exec.conversao - execPrev.conversao)])
-    const deltaVals = [...cRows.map(r => r[3]), exec.receitaRecebida - execPrev.receitaRecebida, exec.conversao - execPrev.conversao]
+    body.push(['Conversão', pct(k.conversionRate * 100), pct(cmp.conversionRate * 100), signPp((k.conversionRate - cmp.conversionRate) * 100)])
+    const deltaVals = [...cRows.map(r => r[3]), exec.receitaRecebida - execPrev.receitaRecebida, (k.conversionRate - cmp.conversionRate) * 100]
     autoTable(doc, {
       startY: y, head: [['Métrica', 'Atual', 'Anterior', 'Diferença']],
       body,
@@ -125,12 +125,10 @@ export async function buildExecutivePdf(input: {
     ensure(6); doc.text('Período anterior = janela imediatamente anterior, de mesma duração.', L, y); y += 6
   }
 
-  // ════════ PÁGINA 2 — Funil acumulativo + gráfico + gargalos do período ════════
+  // ════════ PÁGINA 2 — Funil de movimentações + gráfico + gargalos do período ════════
   doc.addPage(); y = 22
 
-  // Funil ACUMULATIVO (Parte 3): Leads → Interagiram → Reuniões → Propostas → Vendas. Cada etapa conta quem
-  // ALCANÇOU aquela etapa ou adiante (um lead que pulou etapas conta nas anteriores).
-  heading('Funil do período (acumulado)')
+  heading('Funil do período (movimentações)')
   const steps = rp.cumulativeFunnel.length
     ? rp.cumulativeFunnel.map(s => [s.label, s.count] as [string, number])
     : ([['Leads recebidos', k.newLeads], ['Interagiram', k.interagiram], ['Reuniões marcadas', k.meetingsScheduled], ['Propostas em análise', k.proposals], ['Vendas concluídas', k.won]] as [string, number][])
