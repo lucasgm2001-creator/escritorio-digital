@@ -372,7 +372,10 @@ export async function payMonth(
     if (registered.has(n)) continue // semana já paga/anulada
     const res = await payClientWeek(supabase, clientId, n, due, rate, teamId) // MESMA escrita do semanal
     if (res.ok) marked.push(n)
-    else if (res.reason !== 'dup') break
+    // 'dup' e 'blocked' significam a MESMA coisa para este laço: aquela semana já está resolvida (paga, ou
+    // anulada/isenta por decisão humana) — segue para a próxima. O `registered` acima já filtra o caso comum;
+    // isto cobre a corrida em que a linha nasce entre o snapshot e a escrita. Só erro real interrompe o mês.
+    else if (res.reason !== 'dup' && res.reason !== 'blocked') break
   }
   return { marked, reason: marked.length ? 'ok' : 'nada_no_mes', monthRef }
 }
