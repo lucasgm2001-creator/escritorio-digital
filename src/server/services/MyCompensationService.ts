@@ -2,9 +2,11 @@ import 'server-only'
 
 import { createClient } from '@/lib/supabase/server'
 import type { RequestContext } from '@/server/context/request-context'
-import { monthlySummary, nextPayoutProjection, dealTotal, pendingCommission } from '@/lib/commission/calc'
+import { monthlySummary, nextPayoutProjection, pendingCommission } from '@/lib/commission/calc'
 import { meetingCommissionCounts } from '@/lib/commission/constants'
 import type { DealKind, DealStatus, DealWithClient, FxConfig, Meeting, MonthlySummary, PendingCommissionResult, SalaryPeriod, WeeklyPayment } from '@/lib/commission/types'
+import { dueDateFor } from '@/lib/commission/actions'
+import { todaySP, dowOfYmd, addDaysYmd } from '@/lib/date'
 import { resolveCompensationRule, type NormalizedCompensationRule } from '@/server/services/CompensationService'
 import { roleByKey, departmentByKey, type DepartmentKey } from '@/lib/people/catalog'
 
@@ -44,7 +46,8 @@ export type MyCompensationView = {
   yearReceivedUsd: number
   totalReceivedUsd: number
   dealsCount: number
-  thisWeekUsd: number         // receber esta semana (parcela semanal das vendas ativas — projeção do motor)
+  thisWeekUsd: number         // comissão AGENDADA para vencer nesta semana civil (seg–dom) — ver thisWeekRange
+  thisWeekRange: { from: string; to: string } | null  // janela usada no cálculo (transparência na UI/PDF)
   status: string              // status do vendedor (ativo/inativo)
   lastUpdate: string | null   // data do último lançamento (última atualização)
   months: CompMonth[]
@@ -59,7 +62,7 @@ export async function getMyCompensationView(context: RequestContext): Promise<My
   const empty: MyCompensationView = {
     hasComp: false, sellerName: context.profile?.name ?? '', cargo: null, department: null, rule: null,
     currentMonth: null, nextPayout: null, yearReceivedUsd: 0, totalReceivedUsd: 0, dealsCount: 0,
-    thisWeekUsd: 0, status: 'ativo', lastUpdate: null, months: [], pending: emptyPending,
+    thisWeekUsd: 0, thisWeekRange: null, status: 'ativo', lastUpdate: null, months: [], pending: emptyPending,
   }
   const teamId = context.activeTeamId
   if (!teamId) return empty
@@ -80,7 +83,7 @@ export async function getMyCompensationView(context: RequestContext): Promise<My
   const [salRes, mtgRes, dealRes, fxRes, rule] = await Promise.all([
     supabase.from('seller_salaries').select('seller_id, valor_usd, effective_from').eq('seller_id', seller.id),
     supabase.from('meetings').select('id, seller_id, met_on, valor_usd, cotacao_usd_brl, client_name').eq('seller_id', seller.id),
-    supabase.from('deals').select('id, client_name, valor_total_usd, valor_por_semana_usd, teto_semanas, status, data_fechamento, kind').eq('seller_id', seller.id),
+    supabase.from('deals').select('id, client_id, client_name, valor_total_usd, valor_por_semana_usd, teto_semanas, status, data_fechamento, kind').eq('seller_id', seller.id),
     supabase.from('fx_config').select('cotacao_manual, cotacao_travada').eq('team_id', teamId).maybeSingle(),
     resolveCompensationRule(context, seller.id, today),
   ])
@@ -91,7 +94,7 @@ export async function getMyCompensationView(context: RequestContext): Promise<My
   const eligibleMeetings = (mtgRes.data ?? []).filter(m => meetingCommissionCounts(m.met_on))
   const meetings: Meeting[] = eligibleMeetings.map(m => ({ id: m.id, sellerId: m.seller_id, metOn: m.met_on, valorUsd: Number(m.valor_usd), cotacaoUsdBrl: Number(m.cotacao_usd_brl) }))
   const mtgClient = new Map(eligibleMeetings.map(m => [m.id, (m as { client_name: string | null }).client_name]))
-  const deals = (dealRes.data ?? []) as { id: string; client_name: string | null; valor_total_usd: number; valor_por_semana_usd: number; teto_semanas: number; status: string; data_fechamento: string | null; kind: DealKind }[]
+  const deals = (dealRes.data ?? []) as { id: string; client_id: string | null; client_name: string | null; valor_total_usd: number; valor_por_semana_usd: number; teto_semanas: number; status: string; data_fechamento: string | null; kind: DealKind }[]
   const dealById = new Map(deals.map(d => [d.id, d]))
   const dealIds = deals.map(d => d.id)
 
@@ -125,11 +128,48 @@ export async function getMyCompensationView(context: RequestContext): Promise<My
     valorPorSemanaUsd: Number(d.valor_por_semana_usd), status: d.status as DealStatus,
     dataFechamento: d.data_fechamento ?? '', clientName: d.client_name, kind: d.kind ?? 'sale',
   }))
-  // Receber esta semana = parcela semanal das vendas ATIVAS que ainda têm semanas a vencer (reusa dealTotal).
-  const thisWeekUsd = round2(dealsWithClient
-    .filter(d => d.status === 'em_andamento')
-    .filter(dl => dealTotal(dl, weeks).semanasRestantes > 0)
-    .reduce((s, dl) => s + dl.valorPorSemanaUsd, 0))
+  // Receber esta semana (P1-THISWEEK-001) — AGORA é uma janela de DATA, não um valor fixo.
+  // ANTES: somava a parcela de toda venda ativa com semanas restantes → o card repetia o MESMO número toda
+  // semana, entrasse dinheiro ou não (foi o que deu a impressão de "a comissão não anda conforme os dias").
+  // AGORA: soma a comissão das semanas do cliente cujo VENCIMENTO cai na semana civil corrente (seg–dom,
+  // Brasília), pela régua canônica `dueDateFor` — a MESMA do cron/agendador e do ClientFinanceService.
+  // Deriva do CRONOGRAMA (não das linhas já agendadas), então uma semana que vence na sexta já conta na
+  // segunda — o robô só cria a linha no dia do vencimento. Só vendas (kind='sale') em_andamento e só as
+  // `tetoSemanas` primeiras semanas geram comissão, exatamente como em save_client_week.
+  const todayYmd = todaySP()
+  const weekFrom = addDaysYmd(todayYmd, -((dowOfYmd(todayYmd) + 6) % 7))   // segunda-feira da semana corrente
+  const weekTo = addDaysYmd(weekFrom, 6)                                    // domingo
+  const thisWeekRange = { from: weekFrom, to: weekTo }
+
+  const clientIds = Array.from(new Set(deals.filter(d => d.kind === 'sale' && d.status === 'em_andamento' && d.client_id).map(d => d.client_id as string)))
+  let thisWeekUsd = 0
+  if (clientIds.length) {
+    const { data: cliRows } = await supabase.from('clients')
+      .select('id, status, start_date, billing_anchor_date, dia_pagamento_semana')
+      .in('id', clientIds).is('deleted_at', null)
+    const cliById = new Map((cliRows ?? []).map(c => [c.id as string, c]))
+    // 1 comissão por cliente: a venda mais recente (mesmo desempate de save_client_week).
+    const dealByClient = new Map<string, typeof deals[number]>()
+    for (const d of deals) {
+      if (d.kind !== 'sale' || d.status !== 'em_andamento' || !d.client_id) continue
+      const cur = dealByClient.get(d.client_id)
+      if (!cur || (d.data_fechamento ?? '') > (cur.data_fechamento ?? '')) dealByClient.set(d.client_id, d)
+    }
+    for (const [clientId, d] of dealByClient) {
+      const c = cliById.get(clientId)
+      if (!c || c.status !== 'ativo') continue
+      const anchor = String(c.billing_anchor_date ?? c.start_date ?? '').slice(0, 10)
+      if (!anchor) continue
+      const dia = c.dia_pagamento_semana ?? dowOfYmd(anchor)
+      const teto = Number(d.teto_semanas)
+      for (let n = 1; n <= teto; n++) {
+        const due = dueDateFor(anchor, dia, n)
+        if (due > weekTo) break            // vencimentos são monotônicos → o resto é futuro
+        if (due >= weekFrom) thisWeekUsd += Number(d.valor_por_semana_usd)
+      }
+    }
+  }
+  thisWeekUsd = round2(thisWeekUsd)
   // Comissões pendentes das primeiras 4 semanas, por cliente (mesma matemática do dealTotal — só agregada por venda).
   const pending = pendingCommission(dealsWithClient, weeks)
   // Última atualização = data do lançamento mais recente (semana paga / reunião).
@@ -163,6 +203,6 @@ export async function getMyCompensationView(context: RequestContext): Promise<My
   return {
     hasComp: true, sellerName: seller.name, cargo: role?.name ?? null, department: dept?.name ?? null,
     rule, currentMonth, nextPayout, yearReceivedUsd, totalReceivedUsd, dealsCount: deals.filter(d => d.kind === 'sale').length,
-    thisWeekUsd, status: (seller as { status?: string }).status ?? 'ativo', lastUpdate, months, pending,
+    thisWeekUsd, thisWeekRange, status: (seller as { status?: string }).status ?? 'ativo', lastUpdate, months, pending,
   }
 }

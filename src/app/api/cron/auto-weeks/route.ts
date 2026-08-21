@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase/service'
 import { scheduleDueWeeks, dueDateFor, resolveClientPlanTimeline } from '@/lib/commission/actions'
-import { todaySP } from '@/lib/date'
+import { todaySP, formatDateBR } from '@/lib/date'
 import { createHash, timingSafeEqual } from 'crypto'
 
 // Robô diário: agenda semanas vencidas. Nunca confirma recebimento e nunca gera comissão sozinho.
@@ -87,5 +87,63 @@ export async function GET(req: Request) {
   const totalMarked = results.reduce((s, r) => s + r.marked.length, 0)
   const { data: renewals, error: renewalError } = await supabase.rpc('process_due_renewals', { p_as_of: today })
   if (renewalError) console.error('[cron/auto-weeks] renovacoes:', renewalError.message)
-  return NextResponse.json({ ok: true, dryRun: false, today, rate, eligibleClients: eligible.length, totalMarked, results, renewals: Number(renewals ?? 0), renewalError: renewalError?.message ?? null })
+
+  // ── AVISO DE CONFIRMAÇÃO PENDENTE (P0-ALERTA-001) ───────────────────────────────────────────────
+  // O robô AGENDA (status 'vencida'); receita e comissão só nascem quando um humano confirma o recebimento
+  // (save_client_week). Sem nenhum aviso, esse passo parou por 3 semanas e ninguém percebeu — 55 semanas e
+  // US$ 8,3k de receita travados. O antigo agent.verificarPagamentosAtrasados() virou no-op (lia a tabela
+  // morta `payments`) e o /api/agent/scheduler nem tem entrada de cron, então o aviso nasce AQUI: no job que
+  // já roda todo dia e já tem os dados na mão. Zero cron novo (não esbarra no limite do plano), zero IA.
+  const backlog = await postPendingConfirmationAlert(supabase, clients ?? [], today)
+
+  return NextResponse.json({ ok: true, dryRun: false, today, rate, eligibleClients: eligible.length, totalMarked, results, renewals: Number(renewals ?? 0), renewalError: renewalError?.message ?? null, backlog })
+}
+
+type ClientRow = { id: string; name: string | null; team_id: string | null }
+
+// Agrega as semanas VENCIDAS e não confirmadas por equipe e posta UM aviso no Hall. Idempotente na prática:
+// se já houve aviso nas últimas 20h para a equipe, não repete (rerun manual do cron não vira spam).
+// NÃO usa o postarNoHall do SuperAgent de propósito — aquele grava numa coluna `metadata` que não existe em
+// `activities`, então falha silencioso. Aqui o team_id é carimbado explícito: service-role não tem sessão e o
+// trigger set_team_id_default não resolveria a equipe (mesmo motivo do carimbo em scheduleDueWeeks).
+async function postPendingConfirmationAlert(
+  supabase: ReturnType<typeof createServiceClient>, clients: ClientRow[], today: string,
+): Promise<{ team: string; semanas: number; usd: number; desde: string }[]> {
+  const teamOf = new Map(clients.map(c => [c.id, c.team_id]))
+  if (!teamOf.size) return []
+
+  const { data: pend, error } = await supabase.from('client_payments')
+    .select('client_id, due_on, valor_previsto_usd, valor_usd')
+    .eq('status', 'vencida').lte('due_on', today)
+  if (error) { console.error('[cron/auto-weeks] backlog:', error.message); return [] }
+
+  const byTeam = new Map<string, { semanas: number; usd: number; desde: string }>()
+  for (const p of pend ?? []) {
+    const team = teamOf.get(p.client_id as string)   // cliente inativo/excluído não entra na lista
+    if (!team) continue
+    const cur = byTeam.get(team) ?? { semanas: 0, usd: 0, desde: '9999-12-31' }
+    cur.semanas += 1
+    cur.usd += Number(p.valor_previsto_usd ?? p.valor_usd ?? 0)
+    const due = String(p.due_on ?? '').slice(0, 10)
+    if (due && due < cur.desde) cur.desde = due
+    byTeam.set(team, cur)
+  }
+
+  const posted: { team: string; semanas: number; usd: number; desde: string }[] = []
+  const since = new Date(Date.now() - 20 * 3_600_000).toISOString()
+  for (const [team, agg] of byTeam) {
+    const { count } = await supabase.from('activities').select('id', { count: 'exact', head: true })
+      .eq('team_id', team).eq('type', 'cobranca').is('deleted_at', null).gte('created_at', since)
+    if (count) continue
+    const valor = agg.usd.toLocaleString('en-US', { style: 'currency', currency: 'USD' })
+    const { error: alertError } = await supabase.from('activities').insert({
+      type: 'cobranca',
+      description: `💰 ${agg.semanas} semana(s) aguardando confirmação de recebimento — ${valor} em receita e a comissão vinculada seguem bloqueados. A mais antiga venceu em ${formatDateBR(agg.desde)}. Confirme em Clientes → Financeiro semanal.`,
+      user_name: 'Sistema',
+      team_id: team,
+    })
+    if (alertError) console.error('[cron/auto-weeks] alerta:', alertError.message)
+    else posted.push({ team, semanas: agg.semanas, usd: Math.round(agg.usd * 100) / 100, desde: agg.desde })
+  }
+  return posted
 }
