@@ -32,7 +32,8 @@ import { useDialog } from '@/components/ui/useDialog'
 import { cn } from '@/lib/utils'
 import { updateLeadSituationAction } from './lead-write-actions'
 import {
-  LAST_ACTION_LABEL, NEXT_ACTION_LABEL, deriveFollowupState, nextContactFromWhen, suggestedStageFromSituation,
+  LAST_ACTION_LABEL, NEXT_ACTION_LABEL, deriveFollowupState, nextContactFromWhen, normalizeDueTime,
+  suggestedStageFromSituation,
   type LastAction, type NextAction, type LeadResponse, type Temperature, type WhenChoice,
 } from '@/lib/commercial/situation'
 import { TASK_KIND_LABEL, type TaskKind } from '@/lib/tasks/task-kind'
@@ -262,19 +263,26 @@ function contactSummary(key: ContactAction | null): string | null {
   return CONTACT_ACTIONS.find(o => o.key === key)?.summary ?? key
 }
 
-function whenLabel(when: WhenChoice | null, date: string): string | null {
+function whenLabel(when: WhenChoice | null, date: string, time: string): string | null {
   if (!when) return null
-  if (when !== 'data') return WHENS.find(w => w.key === when)?.label ?? when
-  if (!date) return 'Escolher data'
-  const parsed = new Date(`${date}T12:00:00`)
-  if (Number.isNaN(parsed.getTime())) return date
-  return parsed.toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: '2-digit' })
+  const dia = when !== 'data'
+    ? (WHENS.find(w => w.key === when)?.label ?? when)
+    : !date
+        ? 'Escolher data'
+        : (() => {
+            const parsed = new Date(`${date}T12:00:00`)
+            return Number.isNaN(parsed.getTime())
+              ? date
+              : parsed.toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: '2-digit' })
+          })()
+  const hora = normalizeDueTime(time)
+  return hora ? `${dia} às ${hora}` : dia
 }
 
 export function SituationDrawer({ lead, sourceTaskId = null, taskContext, onClose, onSaved, onSkip }: {
   lead: { id: string; name: string; status?: string | null }
   sourceTaskId?: string | null
-  taskContext?: { title: string; kind?: TaskKind | null } | null
+  taskContext?: { title: string; kind?: TaskKind | null; dueTime?: string | null } | null
   onClose: () => void
   onSaved?: (result: { nextTask: Record<string, unknown> | null; patch: Record<string, unknown> }) => void
   onSkip?: () => void
@@ -286,6 +294,9 @@ export function SituationDrawer({ lead, sourceTaskId = null, taskContext, onClos
   const [nextAction, setNextAction] = useState<NextAction>('nenhuma')
   const [when, setWhen] = useState<WhenChoice | null>(null)
   const [date, setDate] = useState('')
+  // Pré-preenche com o horário que a tarefa JÁ tem: ao reagendar, o horário fica VISÍVEL e editável em vez de
+  // ser arrastado em silêncio para a data nova (era o comportamento anterior — o patch nem tocava due_time).
+  const [time, setTime] = useState(() => normalizeDueTime(taskContext?.dueTime) ?? '')
   const [note, setNote] = useState('')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -295,7 +306,7 @@ export function SituationDrawer({ lead, sourceTaskId = null, taskContext, onClos
   const needsWhen = nextAction !== 'nenhuma'
   const skipsPerception = !!lastAction && AUTO_NO_PERCEPTION_RESULTS.has(lastAction)
   const summaryResult = contactAction && lastAction ? RESULT_OPTIONS[contactAction].find(o => o.key === lastAction)?.label ?? LAST_ACTION_LABEL[lastAction] : null
-  const summaryWhen = needsWhen ? whenLabel(when, date) : null
+  const summaryWhen = needsWhen ? whenLabel(when, date, time) : null
   const hasSummary = !!contactAction || !!summaryResult || !!temperature || nextAction !== 'nenhuma' || !!summaryWhen
   const suggestedStage = lastAction ? suggestedStageFromSituation(lastAction, lead.status ?? '') : null
   const suggestedStageLabel = suggestedStage ? ALL_COLUMNS.find(column => column.key === suggestedStage)?.label ?? suggestedStage : null
@@ -325,10 +336,12 @@ export function SituationDrawer({ lead, sourceTaskId = null, taskContext, onClos
     if (!temperature) { setError('Escolha sua percepção do cliente.'); return }
     if (needsWhen && !when) { setError('Escolha quando realizar a próxima ação.'); return }
     if (when === 'data' && !date) { setError('Escolha a data da próxima ação.'); return }
+    if (time && !normalizeDueTime(time)) { setError('Horário inválido. Use HH:MM.'); return }
     setSaving(true); setError(null)
     const res = await updateLeadSituationAction({
       leadId: lead.id, sourceTaskId, lastAction, nextAction,
       when: needsWhen ? when : null, explicitDate: when === 'data' ? (date || null) : null,
+      explicitTime: needsWhen ? normalizeDueTime(time) : null,
       temperature, response, note: note.trim() || null, currentSituation: note.trim() || LAST_ACTION_LABEL[lastAction],
     })
     setSaving(false)
@@ -448,8 +461,23 @@ export function SituationDrawer({ lead, sourceTaskId = null, taskContext, onClos
                 ))}
                 {when === 'data' && (
                   <input type="date" value={date} onChange={e => setDate(e.target.value)}
+                    aria-label="Data da próxima ação"
                     className="bg-bento-bg border border-bento-border rounded-btn px-3 py-1.5 text-note text-bento-text focus:outline-none focus:border-lime" />
                 )}
+                {/* Horário (HH:MM) — opcional. Sem ele a tarefa fica sem hora e o Google Agenda cria evento de
+                    DIA INTEIRO; com ele o evento nasce no horário certo, com a duração/fuso da tarefa. */}
+                <label className="flex items-center gap-2 text-note text-bento-muted">
+                  <span className="whitespace-nowrap">às</span>
+                  <input type="time" value={time} onChange={e => setTime(e.target.value)}
+                    aria-label="Horário da próxima ação"
+                    className="bg-bento-bg border border-bento-border rounded-btn px-3 py-1.5 text-note text-bento-text focus:outline-none focus:border-lime" />
+                  {time && (
+                    <button type="button" onClick={() => setTime('')}
+                      className="text-caption text-bento-muted underline underline-offset-2 hover:text-bento-text">
+                      sem hora
+                    </button>
+                  )}
+                </label>
               </Group>
             )}
 

@@ -1,6 +1,8 @@
 // Modelo de SITUAÇÃO do lead (RADAR-COMERCIAL-001). Tipos + labels + derivação. PURO (client e server) —
 // nenhuma persistência aqui. Os enums são validados NA APLICAÇÃO (a migration 045 não usa CHECK rígido).
 
+import { dayBR, addDaysYmd } from '@/lib/date'
+
 export type LastAction =
   | 'respondeu_interessado' | 'pediu_retorno' | 'marcou_reuniao' | 'recebeu_proposta'
   | 'nao_respondeu' | 'desistiu' | 'fechou' | 'sem_mudanca'
@@ -104,13 +106,28 @@ export function temperatureFromScore(score: number | null | undefined): Temperat
 }
 
 // Resolve a data (YYYY-MM-DD) da próxima ação a partir do "quando". 'esta_semana' = +3 dias (alvo suave).
+//
+// FUSO (P1-QUANDO-001): a conta é feita sobre o dia civil de BRASÍLIA, não sobre o UTC. Antes era
+// `new Date().toISOString().slice(0,10)` e a action roda na Vercel, que é UTC: depois das 21h de Brasília o
+// UTC já virou o dia seguinte, então "Hoje" agendava para AMANHÃ e "Amanhã" para depois de amanhã — bem no
+// horário em que o comercial fecha o dia e passa as tarefas. dayBR/addDaysYmd são a fonte única do sistema
+// para isto (mesma régua da cobrança).
 export function nextContactFromWhen(when: WhenChoice, explicitDate: string | null, today: Date): string | null {
   if (when === 'data') return explicitDate
-  const d = new Date(today)
-  if (when === 'amanha') d.setDate(d.getDate() + 1)
-  else if (when === 'esta_semana' || when === 'em_3_dias') d.setDate(d.getDate() + 3)
-  else if (when === 'em_7_dias') d.setDate(d.getDate() + 7)
-  return d.toISOString().slice(0, 10)
+  const offset = when === 'amanha' ? 1
+    : (when === 'esta_semana' || when === 'em_3_dias') ? 3
+      : when === 'em_7_dias' ? 7
+        : 0
+  return addDaysYmd(dayBR(today), offset)
+}
+
+// Horário 'HH:MM' válido (00:00–23:59). O campo é OPCIONAL: vazio = tarefa sem hora (evento de dia inteiro
+// no Google Agenda). Aceita 'HH:MM:SS' vindo do banco (time without time zone) e normaliza para 'HH:MM'.
+export function normalizeDueTime(raw: string | null | undefined): string | null {
+  const v = (raw ?? '').trim()
+  if (!v) return null
+  const m = v.match(/^([01]\d|2[0-3]):([0-5]\d)(?::[0-5]\d)?$/)
+  return m ? `${m[1]}:${m[2]}` : null
 }
 
 const dayMs = 86_400_000

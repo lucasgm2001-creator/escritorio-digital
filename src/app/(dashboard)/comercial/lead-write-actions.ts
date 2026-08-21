@@ -14,7 +14,7 @@ import type { FxConfig } from '@/lib/commission/types'
 import { moveLead, type ActionNote, type MovableLead } from './leadActions'
 import { eventBus, createDomainEvent } from '@/lib/events/runtime'
 import {
-  LAST_ACTION_LABEL, NEXT_ACTION_LABEL, deriveFollowupState, nextContactFromWhen,
+  LAST_ACTION_LABEL, NEXT_ACTION_LABEL, deriveFollowupState, nextContactFromWhen, normalizeDueTime,
   isLastAction, isNextAction, isTemperature, suggestedStageFromSituation,
   type LastAction, type NextAction, type Temperature, type LeadResponse, type WhenChoice,
 } from '@/lib/commercial/situation'
@@ -250,6 +250,7 @@ export async function updateLeadSituationAction(input: {
   nextAction: NextAction
   when?: WhenChoice | null
   explicitDate?: string | null
+  explicitTime?: string | null
   temperature?: Temperature | null
   response?: LeadResponse | null
   note?: string | null
@@ -259,6 +260,9 @@ export async function updateLeadSituationAction(input: {
   if (!isLastAction(input.lastAction)) return { ok: false, error: 'Resultado inválido.' }
   if (!isNextAction(input.nextAction)) return { ok: false, error: 'Próxima ação inválida.' }
   if (input.temperature != null && !isTemperature(input.temperature)) return { ok: false, error: 'Temperatura inválida.' }
+  // Horário é opcional, mas se veio tem de ser HH:MM real — a coluna é `time` e o Google Agenda usa o valor cru.
+  const nextTime = normalizeDueTime(input.explicitTime)
+  if (input.explicitTime && !nextTime) return { ok: false, error: 'Horário inválido. Use HH:MM.' }
 
   const supabase = createClient()
   const teamId = g.context.activeTeamId
@@ -342,6 +346,12 @@ export async function updateLeadSituationAction(input: {
       add_call: input.nextAction === 'ligar',
       kind: confirmedMeeting ? 'reuniao' : taskKindForNextAction(input.nextAction),
       due_date: nextContact ?? null,
+      // due_time SEMPRE explícito (P1-HORARIO-001). Quando esta action reaproveita a tarefa de origem
+      // (sourceTaskId), o patch não tocava due_time: uma reunião das 14:30 reagendada para outro dia
+      // continuava 14:30 na data nova, num horário que ninguém escolheu — e o evento do Google era
+      // recriado nele. Agora o drawer mostra o horário atual pré-preenchido e o que estiver ali é o que
+      // vale; vazio grava null e a tarefa fica sem hora (evento de dia inteiro), que é escolha legítima.
+      due_time: nextTime,
     }
     let task: Record<string, unknown> | null = null
     if (input.sourceTaskId) {

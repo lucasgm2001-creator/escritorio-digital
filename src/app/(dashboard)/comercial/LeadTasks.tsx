@@ -179,7 +179,7 @@ export function LeadTasks({ leadId, leadName, compact = true }: {
         <SituationDrawer
           lead={{ id: leadId, name: leadName }}
           sourceTaskId={situationTask.id}
-          taskContext={{ title: situationTask.title, kind: inferTaskKind(situationTask.title, situationTask.kind) }}
+          taskContext={{ title: situationTask.title, kind: inferTaskKind(situationTask.title, situationTask.kind), dueTime: situationTask.due_time }}
           onClose={() => setSituationTask(null)}
           onSkip={() => setSituationTask(null)}
           onSaved={({ nextTask }) => {

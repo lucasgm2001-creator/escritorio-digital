@@ -799,7 +799,7 @@ export function TarefasClient({ tasks, setTasks, deletedIds, linkOptions, curren
         <SituationDrawer
           lead={{ id: situationTask.linked_id, name: situationTask.linked_name || 'Lead' }}
           sourceTaskId={situationTask.id}
-          taskContext={{ title: situationTask.title, kind: inferTaskKind(situationTask.title, situationTask.kind) }}
+          taskContext={{ title: situationTask.title, kind: inferTaskKind(situationTask.title, situationTask.kind), dueTime: situationTask.due_time }}
           onClose={() => setSituationTask(null)}
           onSkip={() => setSituationTask(null)}
           onSaved={({ nextTask }) => {

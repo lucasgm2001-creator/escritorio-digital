@@ -321,7 +321,7 @@ export function MesaClient({ initialTasks, initialLeads, linkOptions, currentUse
         <SituationDrawer lead={{ id: situation.lead.id, name: situation.lead.name, status: situation.lead.status }} sourceTaskId={situation.taskId}
           taskContext={(() => {
             const task = situation.taskId ? tasks.find(row => row.id === situation.taskId) : null
-            return task ? { title: task.title, kind: inferTaskKind(task.title, task.kind) } : null
+            return task ? { title: task.title, kind: inferTaskKind(task.title, task.kind), dueTime: task.due_time } : null
           })()}
           onClose={() => setSituation(null)} onSkip={() => setSituation(null)}
           onSaved={({ nextTask, patch }) => {
