@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase/service'
 import { scheduleDueWeeks, dueDateFor, resolveClientPlanTimeline } from '@/lib/commission/actions'
 import { todaySP, formatDateBR } from '@/lib/date'
+import { loadTeamRates } from '@/lib/commission/fx'
 import { createHash, timingSafeEqual } from 'crypto'
 
 // Robô diário: agenda semanas vencidas. Nunca confirma recebimento e nunca gera comissão sozinho.
@@ -25,24 +26,23 @@ export async function GET(req: Request) {
   const supabase = createServiceClient()
   const today = todaySP()
 
-  // Cotação efetiva = MESMA regra do /api/fx (sem forçar fetch): travada+manual → manual; senão a
-  // referência automática armazenada → manual. Só snapshot p/ BRL (não muda o USD).
-  const { data: fx, error: fxError } = await supabase.from('fx_config').select('cotacao_manual, cotacao_travada, cotacao_referencia').eq('id', 1).maybeSingle()
-  const manual = fx?.cotacao_manual != null ? Number(fx.cotacao_manual) : null
-  const referencia = fx?.cotacao_referencia != null ? Number(fx.cotacao_referencia) : null
-  // SEM o fallback hardcoded 5.40: o rate só vale se vier do banco.
-  const rate = (fx?.cotacao_travada && manual != null) ? manual : (referencia ?? manual ?? null)
+  // Cotação efetiva — FONTE ÚNICA em lib/commission/fx. Este job é GLOBAL (varre todas as equipes), então
+  // resolve a cotação POR EQUIPE: antes lia só a linha id=1 e carimbava a cotação dela na receita/comissão de
+  // qualquer equipe. Só snapshot p/ BRL (não muda o USD).
+  const { byTeam, fallback, error: fxError } = await loadTeamRates(supabase as Parameters<typeof loadTeamRates>[0])
+  const rateFor = (team: string | null | undefined): number | null => (team ? byTeam.get(team) : null) ?? fallback
 
   // GUARD A4: se a leitura de fx_config FALHOU ou não há cotação real no banco, ABORTA sem gravar nada —
   // nunca congelar BRL com câmbio chutado. É SEGURO: payDueWeeks faz catch-up no próximo ciclo com a
     // cotação certa, então nenhuma semana se perde (só atrasa um ciclo). O USD não é afetado por isto.
-  if (fxError || rate == null || !(rate > 0)) {
+  if (fxError || fallback == null) {
     const reason = fxError
-      ? `erro lendo fx_config: ${fxError.message}`
+      ? `erro lendo fx_config: ${fxError}`
       : 'sem cotação válida em fx_config (cotacao_manual/cotacao_referencia ausentes)'
     console.error('[cron/auto-weeks] ABORTADO sem gravar —', reason)
     return NextResponse.json({ ok: false, aborted: true, reason, today }, { status: 503 })
   }
+  const rate = fallback   // usado só no relatório da resposta; a escrita usa rateFor(equipe)
 
   // Clientes ATIVOS com dia de pagamento definido. dia null → pular; end_date passou → pular.
   const { data: clients, error } = await supabase.from('clients')
@@ -81,7 +81,9 @@ export async function GET(req: Request) {
   for (const c of eligible) {
     // BUGFIX team_id: sem sessão (cron/service-role) o trigger set_team_id_default não resolve a equipe no
     // multi-tenant → pagamento/comissão nasciam órfãos (team_id null) e sumiam da receita. Carimba explícito.
-    const { scheduled, reason } = await scheduleDueWeeks(supabase as Parameters<typeof scheduleDueWeeks>[0], c.id, rate, 12, c.team_id)
+    const teamRate = rateFor(c.team_id)
+    if (teamRate == null) continue   // equipe sem cotação: não inventa câmbio, tenta no próximo ciclo
+    const { scheduled, reason } = await scheduleDueWeeks(supabase as Parameters<typeof scheduleDueWeeks>[0], c.id, teamRate, 12, c.team_id)
     if (scheduled.length) results.push({ client: c.name as string, marked: scheduled, reason })
   }
   const totalMarked = results.reduce((s, r) => s + r.marked.length, 0)

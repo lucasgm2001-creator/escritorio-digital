@@ -7,10 +7,9 @@ import { todaySP } from '@/lib/date'
 import { createServiceClient } from '@/lib/supabase/service'
 import { assertClientOwnership } from '@/server/security/team-ownership'
 import { saveClientHistory, type ClientHistoryInput } from '@/lib/commission/actions'
-import { resolveRate } from '@/lib/commission/calc'
+import { resolveTeamRate } from '@/lib/commission/fx'
 import { getStages } from '@/lib/funnelStages.server'
 import { wonSlug } from '@/lib/funnelStages'
-import type { FxConfig } from '@/lib/commission/types'
 
 // Escritas do módulo Clientes roteadas pelo SERVIDOR (PERMISSIONS-003): UI → action → can('clients','edit') →
 // Supabase. Fecha a brecha read×edit das escritas que saíam direto do browser. RLS (team_scope) segue por
@@ -130,15 +129,14 @@ export async function softDeleteClientAction(clientId: string): Promise<Res> {
   return { ok: true }
 }
 
-// Cotação efetiva p/ lançar receita/comissão no servidor (MESMA leitura do /api/commission/auto).
-async function resolveEditRate(supabase: ReturnType<typeof createServiceClient>): Promise<number> {
-  const { data: fx } = await supabase.from('fx_config').select('cotacao_manual, cotacao_travada, cotacao_referencia').eq('id', 1).maybeSingle()
-  const manual = fx?.cotacao_manual != null ? Number(fx.cotacao_manual) : null
-  const fxc: FxConfig = { cotacaoManual: manual, cotacaoTravada: !!fx?.cotacao_travada }
-  const auto = Number(fx?.cotacao_referencia) || manual || 5.40
-  const r = resolveRate(fxc, auto)
-  return r > 0 ? r : 5.40
+// Cotação efetiva p/ lançar receita/comissão no servidor — FONTE ÚNICA (lib/commission/fx), agora resolvida
+// pela EQUIPE e não pela linha id=1. Devolve null quando não há cotação real no banco: o fallback 5,40 que
+// existia aqui congelava um câmbio INVENTADO no histórico (imutável por design). Melhor recusar a escrita e
+// pedir para configurar a cotação do que gravar um BRL errado para sempre — o USD nunca depende disto.
+async function resolveEditRate(supabase: ReturnType<typeof createServiceClient>, teamId: string | null): Promise<number | null> {
+  return resolveTeamRate(supabase as Parameters<typeof resolveTeamRate>[0], teamId)
 }
+const NO_RATE = 'Cotação USD→BRL não configurada. Defina a cotação em Configurações antes de lançar receita.'
 
 // Campos do cliente que o SAVE com histórico pode gravar (identidade + cobrança/plano/datas/responsável).
 // Money/datas entram aqui de propósito: é o cadastro histórico do cliente (gated por can('clients','edit') +
@@ -180,7 +178,8 @@ export async function saveClientHistoryAction(
   // 3) Reconstrói o pipeline + o motor financeiro nas datas históricas.
   const stages = await getStages()
   const won = wonSlug(stages)
-  const rate = await resolveEditRate(supabase)
+  const rate = await resolveEditRate(supabase, teamId)
+  if (rate == null) return { ok: false, error: NO_RATE }
   const r = await saveClientHistory(supabase as Parameters<typeof saveClientHistory>[0], clientId, history, won, rate, teamId)
   if (!r.ok) {
     const msg = r.reason === 'inativo' ? 'Cliente inativo — reative para reconstruir o histórico.'
@@ -214,7 +213,8 @@ export async function saveClientWeekAction(input: SaveClientWeekInput): Promise<
   if (!owned.ok) return { ok: false, error: owned.status === 403 ? 'Cliente de outra equipe.' : 'Cliente não encontrado.' }
   if (!Number.isInteger(input.numeroSemana) || input.numeroSemana < 1) return { ok: false, error: 'Número da semana inválido.' }
   if (!/^\d{4}-\d{2}-\d{2}$/.test(input.dueOn)) return { ok: false, error: 'Informe o vencimento.' }
-  const rate = await resolveEditRate(svc)
+  const rate = await resolveEditRate(svc, g.context.activeTeamId)
+  if (rate == null) return { ok: false, error: NO_RATE }
   const supabase = createClient() // sessão do usuário: o RPC valida owner/admin e registra changed_by
   const { data, error } = await supabase.rpc('save_client_week', {
     p_client_id: input.clientId,

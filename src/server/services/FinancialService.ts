@@ -7,6 +7,7 @@ import { receivedRevenueBetween, receivedRevenueByForma, clientsWithLatePay, typ
 import { clientScheduleStatus, clientChargesBetween, type ChargeState } from '@/lib/commercial/schedule'
 import { rangeFor } from '@/lib/period'
 import { ymd, todaySP } from '@/lib/date'
+import { createClient } from '@/lib/supabase/server'
 
 // Visão Financeira executiva team-level (EXECUTIVE-METRICS-005). NÃO é motor novo: os KPIs núcleo vêm de
 // getExecutiveMetrics (fonte única — mesmos números de Hall/Dashboard/Relatórios/PDF) e as dimensões
@@ -36,7 +37,7 @@ export type FinancialViewVM = {
   receitaPorForma: RevenueRow[]
   evolucaoMensal: EvolutionPoint[]        // últimos 6 meses (recebida)
   clientesEmAtraso: number                // > 9 dias sem pagamento
-  recebimentosPendentesUsd: number        // semanas vencidas sem registro × valor semanal
+  recebimentosPendentesUsd: number        // semanas vencidas sem confirmação, pelo valor congelado de cada uma
   proximosRecebimentos: UpcomingCharge[]  // próximas cobranças (top 8 por data)
   cobrancasPorEstado: ChargeSummary[]     // cobranças do mês por estado: prevista/aguardando/recebida/atrasada
 }
@@ -65,11 +66,21 @@ export async function getFinancialView(context: RequestContext): Promise<Financi
 
   // Carrega UMA vez e compõe o VM executivo aqui (sem chamar getExecutiveMetrics, que recarregaria payments/
   // clients) — mesma FONTE ÚNICA, sem dupla-carga. Os KPIs núcleo saem idênticos ao Hall/Dashboard.
-  const [raw, revenue, carteira] = await Promise.all([
+  const supabase = createClient()
+  const [raw, revenue, carteira, ancoras, vencidas] = await Promise.all([
     getCommercialRaw(teamId),
     getClientRevenueForMetrics(),          // client_payments (+ numero_semana, plano_id)
     getExecutiveClients(teamId),           // clients (+ forma_pagamento, name)
+    // Âncora de cobrança (P1-ANCORA-001) e valor CONGELADO das semanas vencidas (P1-PENDENTE-001). Duas
+    // leituras enxutas aqui em vez de engordar getExecutiveClients/getClientRevenueForMetrics, que são a
+    // fonte compartilhada dos KPIs executivos — nenhum outro consumidor precisa destas colunas.
+    supabase.from('clients').select('id, billing_anchor_date').eq('team_id', teamId),
+    supabase.from('client_payments').select('client_id, numero_semana, valor_previsto_usd, valor_usd').eq('team_id', teamId).eq('status', 'vencida'),
   ])
+  const anchorById = new Map((ancoras.data ?? []).map(r => [r.id as string, (r.billing_anchor_date as string | null) ?? null]))
+  // Preço já congelado de cada semana agendada: chave `${clientId}:${numeroSemana}`.
+  const previstoByWeek = new Map((vencidas.data ?? []).map(r =>
+    [`${r.client_id}:${r.numero_semana}`, Number(r.valor_previsto_usd ?? r.valor_usd ?? 0)]))
   const exec = composeExecutiveMetrics(raw, revenue, carteira, mStart, mEnd, mRange.label)
   const payments = revenue.payments as PaymentRowWithClient[]
 
@@ -104,11 +115,17 @@ export async function getFinancialView(context: RequestContext): Promise<Financi
   for (const c of carteira.clients) {
     if (c.status !== 'ativo') continue
     const paidNums = paidNumsByClient.get(c.id) ?? new Set<number>()
-    const st = clientScheduleStatus(c, paidNums, today)
-    recebimentosPendentesUsd += st.semanasVencidas * st.valorSemanal
+    // Carimba a âncora real antes de aplicar a régua — sem ela o Financeiro divergiria do robô (ver schedule.ts).
+    const sched = { ...c, billing_anchor_date: anchorById.get(c.id) ?? null }
+    const st = clientScheduleStatus(sched, paidNums, today)
+    // Pendente pelo valor CONGELADO de cada semana já agendada; só quem ainda não tem linha (o robô agenda no
+    // dia do vencimento) é estimado pelo plano vigente. Antes multiplicava TUDO pelo plano atual, então um
+    // upgrade inflava retroativamente semanas antigas que valiam menos.
+    recebimentosPendentesUsd += st.semanasVencidasNums.reduce(
+      (sum, n) => sum + (previstoByWeek.get(`${c.id}:${n}`) ?? st.valorSemanal), 0)
     if (st.proximaCobranca && st.valorSemanal > 0) proximos.push({ client: c.name || 'Cliente', dueYMD: st.proximaCobranca, valor: st.valorSemanal })
     // Estados das cobranças do MÊS corrente (prevista/aguardando/recebida/atrasada) — mesma régua dueDateFor.
-    for (const ch of clientChargesBetween(c, paidNums, today, mStart, mEnd)) {
+    for (const ch of clientChargesBetween(sched, paidNums, today, mStart, mEnd)) {
       const cur = chargeAgg.get(ch.state) ?? { count: 0, valor: 0 }
       cur.count += 1; cur.valor += ch.valor; chargeAgg.set(ch.state, cur)
     }

@@ -4,8 +4,7 @@ import { getRequestContext } from '@/server/context/request-context'
 import { assertClientOwnership } from '@/server/security/team-ownership'
 import { createServiceClient } from '@/lib/supabase/service'
 import { scheduleDueWeeks } from '@/lib/commission/actions'
-import { resolveRate } from '@/lib/commission/calc'
-import type { FxConfig } from '@/lib/commission/types'
+import { loadTeamRates, resolveTeamRate } from '@/lib/commission/fx'
 import { sameOriginError } from '@/server/security/request-origin'
 
 export const runtime = 'nodejs'
@@ -24,16 +23,7 @@ function authorizedByToken(req: Request): boolean {
   return !!secret && !!provided && secretsMatch(provided, secret)
 }
 
-type SupaService = ReturnType<typeof createServiceClient>
-
-async function resolveServerRate(supabase: SupaService): Promise<number> {
-  const { data: fx } = await supabase.from('fx_config').select('cotacao_manual, cotacao_travada, cotacao_referencia').eq('id', 1).maybeSingle()
-  const manual = fx?.cotacao_manual != null ? Number(fx.cotacao_manual) : null
-  const fxc: FxConfig = { cotacaoManual: manual, cotacaoTravada: !!fx?.cotacao_travada }
-  const auto = Number(fx?.cotacao_referencia) || manual || 5.40
-  const r = resolveRate(fxc, auto)
-  return r > 0 ? r : 5.40
-}
+type FxSupa = Parameters<typeof loadTeamRates>[0]
 
 export async function POST(req: Request) {
   let body: { clientId?: string } = {}
@@ -49,7 +39,6 @@ export async function POST(req: Request) {
   if (!byToken && !context) return NextResponse.json({ ok: false, reason: 'unauthorized' }, { status: 401 })
 
   const supabase = createServiceClient()
-  const rate = await resolveServerRate(supabase)
 
   // Gatilho MANUAL (1 cliente) — marca SÓ o que venceu até hoje (date-gated, nunca futura).
   // SEGURANÇA (P1-SERVICEROLE-001): numa sessão de usuário, confirma que o cliente é da EQUIPE ATIVA ANTES
@@ -59,6 +48,9 @@ export async function POST(req: Request) {
       const owned = await assertClientOwnership(supabase, body.clientId, context.activeTeamId)
       if (!owned.ok) return NextResponse.json({ ok: false, reason: owned.status === 403 ? 'forbidden' : 'no_client' }, { status: owned.status })
     }
+    // Cotação da EQUIPE do cliente (FONTE ÚNICA em lib/commission/fx) — antes era sempre a da linha id=1.
+    const rate = await resolveTeamRate(supabase as FxSupa, context?.activeTeamId ?? null)
+    if (rate == null) return NextResponse.json({ ok: false, reason: 'sem_cotacao' }, { status: 503 })
     const r = await scheduleDueWeeks(supabase, body.clientId, rate)
     return NextResponse.json({ ok: true, mode: 'single', scheduled: r.scheduled, reason: r.reason })
   }
@@ -69,10 +61,13 @@ export async function POST(req: Request) {
   if (process.env.COMMISSION_AUTO_ENABLED !== 'true') {
     return NextResponse.json({ ok: true, mode: 'all', disabled: true, note: 'COMMISSION_AUTO_ENABLED != "true"' })
   }
-  const { data: clients } = await supabase.from('clients').select('id').eq('status', 'ativo').is('deleted_at', null)
+  const { byTeam, fallback } = await loadTeamRates(supabase as FxSupa)
+  if (fallback == null) return NextResponse.json({ ok: false, reason: 'sem_cotacao' }, { status: 503 })
+  const { data: clients } = await supabase.from('clients').select('id, team_id').eq('status', 'ativo').is('deleted_at', null)
   const marked: Record<string, number[]> = {}
   for (const c of clients ?? []) {
-    const r = await scheduleDueWeeks(supabase, c.id as string, rate)
+    const teamId = (c as { team_id: string | null }).team_id
+    const r = await scheduleDueWeeks(supabase, c.id as string, (teamId ? byTeam.get(teamId) : null) ?? fallback, 12, teamId)
     if (r.scheduled.length) marked[c.id as string] = r.scheduled
   }
   return NextResponse.json({ ok: true, mode: 'all', count: (clients ?? []).length, marked })

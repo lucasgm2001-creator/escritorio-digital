@@ -115,12 +115,19 @@ export type CommissionOutcome = 'paid' | 'capped' | 'no_deal' | 'dup' | 'frozen'
 async function deriveCommission(
   supabase: SupaClient, clientId: string, numero: number, paidOn: string, rate: number, teamId?: string | null,
 ): Promise<CommissionOutcome> {
+  // ALINHAMENTO COM save_client_week (P2-DERIVE-001): a RPC do banco — caminho REAL da UI — escolhe o deal
+  // com kind='sale' E vendedor que gera comissão, desempatando por data_fechamento desc, created_at desc.
+  // Aqui faltavam os dois filtros, então um deal de upgrade/renovação em_andamento podia sequestrar a comissão
+  // da semana, e vendedor com gera_comissao=false recebia mesmo assim. Duas regras de dinheiro divergentes
+  // para o mesmo fato — agora é uma só.
   const { data: deals } = await supabase.from('deals')
-    .select('id, valor_por_semana_usd, teto_semanas, status')
-    .eq('client_id', clientId).eq('status', 'em_andamento').order('data_fechamento', { ascending: false }).limit(1)
+    .select('id, seller_id, valor_por_semana_usd, teto_semanas, status')
+    .eq('client_id', clientId).eq('status', 'em_andamento').eq('kind', 'sale')
+    .order('data_fechamento', { ascending: false }).order('created_at', { ascending: false }).limit(1)
   const deal = deals?.[0]
   if (!deal) return 'no_deal'
   if (numero > deal.teto_semanas) return 'capped'
+  if (!await sellerGeraComissao(supabase, (deal as { seller_id?: string | null }).seller_id ?? null)) return 'no_deal'
   // Semana ESTORNADA (deleted_at) não conta como paga: some da comissão, então não pode ocupar o número.
   const { data: wk } = await supabase.from('weekly_payments').select('numero_semana').eq('deal_id', deal.id).is('deleted_at', null)
   const paidNumbers = (wk ?? []).map(w => w.numero_semana as number)
@@ -137,10 +144,12 @@ async function deriveCommission(
 
 // Registra a semana N paga DO CLIENTE: RECEITA (valor do plano, SEM teto) + deriva a comissão.
 // Fonte única do fluxo novo — reusa payWeek (mantém trava/regra/números). Receita idempotente
-// (unique client_id+numero_semana → 'dup'). A comissão é derivada mesmo em 'dup' (auto-corrige).
+// (unique client_id+numero_semana). Se a semana já existe, o tratamento depende do status dela:
+// placeholder do robô (vencida/prevista) é PROMOVIDO a paga; já paga apenas re-deriva a comissão
+// com a cotação congelada; anulada/isenta/não paga é decisão humana e não vira receita nem comissão.
 export async function payClientWeek(
   supabase: SupaClient, clientId: string, numero: number, paidOn: string, rate: number, teamId?: string | null,
-): Promise<{ ok: boolean; reason?: 'dup' | 'invalid' | 'db'; message?: string; valorUsd?: number; commission?: CommissionOutcome }> {
+): Promise<{ ok: boolean; reason?: 'dup' | 'invalid' | 'db' | 'blocked'; message?: string; valorUsd?: number; commission?: CommissionOutcome; promoted?: boolean }> {
   if (!Number.isInteger(numero) || numero < 1) return { ok: false, reason: 'invalid' }
   const planAtWeek = await resolveClientPlanTimeline(supabase, clientId)
   const { planoId, valorUsd } = planAtWeek(numero)
@@ -151,20 +160,42 @@ export async function payClientWeek(
     ...withTeam(teamId),
   })
   let dup = false
+  let promoted = false
   let derivRate = rate
   if (error) {
-    if (error.code === '23505') {
-      dup = true
+    if (error.code !== '23505') return { ok: false, reason: 'db', message: error.message }
+    dup = true
+    // A semana JÁ tem linha. O que fazer depende de QUEM a criou (P2-PROMOTE-001):
+    const { data: existing } = await supabase.from('client_payments')
+      .select('status, anulado, cotacao_usd_brl, valor_previsto_usd').eq('client_id', clientId).eq('numero_semana', numero).maybeSingle()
+    const status = String(existing?.status ?? (existing?.anulado ? 'anulada' : 'paga'))
+
+    if (status === 'vencida' || status === 'prevista') {
+      // Placeholder do ROBÔ (scheduleDueWeeks grava anulado=true, "Aguardando confirmação de pagamento").
+      // Antes o insert batia no 23505, a função devolvia 'dup' e derivava SÓ a comissão — a receita ficava
+      // eternamente vencida/anulada. Resultado: comissão sem receita. Agora a confirmação PROMOVE a linha,
+      // que é o que o insert original queria fazer. Congela a cotação de HOJE nas duas pontas (receita e
+      // comissão), como em qualquer pagamento novo. Mantém o valor PREVISTO já agendado para a semana.
+      const valorFinal = existing?.valor_previsto_usd != null ? Number(existing.valor_previsto_usd) : valorUsd
+      const { error: upErr } = await supabase.from('client_payments').update({
+        status: 'paga', anulado: false, anulado_em: null, anulado_motivo: null,
+        paid_on: paidOn, valor_usd: valorFinal, valor_pago_usd: valorFinal, cotacao_usd_brl: rate, plano_id: planoId,
+      }).eq('client_id', clientId).eq('numero_semana', numero)
+      if (upErr) return { ok: false, reason: 'db', message: upErr.message }
+      promoted = true
+    } else if (status === 'paga' || status === 'parcial') {
       // M3: a receita JÁ existe com uma cotação CONGELADA. A comissão da MESMA semana tem que usar a MESMA
       // cotação da receita (não o `rate` novo) p/ o BRL bater nas duas pontas. USD não muda; nada gravado recalcula.
-      const { data: existing } = await supabase.from('client_payments')
-        .select('cotacao_usd_brl').eq('client_id', clientId).eq('numero_semana', numero).maybeSingle()
       if (existing?.cotacao_usd_brl != null) derivRate = Number(existing.cotacao_usd_brl)
+    } else {
+      // anulada / isenta / nao_paga = DECISÃO HUMANA registrada. Não promove e — o ponto principal — não
+      // deriva comissão: antes derivava mesmo aqui, pagando comissão de uma semana deliberadamente estornada.
+      return { ok: false, reason: 'blocked', message: `Semana ${numero} está como "${status}" — ajuste pelo editor de semana.`, valorUsd }
     }
-    else return { ok: false, reason: 'db', message: error.message }
   }
 
   const commission = await deriveCommission(supabase, clientId, numero, paidOn, derivRate, teamId)
+  if (promoted) return { ok: true, valorUsd, commission, promoted }
   if (dup) return { ok: false, reason: 'dup', commission, valorUsd }
   return { ok: true, valorUsd, commission }
 }

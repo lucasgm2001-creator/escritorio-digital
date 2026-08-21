@@ -84,7 +84,7 @@ export async function getMyCompensationView(context: RequestContext): Promise<My
     supabase.from('seller_salaries').select('seller_id, valor_usd, effective_from').eq('seller_id', seller.id),
     supabase.from('meetings').select('id, seller_id, met_on, valor_usd, cotacao_usd_brl, client_name').eq('seller_id', seller.id),
     supabase.from('deals').select('id, client_id, client_name, valor_total_usd, valor_por_semana_usd, teto_semanas, status, data_fechamento, kind').eq('seller_id', seller.id),
-    supabase.from('fx_config').select('cotacao_manual, cotacao_travada').eq('team_id', teamId).maybeSingle(),
+    supabase.from('fx_config').select('cotacao_manual, cotacao_travada, cotacao_referencia').eq('team_id', teamId).maybeSingle(),
     resolveCompensationRule(context, seller.id, today),
   ])
 
@@ -107,7 +107,11 @@ export async function getMyCompensationView(context: RequestContext): Promise<My
 
   const manual = fxRes.data?.cotacao_manual != null ? Number(fxRes.data.cotacao_manual) : null
   const fx: FxConfig = { cotacaoManual: manual, cotacaoTravada: !!fxRes.data?.cotacao_travada }
-  const automaticRate = manual ?? 0
+  // P3-FXREF-001: a cotação automática é `cotacao_referencia`, com o manual só de reserva — a MESMA ordem do
+  // resto do sistema (lib/commission/fx). Antes só olhava o manual, então destravar a cotação com o manual
+  // vazio zerava TODO o BRL desta tela e do PDF (o USD, moeda base, nunca dependeu disto).
+  const referencia = fxRes.data?.cotacao_referencia != null ? Number(fxRes.data.cotacao_referencia) : null
+  const automaticRate = referencia ?? manual ?? 0
 
   const now = new Date()
   const y = now.getFullYear(), m = now.getMonth() + 1
