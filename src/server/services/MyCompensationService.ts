@@ -46,7 +46,7 @@ export type MyCompensationView = {
   yearReceivedUsd: number
   totalReceivedUsd: number
   dealsCount: number
-  thisWeekUsd: number         // comissão AGENDADA para vencer nesta semana civil (seg–dom) — ver thisWeekRange
+  thisWeekUsd: number         // comissão que AINDA FALTA receber e vence nesta semana civil (seg–dom)
   thisWeekRange: { from: string; to: string } | null  // janela usada no cálculo (transparência na UI/PDF)
   status: string              // status do vendedor (ativo/inativo)
   lastUpdate: string | null   // data do último lançamento (última atualização)
@@ -132,11 +132,15 @@ export async function getMyCompensationView(context: RequestContext): Promise<My
     valorPorSemanaUsd: Number(d.valor_por_semana_usd), status: d.status as DealStatus,
     dataFechamento: d.data_fechamento ?? '', clientName: d.client_name, kind: d.kind ?? 'sale',
   }))
-  // Receber esta semana (P1-THISWEEK-001) — AGORA é uma janela de DATA, não um valor fixo.
-  // ANTES: somava a parcela de toda venda ativa com semanas restantes → o card repetia o MESMO número toda
-  // semana, entrasse dinheiro ou não (foi o que deu a impressão de "a comissão não anda conforme os dias").
-  // AGORA: soma a comissão das semanas do cliente cujo VENCIMENTO cai na semana civil corrente (seg–dom,
-  // Brasília), pela régua canônica `dueDateFor` — a MESMA do cron/agendador e do ClientFinanceService.
+  // Receber esta semana (P1-THISWEEK-001 + P1-THISWEEK-002) — janela de DATA, e só o que FALTA receber.
+  // 1ª versão: somava a parcela de toda venda ativa com semanas restantes → repetia o MESMO número toda
+  //   semana, entrasse dinheiro ou não (a impressão de "a comissão não anda conforme os dias passam").
+  // 2ª versão: passou a somar as semanas cujo VENCIMENTO cai na semana civil corrente (seg–dom, Brasília)
+  //   pela régua canônica `dueDateFor` — a mesma do cron e do ClientFinanceService.
+  // FALTAVA excluir o que JÁ foi recebido: o card dizia "Receber esta semana US$ 116" com as três semanas
+  //   daquele valor já pagas e já contadas em "Comissão do mês". Ficava maior que o "Total pendente"
+  //   (116 > 114), o que é impossível. "Receber" é o que ainda vem: semana já paga sai da conta, e assim
+  //   este número nunca ultrapassa o total pendente.
   // Deriva do CRONOGRAMA (não das linhas já agendadas), então uma semana que vence na sexta já conta na
   // segunda — o robô só cria a linha no dia do vencimento. Só vendas (kind='sale') em_andamento e só as
   // `tetoSemanas` primeiras semanas geram comissão, exatamente como em save_client_week.
@@ -146,6 +150,8 @@ export async function getMyCompensationView(context: RequestContext): Promise<My
   const thisWeekRange = { from: weekFrom, to: weekTo }
 
   const clientIds = Array.from(new Set(deals.filter(d => d.kind === 'sale' && d.status === 'em_andamento' && d.client_id).map(d => d.client_id as string)))
+  // Semanas de comissão JÁ recebidas (estorno já saiu na fonte, acima) — chave `dealId:numeroSemana`.
+  const recebidas = new Set(weeks.map(w => `${w.dealId}:${w.numeroSemana}`))
   let thisWeekUsd = 0
   if (clientIds.length) {
     const { data: cliRows } = await supabase.from('clients')
@@ -169,7 +175,7 @@ export async function getMyCompensationView(context: RequestContext): Promise<My
       for (let n = 1; n <= teto; n++) {
         const due = dueDateFor(anchor, dia, n)
         if (due > weekTo) break            // vencimentos são monotônicos → o resto é futuro
-        if (due >= weekFrom) thisWeekUsd += Number(d.valor_por_semana_usd)
+        if (due >= weekFrom && !recebidas.has(`${d.id}:${n}`)) thisWeekUsd += Number(d.valor_por_semana_usd)
       }
     }
   }
