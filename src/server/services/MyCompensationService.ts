@@ -35,6 +35,25 @@ export type CompMonth = {
   summary: MonthlySummary
   payments: CompPaymentLine[]
 }
+// PROCEDÊNCIA de cada indicador (COMP-FONTES-001). O card deixa de ser um número solto: cada um carrega as
+// LINHAS que o compõem, para o colaborador conferir de onde veio. Regra: indicador de dinheiro RECEBIDO só
+// lista o que entrou de fato; indicador de projeção deixa explícito o que ainda não entrou (campo `hint`).
+export type CompSourceLine = {
+  label: string            // "Venda · semana 3", "Reunião", "Salário fixo", "Bônus de renovação"…
+  cliente: string | null
+  data: string | null      // YYYY-MM-DD do evento (recebimento, reunião, vencimento)
+  valorUsd: number
+  hint: string | null      // "recebida" / "vence 29/08" / "3 semanas × US$ 38,00"
+}
+export type CompSource = {
+  key: string
+  title: string
+  description: string      // o que este número significa, em uma linha
+  totalUsd: number
+  lines: CompSourceLine[]
+  emptyMessage: string
+}
+
 export type MyCompensationView = {
   hasComp: boolean            // false = usuário não é vendedor / sem seller vinculado → estado honesto
   sellerName: string
@@ -52,6 +71,8 @@ export type MyCompensationView = {
   lastUpdate: string | null   // data do último lançamento (última atualização)
   months: CompMonth[]
   pending: PendingCommissionResult  // comissões pendentes das primeiras 4 semanas por cliente (reusa dealTotal)
+  forecastCommissionUsd: number     // comissão prevista = já recebida + pendente das 4 primeiras semanas
+  sources: CompSource[]             // procedência de cada indicador (mesma ordem dos cards)
 }
 
 export async function getMyCompensationView(context: RequestContext): Promise<MyCompensationView> {
@@ -63,6 +84,7 @@ export async function getMyCompensationView(context: RequestContext): Promise<My
     hasComp: false, sellerName: context.profile?.name ?? '', cargo: null, department: null, rule: null,
     currentMonth: null, nextPayout: null, yearReceivedUsd: 0, totalReceivedUsd: 0, dealsCount: 0,
     thisWeekUsd: 0, thisWeekRange: null, status: 'ativo', lastUpdate: null, months: [], pending: emptyPending,
+    forecastCommissionUsd: 0, sources: [],
   }
   const teamId = context.activeTeamId
   if (!teamId) return empty
@@ -153,6 +175,7 @@ export async function getMyCompensationView(context: RequestContext): Promise<My
   // Semanas de comissão JÁ recebidas (estorno já saiu na fonte, acima) — chave `dealId:numeroSemana`.
   const recebidas = new Set(weeks.map(w => `${w.dealId}:${w.numeroSemana}`))
   let thisWeekUsd = 0
+  const thisWeekLines: CompSourceLine[] = []
   if (clientIds.length) {
     const { data: cliRows } = await supabase.from('clients')
       .select('id, status, start_date, billing_anchor_date, dia_pagamento_semana')
@@ -175,7 +198,13 @@ export async function getMyCompensationView(context: RequestContext): Promise<My
       for (let n = 1; n <= teto; n++) {
         const due = dueDateFor(anchor, dia, n)
         if (due > weekTo) break            // vencimentos são monotônicos → o resto é futuro
-        if (due >= weekFrom && !recebidas.has(`${d.id}:${n}`)) thisWeekUsd += Number(d.valor_por_semana_usd)
+        if (due >= weekFrom && !recebidas.has(`${d.id}:${n}`)) {
+          thisWeekUsd += Number(d.valor_por_semana_usd)
+          thisWeekLines.push({
+            label: `Venda · semana ${n}`, cliente: d.client_name, data: due,
+            valorUsd: Number(d.valor_por_semana_usd), hint: 'a receber',
+          })
+        }
       }
     }
   }
@@ -210,9 +239,101 @@ export async function getMyCompensationView(context: RequestContext): Promise<My
     return { key, label: `${MONTH_NAMES[mm - 1]} ${yy}`, summary, payments }
   })
 
+  // ── PROCEDÊNCIA DOS INDICADORES (COMP-FONTES-001) ─────────────────────────────────────────────
+  // Deriva das MESMAS listas que produziram os números acima (weeks/meetings/salaries/pending) — nenhum
+  // cálculo novo, nenhuma segunda fonte. Se o card e a lista divergissem, seria bug de duplicação.
+  const monthKey = `${y}-${pad2(m)}`
+  const nomeCliente = (dealId: string) => dealById.get(dealId)?.client_name ?? null
+  const rotuloSemana = (w: WeeklyPayment) =>
+    w.kind === 'upgrade' ? `Upgrade · parcela ${w.numeroSemana}`
+      : w.kind === 'renewal' ? 'Bônus de renovação'
+        : `Venda · semana ${w.numeroSemana}`
+
+  // Só o que ENTROU: semana recebida tem paid_on; reunião elegível tem met_on. Ordena do mais recente.
+  const recentesPrimeiro = (a: CompSourceLine, b: CompSourceLine) => (b.data ?? '').localeCompare(a.data ?? '')
+
+  const linhasSemanas = (filtro: (w: WeeklyPayment) => boolean): CompSourceLine[] =>
+    weeks.filter(filtro).map(w => ({
+      label: rotuloSemana(w), cliente: nomeCliente(w.dealId), data: w.paidOn,
+      valorUsd: w.valorUsd, hint: 'recebida',
+    }))
+  const linhasReunioes = (filtro: (mm: Meeting) => boolean): CompSourceLine[] =>
+    meetings.filter(filtro).map(mm => ({
+      label: 'Reunião', cliente: mtgClient.get(mm.id) ?? null, data: mm.metOn,
+      valorUsd: mm.valorUsd, hint: 'recebida',
+    }))
+
+  const doMes = [
+    ...linhasSemanas(w => w.paidOn.slice(0, 7) === monthKey),
+    ...linhasReunioes(mm => mm.metOn.slice(0, 7) === monthKey),
+  ].sort(recentesPrimeiro)
+
+  const salarioLinhas: CompSourceLine[] = currentMonth.salaryUsd > 0
+    ? [{ label: 'Salário fixo', cliente: null, data: `${monthKey}-01`, valorUsd: currentMonth.salaryUsd,
+        hint: currentMonth.salaryBrl > 0 ? `equivale a R$ ${currentMonth.salaryBrl.toFixed(2)}` : null }]
+    : []
+
+  // Acumulado por CLIENTE (não linha a linha): com dezenas de semanas, a lista vira ruído. Agrupar responde
+  // "de onde veio" melhor do que despejar tudo. Reuniões entram como um bloco só, pelo mesmo motivo.
+  const porCliente = new Map<string, { total: number; semanas: number; ultima: string }>()
+  for (const w of weeks) {
+    const nome = nomeCliente(w.dealId) ?? 'Venda sem cliente'
+    const cur = porCliente.get(nome) ?? { total: 0, semanas: 0, ultima: '' }
+    cur.total = round2(cur.total + w.valorUsd)
+    cur.semanas += 1
+    if (w.paidOn > cur.ultima) cur.ultima = w.paidOn
+    porCliente.set(nome, cur)
+  }
+  const ateAgoraLinhas: CompSourceLine[] = Array.from(porCliente, ([nome, v]) => ({
+    label: `${v.semanas} semana(s) recebida(s)`, cliente: nome, data: v.ultima, valorUsd: v.total, hint: 'recebida',
+  })).sort((a, b) => b.valorUsd - a.valorUsd)
+  const totalReunioesUsd = round2(meetings.reduce((acc, mm) => acc + mm.valorUsd, 0))
+  if (totalReunioesUsd > 0) {
+    ateAgoraLinhas.push({
+      label: `${meetings.length} reunião(ões)`, cliente: null,
+      data: meetings.map(mm => mm.metOn).sort().at(-1) ?? null,
+      valorUsd: totalReunioesUsd, hint: 'recebida',
+    })
+  }
+
+  const pendenteLinhas: CompSourceLine[] = pending.lines
+    .filter(l => l.situacao === 'pendente')
+    .map(l => ({
+      label: `Semanas ${(l.semanasPagas + 1)}–${l.semanasElegiveis}`, cliente: l.clientName,
+      data: null, valorUsd: l.comissaoPendenteUsd,
+      hint: `${l.semanasPendentes} semana(s) × ${l.comissaoPorSemanaUsd.toFixed(2)}`,
+    }))
+
+  const forecastCommissionUsd = round2(totalReceivedUsd + pending.totalPendenteUsd)
+
+  const sources: CompSource[] = [
+    { key: 'salario', title: 'Salário fixo', description: `Salário vigente na competência de ${monthKey}.`,
+      totalUsd: currentMonth.salaryUsd, lines: salarioLinhas, emptyMessage: 'Nenhum salário fixo configurado.' },
+    { key: 'mesComissao', title: 'Comissão do mês', description: 'Somente o que entrou neste mês: semanas recebidas, bônus e reuniões.',
+      totalUsd: round2(currentMonth.weeksUsd + currentMonth.meetingsUsd), lines: doMes,
+      emptyMessage: 'Nenhuma comissão recebida neste mês ainda.' },
+    { key: 'semana', title: 'Receber esta semana', description: `Comissão que ainda falta receber e vence entre ${weekFrom} e ${weekTo}.`,
+      totalUsd: thisWeekUsd, lines: thisWeekLines.sort(recentesPrimeiro),
+      emptyMessage: 'Tudo que vencia nesta semana já entrou.' },
+    { key: 'mesTotal', title: 'Receber este mês', description: 'Salário do mês somado à comissão já recebida nele.',
+      totalUsd: currentMonth.totalUsd, lines: [...salarioLinhas, ...doMes],
+      emptyMessage: 'Nada lançado neste mês.' },
+    { key: 'ateAgora', title: 'Comissão até agora', description: 'Tudo que já foi recebido, do início até hoje, agrupado por cliente.',
+      totalUsd: totalReceivedUsd, lines: ateAgoraLinhas,
+      emptyMessage: 'Nenhuma comissão recebida ainda.' },
+    { key: 'previsto', title: 'Comissão prevista', description: 'O que já entrou mais o que ainda falta das 4 primeiras semanas de cada venda.',
+      totalUsd: forecastCommissionUsd,
+      lines: [
+        { label: 'Já recebido', cliente: null, data: null, valorUsd: totalReceivedUsd, hint: 'confirmado' },
+        ...pendenteLinhas.map(l => ({ ...l, hint: `a receber · ${l.hint ?? ''}`.trim() })),
+      ],
+      emptyMessage: 'Sem comissão recebida ou prevista.' },
+  ]
+
   return {
     hasComp: true, sellerName: seller.name, cargo: role?.name ?? null, department: dept?.name ?? null,
     rule, currentMonth, nextPayout, yearReceivedUsd, totalReceivedUsd, dealsCount: deals.filter(d => d.kind === 'sale').length,
     thisWeekUsd, thisWeekRange, status: (seller as { status?: string }).status ?? 'ativo', lastUpdate, months, pending,
+    forecastCommissionUsd, sources,
   }
 }

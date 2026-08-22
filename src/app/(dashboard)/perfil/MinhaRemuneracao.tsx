@@ -7,7 +7,7 @@ import { EmptyState } from '@/components/ui/EmptyState'
 import { usd, brl } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import { buildMyCompensationPdf } from '@/lib/commercial/my-compensation-pdf'
-import type { MyCompensationView } from '@/server/services/MyCompensationService'
+import type { CompSource, MyCompensationView } from '@/server/services/MyCompensationService'
 import type { PendingClientLine } from '@/lib/commission/types'
 import type { CommissionType, PaymentRule } from '@/server/repositories/CompensationRepository'
 
@@ -27,6 +27,8 @@ const STATUS_LABEL: Record<string, string> = { em_andamento: 'Em andamento', con
 
 export function MinhaRemuneracao({ vm, workspace }: { vm: MyCompensationView; workspace: string }) {
   const [open, setOpen] = useState<string | null>(vm.months[0]?.key ?? null)
+  // Card aberto: cada indicador mostra a PROCEDÊNCIA (as linhas que o compõem). Clicar de novo fecha.
+  const [fonte, setFonte] = useState<string | null>(null)
   const [pdfLoading, setPdfLoading] = useState(false)
   const downloadPdf = async () => {
     setPdfLoading(true)
@@ -48,7 +50,7 @@ export function MinhaRemuneracao({ vm, workspace }: { vm: MyCompensationView; wo
 
   return (
     <div className="space-y-6 min-w-0">
-      <div className="flex items-start justify-between gap-3">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0">
           <h2 className="font-display font-bold text-lg text-bento-text">Minha Remuneração</h2>
           <p className="text-note text-bento-muted">
@@ -59,26 +61,36 @@ export function MinhaRemuneracao({ vm, workspace }: { vm: MyCompensationView; wo
           </p>
         </div>
         <button type="button" onClick={downloadPdf} disabled={pdfLoading}
-          className="inline-flex items-center gap-1.5 shrink-0 border border-bento-border text-bento-muted hover:border-lime hover:text-bento-text px-3 min-h-[40px] rounded-btn text-note font-medium transition-colors disabled:opacity-50">
+          className="inline-flex w-full sm:w-auto items-center justify-center gap-1.5 shrink-0 border border-bento-border text-bento-muted hover:border-lime hover:text-bento-text px-3 min-h-[42px] rounded-btn text-note font-medium transition-colors disabled:opacity-50">
           <Download className="w-3.5 h-3.5" />{pdfLoading ? 'Gerando…' : 'Baixar PDF'}
         </button>
       </div>
 
-      {/* Indicadores (Parte 3) */}
-      <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-2.5">
-        <MetricCard title="Salário fixo" value={usd(cur?.salaryUsd ?? 0)} size="sm" />
-        <MetricCard title="Comissão do mês" value={usd((cur?.meetingsUsd ?? 0) + (cur?.weeksUsd ?? 0))} size="sm" tone="positive" />
-        <MetricCard title="Receber esta semana" value={usd(vm.thisWeekUsd)} size="sm" />
-        <MetricCard title="Receber este mês" value={usd(cur?.totalUsd ?? 0)} size="sm" />
-        <MetricCard title="Próximo pagamento" value={vm.nextPayout?.date ?? '—'} size="sm" tone="muted" />
-        <MetricCard title="Comissão acumulada" value={usd(vm.totalReceivedUsd)} size="sm" />
+      {/* Indicadores (Parte 3) — cada card ABRE a procedência do próprio número (COMP-FONTES-001).
+          O valor exibido continua vindo pronto do servidor; a lista abaixo deriva das MESMAS fontes. */}
+      <div className="grid grid-cols-1 min-[420px]:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4 gap-3">
+        {vm.sources.map(src => (
+          <MetricCard
+            key={src.key}
+            title={src.title}
+            value={usd(src.totalUsd)}
+            size="sm"
+            tone={src.key === 'mesComissao' ? 'positive' : src.key === 'previsto' ? 'muted' : 'default'}
+            subtitle={fonte === src.key ? 'ocultar detalhe' : 'ver de onde vem'}
+            onClick={() => setFonte(f => f === src.key ? null : src.key)}
+          />
+        ))}
+        <MetricCard title="Próximo pagamento" value={vm.nextPayout?.date ?? '—'} size="sm" tone="muted"
+          subtitle={`${usd(vm.nextPayout?.totalUsd ?? 0)} previsto`} />
       </div>
+
+      {fonte && <SourcePanel src={vm.sources.find(x => x.key === fonte)!} onClose={() => setFonte(null)} />}
 
       {/* Comissões pendentes — primeiras 4 semanas por cliente (SELLER-COMMISSION-PENDING-001). Reusa o motor:
           os números vêm prontos de vm.pending (pendingCommission → dealTotal). Só exibição, cards compactos. */}
       {vm.pending.lines.length > 0 && (
-        <div className="bento-fx p-4 space-y-3">
-          <div className="flex items-center justify-between gap-2">
+        <div className="bento-fx p-4 sm:p-5 space-y-4">
+          <div className="flex flex-col items-start gap-2 sm:flex-row sm:items-center sm:justify-between">
             <p className="font-tech text-label uppercase tracking-label text-bento-muted">Comissões pendentes · primeiras 4 semanas</p>
             <span className="text-caption text-bento-dim shrink-0">{vm.pending.clientesPendentes} pendente(s) · {vm.pending.clientesCompletos} completo(s)</span>
           </div>
@@ -98,7 +110,7 @@ export function MinhaRemuneracao({ vm, workspace }: { vm: MyCompensationView; wo
                   {vm.pending.semanasPendentesTotais} semana(s) a receber<br />em {vm.pending.clientesPendentes} cliente(s)
                 </p>
               </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 {vm.pending.lines.filter(l => l.situacao === 'pendente').map(l => <PendingCard key={l.dealId} l={l} />)}
               </div>
             </>
@@ -120,9 +132,9 @@ export function MinhaRemuneracao({ vm, workspace }: { vm: MyCompensationView; wo
       )}
 
       {/* Modelo (Parte 6) */}
-      <div className="bento-fx p-4 space-y-3">
+      <div className="bento-fx p-4 sm:p-5 space-y-4">
         <p className="font-tech text-label uppercase tracking-label text-bento-muted">Meu modelo de remuneração</p>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-2.5 text-note">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-3 text-note">
           <Row label="Salário fixo (vigente)" value={usd(cur?.salaryUsd ?? 0)} sub={cur && cur.salaryBrl > 0 ? brl(cur.salaryBrl) : undefined} />
           <Row label="Forma de pagamento" value={rule ? PAYMENT_RULE_LABEL[rule.paymentRule] : 'Não configurado'} />
           <Row label="Comissão por contrato" value={rule ? commissionText(rule.contractCommission) : '—'} />
@@ -184,10 +196,53 @@ export function MinhaRemuneracao({ vm, workspace }: { vm: MyCompensationView; wo
   )
 }
 
+// Painel de PROCEDÊNCIA de um indicador. Só exibição: as linhas vêm prontas do servidor, derivadas das
+// mesmas fontes que produziram o número do card — se divergissem, seria bug de dupla contagem.
+function SourcePanel({ src, onClose }: { src: CompSource; onClose: () => void }) {
+  return (
+    <div className="bento-fx p-4 sm:p-5 space-y-3">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="font-tech text-label uppercase tracking-label text-bento-muted">{src.title} · de onde vem</p>
+          <p className="text-note text-bento-dim mt-1">{src.description}</p>
+        </div>
+        <button type="button" onClick={onClose}
+          className="shrink-0 rounded-btn border border-bento-border px-2.5 py-1 text-caption text-bento-muted hover:text-bento-text hover:border-lime transition-colors">
+          Fechar
+        </button>
+      </div>
+
+      {src.lines.length === 0 ? (
+        <p className="text-note text-bento-muted">{src.emptyMessage}</p>
+      ) : (
+        <>
+          <div className="divide-y divide-bento-border/40">
+            {src.lines.map((l, i) => (
+              <div key={`${l.label}-${l.cliente ?? ''}-${l.data ?? ''}-${i}`} className="flex items-start justify-between gap-3 py-2">
+                <div className="min-w-0">
+                  <p className="text-note text-bento-text break-words">{l.label}</p>
+                  <p className="text-caption text-bento-muted mt-0.5 break-words">
+                    {[l.cliente, l.data, l.hint].filter(Boolean).join(' · ')}
+                  </p>
+                </div>
+                <span className="font-tech text-note text-bento-text tabular-nums shrink-0">{usd(l.valorUsd)}</span>
+              </div>
+            ))}
+          </div>
+          <div className="flex items-center justify-between gap-3 border-t border-bento-border pt-2.5">
+            <span className="font-tech text-caption uppercase tracking-label text-bento-muted">Total</span>
+            <span className="font-display font-bold text-bento-text tabular-nums">{usd(src.totalUsd)}</span>
+          </div>
+        </>
+      )}
+    </div>
+  )
+}
+
 function Row({ label, value, sub }: { label: string; value: string | number; sub?: string }) {
   return (
-    <div className="flex items-baseline justify-between gap-3 py-1.5 border-b border-bento-border/40 last:border-0">
-      <span className="text-bento-muted shrink-0">{label}</span>
+    <div className="flex items-start justify-between gap-4 py-2 border-b border-bento-border/40 last:border-0">
+      <span className="min-w-0 max-w-[58%] break-words text-bento-muted">{label}</span>
       <span className="text-bento-text font-medium text-right min-w-0 break-words tabular-nums">{value}{sub && <span className="block text-caption text-bento-dim font-normal">{sub}</span>}</span>
     </div>
   )
@@ -197,7 +252,7 @@ function Row({ label, value, sub }: { label: string; value: string | number; sub
 function PendingCard({ l }: { l: PendingClientLine }) {
   const pct = l.semanasElegiveis > 0 ? Math.min(100, (l.semanasPagas / l.semanasElegiveis) * 100) : 0
   return (
-    <div className="bg-bento-bg border border-bento-border/60 rounded-btn p-3">
+    <div className="bg-bento-bg border border-bento-border/60 rounded-btn p-3.5">
       <div className="flex items-center justify-between gap-2">
         <span className="text-sm font-medium text-bento-text truncate">{l.clientName || 'Venda sem cliente'}</span>
         <span className="font-display text-sm font-bold text-lime-fg tabular-nums flex-none">{usd(l.comissaoPendenteUsd)}</span>
