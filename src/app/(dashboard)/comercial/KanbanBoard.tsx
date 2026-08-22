@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useCallback, useEffect, useMemo, useRef } from 'react'
+import { sortByStageEntry } from '@/lib/commercial/funnel-order'
 import {
   DndContext, DragOverlay, PointerSensor, TouchSensor, useSensor, useSensors,
   type DragStartEvent, type DragEndEvent,
@@ -354,7 +355,7 @@ export function KanbanBoard({ initialLeads, initialStages, initialClients, curre
                           <KanbanColumn
                             key={col.key}
                             column={col}
-                            leads={filteredLeads.filter(l => l.status === col.key)}
+                            leads={sortByStageEntry(filteredLeads.filter(l => l.status === col.key))}
                             moveTargets={moveTargets}
                             onMove={moveLeadToStatus}
                             onOpenDiary={setSelectedLead}

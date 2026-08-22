@@ -6,6 +6,7 @@ import { cn } from '@/lib/utils'
 import { usdCompact } from '@/lib/format'
 import { StaticLeadCard } from './LeadCard'
 import { type ColumnConfig, type Lead } from './types'
+import { sortByStageEntry } from '@/lib/commercial/funnel-order'
 
 /**
  * Funil no MOBILE (<1024px): ACORDEÃO VERTICAL agrupado por `grupo` (faixa/cabeçalho de seção, igual
@@ -61,7 +62,8 @@ export function PhaseSelectorMobile({ columns, leads, onOpenDiary }: {
             <span className="font-tech text-[10px] uppercase tracking-[0.14em] text-bento-muted">{g.name}</span>
           </div>
           {g.cols.map(col => {
-            const phaseLeads = leads.filter(l => l.status === col.key)
+            // MESMA régua do Kanban: mais recente na fase no topo (lib/commercial/funnel-order).
+            const phaseLeads = sortByStageEntry(leads.filter(l => l.status === col.key))
             const total = phaseLeads.reduce((s, l) => s + (l.value || 0), 0)
             const color = colorOf(col)
             const isOpen = open.has(col.key)
