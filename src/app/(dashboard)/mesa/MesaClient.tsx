@@ -172,7 +172,12 @@ export function MesaClient({ initialTasks, initialLeads, linkOptions, currentUse
     setSelectedLeadId(lead.id)
   }
 
-  function openNew(lead = selectedLead) {
+  // Nova tarefa nasce SEM vínculo por padrão (MESA-NOVATAREFA-001). O painel de contexto auto-seleciona um
+  // lead ao abrir a Mesa (primeira tarefa de hoje ligada a lead, senão o primeiro que precisa de atenção) e
+  // esse padrão era `lead = selectedLead`: o botão "Nova tarefa" da barra herdava um lead que o usuário nunca
+  // escolheu. Quem QUER o vínculo passa o lead explicitamente — é o caso do "Próxima ação", dentro do painel
+  // do lead, onde a tarefa é por definição daquele lead.
+  function openNew(lead: MesaLead | null = null) {
     setEditing(null)
     setPrefill({
       due_date: today,
