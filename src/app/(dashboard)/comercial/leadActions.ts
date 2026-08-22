@@ -39,7 +39,11 @@ export interface MovableLead {
 // Extraído do KanbanBoard pra ser reusado pelo agente do Hall — MESMA lógica, sem duplicar.
 // FIX-P0-TEAMID-WRITES: teamId (equipe ativa) carimba as escritas team-scoped — o trigger só cobre usuário
 // de 1 equipe. Opcional/último parâmetro: sem ele (ex.: chamadas antigas/servidor) volta ao trigger.
-async function runWonFlow(supabase: SupaClient, lead: MovableLead, userName: string, planoId: string | null = null, teamId: string | null = null): Promise<ActionNote[]> {
+// customWeeklyUsd = PLANO AVULSO (PLANO-AVULSO-001): valor semanal só desta venda. Não vira linha em `plans`
+// — o cliente nasce com plano_id null e plan_weekly = este valor, que é exatamente como resolveClientPlan já
+// lê (plano_id null → plan_weekly). Cobrança, agendador e receita seguem idênticos aos planos do catálogo, e a
+// comissão usa o MESMO % do catálogo sobre este valor, nas mesmas 4 primeiras semanas.
+async function runWonFlow(supabase: SupaClient, lead: MovableLead, userName: string, planoId: string | null = null, teamId: string | null = null, customWeeklyUsd: number | null = null): Promise<ActionNote[]> {
   const notes: ActionNote[] = []
   const today = ymd(new Date())
 
@@ -74,13 +78,16 @@ async function runWonFlow(supabase: SupaClient, lead: MovableLead, userName: str
     // plan_weekly SEMPRE = valor_semanal DESSE plano (nunca 0); plano_id e plan_weekly apontam pro MESMO plano.
     let novoPlanoId: string | null = null
     let novoPlanWeekly = 0
-    if (planoId) {
+    // AVULSO tem precedência e NÃO cai no fallback do plano padrão: plano_id fica null de propósito.
+    const avulso = customWeeklyUsd != null && customWeeklyUsd > 0 ? customWeeklyUsd : null
+    if (avulso) novoPlanWeekly = avulso
+    else if (planoId) {
       let planQuery = supabase.from('plans').select('id, valor_semanal').eq('id', planoId)
       if (teamId) planQuery = planQuery.eq('team_id', teamId)
       const { data: pl } = await planQuery.maybeSingle()
       if (pl) { novoPlanoId = pl.id as string; novoPlanWeekly = Number(pl.valor_semanal) || 0 }
     }
-    if (!novoPlanoId || novoPlanWeekly <= 0) {
+    if (!avulso && (!novoPlanoId || novoPlanWeekly <= 0)) {
       let defaultPlanQuery = supabase.from('plans').select('id, valor_semanal').eq('ativo', true)
       if (teamId) defaultPlanQuery = defaultPlanQuery.eq('team_id', teamId)
       const { data: def } = await defaultPlanQuery.order('ordem', { ascending: true, nullsFirst: false }).order('valor_semanal').limit(1).maybeSingle()
@@ -108,6 +115,16 @@ async function runWonFlow(supabase: SupaClient, lead: MovableLead, userName: str
     return notes
   }
 
+  // PLANO AVULSO no cliente (PLANO-AVULSO-001) — aqui, e não dentro do bloco de comissão: o cliente pode JÁ
+  // existir (reusado por nome acima, sem passar pela criação) e o responsável pode não gerar comissão. Plano é
+  // do CLIENTE; comissão é do VENDEDOR. Sem isto, a 1ª semana de receita usaria o plano antigo do cliente.
+  if (customWeeklyUsd != null && customWeeklyUsd > 0) {
+    let upd = supabase.from('clients').update({ plano_id: null, plan_weekly: customWeeklyUsd }).eq('id', clientId)
+    if (teamId) upd = upd.eq('team_id', teamId)
+    const { error: planErr } = await upd
+    if (planErr) notes.push({ message: `Venda criada, mas falhou ao aplicar o plano personalizado: ${planErr.message}`, type: 'error' })
+  }
+
   // Vendedor + GERA COMISSÃO? (Parte 3). Resolve pelo RESPONSÁVEL do lead (não mais "1º ativo fixo"): Daniel
   // (dono, gera_comissao=false) = cliente + receita, SEM comissão. Sem vendedor ativo → não cria deal.
   const { sellerId, geraComissao } = await resolveSellerForCommission(supabase, lead.assigned_name, teamId)
@@ -125,7 +142,20 @@ async function runWonFlow(supabase: SupaClient, lead: MovableLead, userName: str
     // Plano do fechamento (Fase 2A): grava no cliente + comissão/semana pelo % do plano; sem % → LEGADO US$25/sem.
     let vps = LEGACY_VPS_USD
     let pctUsed: number | null = null
-    if (planoId) {
+    const avulsoDeal = customWeeklyUsd != null && customWeeklyUsd > 0 ? customWeeklyUsd : null
+    if (avulsoDeal) {
+      // Mesmo direito de comissão dos planos do catálogo: % do catálogo sobre o valor semanal avulso, nas
+      // DEFAULT_TETO_SEMANAS primeiras semanas. O % é lido do catálogo (não hardcoded) p/ acompanhar a regra
+      // se ela mudar; sem catálogo, cai no 20% padrão do modelo de remuneração.
+      let pctQuery = supabase.from('plans').select('comissao_percentual').eq('ativo', true)
+      if (teamId) pctQuery = pctQuery.eq('team_id', teamId)
+      const { data: catalogo } = await pctQuery.order('ordem', { ascending: true, nullsFirst: false }).limit(1).maybeSingle()
+      const pctCatalogo = catalogo?.comissao_percentual != null ? Number(catalogo.comissao_percentual) : null
+      const pct = hasCommissionPct(pctCatalogo) ? pctCatalogo : 20
+      pctUsed = pct
+      vps = weeklyCommissionUsd(avulsoDeal, pct)
+      // O cliente já recebeu plano_id null + plan_weekly avulso acima — aqui só a comissão.
+    } else if (planoId) {
       let selectedPlanQuery = supabase.from('plans').select('id, valor_semanal, comissao_percentual').eq('id', planoId)
       if (teamId) selectedPlanQuery = selectedPlanQuery.eq('team_id', teamId)
       const { data: pl } = await selectedPlanQuery.maybeSingle()
@@ -179,7 +209,7 @@ const MEETING_USD = 15
 //  resolveSellerForCommission, lib/commission/actions. Parte 3.)
 
 export async function moveLead(
-  supabase: SupaClient, lead: MovableLead, newStatus: LeadStatus, userName: string, stages: FunnelStage[], planoId: string | null = null, userId: string | null = null, teamId: string | null = null,
+  supabase: SupaClient, lead: MovableLead, newStatus: LeadStatus, userName: string, stages: FunnelStage[], planoId: string | null = null, userId: string | null = null, teamId: string | null = null, customWeeklyUsd: number | null = null,
 ): Promise<{ ok: boolean; error?: string; notes: ActionNote[] }> {
   if (lead.status === newStatus) return { ok: true, notes: [] }
   const nowIso = new Date().toISOString()
@@ -282,6 +312,6 @@ export async function moveLead(
     } catch (e) { console.error('[moveLead] tarefa da fase (erro inesperado):', e instanceof Error ? e.message : String(e)) }
   }
 
-  if (isWon) notes.push(...await runWonFlow(supabase, lead, userName, planoId, teamId))
+  if (isWon) notes.push(...await runWonFlow(supabase, lead, userName, planoId, teamId, customWeeklyUsd))
   return { ok: true, notes }
 }

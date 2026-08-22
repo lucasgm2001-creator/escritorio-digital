@@ -128,9 +128,20 @@ export async function updateLeadAction(leadId: string, patch: Record<string, unk
 }
 
 // Move um lead de fase — reusa moveLead (won-flow/comissão/histórico) sem duplicar nada.
-export async function moveLeadAction(lead: MovableLead, newStatus: LeadStatus, planoId: string | null = null): Promise<Res<{ notes: ActionNote[] }>> {
+export async function moveLeadAction(
+  lead: MovableLead, newStatus: LeadStatus, planoId: string | null = null, customWeeklyUsd: number | null = null,
+): Promise<Res<{ notes: ActionNote[] }>> {
   const g = await guard('edit', DENY_EDIT)
   if (!g.context) return { ok: false, error: g.error }
+  // PLANO AVULSO: valor vem da UI, então é validado AQUI (o servidor é a autoridade). A comissão nunca é
+  // calculada no cliente — o won-flow deriva o % do catálogo sobre este valor.
+  let avulso: number | null = null
+  if (customWeeklyUsd != null) {
+    const v = Number(customWeeklyUsd)
+    if (!Number.isFinite(v) || v <= 0) return { ok: false, error: 'Informe um valor semanal válido para o plano personalizado.' }
+    if (v > 100_000) return { ok: false, error: 'Valor semanal fora do limite.' }
+    avulso = Math.round(v * 100) / 100
+  }
   const session = createClient()
   // Unificação da Lixeira (F4): mover para 'lixeira' = EXCLUIR (soft_delete_lead, owner-only). deleted_at é a
   // fonte OFICIAL de exclusão — não mais o status. Assim não há dois sistemas de "lixeira".
@@ -147,7 +158,7 @@ export async function moveLeadAction(lead: MovableLead, newStatus: LeadStatus, p
     .eq('id', lead.id).eq('team_id', g.context.activeTeamId).is('deleted_at', null).maybeSingle()
   if (!ownedLead) return { ok: false, error: 'Lead não encontrado nesta equipe.' }
   const stages = await getStages()
-  const res = await moveLead(supabase as Parameters<typeof moveLead>[0], ownedLead as MovableLead, newStatus, g.context.profile?.name ?? '—', stages, planoId, g.context.user.id, g.context.activeTeamId)
+  const res = await moveLead(supabase as Parameters<typeof moveLead>[0], ownedLead as MovableLead, newStatus, g.context.profile?.name ?? '—', stages, planoId, g.context.user.id, g.context.activeTeamId, avulso)
   if (!res.ok) return { ok: false, error: res.error ?? 'Não foi possível mover o lead.' }
   return { ok: true, notes: res.notes }
 }
