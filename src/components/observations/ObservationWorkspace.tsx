@@ -10,6 +10,7 @@ const SOURCE_LABEL: Record<string, string> = {
   manual: 'Manual',
   task: 'Tarefa',
   lead_interaction: 'Interação comercial',
+  lead_note: 'Nota do lead',
   client_payment: 'Financeiro',
   plan_change: 'Plano',
 }

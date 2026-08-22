@@ -12,6 +12,7 @@ import { columnsFromStages, type FunnelStage } from '@/lib/funnelStages'
 import { usdCompact } from '@/lib/format'
 import { waNumber } from '@/lib/phone'
 import { LeadTasks } from './LeadTasks'
+import { ObservationsBox } from '@/components/observations/ObservationsBox'
 import { Portal } from '@/components/ui/Portal'
 import { copyText } from '@/lib/clipboard'
 import { ChevronDown, Copy, MessageCircle, MessageSquare, PhoneCall, PhoneMissed, Sparkles, StickyNote, X } from 'lucide-react'
@@ -791,6 +792,13 @@ export function LeadDiary({ lead, onClose, onUpdated, onMoveStage, onDeleted, cu
         {/* Tarefas vinculadas a este lead (tasks.linked_type='lead') */}
         <div className={cn(PROFILE_SECTION, 'lg:col-span-1 2xl:col-span-1')}>
           <LeadTasks leadId={currentLead.id} leadName={currentLead.name} userId={currentUser.id} compact={false} />
+        </div>
+
+        {/* Observações do lead (OBS-BOX-001). Este é o perfil que o CELULAR abre ao tocar no card do funil
+            (PhaseSelectorMobile: sem arrastar, tocar abre o LeadDiary), então a caixa precisa existir aqui
+            também — é a MESMA fonte do perfil completo e da Minha Mesa: entity_observations do lead. */}
+        <div className={cn(PROFILE_SECTION, 'lg:col-span-1 2xl:col-span-1')}>
+          <ObservationsBox entityType="lead" entityId={currentLead.id} title="Observações do lead" maxHeight="max-h-72" />
         </div>
 
         {/* Inteligência — Briefing + Análise num ÚNICO ponto de leitura, rebaixado (UX-LEAD-002, Parte 5).
