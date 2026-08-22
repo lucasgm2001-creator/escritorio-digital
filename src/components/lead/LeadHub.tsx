@@ -16,6 +16,7 @@ import { LeadJourney } from './LeadJourney'
 import { LeadAttachments } from './LeadAttachments'
 import { LeadComments } from './LeadComments'
 import { AiInsightsPanel } from '@/components/ai/AiInsightsPanel'
+import { ObservationsBox } from '@/components/observations/ObservationsBox'
 import { ActionIcon, HealthIndicator, LeadStatusBadge, LeadTemperatureBadge } from './lead-profile-primitives'
 import { LeadProfileTabs } from './LeadProfileTabs'
 
@@ -89,7 +90,7 @@ export function LeadHub({ vm, embedded = false }: { vm: LeadHubVM; embedded?: bo
   ]
 
   return (
-    <div className="space-y-5 md:space-y-6">
+    <div className="min-w-0 max-w-full space-y-5 md:space-y-6 overflow-x-hidden">
       {!embedded && (
         <Link href="/comercial" className="inline-flex items-center gap-1 text-sm text-bento-muted min-h-[44px] md:min-h-0">
           <ChevronLeft className="w-4 h-4" /> Comercial
@@ -133,6 +134,11 @@ export function LeadHub({ vm, embedded = false }: { vm: LeadHubVM; embedded?: bo
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
               {resumo.map(field => <ProfileFieldTile key={field.label} field={field} />)}
             </div>
+          </Panel>
+
+          {/* Observações permanentes do lead — sempre à vista no perfil, não só na página /observacoes. */}
+          <Panel label="Observações">
+            <ObservationsBox entityType="lead" entityId={vm.id} title="Histórico de observações" maxHeight="max-h-72" />
           </Panel>
 
           <Panel label="Atividade recente">

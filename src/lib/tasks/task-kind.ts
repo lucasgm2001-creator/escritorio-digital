@@ -34,3 +34,20 @@ export function taskKindForNextAction(action: string): TaskKind {
   if (action === 'cobrar_retorno') return 'followup'
   return 'geral'
 }
+
+// ── Tarefa automática ao MOVER o lead de fase (FUNIL-TAREFA-001) ────────────────────────────────
+// Arrastar o lead para "Reunião Agendada" no funil registrava a fase e a comissão, mas NÃO criava
+// tarefa nenhuma — a reunião simplesmente não aparecia na Minha Mesa. Estas são as fases que deixam
+// um próximo passo em aberto; entrar nelas passa a gerar a tarefa correspondente.
+// Fases fora da lista (novo, não interagiu, não respondeu, negócio futuro, fechado, perdido, lixeira)
+// não geram nada: ou não pedem ação, ou o fluxo próprio já cuida.
+export const STAGE_TASK: Record<string, { kind: TaskKind; title: (leadName: string) => string }> = {
+  reuniao:        { kind: 'reuniao',     title: n => `Reunião: ${n}` },
+  reagendamento:  { kind: 'agendamento', title: n => `Reagendar reunião: ${n}` },
+  no_show:        { kind: 'followup',    title: n => `Retomar contato (no-show): ${n}` },
+  proposta:       { kind: 'proposta',    title: n => `Acompanhar proposta: ${n}` },
+}
+
+export function stageTaskFor(slug: string): { kind: TaskKind; title: (leadName: string) => string } | null {
+  return STAGE_TASK[slug] ?? null
+}

@@ -22,6 +22,7 @@ import { SituationDrawer } from '../comercial/SituationDrawer'
 import { ALL_COLUMNS, type LeadStatus } from '../comercial/types'
 import { NEXT_ACTION_LABEL, TEMPERATURE_LABEL, isNextAction } from '@/lib/commercial/situation'
 import { inferTaskKind } from '@/lib/tasks/task-kind'
+import { ObservationsBox } from '@/components/observations/ObservationsBox'
 import { RelatorioPanel } from './RelatorioPanel'
 
 export interface MesaLead {
@@ -462,6 +463,9 @@ function LeadContext({ lead, task, interactions, loading, onNewTask, onEditTask,
             {onEditTask && <button type="button" onClick={onEditTask} className="text-xs text-lime-fg mt-2 hover:underline">Editar tarefa</button>}
           </div>
         )}
+
+        {/* Observações do lead — sempre visíveis aqui, não só na página dedicada (OBS-BOX-001). */}
+        <ObservationsBox entityType="lead" entityId={lead.id} maxHeight="max-h-52" />
 
         <div>
           <p className="font-tech text-[10px] uppercase tracking-label text-bento-muted mb-2">Histórico recente</p>

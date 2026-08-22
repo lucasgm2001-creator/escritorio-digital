@@ -3,7 +3,8 @@
 import { createClient } from '@/lib/supabase/server'
 import { getRequestContext } from '@/server/context/request-context'
 import { can } from '@/lib/permissions/can'
-import type { ObservationEntityType } from '@/lib/observations/types'
+import { getEntityObservations } from '@/server/repositories/ObservationRepository'
+import type { EntityObservation, ObservationEntityType } from '@/lib/observations/types'
 
 type Result = { ok: true } | { ok: false; error: string }
 
@@ -76,4 +77,21 @@ export async function updateEntityObservationAction(observationId: string, body:
       .eq('id', row.source_id).eq('team_id', context.activeTeamId)
   }
   return { ok: true }
+}
+
+// Leitura das observações para a BOX embutida (lead no funil e Minha Mesa) — o histórico deixou de viver
+// só na página /observacoes. Guarda de VIEW (não 'edit'): quem só enxerga o módulo também precisa ler o
+// que já foi anotado. A RLS de entity_observations continua sendo a autoridade por baixo.
+export async function listEntityObservationsAction(
+  entityType: ObservationEntityType, entityId: string,
+): Promise<{ ok: true; items: EntityObservation[] } | { ok: false; error: string }> {
+  const context = await getRequestContext()
+  if (!context?.activeTeamId) return { ok: false, error: 'Sessão expirada.' }
+  const permissionModule = entityType === 'lead' ? 'commercial' : 'clients'
+  if (!can(context, permissionModule, 'view')) return { ok: false, error: 'Sem permissão para ver este histórico.' }
+  try {
+    return { ok: true, items: await getEntityObservations(context.activeTeamId, entityType, entityId) }
+  } catch {
+    return { ok: false, error: 'Não foi possível carregar as observações.' }
+  }
 }

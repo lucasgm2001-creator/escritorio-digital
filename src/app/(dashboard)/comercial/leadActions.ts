@@ -2,13 +2,15 @@ import { resolveRate } from '@/lib/commission/calc'
 import type { FxConfig } from '@/lib/commission/types'
 import type { createClient } from '@/lib/supabase/client'
 import { ALL_COLUMNS, type LeadStatus } from './types'
-import { ymd } from '@/lib/date'
+import { ymd, todaySP as spToday } from '@/lib/date'
 import { markMilestones } from '@/lib/leadMilestones'
 import { wonSlug, marcosForSlug, type FunnelStage } from '@/lib/funnelStages'
 import { payClientWeek, registerMeeting, resolveSellerForCommission } from '@/lib/commission/actions'
 import { weeklyCommissionUsd, hasCommissionPct, LEGACY_VPS_USD, DEFAULT_TETO_SEMANAS } from '@/lib/commission/planCommission'
 import { meetingCommissionCounts } from '@/lib/commission/constants'
 import { logStageEvent } from '@/lib/stageEvents'
+import { stageTaskFor } from '@/lib/tasks/task-kind'
+import { DEFAULT_TASK_OWNER_ID, DEFAULT_TASK_OWNER_NAME } from '@/lib/tasks/default-task-owner'
 
 type SupaClient = ReturnType<typeof createClient>
 
@@ -246,6 +248,40 @@ export async function moveLead(
       })
     } catch { /* registrar atividade é secundário — não quebra o move */ }
   }
+  // ── TAREFA AUTOMÁTICA DA FASE (FUNIL-TAREFA-001) ─────────────────────────────────────────
+  // Mover o lead para "Reunião Agendada" (e demais fases com próximo passo) registrava a fase e a
+  // comissão, mas não criava tarefa — a reunião nunca aparecia na Minha Mesa. Agora entra na fila.
+  // IDEMPOTENTE por tipo: se já existe tarefa ABERTA do mesmo tipo para o lead, não duplica (mover
+  // de um lado pro outro não empilha). Best-effort: falha aqui NÃO bloqueia o move.
+  // A data nasce HOJE porque o funil não pergunta quando — é o que faz a tarefa aparecer na hora;
+  // o horário real se ajusta no editor da tarefa (ou pelo "Registrar contato", que pede data e hora).
+  const stageTask = isWon ? null : stageTaskFor(newStatus)
+  const taskOwner = userId ?? lead.assigned_to ?? null
+  if (stageTask && taskOwner) {
+    try {
+      const { data: aberta } = await supabase.from('tasks')
+        .select('id').eq('linked_type', 'lead').eq('linked_id', lead.id)
+        .eq('kind', stageTask.kind).eq('done', false).limit(1)
+      if (!aberta || aberta.length === 0) {
+        const { error: tErr } = await supabase.from('tasks').insert({
+          title: stageTask.title(lead.name),
+          kind: stageTask.kind,
+          done: false,
+          due_date: spToday(),
+          linked_type: 'lead',
+          linked_id: lead.id,
+          linked_name: lead.name,
+          user_id: taskOwner,
+          responsavel_id: DEFAULT_TASK_OWNER_ID,
+          responsavel_nome: DEFAULT_TASK_OWNER_NAME,
+          ...(teamId ? { team_id: teamId } : {}),
+        })
+        if (!tErr) notes.push({ message: `Tarefa criada: ${stageTask.title(lead.name)} (hoje — ajuste a data/hora se precisar).`, type: 'success' })
+        else console.error('[moveLead] tarefa da fase falhou ao inserir:', tErr.message)
+      }
+    } catch (e) { console.error('[moveLead] tarefa da fase (erro inesperado):', e instanceof Error ? e.message : String(e)) }
+  }
+
   if (isWon) notes.push(...await runWonFlow(supabase, lead, userName, planoId, teamId))
   return { ok: true, notes }
 }
