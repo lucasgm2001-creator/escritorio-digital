@@ -130,6 +130,27 @@ async function resolveInitialStage(supabase: SupabaseClient, teamId: string): Pr
   return data?.[0]?.slug || 'novo'
 }
 
+// Slug da fase de leads INCOMPLETOS (sem telefone). Criada pela migration 20260823120000, no fim do funil,
+// ao lado de "Não Respondeu".
+const INCOMPLETE_STAGE = 'incompleto'
+
+// O telefone dá para LIGAR? O primeiro passo da operação é a ligação, então "tem telefone" precisa significar
+// discável, não apenas "o campo veio preenchido": o Magnetic manda lixo como "-", "n/a" e DDD solto. Régua =
+// dígitos suficientes para um número US (10 sem país, 11 com o 1). Mesma normalização do waNumber (\D).
+function isCallablePhone(raw: string): boolean {
+  const digits = String(raw ?? '').replace(/\D/g, '')
+  return digits.length >= 10 && digits.length <= 15
+}
+
+// Confirma que a fase de incompletos EXISTE nesta equipe antes de usá-la. Sem ela, o lead cairia num status
+// órfão (coluna nenhuma no Kanban) e sumiria — pior do que entrar em Novo Lead. Fallback = fase inicial.
+async function resolveIncompleteStage(supabase: SupabaseClient, teamId: string, fallback: string): Promise<string> {
+  const { data } = await supabase
+    .from('funnel_stages').select('slug')
+    .eq('team_id', teamId).eq('slug', INCOMPLETE_STAGE).limit(1)
+  return data?.[0]?.slug ?? fallback
+}
+
 // Tarefa automática de LIGAÇÃO para o lead novo (INBOUND-ACTION-001). Best-effort: uma falha aqui NUNCA pode
 // perder o lead (já criado/retornado). Anti-duplicidade: não recria se já houver uma ligação pendente do dia
 // para o MESMO lead (linked_id + done=false + due_date de hoje + título "Ligar para…"). Só o webhook chama
@@ -164,11 +185,13 @@ async function createCallTask(supabase: SupabaseClient, leadId: string, leadName
 // Atividade no feed (INBOUND-ACTION-001): a chegada do lead aparece em "Atividades Recentes" do Hall. Mesmo
 // padrão do lead manual — type 'lead' + entity_id → card CLICÁVEL que abre o lead. Descrição própria (origem
 // Magnetic) para não confundir com o "Novo lead cadastrado" do fluxo manual. Best-effort.
-async function logInboundActivity(supabase: SupabaseClient, leadId: string, leadName: string, teamId: string): Promise<void> {
+async function logInboundActivity(supabase: SupabaseClient, leadId: string, leadName: string, teamId: string, callable: boolean): Promise<void> {
   try {
     await supabase.from('activities').insert({
       type: 'lead',
-      description: `Novo lead recebido pelo Magnetic Funnels: ${leadName}`,
+      description: callable
+        ? `Novo lead recebido pelo Magnetic Funnels: ${leadName}`
+        : `Lead do Magnetic sem telefone: ${leadName} — foi para Incompleto`,
       user_name: ASSIGNED_NAME,
       entity_id: leadId,
       team_id: teamId,
@@ -255,6 +278,10 @@ export async function POST(req: Request) {
     // Tenancy explícita + fase inicial oficial (o webhook não tem sessão). NUNCA team_id null → nunca órfão.
     const teamId = INBOUND_TEAM_ID
     const initialStage = await resolveInitialStage(supabase, teamId)
+    // FILTRO DE ENTRADA (INBOUND-TELEFONE-001): sem telefone discável o lead NÃO entra na fila de trabalho.
+    // Ele não é descartado — vai para "Incompleto", no fim do funil, para revisar/completar depois.
+    const callable = isCallablePhone(phone)
+    const stage = callable ? initialStage : await resolveIncompleteStage(supabase, teamId, initialStage)
     const now = new Date()
 
     // 12) Dedup: já existe lead com o MESMO email OU o MESMO phone? (o que vier). Se a checagem FALHAR
@@ -285,7 +312,7 @@ export async function POST(req: Request) {
         area_code,
         value,
         notes,
-        status: initialStage,     // fase inicial oficial do funil da equipe (nunca null/inválida → entra em "Novo Lead")
+        status: stage,            // com telefone → fase inicial do funil; sem telefone → "Incompleto"
         team_id: teamId,          // BUGFIX-MAGNETIC-FUNNEL-STAGE: carimba a equipe (o trigger não cobre >1 equipe)
         operation: 'eua',
         origem: 'magnetic',       // constraint leads_origem_check liberada p/ 'magnetic' (fonte real tb em raw_payload)
@@ -310,16 +337,17 @@ export async function POST(req: Request) {
     // Histórico de movimentação: entrada no funil (ADITIVO/best-effort). Carimba a equipe resolvida.
     await logStageEvent(supabase, {
       leadId: data.id, leadName: name || 'Sem nome',
-      fromStage: null, toStage: initialStage,
+      fromStage: null, toStage: stage,
       sellerId: null, sellerName: ASSIGNED_NAME,
     }, teamId)
 
-    // Tarefa automática de ligação p/ o lead novo (best-effort — não bloqueia a resposta do webhook).
-    await createCallTask(supabase, data.id, name || 'Sem nome', teamId, now)
+    // Tarefa automática de ligação SÓ se há número para discar — criar "Ligar para X" sem telefone é
+    // fabricar pendência impossível. Lead incompleto entra sem tarefa, esperando o cadastro ser completado.
+    if (callable) await createCallTask(supabase, data.id, name || 'Sem nome', teamId, now)
     // Atividade no feed do Hall (best-effort).
-    await logInboundActivity(supabase, data.id, name || 'Sem nome', teamId)
+    await logInboundActivity(supabase, data.id, name || 'Sem nome', teamId, callable)
 
-    return NextResponse.json({ ok: true, leadId: data.id })
+    return NextResponse.json({ ok: true, leadId: data.id, stage, callable })
   } catch (e) {
     console.error('[leads/inbound] unexpected:', e instanceof Error ? e.message : String(e))
     return NextResponse.json({ ok: false, error: 'server_error' }, { status: 500 })
