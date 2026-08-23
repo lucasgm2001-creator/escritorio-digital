@@ -18,7 +18,8 @@ const METRICAS_MODES: [Mode, string][] = [['semana', 'Semana'], ['mes', 'Mês'],
 const toYmd = (d: Date): string => { const p = (n: number) => String(n).padStart(2, '0'); return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}` }
 const STYLE_BY_KEY = Object.fromEntries(ALL_COLUMNS.map(c => [c.key, c])) as Record<string, (typeof ALL_COLUMNS)[number]>
 const card = 'bento-fx p-5'
-const pctFmt = (rate: number): string => `${(rate * 100).toFixed(0)}%`
+// Taxa null = sem base no período. Mostra "—", não 0%: 0% afirmaria que houve oportunidade e falhou.
+const rate = (r: number | null): string => (r == null ? '—' : `${Math.round(r * 100)}%`)
 
 export function MetricasTab() {
   const [range, setRange] = useState<Range>(() => rangeFor('mes'))
@@ -56,13 +57,27 @@ export function MetricasTab() {
     return () => { active = false }
   }, [range])
 
-  const KPIS: { label: string; value: string; sub: string; tone: MetricTone }[] = vm ? [
-    { label: 'Recebidos',         value: String(vm.kpis.recebidos), sub: 'novos no período',                                       tone: 'default' },
-    { label: 'Fechados',          value: String(vm.kpis.fechados),  sub: 'no período',                                             tone: 'positive' },
-    { label: 'Taxa de Conversão', value: `${Math.round(vm.kpis.conversao)}%`, sub: 'leads que viraram cliente',                          tone: 'emerald' },
-    { label: 'Pipeline',          value: fmt(vm.kpis.pipeline),     sub: 'ativos criados no período',                              tone: 'default' },
-    { label: 'Ticket Médio',      value: fmt(vm.kpis.avgTicket),    sub: 'vendas no período',                                      tone: 'blue' },
-    { label: 'Receita Fechada',   value: fmt(vm.kpis.closedValue),  sub: `${vm.kpis.fechados} no período`,                         tone: 'positive' },
+  // Três blocos, nessa ordem: o que foi FEITO → quão bem converteu → quanto deu em dinheiro.
+  const ACOES: { label: string; value: string; sub: string; tone: MetricTone }[] = vm ? [
+    { label: 'Leads recebidos',      value: String(vm.acoes.recebidos),          sub: 'entraram no período',    tone: 'default' },
+    { label: 'Leads trabalhados',    value: String(vm.acoes.trabalhados),        sub: 'tiveram interação',      tone: 'default' },
+    { label: 'Reuniões marcadas',    value: String(vm.acoes.reunioesMarcadas),   sub: 'agendadas no período',   tone: 'default' },
+    { label: 'Reuniões realizadas',  value: String(vm.acoes.reunioesRealizadas), sub: 'aconteceram de fato',    tone: 'default' },
+    { label: 'Propostas enviadas',   value: String(vm.acoes.propostas),          sub: 'foram para análise',     tone: 'blue' },
+    { label: 'Vendas fechadas',      value: String(vm.acoes.vendas),             sub: 'contratos no período',   tone: 'positive' },
+  ] : []
+
+  const TAXAS: { label: string; value: string; sub: string; tone: MetricTone }[] = vm ? [
+    { label: 'Taxa de interação',    value: rate(vm.taxas.interacao),        sub: `${vm.acoes.trabalhados} de ${vm.acoes.recebidos} recebidos`,               tone: 'default' },
+    { label: 'Marcada → realizada',  value: rate(vm.taxas.marcadaRealizada), sub: `${vm.acoes.reunioesRealizadas} de ${vm.acoes.reunioesMarcadas} marcadas`,  tone: 'default' },
+    { label: 'Reunião → venda',      value: rate(vm.taxas.reuniaoVenda),     sub: `${vm.acoes.vendas} de ${vm.acoes.reunioesRealizadas} realizadas`,          tone: 'emerald' },
+    { label: 'Taxa de conversão',    value: rate(vm.taxas.conversao),        sub: `${vm.acoes.vendas} de ${vm.acoes.recebidos} recebidos`,                    tone: 'emerald' },
+  ] : []
+
+  const RESULTADO: { label: string; value: string; sub: string; tone: MetricTone }[] = vm ? [
+    { label: 'Receita fechada', value: fmt(vm.kpis.closedValue), sub: `${vm.acoes.vendas} contrato(s)`,     tone: 'positive' },
+    { label: 'Ticket médio',    value: fmt(vm.kpis.avgTicket),   sub: 'por venda no período',               tone: 'blue' },
+    { label: 'Pipeline',        value: fmt(vm.kpis.pipeline),    sub: 'em aberto dos leads do período',     tone: 'default' },
   ] : []
 
   return (
@@ -84,25 +99,35 @@ export function MetricasTab() {
         <p className="text-sm text-bento-muted py-10 text-center">Carregando métricas…</p>
       ) : (
         <>
-          {/* Topo: KPIs do PERÍODO */}
-          <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
-            {KPIS.map(kpi => (
-              <MetricCard key={kpi.label} size="lg" tone={kpi.tone} title={kpi.label} value={kpi.value} subtitle={kpi.sub} />
-            ))}
-          </div>
-
-          {/* Conversão Reunião → Venda (no período) */}
-          <div className={`${card} flex items-center justify-between gap-4`}>
-            <div className="min-w-0">
-              <div className="flex items-center gap-2 text-muted-foreground">
-                <TrendingUp className="w-4 h-4 flex-none" />
-                <p className="text-xs font-medium">Conversão Reunião → Venda</p>
-              </div>
-              <p className="text-xs text-muted-foreground mt-1 tabular-nums">{vm.fechouBase} de {vm.reuniaoBase} reuniões viraram venda</p>
+          {/* 1 · O QUE FOI FEITO — contagem de ações no período, antes de qualquer taxa. */}
+          <section className="space-y-2.5">
+            <h3 className="font-tech text-label uppercase tracking-label text-bento-muted">O que foi feito · {vm.periodLabel}</h3>
+            <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
+              {ACOES.map(m => <MetricCard key={m.label} size="md" tone={m.tone} title={m.label} value={m.value} subtitle={m.sub} />)}
             </div>
-            <p className="font-display text-4xl font-bold tabular-nums text-lime-fg flex-none">{pctFmt(vm.convReuniao)}</p>
-          </div>
+          </section>
 
+          {/* 2 · EFICIÊNCIA — cada degrau do funil, com a base explícita no subtítulo. */}
+          <section className="space-y-2.5">
+            <h3 className="font-tech text-label uppercase tracking-label text-bento-muted">Eficiência</h3>
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+              {TAXAS.map(m => <MetricCard key={m.label} size="md" tone={m.tone} title={m.label} value={m.value} subtitle={m.sub} />)}
+            </div>
+          </section>
+
+          {/* 3 · RESULTADO — o dinheiro do período. */}
+          <section className="space-y-2.5">
+            <h3 className="font-tech text-label uppercase tracking-label text-bento-muted">Resultado</h3>
+            <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
+              {RESULTADO.map(m => <MetricCard key={m.label} size="md" tone={m.tone} title={m.label} value={m.value} subtitle={m.sub} />)}
+            </div>
+          </section>
+
+          <div className="flex items-center gap-3 pt-2">
+            <TrendingUp className="h-4 w-4 shrink-0 text-bento-muted" />
+            <h3 className="font-tech text-label uppercase tracking-label text-bento-muted">Detalhamento</h3>
+            <span className="h-px flex-1 bg-bento-border" />
+          </div>
           <p className="font-tech text-caption text-bento-muted">Estado atual do funil (não filtra por período):</p>
 
           {/* Meio: Funil por Etapa | Valor por Estágio | Receita por Vendedor */}

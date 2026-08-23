@@ -6,6 +6,8 @@ import {
   getCommercialRaw, getLeadMilestonesForMetrics, getClientRevenueForMetrics,
 } from '@/server/repositories/CommercialMetricsRepository'
 import { rangeFor, type Range, type Mode } from '@/lib/period'
+import { getStages } from '@/lib/funnelStages.server'
+import { interagiuSlugs, reuniaoSlugs, propostaSlugs } from '@/lib/funnelStages'
 import { ymd } from '@/lib/date'
 import { funnelConversionPct } from '@/lib/funnelMetrics'
 import { closedValue, closedCount, averageTicket } from '@/core/metrics/sales'
@@ -22,6 +24,8 @@ export const EMPTY_METRICS_TAB: CommercialMetricsTabVM = {
   periodLabel: '—',
   kpis: { recebidos: 0, fechados: 0, conversao: 0, pipeline: 0, avgTicket: 0, closedValue: 0 },
   convReuniao: 0, reuniaoBase: 0, fechouBase: 0,
+  acoes: { recebidos: 0, trabalhados: 0, reunioesMarcadas: 0, reunioesRealizadas: 0, propostas: 0, vendas: 0 },
+  taxas: { interacao: null, marcadaRealizada: null, reuniaoVenda: null, conversao: null },
   funnel: ALL_COLUMNS.map(c => ({ key: c.key, count: 0, value: 0 })), maxCount: 1,
   stageValues: [], maxStageValue: 1,
   bySeller: [], maxSellerValue: 1,
@@ -42,10 +46,13 @@ export async function getCommercialMetricsTab(
   if (!teamId) return { ...EMPTY_METRICS_TAB, periodLabel: janela().label }
 
   const range = janela()
-  const [raw, milestones, revenue] = await Promise.all([
-    getCommercialRaw(teamId),
+  // withPipeline: precisamos de stage_events para as AÇÕES do período (reunião realizada, proposta), que
+  // são transições de funil e não existem em lead_milestones. É uma tabela pequena e a aba é sob demanda.
+  const [raw, milestones, revenue, stages] = await Promise.all([
+    getCommercialRaw(teamId, { withPipeline: true }),
     getLeadMilestonesForMetrics(),
     getClientRevenueForMetrics(),
+    getStages(),
   ])
 
   const allLeads = raw.leads
@@ -76,6 +83,36 @@ export async function getCommercialMetricsTab(
   const avgTicket = averageTicket(valorFechado, fechados)
   const conversao = funnelConversionPct(periodLeadsStrict)
 
+  // ---- AÇÕES REALIZADAS no período (METRICAS-ACOES-001) ----
+  // Contagem de LEADS DISTINTOS, não de cliques: a mesma pessoa movida duas vezes na semana é uma ação.
+  // As fases são resolvidas por slug OU nome (lib/funnelStages) — a equipe pode renomear a coluna.
+  const sInteragiu = interagiuSlugs(stages), sReuniao = reuniaoSlugs(stages), sProposta = propostaSlugs(stages)
+  const evs = raw.stageEvents.filter(ev => inRange(ev.changed_at))
+  const distinctLeads = (match: (ev: (typeof evs)[number]) => boolean): number =>
+    new Set(evs.filter(ev => !!ev.lead_id && match(ev)).map(ev => ev.lead_id as string)).size
+
+  const trabalhados = new Set([
+    ...ms.filter(x => x.marco === 'interagiu').map(x => x.lead_id),
+    ...evs.filter(ev => ev.lead_id && sInteragiu.has(ev.to_stage)).map(ev => ev.lead_id as string),
+  ]).size
+  const reunioesMarcadas = new Set([
+    ...reuniaoIds,
+    ...evs.filter(ev => ev.lead_id && sReuniao.has(ev.to_stage)).map(ev => ev.lead_id as string),
+  ]).size
+  // "Realizada" = saiu de Reunião Agendada para Proposta em Análise. MESMA definição do relatório.
+  const reunioesRealizadas = distinctLeads(ev => sReuniao.has(ev.from_stage ?? '') && sProposta.has(ev.to_stage))
+  const propostas = distinctLeads(ev => sProposta.has(ev.to_stage))
+
+  const acoes = { recebidos, trabalhados, reunioesMarcadas, reunioesRealizadas, propostas, vendas: fechados }
+  // Denominador zero → null (a UI mostra "—"): sem base, 0% seria mentira.
+  const taxa = (num: number, den: number): number | null => (den > 0 ? num / den : null)
+  const taxas = {
+    interacao: taxa(trabalhados, recebidos),
+    marcadaRealizada: taxa(reunioesRealizadas, reunioesMarcadas),
+    reuniaoVenda: taxa(fechados, reunioesRealizadas),
+    conversao: taxa(fechados, recebidos),
+  }
+
   // ---- Estado ATUAL do funil (snapshot, sem período; usa TODOS os leads p/ bater com a aba Funil) ----
   const total = allLeads.length
   const ativos = allLeads.filter(l => !isTerminal(l.status)).length
@@ -101,6 +138,7 @@ export async function getCommercialMetricsTab(
 
   return {
     periodLabel: range.label,
+    acoes, taxas,
     kpis: { recebidos, fechados, conversao, pipeline, avgTicket, closedValue: valorFechado },
     convReuniao, reuniaoBase: reuniaoIds.size, fechouBase: fechouIds.size,
     funnel, maxCount, stageValues, maxStageValue,

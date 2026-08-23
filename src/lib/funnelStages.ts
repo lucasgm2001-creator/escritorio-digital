@@ -102,3 +102,24 @@ export async function loadStages(supabase: SupaClient): Promise<FunnelStage[]> {
   }
   return _inflight
 }
+
+// ── Resolver fases por SLUG ou NOME (FUNIL-SLUGS-001) ───────────────────────────────────────────
+// A equipe pode renomear a fase, e há bases antigas onde o slug não bate com o nome atual. Por isso
+// "a fase de reunião" é um CONJUNTO de slugs, resolvido por slug OU por nome, com fallback para o slug
+// de sistema quando nada casa — nunca um slug fixo no código.
+// Esta é a versão canônica; o ReportingService ainda carrega uma cópia inline da mesma regra e deve
+// passar a usar esta quando aquele arquivo for mexido.
+export function stageSlugs(
+  stages: { slug: string; nome: string }[], fallback: string,
+  predicate: (slug: string, nome: string) => boolean,
+): Set<string> {
+  const found = stages.filter(s => predicate(s.slug, s.nome)).map(s => s.slug)
+  return new Set(found.length > 0 ? found : [fallback])
+}
+
+export const interagiuSlugs = (stages: { slug: string; nome: string }[]): Set<string> =>
+  stageSlugs(stages, 'interagiu', (slug, nome) => slug === 'interagiu' || /^interagiu$/i.test(nome.trim()))
+export const reuniaoSlugs = (stages: { slug: string; nome: string }[]): Set<string> =>
+  stageSlugs(stages, 'reuniao', (slug, nome) => slug === 'reuniao' || /^reuni[ãa]o agendada$/i.test(nome.trim()))
+export const propostaSlugs = (stages: { slug: string; nome: string }[]): Set<string> =>
+  stageSlugs(stages, 'proposta', (slug, nome) => slug === 'proposta' || /^proposta em an[aá]lise$/i.test(nome.trim()))

@@ -46,8 +46,31 @@ export type ExecutiveMetricsVM = {
 
 // View-model da aba Métricas (CRM-RC-002). Tudo calculado no CommercialMetricsService — a UI só apresenta.
 // conversao em % (0..100, MESMA fonte do Hall/Dashboard); convReuniao em taxa 0..1. Valores em USD.
+// AÇÕES REALIZADAS no período (METRICAS-ACOES-001): o que a operação FEZ, em contagem — não o estado
+// atual do funil. Responde "como foi o mês?" antes de qualquer taxa. Fonte: lead_milestones (interação,
+// reunião marcada, fechamento) + stage_events (reunião realizada, proposta) + deals (contratos).
+export type CommercialActions = {
+  recebidos: number          // leads que ENTRARAM no período
+  trabalhados: number        // leads distintos que tiveram interação registrada
+  reunioesMarcadas: number
+  reunioesRealizadas: number // transição Reunião Agendada → Proposta em Análise
+  propostas: number          // leads distintos movidos para Proposta em Análise
+  vendas: number             // contratos fechados (deals) no período
+}
+
+// TAXAS de eficiência (0..1). null = sem base para calcular no período — a UI mostra "—" em vez de 0%,
+// que mentiria (não houve o que converter).
+export type CommercialRates = {
+  interacao: number | null       // trabalhados ÷ recebidos
+  marcadaRealizada: number | null // reuniões realizadas ÷ marcadas
+  reuniaoVenda: number | null     // vendas ÷ reuniões realizadas
+  conversao: number | null        // vendas ÷ leads recebidos
+}
+
 export type CommercialMetricsTabVM = {
   periodLabel: string
+  acoes: CommercialActions
+  taxas: CommercialRates
   kpis: {
     recebidos: number
     fechados: number      // contratos fechados (deals) no período — base do Valor Fechado/Ticket
