@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { TrendingUp } from 'lucide-react'
+import { TrendingUp, FileDown } from 'lucide-react'
 import { MetricCard, type MetricTone } from '@/components/ui/MetricCard'
 import { ALL_COLUMNS } from '../types'
 import { usdCompact as fmt } from '@/lib/format'
@@ -9,6 +9,7 @@ import { rangeFor, type Mode, type Range } from '@/lib/period'
 import { PeriodNavigator } from '@/components/ui/PeriodNavigator'
 import type { CommercialMetricsTabVM } from '@/core/metrics/types'
 import { getCommercialMetricsTabAction } from '../metrics-actions'
+import { getExecutiveReportAction } from '../../mesa/report-actions'
 
 // Aba Métricas — SÓ apresenta. Todos os KPIs/rankings/gráficos vêm do CommercialMetricsService (ARCH-001);
 // nenhum acesso a Supabase e nenhum cálculo de regra aqui (só formatação e largura de barra).
@@ -22,6 +23,26 @@ const pctFmt = (rate: number): string => `${(rate * 100).toFixed(0)}%`
 export function MetricasTab() {
   const [range, setRange] = useState<Range>(() => rangeFor('mes'))
   const [vm, setVm] = useState<CommercialMetricsTabVM | null>(null)
+  const [pdfBusy, setPdfBusy] = useState(false)
+  const [pdfError, setPdfError] = useState<string | null>(null)
+
+  // Gerar relatório do período que está na tela. Reusa a MESMA server action e o MESMO builder de PDF do
+  // Relatório da Minha Mesa — se cada tela montasse o próprio, os dois PDFs poderiam divergir. O import do
+  // builder é dinâmico: é uma dependência pesada que só carrega quando o botão é clicado.
+  const gerarRelatorio = async () => {
+    if (pdfBusy) return
+    setPdfBusy(true); setPdfError(null)
+    try {
+      const r = await getExecutiveReportAction({ fromYMD: toYmd(range.start), toYMD: toYmd(range.end), label: range.label })
+      if (!r.ok) { setPdfError(r.error); return }
+      const { buildExecutivePdf } = await import('@/lib/commercial/executive-pdf')
+      await buildExecutivePdf({ exec: r.exec, execPrev: r.execPrev, report: r.report, workspace: r.workspace, user: r.user })
+    } catch {
+      setPdfError('Não foi possível gerar o relatório.')
+    } finally {
+      setPdfBusy(false)
+    }
+  }
 
   useEffect(() => {
     let active = true
@@ -47,7 +68,17 @@ export function MetricasTab() {
   return (
     <div className="p-4 sm:p-6 space-y-5 overflow-auto h-full bg-background">
       {/* Período NAVEGÁVEL (setas ← →) + unidade + janela personalizada. Padrão = mês corrente. */}
-      <PeriodNavigator range={range} onChange={setRange} modes={METRICAS_MODES} />
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <PeriodNavigator range={range} onChange={setRange} modes={METRICAS_MODES} />
+        <button type="button" onClick={gerarRelatorio} disabled={pdfBusy}
+          className="inline-flex items-center gap-2 rounded-btn border border-bento-border px-3 min-h-[40px] text-sm font-medium text-bento-dim transition-colors hover:border-lime hover:text-bento-text disabled:opacity-50">
+          <FileDown className="h-4 w-4" />{pdfBusy ? 'Gerando…' : 'Gerar relatório'}
+        </button>
+      </div>
+
+      {pdfError && (
+        <div className="rounded-btn border border-amber-800/40 bg-amber-900/20 px-4 py-3 text-xs text-amber-400">{pdfError}</div>
+      )}
 
       {!vm ? (
         <p className="text-sm text-bento-muted py-10 text-center">Carregando métricas…</p>
