@@ -4,6 +4,7 @@ import { useState, useEffect, type ReactNode } from 'react'
 import { cn } from '@/lib/utils'
 import { Download, Clock, Trophy, XCircle, TrendingUp } from 'lucide-react'
 import { rangeFor, type Mode, type Range } from '@/lib/period'
+import { PeriodNavigator } from '@/components/ui/PeriodNavigator'
 import { getExecutiveReportAction, type ExecReportResult } from './report-actions'
 import { MetricCard } from '@/components/ui/MetricCard'
 import type { ReportInsight } from '@/core/reporting/types'
@@ -12,7 +13,10 @@ import type { ReportInsight } from '@/core/reporting/types'
 // { exec, report } do PDF via getExecutiveReportAction (exec = ExecutiveMetricsService, fonte única; report =
 // ReportingService, funil/insights). Tela e PDF batem 1:1. Sem DashboardVM antigo, sem métrica all-time.
 
-const REPORT_MODES: [Mode, string][] = [['semana', 'Semana'], ['mes', 'Mês'], ['semestre', 'Semestre'], ['ano', 'Ano']]
+const REPORT_MODES: [Mode, string][] = [['semana', 'Semana'], ['mes', 'Mês'], ['trimestre', 'Trimestre'], ['semestre', 'Semestre'], ['ano', 'Ano']]
+const pct = (n: number): string => `${Math.round(n * 100)}%`
+// Razão entre duas etapas do funil. Denominador zero → '—' (0% mentiria: não houve base para converter).
+const ratio = (num: number, den: number): string => (den > 0 ? pct(num / den) : '—')
 // Lembra a última escolha de período (preset) — SMART-WORKFLOW-001. Só UI/client (localStorage): sem
 // servidor/dado/regra. Valor ausente ou inválido cai no padrão seguro 'semana'. Janela custom não é lembrada.
 const PERIOD_KEY = 'ed:report-period'
@@ -21,7 +25,6 @@ function rememberedMode(): Mode {
 }
 const usd = (n: number): string => `US$ ${Math.round(n).toLocaleString('en-US')}`
 const toYmd = (d: Date): string => { const p = (n: number) => String(n).padStart(2, '0'); return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}` }
-const fmtBR = (ymd: string): string => { const [y, m, d] = ymd.split('-'); return `${d}/${m}/${y}` }
 
 const INSIGHT_STYLE: Record<ReportInsight['kind'], { Icon: typeof Clock; cls: string }> = {
   gargalo: { Icon: Clock, cls: 'text-amber-400' },
@@ -58,16 +61,13 @@ export function RelatorioPanel() {
   const [error, setError] = useState<string | null>(null)
   const [pdfBusy, setPdfBusy] = useState(false)
 
-  // Janela PERSONALIZADA (de–até).
-  const [customOpen, setCustomOpen] = useState(false)
-  const [fromDate, setFromDate] = useState('')
-  const [toDate, setToDate] = useState('')
-  const selectPreset = (m: Mode) => { setCustomOpen(false); setRange(rangeFor(m)); try { localStorage.setItem(PERIOD_KEY, m) } catch { /* ignore */ } }
-  const openCustom = () => { setFromDate(toYmd(range.start)); setToDate(toYmd(range.end)); setCustomOpen(true) }
-  const customInvalid = !fromDate || !toDate || fromDate > toDate
-  const applyCustom = () => {
-    if (customInvalid) return
-    setRange({ mode: 'custom', start: new Date(`${fromDate}T00:00:00`), end: new Date(`${toDate}T23:59:59.999`), label: `de ${fmtBR(fromDate)} a ${fmtBR(toDate)}` })
+  // O PeriodNavigator concentra presets, setas e janela personalizada. Aqui só persistimos a UNIDADE
+  // escolhida (não a janela): reabrir no mesmo mês de duas semanas atrás confundiria mais do que ajudaria.
+  const selectRange = (r: Range) => {
+    setRange(r)
+    if (REPORT_MODES.some(([m]) => m === r.mode)) {
+      try { localStorage.setItem(PERIOD_KEY, r.mode) } catch { /* ignore */ }
+    }
   }
 
   // Carrega o relatório (mesma fonte do PDF) sempre que a janela muda.
@@ -124,50 +124,36 @@ export function RelatorioPanel() {
         </button>
       </div>
 
-      {/* Período: presets + Personalizado (de–até) */}
-      <div className="space-y-2">
-        <div className="flex items-center justify-between gap-3 flex-wrap">
-          <div className="flex bg-bento-bg border border-bento-border rounded-btn p-1 gap-1 max-w-full overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-            {REPORT_MODES.map(([m, label]) => (
-              <button key={m} onClick={() => selectPreset(m)}
-                className={cn('px-3.5 py-1.5 rounded-[8px] text-xs font-medium shrink-0 whitespace-nowrap transition-colors',
-                  range.mode === m && !customOpen ? 'bg-lime text-lime-ink' : 'text-bento-muted hover:text-bento-text')}>
-                {label}
-              </button>
-            ))}
-            <button onClick={openCustom}
-              className={cn('px-3.5 py-1.5 rounded-[8px] text-xs font-medium shrink-0 whitespace-nowrap transition-colors',
-                (customOpen || range.mode === 'custom') ? 'bg-lime text-lime-ink' : 'text-bento-muted hover:text-bento-text')}>
-              Personalizado
-            </button>
-          </div>
-          <span className="font-tech text-xs text-bento-muted whitespace-nowrap">{range.label}</span>
-        </div>
-
-        {customOpen && (
-          <div className="flex items-end gap-2 flex-wrap bento-fx p-3">
-            <label className="flex flex-col gap-1">
-              <span className="font-tech text-[10px] uppercase tracking-wide text-bento-muted">De</span>
-              <input type="date" value={fromDate} onChange={e => setFromDate(e.target.value)}
-                className="bg-bento-bg border border-bento-border rounded-btn px-2.5 py-1.5 text-xs text-bento-text focus:outline-none focus:border-lime min-h-[40px]" />
-            </label>
-            <label className="flex flex-col gap-1">
-              <span className="font-tech text-[10px] uppercase tracking-wide text-bento-muted">Até</span>
-              <input type="date" value={toDate} onChange={e => setToDate(e.target.value)}
-                className="bg-bento-bg border border-bento-border rounded-btn px-2.5 py-1.5 text-xs text-bento-text focus:outline-none focus:border-lime min-h-[40px]" />
-            </label>
-            <button onClick={applyCustom} disabled={customInvalid}
-              className="bento-btn px-4 py-2 rounded-btn text-sm font-semibold disabled:opacity-50 min-h-[40px]">
-              Aplicar
-            </button>
-            {fromDate && toDate && fromDate > toDate && (
-              <span className="font-tech text-[11px] text-amber-400/90 self-center">&quot;De&quot; precisa ser ≤ &quot;Até&quot;.</span>
-            )}
-          </div>
-        )}
-      </div>
+      {/* Período NAVEGÁVEL (setas ← →) + unidade + janela personalizada — mesmo componente da aba Métricas. */}
+      <PeriodNavigator range={range} onChange={selectRange} modes={REPORT_MODES} />
 
       {error && <div className="bg-amber-900/20 border border-amber-800/40 rounded-btn px-4 py-3 text-xs text-amber-400">{error}</div>}
+
+      {/* ── ESSENCIAL — a leitura de 10 segundos (RELATORIO-DUAS-CAMADAS-001) ──────────────────────
+          Antes o relatório abria com cinco contagens de movimentação e o julgamento ficava por conta do
+          leitor. Estas seis respondem "como foi o período?" sem precisar de conta na cabeça: volume de
+          entrada, a eficiência de cada degrau do funil e o dinheiro médio por venda. O detalhamento
+          continua logo abaixo, inteiro. */}
+      <section>
+        <SectionLabel>Essencial · {range.label}</SectionLabel>
+        <div className="grid grid-cols-2 lg:grid-cols-3 gap-2.5">
+          <MetricCard title="Leads recebidos" value={dash ?? (k?.newLeads ?? 0)} size="sm"
+            subtitle="entradas no período" trend={trend(k?.newLeads ?? 0, cmp?.newLeads)} />
+          <MetricCard title="Taxa de interação" value={dash ?? ratio(k?.interagiram ?? 0, k?.newLeads ?? 0)} size="sm"
+            subtitle="interagiram ÷ recebidos" />
+          <MetricCard title="Reunião marcada → realizada" value={dash ?? ratio(k?.meetingsHeld ?? 0, k?.meetingsScheduled ?? 0)} size="sm"
+            subtitle={`${k?.meetingsHeld ?? 0} de ${k?.meetingsScheduled ?? 0}`} />
+          <MetricCard title="Reunião → venda" value={dash ?? ratio(k?.won ?? 0, k?.meetingsHeld ?? 0)} size="sm"
+            subtitle={`${k?.won ?? 0} de ${k?.meetingsHeld ?? 0} realizadas`} tone="positive" />
+          <MetricCard title="Taxa de conversão" value={dash ?? pct(k?.conversionRate ?? 0)} size="sm"
+            subtitle="vendas ÷ leads recebidos" tone="emerald"
+            trend={trend((k?.conversionRate ?? 0) * 100, (cmp?.conversionRate ?? 0) * 100, 'pp')} />
+          <MetricCard title="Ticket médio" value={dash ?? usd(exec?.ticketMedio ?? 0)} size="sm"
+            subtitle="por venda no período" tone="blue" />
+        </div>
+      </section>
+
+      <SectionLabel>Detalhamento</SectionLabel>
 
       {/* Funil do período por movimentações reais. trend = Δ vs. período anterior de mesma duração. */}
       <section>

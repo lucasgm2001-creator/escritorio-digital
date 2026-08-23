@@ -5,7 +5,7 @@ import type { CommercialMetricsTabVM } from '@/core/metrics/types'
 import {
   getCommercialRaw, getLeadMilestonesForMetrics, getClientRevenueForMetrics,
 } from '@/server/repositories/CommercialMetricsRepository'
-import { rangeFor, type Mode } from '@/lib/period'
+import { rangeFor, type Range, type Mode } from '@/lib/period'
 import { ymd } from '@/lib/date'
 import { funnelConversionPct } from '@/lib/funnelMetrics'
 import { closedValue, closedCount, averageTicket } from '@/core/metrics/sales'
@@ -29,11 +29,19 @@ export const EMPTY_METRICS_TAB: CommercialMetricsTabVM = {
   temperature: { hot: 0, warm: 0, cold: 0 },
 }
 
-export async function getCommercialMetricsTab(context: RequestContext, mode: Mode): Promise<CommercialMetricsTabVM> {
+// `window` (PERIODO-NAV-001): a aba passou a navegar no tempo — mês anterior, trimestre passado, janela
+// personalizada. Sem ela o serviço só sabia montar o período CORRENTE (rangeFor(mode) sempre a partir de
+// hoje). Quando vem preenchida, é a autoridade; o `mode` continua valendo para o caminho antigo.
+export async function getCommercialMetricsTab(
+  context: RequestContext, mode: Mode, window?: { fromYMD: string; toYMD: string; label: string },
+): Promise<CommercialMetricsTabVM> {
+  const janela = (): Range => window
+    ? { mode: 'custom', start: new Date(`${window.fromYMD}T00:00:00`), end: new Date(`${window.toYMD}T23:59:59.999`), label: window.label }
+    : rangeFor(mode)
   const teamId = context.activeTeamId
-  if (!teamId) return { ...EMPTY_METRICS_TAB, periodLabel: rangeFor(mode).label }
+  if (!teamId) return { ...EMPTY_METRICS_TAB, periodLabel: janela().label }
 
-  const range = rangeFor(mode)
+  const range = janela()
   const [raw, milestones, revenue] = await Promise.all([
     getCommercialRaw(teamId),
     getLeadMilestonesForMetrics(),

@@ -46,3 +46,32 @@ export function inPeriodByActivity(range: Range, updated?: string | null, create
   if (Number.isNaN(t)) return false
   return t >= range.start.getTime() && t <= range.end.getTime()
 }
+
+// ── Navegar no tempo mantendo o MODO (PERIODO-NAV-001) ──────────────────────────────────────────
+// A seta anda uma unidade do próprio período: mês → mês anterior/seguinte, semana → 7 dias, trimestre → 3
+// meses, e assim por diante. Reconstrói pelo rangeFor a partir da nova âncora, então limites e rótulo saem
+// pela MESMA regra do preset — sem uma segunda régua de datas que pudesse divergir.
+// 'tudo' e 'custom' não têm unidade para andar: devolvem o próprio range (a UI desabilita as setas).
+export function canShift(mode: string): boolean {
+  return mode === 'dia' || mode === 'semana' || mode === 'mes' || mode === 'trimestre' || mode === 'semestre' || mode === 'ano'
+}
+
+export function shiftRange(range: Range, delta: number): Range {
+  if (!canShift(range.mode) || delta === 0) return range
+  const a = range.start
+  const mode = range.mode as Mode
+  const anchor =
+    mode === 'dia' ? new Date(a.getFullYear(), a.getMonth(), a.getDate() + delta)
+      : mode === 'semana' ? new Date(a.getFullYear(), a.getMonth(), a.getDate() + delta * 7)
+        : mode === 'mes' ? new Date(a.getFullYear(), a.getMonth() + delta, 1)
+          : mode === 'trimestre' ? new Date(a.getFullYear(), a.getMonth() + delta * 3, 1)
+            : mode === 'semestre' ? new Date(a.getFullYear(), a.getMonth() + delta * 6, 1)
+              : new Date(a.getFullYear() + delta, 0, 1)
+  return rangeFor(mode, anchor)
+}
+
+/** O range é o período CORRENTE (mês atual, semana atual…)? Usado para desabilitar a seta "próximo". */
+export function isCurrentPeriod(range: Range, now = new Date()): boolean {
+  if (!canShift(range.mode)) return true
+  return rangeFor(range.mode as Mode, now).start.getTime() === range.start.getTime()
+}

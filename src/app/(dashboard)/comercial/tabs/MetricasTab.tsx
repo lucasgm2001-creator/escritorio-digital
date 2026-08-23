@@ -2,30 +2,38 @@
 
 import { useState, useEffect } from 'react'
 import { TrendingUp } from 'lucide-react'
-import { cn } from '@/lib/utils'
 import { MetricCard, type MetricTone } from '@/components/ui/MetricCard'
 import { ALL_COLUMNS } from '../types'
 import { usdCompact as fmt } from '@/lib/format'
-import type { Mode } from '@/lib/period'
+import { rangeFor, type Mode, type Range } from '@/lib/period'
+import { PeriodNavigator } from '@/components/ui/PeriodNavigator'
 import type { CommercialMetricsTabVM } from '@/core/metrics/types'
 import { getCommercialMetricsTabAction } from '../metrics-actions'
 
 // Aba Métricas — SÓ apresenta. Todos os KPIs/rankings/gráficos vêm do CommercialMetricsService (ARCH-001);
 // nenhum acesso a Supabase e nenhum cálculo de regra aqui (só formatação e largura de barra).
-const METRICAS_MODES: [Mode, string][] = [['semana', 'Esta semana'], ['mes', 'Este mês'], ['trimestre', 'Este trimestre'], ['tudo', 'Tudo']]
+// Unidades navegáveis + "Tudo". Rótulos curtos: quem diz QUAL período é o navegador ao lado.
+const METRICAS_MODES: [Mode, string][] = [['semana', 'Semana'], ['mes', 'Mês'], ['trimestre', 'Trimestre'], ['ano', 'Ano'], ['tudo', 'Tudo']]
+const toYmd = (d: Date): string => { const p = (n: number) => String(n).padStart(2, '0'); return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}` }
 const STYLE_BY_KEY = Object.fromEntries(ALL_COLUMNS.map(c => [c.key, c])) as Record<string, (typeof ALL_COLUMNS)[number]>
 const card = 'bento-fx p-5'
 const pctFmt = (rate: number): string => `${(rate * 100).toFixed(0)}%`
 
 export function MetricasTab() {
-  const [mode, setMode] = useState<Mode>('mes')
+  const [range, setRange] = useState<Range>(() => rangeFor('mes'))
   const [vm, setVm] = useState<CommercialMetricsTabVM | null>(null)
 
   useEffect(() => {
     let active = true
-    getCommercialMetricsTabAction(mode).then(data => { if (active) setVm(data) })
+    setVm(null)
+    // 'tudo' não tem janela — o serviço monta o range dele. Os demais mandam de–até explícito, que é o que
+    // permite ver mês passado, trimestre anterior ou janela personalizada.
+    const window = range.mode === 'tudo'
+      ? undefined
+      : { fromYMD: toYmd(range.start), toYMD: toYmd(range.end), label: range.label }
+    getCommercialMetricsTabAction(range.mode as Mode, window).then(data => { if (active) setVm(data) })
     return () => { active = false }
-  }, [mode])
+  }, [range])
 
   const KPIS: { label: string; value: string; sub: string; tone: MetricTone }[] = vm ? [
     { label: 'Recebidos',         value: String(vm.kpis.recebidos), sub: 'novos no período',                                       tone: 'default' },
@@ -38,19 +46,8 @@ export function MetricasTab() {
 
   return (
     <div className="p-4 sm:p-6 space-y-5 overflow-auto h-full bg-background">
-      {/* Seletor de período. Padrão = Este mês. O Service recalcula por período. */}
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="flex bg-bento-bg border border-bento-border rounded-btn p-1 gap-1 max-w-full overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-          {METRICAS_MODES.map(([m, label]) => (
-            <button key={m} onClick={() => setMode(m)}
-              className={cn('px-3 py-1.5 rounded-btn text-xs font-medium shrink-0 whitespace-nowrap transition-colors',
-                mode === m ? 'bg-lime text-lime-ink' : 'text-bento-muted hover:text-bento-text')}>
-              {label}
-            </button>
-          ))}
-        </div>
-        {vm && <p className="font-tech text-xs text-bento-muted">Período: <span className="text-bento-text font-semibold">{vm.periodLabel}</span></p>}
-      </div>
+      {/* Período NAVEGÁVEL (setas ← →) + unidade + janela personalizada. Padrão = mês corrente. */}
+      <PeriodNavigator range={range} onChange={setRange} modes={METRICAS_MODES} />
 
       {!vm ? (
         <p className="text-sm text-bento-muted py-10 text-center">Carregando métricas…</p>
