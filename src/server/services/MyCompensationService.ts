@@ -71,7 +71,7 @@ export type MyCompensationView = {
   lastUpdate: string | null   // data do último lançamento (última atualização)
   months: CompMonth[]
   pending: PendingCommissionResult  // comissões pendentes das primeiras 4 semanas por cliente (reusa dealTotal)
-  forecastCommissionUsd: number     // comissão prevista = já recebida + pendente das 4 primeiras semanas
+  forecastMonthUsd: number          // comissão prevista DO MÊS = recebida no mês + pendente que vence no mês
   sources: CompSource[]             // procedência de cada indicador (mesma ordem dos cards)
 }
 
@@ -84,7 +84,7 @@ export async function getMyCompensationView(context: RequestContext): Promise<My
     hasComp: false, sellerName: context.profile?.name ?? '', cargo: null, department: null, rule: null,
     currentMonth: null, nextPayout: null, yearReceivedUsd: 0, totalReceivedUsd: 0, dealsCount: 0,
     thisWeekUsd: 0, thisWeekRange: null, status: 'ativo', lastUpdate: null, months: [], pending: emptyPending,
-    forecastCommissionUsd: 0, sources: [],
+    forecastMonthUsd: 0, sources: [],
   }
   const teamId = context.activeTeamId
   if (!teamId) return empty
@@ -174,8 +174,10 @@ export async function getMyCompensationView(context: RequestContext): Promise<My
   const clientIds = Array.from(new Set(deals.filter(d => d.kind === 'sale' && d.status === 'em_andamento' && d.client_id).map(d => d.client_id as string)))
   // Semanas de comissão JÁ recebidas (estorno já saiu na fonte, acima) — chave `dealId:numeroSemana`.
   const recebidas = new Set(weeks.map(w => `${w.dealId}:${w.numeroSemana}`))
-  let thisWeekUsd = 0
-  const thisWeekLines: CompSourceLine[] = []
+  // Semanas de comissão que AINDA não entraram, com o vencimento de cada uma. Uma varredura só alimenta
+  // dois indicadores: "Receber esta semana" (vencimento na semana civil) e "Comissão prevista do mês"
+  // (vencimento dentro do mês corrente). Teto é 4, então varrer tudo é trivial.
+  const semanasAVencer: { cliente: string | null; numero: number; due: string; valorUsd: number }[] = []
   if (clientIds.length) {
     const { data: cliRows } = await supabase.from('clients')
       .select('id, status, start_date, billing_anchor_date, dia_pagamento_semana')
@@ -196,19 +198,19 @@ export async function getMyCompensationView(context: RequestContext): Promise<My
       const dia = c.dia_pagamento_semana ?? dowOfYmd(anchor)
       const teto = Number(d.teto_semanas)
       for (let n = 1; n <= teto; n++) {
-        const due = dueDateFor(anchor, dia, n)
-        if (due > weekTo) break            // vencimentos são monotônicos → o resto é futuro
-        if (due >= weekFrom && !recebidas.has(`${d.id}:${n}`)) {
-          thisWeekUsd += Number(d.valor_por_semana_usd)
-          thisWeekLines.push({
-            label: `Venda · semana ${n}`, cliente: d.client_name, data: due,
-            valorUsd: Number(d.valor_por_semana_usd), hint: 'a receber',
-          })
-        }
+        if (recebidas.has(`${d.id}:${n}`)) continue   // já entrou → não é previsão
+        semanasAVencer.push({
+          cliente: d.client_name, numero: n,
+          due: dueDateFor(anchor, dia, n), valorUsd: Number(d.valor_por_semana_usd),
+        })
       }
     }
   }
-  thisWeekUsd = round2(thisWeekUsd)
+  const naSemana = semanasAVencer.filter(x => x.due >= weekFrom && x.due <= weekTo)
+  const thisWeekUsd = round2(naSemana.reduce((acc, x) => acc + x.valorUsd, 0))
+  const thisWeekLines: CompSourceLine[] = naSemana.map(x => ({
+    label: `Venda · semana ${x.numero}`, cliente: x.cliente, data: x.due, valorUsd: x.valorUsd, hint: 'a receber',
+  }))
   // Comissões pendentes das primeiras 4 semanas, por cliente (mesma matemática do dealTotal — só agregada por venda).
   const pending = pendingCommission(dealsWithClient, weeks)
   // Última atualização = data do lançamento mais recente (semana paga / reunião).
@@ -296,21 +298,23 @@ export async function getMyCompensationView(context: RequestContext): Promise<My
     })
   }
 
-  const pendenteLinhas: CompSourceLine[] = pending.lines
-    .filter(l => l.situacao === 'pendente')
-    .map(l => ({
-      label: `Semanas ${(l.semanasPagas + 1)}–${l.semanasElegiveis}`, cliente: l.clientName,
-      data: null, valorUsd: l.comissaoPendenteUsd,
-      hint: `${l.semanasPendentes} semana(s) × ${l.comissaoPorSemanaUsd.toFixed(2)}`,
-    }))
-
-  const forecastCommissionUsd = round2(totalReceivedUsd + pending.totalPendenteUsd)
+  // PREVISTO DO MÊS (COMP-PREVISTO-002): "quanto fecho este mês se tudo que vence neste mês for pago".
+  // NÃO é acumulado: só o que JÁ entrou no mês somado ao que ainda vence DENTRO do mês. Semana que vence em
+  // setembro é previsão de setembro, não de agosto — misturar as duas coisas dava um número que não
+  // respondia nenhuma pergunta prática.
+  const mesFim = `${monthKey}-31`   // string YMD: '-31' cobre o mês todo na comparação lexicográfica
+  const pendenteNoMes = semanasAVencer
+    .filter(x => x.due >= `${monthKey}-01` && x.due <= mesFim)
+    .sort((a, b) => a.due.localeCompare(b.due))
+  const pendenteNoMesUsd = round2(pendenteNoMes.reduce((acc, x) => acc + x.valorUsd, 0))
+  const comissaoDoMesUsd = round2(currentMonth.weeksUsd + currentMonth.meetingsUsd)
+  const forecastMonthUsd = round2(comissaoDoMesUsd + pendenteNoMesUsd)
 
   const sources: CompSource[] = [
     { key: 'salario', title: 'Salário fixo', description: `Salário vigente na competência de ${monthKey}.`,
       totalUsd: currentMonth.salaryUsd, lines: salarioLinhas, emptyMessage: 'Nenhum salário fixo configurado.' },
     { key: 'mesComissao', title: 'Comissão do mês', description: 'Somente o que entrou neste mês: semanas recebidas, bônus e reuniões.',
-      totalUsd: round2(currentMonth.weeksUsd + currentMonth.meetingsUsd), lines: doMes,
+      totalUsd: comissaoDoMesUsd, lines: doMes,
       emptyMessage: 'Nenhuma comissão recebida neste mês ainda.' },
     { key: 'semana', title: 'Receber esta semana', description: `Comissão que ainda falta receber e vence entre ${weekFrom} e ${weekTo}.`,
       totalUsd: thisWeekUsd, lines: thisWeekLines.sort(recentesPrimeiro),
@@ -321,19 +325,23 @@ export async function getMyCompensationView(context: RequestContext): Promise<My
     { key: 'ateAgora', title: 'Comissão até agora', description: 'Tudo que já foi recebido, do início até hoje, agrupado por cliente.',
       totalUsd: totalReceivedUsd, lines: ateAgoraLinhas,
       emptyMessage: 'Nenhuma comissão recebida ainda.' },
-    { key: 'previsto', title: 'Comissão prevista', description: 'O que já entrou mais o que ainda falta das 4 primeiras semanas de cada venda.',
-      totalUsd: forecastCommissionUsd,
+    { key: 'previsto', title: 'Comissão prevista do mês',
+      description: 'Quanto fecha este mês se tudo que ainda vence dentro dele for pago.',
+      totalUsd: forecastMonthUsd,
       lines: [
-        { label: 'Já recebido', cliente: null, data: null, valorUsd: totalReceivedUsd, hint: 'confirmado' },
-        ...pendenteLinhas.map(l => ({ ...l, hint: `a receber · ${l.hint ?? ''}`.trim() })),
+        ...doMes,
+        ...pendenteNoMes.map(x => ({
+          label: `Venda · semana ${x.numero}`, cliente: x.cliente, data: x.due,
+          valorUsd: x.valorUsd, hint: 'a receber',
+        })),
       ],
-      emptyMessage: 'Sem comissão recebida ou prevista.' },
+      emptyMessage: 'Nada recebido nem previsto para este mês.' },
   ]
 
   return {
     hasComp: true, sellerName: seller.name, cargo: role?.name ?? null, department: dept?.name ?? null,
     rule, currentMonth, nextPayout, yearReceivedUsd, totalReceivedUsd, dealsCount: deals.filter(d => d.kind === 'sale').length,
     thisWeekUsd, thisWeekRange, status: (seller as { status?: string }).status ?? 'ativo', lastUpdate, months, pending,
-    forecastCommissionUsd, sources,
+    forecastMonthUsd, sources,
   }
 }
