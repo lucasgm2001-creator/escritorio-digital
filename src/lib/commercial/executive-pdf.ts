@@ -1,12 +1,18 @@
 import type { CommercialReport } from '@/core/reporting/types'
 import type { ExecutiveMetricsVM } from '@/core/metrics/types'
 
-// Gerador do PDF Executivo Comercial (EXECUTIVE-METRICS-004 · REPORTS-PERIOD-TRUTH-001). Recebe os view-models
-// PRONTOS — exec (ExecutiveMetricsService, fonte única, JANELA atual) + execPrev (mesma fonte, período ANTERIOR
-// de mesma duração) + report (ReportingService: movimentações/comparativo/insights). NÃO calcula KPI nem
-// toca no banco: os MESMOS números da tela do Relatório → PDF = tela 1:1. Receita Recebida = client_payments no
-// período; Valor Fechado = deals no período; nunca all-time. Carteira (MRR/ARR/ativos) é SNAPSHOT — sai do topo,
-// vai para o rodapé da P3, rotulada "não é do período". 3 páginas; seção sem dado não aparece.
+// Gerador do PDF Executivo Comercial (EXECUTIVE-METRICS-004 · PDF-ENXUTO-001). Recebe os view-models PRONTOS —
+// exec (ExecutiveMetricsService, JANELA atual) + execPrev (mesma fonte, período ANTERIOR de mesma duração) +
+// report (ReportingService). NÃO calcula KPI nem toca no banco: os MESMOS números da tela → PDF 1:1.
+//
+// ENXUTO (PDF-ENXUTO-001): eram 3 páginas — 13 KPIs num grid, gráfico de barras do funil, tabela de gargalos
+// do pipeline atual, aquisição sempre presente, receita por vendedor e por plano, snapshot da carteira. Muita
+// coisa repetia a mesma informação em formatos diferentes (o gráfico de barras é o mesmo funil da tabela de
+// KPIs) e outra parte não era do período (gargalos, carteira). Agora é UMA página, na mesma ordem da aba
+// Métricas — o que foi feito, quão bem converteu, quanto deu — mais a comparação com o período anterior.
+//
+// Seções condicionais aparecem só quando têm conteúdo: aquisição exige investimento lançado; receita por
+// vendedor exige mais de um vendedor (com um só, a linha repete o total). Nada de seção vazia ocupando página.
 const GREEN: [number, number, number] = [101, 163, 13]
 const DARK: [number, number, number] = [25, 25, 25]
 const GREY: [number, number, number] = [110, 110, 110]
@@ -61,30 +67,26 @@ export async function buildExecutivePdf(input: {
   doc.text(`Workspace · ${workspace ?? '—'}   ·   Gerado em ${generatedAt}${user ? ` · ${user}` : ''}`, L, 53)
 
   y = 66
-  heading('Resumo do período')
-  doc.setFont('helvetica', 'normal'); doc.setFontSize(9.5); doc.setTextColor(...GREY)
-  const summary = [
-    `${k.newLeads} leads recebidos · ${k.interagiram} interagiram · ${k.meetingsScheduled} reuniões · ${k.proposals} propostas · ${k.won} vendas (conversão ${pct(k.conversionRate * 100)}).`,
-    `Receita recebida ${usd(exec.receitaRecebida)} · valor fechado ${usd(exec.valorFechado)} · prevista ${usd(exec.receitaPrevista)} · ticket ${usd(exec.ticketMedio)}.`,
-  ]
-  for (const line of summary) { ensure(7); doc.text(line, L, y, { maxWidth: R - L }); y += 6.5 }
-  y += 5
 
-  heading('KPIs principais do período')
-  const kpis: [string, string][] = [
-    ['Receita Recebida', usd(exec.receitaRecebida)], ['Valor Fechado', usd(exec.valorFechado)], ['Receita Prevista', usd(exec.receitaPrevista)],
-    ['Ticket Médio', usd(exec.ticketMedio)], ['Conversão', pct(k.conversionRate * 100)], ['Leads recebidos', String(k.newLeads)],
-    ['Interagiram', String(k.interagiram)], ['Reuniões marcadas', String(k.meetingsScheduled)], ['Reuniões realizadas', String(k.meetingsHeld)],
-    ['Propostas em análise', String(k.proposals)], ['Vendas concluídas', String(k.won)], ['Não interagiram', String(k.naoInteragiram)],
-    ['No-show', String(k.noShow)],
+  // Denominador zero → '—'. Dizer 0% afirmaria que houve oportunidade e ela falhou; não houve base.
+  const taxa = (num: number, den: number): string => (den > 0 ? `${Math.round((num / den) * 100)}%` : '—')
+
+  // ── 1 · O QUE FOI FEITO — ações do período, em contagem ──
+  heading('O que foi feito no período')
+  const acoes: [string, string][] = [
+    ['Leads recebidos', String(k.newLeads)],
+    ['Leads trabalhados', String(k.interagiram)],
+    ['Reuniões marcadas', String(k.meetingsScheduled)],
+    ['Reuniões realizadas', String(k.meetingsHeld)],
+    ['Propostas enviadas', String(k.proposals)],
+    ['Vendas fechadas', String(k.won)],
   ]
-  const kpiRows: string[][] = []
-  for (let i = 0; i < kpis.length; i += 3) {
-    const chunk = kpis.slice(i, i + 3)
-    kpiRows.push(chunk.flatMap(([kk, v]) => [kk, v]).concat(Array(6 - chunk.length * 2).fill('')))
-  }
   autoTable(doc, {
-    startY: y, body: kpiRows, theme: 'grid', styles: { fontSize: 9, cellPadding: 3.2 },
+    startY: y, body: [
+      acoes.slice(0, 3).flatMap(([a, b]) => [a, b]),
+      acoes.slice(3).flatMap(([a, b]) => [a, b]),
+    ],
+    theme: 'grid', styles: { fontSize: 9, cellPadding: 3.2 },
     columnStyles: {
       0: { textColor: GREY }, 1: { fontStyle: 'bold', textColor: DARK },
       2: { textColor: GREY }, 3: { fontStyle: 'bold', textColor: DARK },
@@ -93,16 +95,45 @@ export async function buildExecutivePdf(input: {
   })
   y = afterTable(y) + 9
 
-  // Comparação com o período anterior (mesma duração) — leads/interações/reuniões/propostas/vendas/receita/conversão.
+  // ── 2 · EFICIÊNCIA — cada degrau com a base explícita, para o número não ficar solto ──
+  heading('Eficiência')
+  autoTable(doc, {
+    startY: y, head: [['Taxa', 'Resultado', 'Base']],
+    body: [
+      ['Taxa de interação', taxa(k.interagiram, k.newLeads), `${k.interagiram} de ${k.newLeads} recebidos`],
+      ['Reunião marcada -> realizada', taxa(k.meetingsHeld, k.meetingsScheduled), `${k.meetingsHeld} de ${k.meetingsScheduled} marcadas`],
+      ['Reunião -> venda', taxa(k.won, k.meetingsHeld), `${k.won} de ${k.meetingsHeld} realizadas`],
+      ['Taxa de conversão', pct(k.conversionRate * 100), `${k.won} de ${k.newLeads} recebidos`],
+    ],
+    styles: { fontSize: 8.5, cellPadding: 2.4 },
+    headStyles: { fillColor: GREEN, textColor: [20, 20, 20] },
+    alternateRowStyles: { fillColor: [245, 247, 240] },
+    columnStyles: { 1: { fontStyle: 'bold', textColor: DARK, halign: 'right' }, 2: { textColor: GREY } },
+  })
+  y = afterTable(y) + 9
+
+  // ── 3 · RESULTADO — o dinheiro do período ──
+  heading('Resultado')
+  autoTable(doc, {
+    startY: y, body: [
+      ['Receita recebida', usd(exec.receitaRecebida), 'Valor fechado', usd(exec.valorFechado)],
+      ['Ticket médio', usd(exec.ticketMedio), 'Receita prevista', usd(exec.receitaPrevista)],
+    ],
+    theme: 'grid', styles: { fontSize: 9, cellPadding: 3.2 },
+    columnStyles: {
+      0: { textColor: GREY }, 1: { fontStyle: 'bold', textColor: DARK },
+      2: { textColor: GREY }, 3: { fontStyle: 'bold', textColor: DARK },
+    },
+  })
+  y = afterTable(y) + 9
+
+  // ── Comparação com o período anterior — o que mudou, sem o leitor precisar lembrar do mês passado ──
   if (cmp) {
     heading('Comparação com o período anterior')
     const cRows: [string, string, string, number][] = [
       ['Leads recebidos', String(k.newLeads), String(cmp.newLeads), k.newLeads - cmp.newLeads],
-      ['Interações', String(k.interagiram), String(cmp.interagiram), k.interagiram - cmp.interagiram],
-      ['Reuniões marcadas', String(k.meetingsScheduled), String(cmp.meetingsScheduled), k.meetingsScheduled - cmp.meetingsScheduled],
       ['Reuniões realizadas', String(k.meetingsHeld), String(cmp.meetingsHeld), k.meetingsHeld - cmp.meetingsHeld],
-      ['Propostas em análise', String(k.proposals), String(cmp.proposals), k.proposals - cmp.proposals],
-      ['Vendas concluídas', String(k.won), String(cmp.won), k.won - cmp.won],
+      ['Vendas fechadas', String(k.won), String(cmp.won), k.won - cmp.won],
     ]
     const body = cRows.map(([label, cur, prev, d]) => [label, cur, prev, signInt(d)])
     body.push(['Receita recebida', usd(exec.receitaRecebida), usd(execPrev.receitaRecebida), signUsd(exec.receitaRecebida - execPrev.receitaRecebida)])
@@ -122,97 +153,48 @@ export async function buildExecutivePdf(input: {
     })
     y = afterTable(y) + 4
     doc.setFont('helvetica', 'italic'); doc.setFontSize(7.5); doc.setTextColor(...GREY)
-    ensure(6); doc.text('Período anterior = janela imediatamente anterior, de mesma duração.', L, y); y += 6
+    ensure(6); doc.text('Período anterior = janela imediatamente anterior, de mesma duração.', L, y); y += 8
   }
 
-  // ════════ PÁGINA 2 — Funil de movimentações + gráfico + gargalos do período ════════
-  doc.addPage(); y = 22
-
-  heading('Funil do período (movimentações)')
-  const steps = rp.cumulativeFunnel.length
-    ? rp.cumulativeFunnel.map(s => [s.label, s.count] as [string, number])
-    : ([['Leads recebidos', k.newLeads], ['Interagiram', k.interagiram], ['Reuniões marcadas', k.meetingsScheduled], ['Propostas em análise', k.proposals], ['Vendas concluídas', k.won]] as [string, number][])
-  const funMax = steps.reduce((m, f) => (f[1] > m ? f[1] : m), 1)
-  doc.setFont('helvetica', 'normal'); doc.setFontSize(8.5)
-  for (const [label, val] of steps) {
-    ensure(10)
-    const w = Math.max(1, (val / funMax) * 118)
-    doc.setTextColor(...GREY); doc.text(label, L, y + 5)
-    doc.setFillColor(...GREEN); doc.rect(58, y, w, 6.5, 'F')
-    doc.setTextColor(...DARK); doc.text(String(val), 58 + w + 2, y + 5)
-    y += 10
-  }
-  y += 5
-
-  // Etapas & gargalos (retrato do pipeline ATUAL) — só etapas com leads.
-  const gargalos = rp.funnel.filter(f => f.count > 0)
-  if (gargalos.length > 0) {
-    heading('Etapas & gargalos (pipeline atual)')
-    autoTable(doc, {
-      startY: y, head: [['Etapa', 'Leads', 'Tempo médio']],
-      body: gargalos.map(f => [f.stage, String(f.count), f.avgDays != null ? `${f.avgDays}d` : '—']),
-      styles: { fontSize: 8.5, cellPadding: 2 }, headStyles: { fillColor: GREEN, textColor: [20, 20, 20] }, alternateRowStyles: { fillColor: [245, 247, 240] },
-    })
-    y = afterTable(y) + 4
-    doc.setFont('helvetica', 'normal'); doc.setFontSize(8.5); doc.setTextColor(...GREY)
-    ensure(8); doc.text(`Leads parados / críticos (> 7 dias): ${rp.stuckLeads}`, L, y); y += 8
-  }
-
-  // ════════ PÁGINA 3 — Aquisição + Receita por vendedor + por plano + pontos de atenção ════════
-  doc.addPage(); y = 22
-
-  // Aquisição (marketing_investments do período) — CPL/custo por reunião/venda/ROI. NUNCA inventa número:
-  // sem investimento no período, mostra nota em vez de custos zerados/"Infinity".
-  heading('Aquisição (período)')
-  if (exec.investimento <= 0) {
-    doc.setFont('helvetica', 'normal'); doc.setFontSize(9); doc.setTextColor(...GREY)
-    ensure(7); doc.text('Nenhum investimento lançado no período.', L, y); y += 9
-  } else {
+  // ── Aquisição — SÓ com investimento lançado. Sem ele, a seção inteira seria "—" repetido. ──
+  if (exec.investimento > 0) {
     const usdOrDash = (v: number | null): string => (v == null ? '—' : usd(v))
-    const roiX = (v: number | null): string => (v == null ? '—' : `${v.toFixed(1)}x`)
+    heading('Aquisição')
     autoTable(doc, {
-      startY: y,
-      body: [
-        ['Investimento', usd(exec.investimento)],
-        ['Custo por Lead', usdOrDash(exec.cpl)],
-        ['Custo por Reunião', usdOrDash(exec.custoPorReuniao)],
-        ['Custo por Venda', usdOrDash(exec.custoPorVenda)],
-        ['ROI', roiX(exec.roi)],
+      startY: y, body: [
+        ['Investimento', usd(exec.investimento), 'Custo por lead', usdOrDash(exec.cpl)],
+        ['Custo por venda', usdOrDash(exec.custoPorVenda), 'ROI', exec.roi == null ? '—' : `${exec.roi.toFixed(1)}x`],
       ],
       theme: 'grid', styles: { fontSize: 9, cellPadding: 3.2 },
-      columnStyles: { 0: { textColor: GREY }, 1: { fontStyle: 'bold', textColor: DARK } },
+      columnStyles: {
+        0: { textColor: GREY }, 1: { fontStyle: 'bold', textColor: DARK },
+        2: { textColor: GREY }, 3: { fontStyle: 'bold', textColor: DARK },
+      },
     })
     y = afterTable(y) + 9
   }
 
-  if (exec.receitaPorVendedor.length > 0) {
-    heading('Receita por vendedor (período)')
+  // ── Receita por vendedor — SÓ com mais de um. Com um vendedor a linha apenas repete o total. ──
+  if (exec.receitaPorVendedor.length > 1) {
+    heading('Receita por vendedor')
     autoTable(doc, {
       startY: y, head: [['Vendedor', 'Recebido', 'Clientes']],
-      body: exec.receitaPorVendedor.map(s => [s.name, usd(s.value), String(s.count)]),
+      body: exec.receitaPorVendedor.map(sv => [sv.name, usd(sv.value), String(sv.count)]),
       styles: { fontSize: 8.5, cellPadding: 2 }, headStyles: { fillColor: GREEN, textColor: [20, 20, 20] }, alternateRowStyles: { fillColor: [245, 247, 240] },
     })
-    y = afterTable(y) + 7
-  }
-  if (exec.receitaPorPlano.length > 0) {
-    heading('Receita por plano (período)')
-    autoTable(doc, {
-      startY: y, head: [['Plano', 'Recebido', 'Clientes']],
-      body: exec.receitaPorPlano.map(p => [p.plan, usd(p.value), String(p.count)]),
-      styles: { fontSize: 8.5, cellPadding: 2 }, headStyles: { fillColor: GREEN, textColor: [20, 20, 20] }, alternateRowStyles: { fillColor: [245, 247, 240] },
-    })
-    y = afterTable(y) + 7
+    y = afterTable(y) + 9
   }
 
-  // Pontos de atenção (insights automáticos, sem IA) — só quando há.
+  // ── Pontos de atenção — no máximo 3; a lista inteira virava parede de texto. ──
   if (rp.insights.length > 0) {
     heading('Pontos de atenção')
     doc.setFont('helvetica', 'normal'); doc.setFontSize(9); doc.setTextColor(...GREY)
-    for (const ins of rp.insights) { ensure(7); doc.text(`• ${ins.message}`, L, y, { maxWidth: R - L }); y += 7 }
+    for (const ins of rp.insights.slice(0, 3)) { ensure(7); doc.text(`• ${ins.message}`, L, y, { maxWidth: R - L }); y += 7 }
     y += 3
   }
 
-  // Carteira atual — SNAPSHOT, não é do período. Fica no rodapé da P3, rotulada.
+  // ── Carteira: SNAPSHOT, não é do período. Uma linha, rotulada, no fim. ──
+  ensure(14)
   heading('Carteira atual (snapshot — não é do período)')
   doc.setFont('helvetica', 'normal'); doc.setFontSize(9); doc.setTextColor(...GREY)
   ensure(7)
