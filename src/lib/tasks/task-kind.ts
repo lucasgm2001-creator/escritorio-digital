@@ -29,7 +29,8 @@ export function inferTaskKind(title: string, stored?: string | null): TaskKind {
 export function taskKindForNextAction(action: string): TaskKind {
   if (action === 'ligar') return 'ligacao'
   if (action === 'mensagem') return 'whatsapp'
-  if (action === 'marcar_reuniao') return 'agendamento'
+  if (action === 'marcar_reuniao') return 'agendamento'   // tarefa PARA agendar
+  if (action === 'reuniao_marcada') return 'reuniao'      // a reunião em si (roxo, com link)
   if (action === 'enviar_proposta') return 'proposta'
   if (action === 'cobrar_retorno') return 'followup'
   return 'geral'

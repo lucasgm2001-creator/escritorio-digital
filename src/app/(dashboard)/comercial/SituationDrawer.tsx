@@ -133,7 +133,7 @@ const RESULT_DEFAULTS: Partial<Record<LastAction, { next: NextAction; when?: Whe
   ligacao_nao_atendeu: { next: 'ligar', when: 'amanha' },
   ligacao_ocupado: { next: 'ligar', when: 'hoje' },
   ligacao_caixa_postal: { next: 'mensagem', when: 'hoje' },
-  ligacao_marcou_reuniao: { next: 'marcar_reuniao', when: 'amanha' },
+  ligacao_marcou_reuniao: { next: 'reuniao_marcada', when: 'amanha' },
   ligacao_pediu_proposta: { next: 'enviar_proposta', when: 'hoje' },
   whatsapp_nao_visualizou: { next: 'cobrar_retorno', when: 'em_3_dias' },
   whatsapp_visualizou: { next: 'cobrar_retorno', when: 'amanha' },
@@ -154,9 +154,9 @@ const RESULT_DEFAULTS: Partial<Record<LastAction, { next: NextAction; when?: Whe
   proposta_recusada: { next: 'encerrar_oportunidade', when: 'hoje' },
   followup_sem_resposta: { next: 'mensagem', when: 'em_3_dias' },
   followup_pediu_retorno: { next: 'ligar', when: 'amanha' },
-  whatsapp_marcou_reuniao: { next: 'marcar_reuniao', when: 'amanha' },
+  whatsapp_marcou_reuniao: { next: 'reuniao_marcada', when: 'amanha' },
   whatsapp_pediu_proposta: { next: 'enviar_proposta', when: 'hoje' },
-  agendamento_confirmado: { next: 'marcar_reuniao', when: 'amanha' },
+  agendamento_confirmado: { next: 'reuniao_marcada', when: 'amanha' },
   agendamento_sem_resposta: { next: 'mensagem', when: 'em_3_dias' },
   agendamento_pediu_retorno: { next: 'ligar', when: 'amanha' },
   agendamento_recusado: { next: 'encerrar_oportunidade', when: 'hoje' },
@@ -181,7 +181,7 @@ const PERCEPTION_OPTIONS: (IconOption<Temperature> & { hint: string })[] = [
 
 const NEXT_OPTIONS: NextAction[] = [
   'nenhuma', 'ligar', 'mensagem', 'enviar_proposta', 'cobrar_retorno',
-  'marcar_reuniao', 'aguardar', 'fechar_venda', 'encerrar_oportunidade',
+  'marcar_reuniao', 'reuniao_marcada', 'aguardar', 'fechar_venda', 'encerrar_oportunidade',
 ]
 
 const WHENS: { key: WhenChoice; label: string }[] = [
@@ -308,7 +308,7 @@ export function SituationDrawer({ lead, sourceTaskId = null, taskContext, onClos
   const summaryResult = contactAction && lastAction ? RESULT_OPTIONS[contactAction].find(o => o.key === lastAction)?.label ?? LAST_ACTION_LABEL[lastAction] : null
   const summaryWhen = needsWhen ? whenLabel(when, date, time) : null
   const hasSummary = !!contactAction || !!summaryResult || !!temperature || nextAction !== 'nenhuma' || !!summaryWhen
-  const suggestedStage = lastAction ? suggestedStageFromSituation(lastAction, lead.status ?? '') : null
+  const suggestedStage = lastAction ? suggestedStageFromSituation(lastAction, lead.status ?? '', nextAction) : null
   const suggestedStageLabel = suggestedStage ? ALL_COLUMNS.find(column => column.key === suggestedStage)?.label ?? suggestedStage : null
 
   function selectContactAction(action: ContactAction) {
@@ -337,6 +337,12 @@ export function SituationDrawer({ lead, sourceTaskId = null, taskContext, onClos
     if (needsWhen && !when) { setError('Escolha quando realizar a próxima ação.'); return }
     if (when === 'data' && !date) { setError('Escolha a data da próxima ação.'); return }
     if (time && !normalizeDueTime(time)) { setError('Horário inválido. Use HH:MM.'); return }
+    // Reunião SEM horário vira evento de dia inteiro no Google Agenda — e um link de reunião sem hora não
+    // serve para ninguém. Aqui o horário deixa de ser opcional; nas demais ações continua livre.
+    if (nextAction === 'reuniao_marcada' && !normalizeDueTime(time)) {
+      setError('Informe o horário da reunião — é ele que define o compromisso na agenda e o link.')
+      return
+    }
     setSaving(true); setError(null)
     const res = await updateLeadSituationAction({
       leadId: lead.id, sourceTaskId, lastAction, nextAction,
@@ -437,6 +443,14 @@ export function SituationDrawer({ lead, sourceTaskId = null, taskContext, onClos
               </div>
             )}
 
+            {nextAction === 'reuniao_marcada' && (
+              <p className="rounded-btn border border-purple-500/25 bg-purple-500/[0.07] px-3 py-2 text-caption leading-relaxed text-purple-200/85">
+                <strong className="font-semibold text-purple-200">Reunião:</strong>{' '}
+                entra na agenda como reunião (roxo), com link do Google Meet criado automaticamente, e o lead
+                vai para a fase Reunião Agendada.
+              </p>
+            )}
+
             {sourceTaskId && (
               <p className="rounded-btn border border-blue-500/20 bg-blue-500/[0.06] px-3 py-2 text-caption leading-relaxed text-blue-200/80">
                 <strong className="font-semibold text-blue-200">Sem acúmulo:</strong>{' '}
@@ -446,7 +460,7 @@ export function SituationDrawer({ lead, sourceTaskId = null, taskContext, onClos
             )}
 
             {needsWhen && (
-              <Group label="5. Quando realizar">
+              <Group label={nextAction === 'reuniao_marcada' ? '5. Quando é a reunião' : '5. Quando realizar'}>
                 {WHENS.map(w => (
                   <button key={w.key} type="button" onClick={() => setWhen(w.key)}
                     className={cn(

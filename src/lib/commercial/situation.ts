@@ -18,8 +18,11 @@ export type LastAction =
   | 'proposta_enviada' | 'proposta_aceita' | 'proposta_pediu_ajuste' | 'proposta_recusada' | 'proposta_sem_resposta'
   | 'followup_respondeu' | 'followup_sem_resposta' | 'followup_pediu_retorno'
   | 'agendamento_confirmado' | 'agendamento_sem_resposta' | 'agendamento_pediu_retorno' | 'agendamento_recusado'
+// 'marcar_reuniao'  = ainda PRECISO agendar  → vira tarefa de agendamento
+// 'reuniao_marcada'  = JÁ agendei, com data e hora → vira a REUNIÃO em si (REUNIAO-MARCADA-001)
 export type NextAction =
-  | 'nenhuma' | 'ligar' | 'mensagem' | 'cobrar_retorno' | 'enviar_proposta' | 'marcar_reuniao' | 'aguardar'
+  | 'nenhuma' | 'ligar' | 'mensagem' | 'cobrar_retorno' | 'enviar_proposta' | 'marcar_reuniao'
+  | 'reuniao_marcada' | 'aguardar'
   | 'encerrar_oportunidade' | 'fechar_venda'
 export type Temperature =
   | 'frio' | 'morno' | 'quente' | 'muito_quente'
@@ -57,7 +60,8 @@ export const LAST_ACTION_LABEL: Record<LastAction, string> = {
 }
 export const NEXT_ACTION_LABEL: Record<NextAction, string> = {
   nenhuma: 'Nenhuma', ligar: 'Ligar novamente', mensagem: 'Enviar WhatsApp', cobrar_retorno: 'Cobrar retorno',
-  enviar_proposta: 'Enviar proposta', marcar_reuniao: 'Agendar reunião', aguardar: 'Aguardar cliente',
+  enviar_proposta: 'Enviar proposta', marcar_reuniao: 'Agendar reunião', reuniao_marcada: 'Reunião marcada',
+  aguardar: 'Aguardar cliente',
   encerrar_oportunidade: 'Encerrar oportunidade', fechar_venda: 'Registrar venda',
 }
 export const TEMPERATURE_LABEL: Record<Temperature, string> = {
@@ -80,13 +84,17 @@ export function deriveFollowupState(lastAction: LastAction, nextAction: NextActi
   if (lastAction === 'fechou' || lastAction === 'ja_e_cliente' || lastAction === 'ligacao_ja_cliente') return 'fechado'
   if (nextAction === 'nenhuma') return lastAction === 'nao_respondeu' || lastAction === 'ligacao_nao_atendeu' ? 'sem_atualizacao' : 'aguardando'
   if (nextAction === 'aguardar') return 'aguardando'
+  if (nextAction === 'reuniao_marcada') return 'agendado'   // compromisso na agenda, não pendência do dia
   if (when === 'hoje') return 'precisa_agir'
   return 'agendado'
 }
 
 // A situação influencia o funil sem permitir que este fluxo rápido feche uma venda e gere efeitos
 // financeiros por acidente. Fechamento continua no fluxo próprio, com plano e confirmação.
-export function suggestedStageFromSituation(lastAction: LastAction, currentStatus: string): string | null {
+export function suggestedStageFromSituation(lastAction: LastAction, currentStatus: string, nextAction?: NextAction): string | null {
+  // Marcar a reunião move o lead para a fase de reunião, venha de onde vier a conversa — antes só o
+  // resultado 'agendamento_confirmado' fazia isso, então marcar reunião numa ligação não movia o card.
+  if (nextAction === 'reuniao_marcada') return 'reuniao'
   if (lastAction === 'reuniao_nao_compareceu') return 'no_show'
   if (lastAction === 'reuniao_pediu_reagendamento') return 'reagendamento'
   if (lastAction === 'reuniao_proposta_apresentada' || lastAction === 'proposta_enviada') return 'proposta'

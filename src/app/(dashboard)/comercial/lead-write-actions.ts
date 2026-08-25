@@ -288,7 +288,7 @@ export async function updateLeadSituationAction(input: {
   if (teamId) ownedQuery = ownedQuery.eq('team_id', teamId)
   const { data: currentLead } = await ownedQuery.maybeSingle()
   if (!currentLead) return { ok: false, error: 'Lead não encontrado nesta equipe.' }
-  const suggestedStage = suggestedStageFromSituation(input.lastAction, currentLead.status)
+  const suggestedStage = suggestedStageFromSituation(input.lastAction, currentLead.status, input.nextAction)
 
   // next_contact (= data da próxima ação): 'nenhuma' limpa; com "quando" define; senão não mexe.
   let nextContact: string | null | undefined = undefined
@@ -346,16 +346,24 @@ export async function updateLeadSituationAction(input: {
   // se o usuário escolher uma nova ação com data. 'aguardar'/'nenhuma' encerram a tentativa atual.
   let nextTask: Record<string, unknown> | null = null
   if (input.nextAction !== 'nenhuma' && input.nextAction !== 'aguardar') {
-    const confirmedMeeting = input.lastAction === 'agendamento_confirmado'
+    // É a REUNIÃO em si (e não uma tarefa para agendá-la)? Vale tanto pela próxima ação escolhida quanto
+    // pelo resultado 'Reunião marcada' — os dois significam "o compromisso está de pé".
+    const isMeeting = input.nextAction === 'reuniao_marcada' || input.lastAction === 'agendamento_confirmado'
     const taskPatch = {
-      title: confirmedMeeting ? `Reunião: ${lead.name}` : `${NEXT_ACTION_LABEL[input.nextAction]}: ${lead.name}`,
+      title: isMeeting ? `Reunião: ${lead.name}` : `${NEXT_ACTION_LABEL[input.nextAction]}: ${lead.name}`,
       done: false,
       completed_at: null,
       linked_type: 'lead' as const,
       linked_id: input.leadId,
       linked_name: lead.name,
-      add_call: input.nextAction === 'ligar',
-      kind: confirmedMeeting ? 'reuniao' : taskKindForNextAction(input.nextAction),
+      // add_call gera o GOOGLE MEET no evento (é o que o TaskModal chama de "Adicionar chamada"). Estava
+      // ligado para 'ligar' e desligado para reunião — invertido: tarefa de telefonema ganhava link de vídeo
+      // e a reunião ficava sem. Agora o link nasce com a reunião, que é onde ele serve.
+      add_call: isMeeting,
+      // Duração só faz sentido no compromisso; sem ela o evento sairia com a duração padrão de qualquer jeito,
+      // mas explícita mantém a agenda coerente com o que a tela mostra.
+      ...(isMeeting ? { duration_min: 30 } : {}),
+      kind: isMeeting ? 'reuniao' : taskKindForNextAction(input.nextAction),
       due_date: nextContact ?? null,
       // due_time SEMPRE explícito (P1-HORARIO-001). Quando esta action reaproveita a tarefa de origem
       // (sourceTaskId), o patch não tocava due_time: uma reunião das 14:30 reagendada para outro dia
