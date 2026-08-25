@@ -23,6 +23,7 @@ interface TaskRow {
   due_date?: string | null
   due_time?: string | null
   linked_name?: string | null
+  kind?: string | null           // 'reuniao' → evento nomeado "Call | <lead>" na agenda
   google_event_id?: string | null
   add_call?: boolean | null
   duration_min?: number | null   // reunião: duração do evento (min). Default 30 quando ausente.
@@ -111,10 +112,22 @@ function buildDescription(task: TaskRow, meetUrl?: string | null): string | unde
   return parts.join('\n\n') || undefined
 }
 
+// Nome do evento na agenda. REUNIÃO segue um padrão fixo — "Call | <lead>" (EVENTO-CALL-001) — para o
+// convidado ver sempre a mesma coisa, venha a reunião do fluxo de tarefas ou do cadastro manual, e para a
+// agenda ficar varrível de relance. Só o EVENTO usa esse nome; dentro do app a tarefa continua "Reunião:
+// <lead>", que é como o resto da interface fala.
+// Sem lead vinculado não há nome para compor: cai no título da tarefa em vez de inventar "Call | ".
+function eventSummary(task: TaskRow): string {
+  const fallback = task.title?.trim() || 'Tarefa'
+  if (task.kind !== 'reuniao') return fallback
+  const lead = task.linked_name?.trim()
+  return lead ? `Call | ${lead}` : fallback
+}
+
 // Tarefa → corpo do evento (summary/description/start/end). due_date vazio → null (não vira evento).
 function buildEventBody(task: TaskRow): calendar_v3.Schema$Event | null {
   if (!task.due_date) return null
-  const base = { summary: task.title?.trim() || 'Tarefa', description: buildDescription(task) }
+  const base = { summary: eventSummary(task), description: buildDescription(task) }
 
   if (task.due_time) {
     const t = task.due_time.slice(0, 5)
@@ -326,7 +339,7 @@ export async function syncTaskCalendar(taskId: string): Promise<CalSyncResult> {
     const supabase = createServiceClient()
     const { data, error } = await supabase
       .from('tasks')
-      .select('id, user_id, title, notes, due_date, due_time, linked_name, google_event_id, add_call, duration_min, timezone')
+      .select('id, user_id, title, notes, due_date, due_time, linked_name, kind, google_event_id, add_call, duration_min, timezone')
       .eq('id', taskId)
       .single()
     if (error || !data) return { ok: false, step: 'read', reason: error?.message ?? 'tarefa não encontrada' }
