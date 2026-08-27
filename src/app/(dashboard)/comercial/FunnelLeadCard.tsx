@@ -83,7 +83,6 @@ export function FunnelLeadCard({ lead, moveTargets, onMove, onOpenDiary, onLog, 
           </Link>
           <div className="grid grid-cols-2 gap-x-3 gap-y-1.5 font-tech text-[10px]">
             <Info label="Empresa" value={lead.company || '—'} />
-            <Info label="Tipo de serviço" value={lead.nicho || '—'} />
             {/* Telefone legível: país, DDD e número separados. O href continua com o número cru (discar). */}
             <div className="min-w-0 col-span-2">
               <p className="text-bento-muted">Telefone</p>
