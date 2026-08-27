@@ -250,10 +250,16 @@ export async function POST(req: Request) {
     const company = companyRaw && !looksLikeAddress(companyRaw) ? companyRaw : null
 
     // 7) NICHO (tipo de serviço/negócio).
-    const nicho = pick(flat, [
+    const nichoDoForm = pick(flat, [
       'nicho', 'service', 'servico', 'serviço', 'tipo_de_negocio', 'tipo de negócio', 'business_type',
       'niche', 'segmento', 'segment', 'tipo',
     ]) || null
+    // O formulário do Magnetic NÃO manda serviço/nicho: customData vem {} e nenhuma das chaves acima aparece
+    // no payload (conferido em 129 leads — zero com nicho). Na prática quem carrega o serviço é o
+    // company_name: chega "Marketing", "(C.N.A.) Certified Nurses Assistant". Enquanto o formulário não tiver
+    // o campo próprio, o mesmo texto alimenta os dois — nicho para filtrar/segmentar, empresa para exibir.
+    // Assim que o campo existir no formulário ele ganha precedência, sem mexer aqui de novo.
+    const nicho = nichoDoForm || company
 
     // 8) VALOR / ORÇAMENTO.
     const value = parseValue(pick(flat, ['value', 'valor', 'orcamento', 'orçamento', 'budget', 'investimento', 'faturamento', 'revenue']))

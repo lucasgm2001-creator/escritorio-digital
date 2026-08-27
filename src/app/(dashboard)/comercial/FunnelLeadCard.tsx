@@ -6,6 +6,7 @@ import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { Phone, MessageCircle, FileText, ArrowRight, ChevronDown, Check } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { formatPhoneBR } from '@/lib/phone'
 import { leadSubtitle, nextActionLabel, smartLeadBadges } from './leadSignals'
 import { LeadSmartBadges } from './LeadSmartBadges'
 import { LeadTasks } from './LeadTasks'
@@ -81,8 +82,19 @@ export function FunnelLeadCard({ lead, moveTargets, onMove, onOpenDiary, onLog, 
             <ArrowRight className="w-3 h-3" /> Abrir perfil completo
           </Link>
           <div className="grid grid-cols-2 gap-x-3 gap-y-1.5 font-tech text-[10px]">
+            <Info label="Empresa" value={lead.company || '—'} />
+            <Info label="Tipo de serviço" value={lead.nicho || '—'} />
+            {/* Telefone legível: país, DDD e número separados. O href continua com o número cru (discar). */}
+            <div className="min-w-0 col-span-2">
+              <p className="text-bento-muted">Telefone</p>
+              {phone ? (
+                <a href={`tel:${phone}`} onClick={stop}
+                  className="font-semibold text-bento-text hover:text-lime-fg transition-colors tabular-nums break-words">
+                  {formatPhoneBR(lead.phone)}
+                </a>
+              ) : <p className="font-semibold text-bento-text">—</p>}
+            </div>
             <Info label="Responsável" value={lead.assigned_name || '—'} />
-            <Info label="Nicho" value={lead.nicho || '—'} />
             <div className="min-w-0">
               <p className="text-bento-muted">Próxima ação</p>
               <p className="font-semibold text-bento-text flex items-center gap-1 truncate">
@@ -91,9 +103,12 @@ export function FunnelLeadCard({ lead, moveTargets, onMove, onOpenDiary, onLog, 
             </div>
           </div>
 
-          {/* Mover de fase — caixinha compacta agrupada (era pills espalhados).
-              Grid de 2 colunas contido na largura de 240px; fase atual marcada. */}
-          <div className="rounded-lg border border-bento-border bg-bento-bg p-2">
+          {/* Mover de fase — SÓ EM DISPOSITIVO DE TOQUE (variante `coarse`, IPAD-002). No computador a fase
+              muda ARRASTANDO o card, então a lista de 12 botões só competia por espaço com a informação que
+              importa na hora de ligar. No celular e no iPad arrastar é ruim (o gesto conflita com a rolagem),
+              então lá a lista continua sendo o caminho. É CSS puro: nada de detectar dispositivo em JS e
+              arriscar divergência entre servidor e cliente. */}
+          <div className="hidden coarse:block rounded-lg border border-bento-border bg-bento-bg p-2">
             <p className="font-tech text-[10px] text-bento-muted mb-1.5">Mover para</p>
             <div className="grid grid-cols-2 gap-1">
               {moveTargets.map(c => {
