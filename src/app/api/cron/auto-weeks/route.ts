@@ -103,14 +103,25 @@ export async function GET(req: Request) {
 
 type ClientRow = { id: string; name: string | null; team_id: string | null }
 
+// Tipo aceito pelo CHECK de activities + prefixo estável para deduplicar o aviso sem depender do texto todo.
+const ALERT_TYPE = 'payment'
+const ALERT_PREFIX = 'Confirmação pendente'
+
 // Agrega as semanas VENCIDAS e não confirmadas por equipe e posta UM aviso no Hall. Idempotente na prática:
 // se já houve aviso nas últimas 20h para a equipe, não repete (rerun manual do cron não vira spam).
+//
+// type='payment': `activities` tem CHECK que só aceita lead/client/payment/task/campaign/system. A primeira
+// versão usava 'cobranca', que violava a constraint — o insert falhava, o erro morria num console.error e o
+// aviso nunca apareceu (9 dias em silêncio). 'payment' já existe nos mapas de ícone/cor do Hall.
+// A deduplicação olha o PREFIXO da descrição, não só o tipo: 'payment' é genérico e pode ser usado por outra
+// coisa depois, e aí um aviso alheio calaria este.
+//
 // NÃO usa o postarNoHall do SuperAgent de propósito — aquele grava numa coluna `metadata` que não existe em
 // `activities`, então falha silencioso. Aqui o team_id é carimbado explícito: service-role não tem sessão e o
 // trigger set_team_id_default não resolveria a equipe (mesmo motivo do carimbo em scheduleDueWeeks).
 async function postPendingConfirmationAlert(
   supabase: ReturnType<typeof createServiceClient>, clients: ClientRow[], today: string,
-): Promise<{ team: string; semanas: number; usd: number; desde: string }[]> {
+): Promise<{ team: string; semanas: number; usd: number; desde: string; erro?: string }[]> {
   const teamOf = new Map(clients.map(c => [c.id, c.team_id]))
   if (!teamOf.size) return []
 
@@ -131,21 +142,27 @@ async function postPendingConfirmationAlert(
     byTeam.set(team, cur)
   }
 
-  const posted: { team: string; semanas: number; usd: number; desde: string }[] = []
+  const posted: { team: string; semanas: number; usd: number; desde: string; erro?: string }[] = []
   const since = new Date(Date.now() - 20 * 3_600_000).toISOString()
   for (const [team, agg] of byTeam) {
     const { count } = await supabase.from('activities').select('id', { count: 'exact', head: true })
-      .eq('team_id', team).eq('type', 'cobranca').is('deleted_at', null).gte('created_at', since)
+      .eq('team_id', team).eq('type', ALERT_TYPE).like('description', `${ALERT_PREFIX}%`)
+      .is('deleted_at', null).gte('created_at', since)
     if (count) continue
     const valor = agg.usd.toLocaleString('en-US', { style: 'currency', currency: 'USD' })
+    const resumo = { team, semanas: agg.semanas, usd: Math.round(agg.usd * 100) / 100, desde: agg.desde }
     const { error: alertError } = await supabase.from('activities').insert({
-      type: 'cobranca',
-      description: `💰 ${agg.semanas} semana(s) aguardando confirmação de recebimento — ${valor} em receita e a comissão vinculada seguem bloqueados. A mais antiga venceu em ${formatDateBR(agg.desde)}. Confirme em Clientes → Financeiro semanal.`,
+      type: ALERT_TYPE,
+      description: `${ALERT_PREFIX} · ${agg.semanas} semana(s) aguardando confirmação de recebimento — ${valor} em receita e a comissão vinculada seguem bloqueados. A mais antiga venceu em ${formatDateBR(agg.desde)}. Confirme em Clientes → Financeiro semanal.`,
       user_name: 'Sistema',
       team_id: team,
     })
-    if (alertError) console.error('[cron/auto-weeks] alerta:', alertError.message)
-    else posted.push({ team, semanas: agg.semanas, usd: Math.round(agg.usd * 100) / 100, desde: agg.desde })
+    if (alertError) {
+      // Falha do aviso vai para a RESPOSTA, não só para o console: foi exatamente assim que a versão
+      // anterior ficou 9 dias quebrada sem ninguém perceber.
+      console.error('[cron/auto-weeks] alerta:', alertError.message)
+      posted.push({ ...resumo, erro: alertError.message })
+    } else posted.push(resumo)
   }
   return posted
 }
