@@ -347,9 +347,17 @@ export async function reconstructClientHistory(
 // ─── Pagamento MENSAL (F2) ────────────────────────────────────────────────────────────────────
 // ORQUESTRADOR sobre o motor SEMANAL — NÃO é um 2º motor. Quita todas as semanas cujo VENCIMENTO cai
 // no mês `monthRef` (YYYY-MM), reusando payClientWeek para cada uma → receita (client_payments) +
-// comissão derivada (weekly_payments), com competência (paid_on = vencimento), câmbio congelado e teto
-// respeitados EXATAMENTE como no fluxo semanal. Diferente de payDueWeeks, NÃO trava em "hoje": pagar o
-// mês quita o mês inteiro (o cliente pagou tudo). Idempotente: semana já registrada é pulada.
+// comissão derivada (weekly_payments), com câmbio congelado e teto respeitados EXATAMENTE como no fluxo
+// semanal. Diferente de payDueWeeks, NÃO trava em "hoje": pagar o mês quita o mês inteiro. Idempotente:
+// semana já registrada é pulada.
+//
+// COMPETÊNCIA (MES-CONFIRMACAO-001): paid_on = HOJE, a data em que se confirma, e não o vencimento da
+// semana. O dinheiro entra no mês em que foi RECEBIDO: cliente que atrasa e paga em setembro o que vencia
+// em agosto conta em setembro, para receita e comissão. Antes esta função carimbava o vencimento, o que
+// jogaria o pagamento atrasado para trás no tempo. Hoje ela não tem chamador — o alinhamento é para não
+// virar armadilha no dia em que for ligada.
+// Reconstrução de histórico (reconstructClientHistory) é o caso oposto e continua usando datas passadas:
+// lá o pagamento realmente aconteceu naquela data.
 export async function payMonth(
   supabase: SupaClient, clientId: string, monthRef: string, rate: number, teamId?: string | null,
 ): Promise<{ marked: number[]; reason: string; monthRef: string }> {
@@ -370,7 +378,7 @@ export async function payMonth(
     if (m < monthRef) continue      // vencimento antes do mês pedido
     if (m > monthRef) break         // passou do mês (datas monotônicas → encerra)
     if (registered.has(n)) continue // semana já paga/anulada
-    const res = await payClientWeek(supabase, clientId, n, due, rate, teamId) // MESMA escrita do semanal
+    const res = await payClientWeek(supabase, clientId, n, spToday(), rate, teamId) // MESMA escrita do semanal
     if (res.ok) marked.push(n)
     // 'dup' e 'blocked' significam a MESMA coisa para este laço: aquela semana já está resolvida (paga, ou
     // anulada/isenta por decisão humana) — segue para a próxima. O `registered` acima já filtra o caso comum;

@@ -216,7 +216,18 @@ export function ClientPaymentsPanel({
             <div><label className="block text-xs text-bento-dim mb-1">Valor previsto (USD)</label><input type="number" min="0" step="0.01" value={editor.valorPrevisto} onChange={e => setEditor(v => v && ({ ...v, valorPrevisto: e.target.value }))} className={inputCls} /></div>
             <div><label className="block text-xs text-bento-dim mb-1">Valor recebido (USD)</label><input type="number" min="0" step="0.01" disabled={!['paga', 'parcial'].includes(editor.status)} value={editor.valorPago} onChange={e => setEditor(v => v && ({ ...v, valorPago: e.target.value }))} className={cn(inputCls, 'disabled:opacity-50')} /></div>
           </div>
-          {['paga', 'parcial'].includes(editor.status) && <div><label className="block text-xs text-bento-dim mb-1">Data do recebimento</label><input type="date" value={editor.paidOn} onChange={e => setEditor(v => v && ({ ...v, paidOn: e.target.value }))} className={inputCls} /></div>}
+          {['paga', 'parcial'].includes(editor.status) && (
+            <div>
+              <label className="block text-xs text-bento-dim mb-1">Data do recebimento</label>
+              <input type="date" value={editor.paidOn} onChange={e => setEditor(v => v && ({ ...v, paidOn: e.target.value }))} className={inputCls} />
+              {/* MES-CONFIRMACAO-001: é ESTA data que decide o mês da receita e da comissão — não o
+                  vencimento. Vem preenchida com hoje; quem atrasou e pagou agora entra no mês de agora. */}
+              <p className="mt-1 text-[11px] text-bento-muted">
+                Define em que mês a receita e a comissão entram. Semana que venceu em um mês e foi paga em
+                outro conta no mês do recebimento.
+              </p>
+            </div>
+          )}
           <div><label className="block text-xs text-bento-dim mb-1">Observação</label><textarea rows={3} value={editor.observacao} onChange={e => setEditor(v => v && ({ ...v, observacao: e.target.value }))} placeholder="Ex.: cliente pediu prazo até sexta-feira" className={inputCls} /></div>
           <div className="rounded-btn bg-bento-bg border border-bento-border/60 p-3 text-xs text-bento-muted">
             {editor.status === 'paga' ? 'Ao salvar, a receita será confirmada e a comissão vinculada será liberada.' : editor.status === 'parcial' ? 'O valor parcial entra na receita; a comissão aguarda o pagamento completo.' : 'Esta semana não entrará na receita e não gerará comissão.'}
