@@ -21,12 +21,13 @@ interface PlanRow { id: string; nome: string; valor_semanal: number; comissao_pe
 // A comissão segue o MESMO padrão: % do catálogo (20%) sobre o valor semanal, nas 4 primeiras semanas.
 export function WonPlanModal({ leadName, onConfirm, onCancel }: {
   leadName: string
-  onConfirm: (planoId: string | null, customWeeklyUsd: number | null) => void
+  onConfirm: (planoId: string | null, customWeeklyUsd: number | null, veioPorIndicacao: boolean) => void
   onCancel: () => void
 }) {
   const supabase = createClient()
   const [plans, setPlans] = useState<PlanRow[]>([])
   const [selected, setSelected] = useState<string | null>(null)
+  const [indicacao, setIndicacao] = useState(false)    // veio por indicação (só marca a origem do lead)
   const [custom, setCustom] = useState(false)          // "Personalizado" escolhido
   const [customValue, setCustomValue] = useState('')   // valor semanal digitado (USD)
   const [pct, setPct] = useState(20)                   // % do catálogo, só p/ mostrar a comissão prevista
@@ -65,8 +66,8 @@ export function WonPlanModal({ leadName, onConfirm, onCancel }: {
   const confirm = () => {
     if (busy || !podeConfirmar) return
     setBusy(true)
-    if (custom) onConfirm(null, Math.round(customNum * 100) / 100)
-    else onConfirm(selected, null)
+    if (custom) onConfirm(null, Math.round(customNum * 100) / 100, indicacao)
+    else onConfirm(selected, null, indicacao)
   }
 
   return (
@@ -142,6 +143,23 @@ export function WonPlanModal({ leadName, onConfirm, onCancel }: {
               )}
             </div>
           )}
+        </div>
+
+        {/* ORIGEM: indicação (ORIGEM-INDICACAO-001). Só marca de onde o cliente veio — não muda plano,
+            comissão, cobrança nem qualquer etapa do fechamento. */}
+        <div className="shrink-0 border-t border-bento-border px-5 pt-4">
+          <button type="button" onClick={() => setIndicacao(v => !v)} aria-pressed={indicacao}
+            className={cn('flex w-full items-center gap-3 rounded-bento border p-3 text-left transition-colors',
+              indicacao ? 'border-lime bg-lime/10' : 'border-bento-border hover:border-lime/60')}>
+            <span className={cn('grid h-4 w-4 flex-none place-items-center rounded border',
+              indicacao ? 'border-lime bg-lime' : 'border-bento-border')}>
+              {indicacao && <Check className="h-3 w-3 text-lime-ink" />}
+            </span>
+            <span className="min-w-0">
+              <span className="block text-sm font-semibold text-bento-text">Veio por indicação</span>
+              <span className="block font-tech text-[11px] text-bento-dim">Só registra a origem do lead. Não muda nada no fechamento.</span>
+            </span>
+          </button>
         </div>
 
         <div className="flex shrink-0 items-center justify-end gap-2 border-t border-bento-border px-5 pt-5 pb-[max(1.25rem,env(safe-area-inset-bottom))]">

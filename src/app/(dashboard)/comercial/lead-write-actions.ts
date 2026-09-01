@@ -130,6 +130,7 @@ export async function updateLeadAction(leadId: string, patch: Record<string, unk
 // Move um lead de fase — reusa moveLead (won-flow/comissão/histórico) sem duplicar nada.
 export async function moveLeadAction(
   lead: MovableLead, newStatus: LeadStatus, planoId: string | null = null, customWeeklyUsd: number | null = null,
+  veioPorIndicacao = false,
 ): Promise<Res<{ notes: ActionNote[] }>> {
   const g = await guard('edit', DENY_EDIT)
   if (!g.context) return { ok: false, error: g.error }
@@ -158,6 +159,16 @@ export async function moveLeadAction(
     .eq('id', lead.id).eq('team_id', g.context.activeTeamId).is('deleted_at', null).maybeSingle()
   if (!ownedLead) return { ok: false, error: 'Lead não encontrado nesta equipe.' }
   const stages = await getStages()
+  // ORIGEM: indicação (ORIGEM-INDICACAO-001). Marca de onde o cliente veio e NADA MAIS — não entra no
+  // won-flow, não toca plano, comissão nem cobrança. Fica ANTES do move só para o lead já estar rotulado
+  // quando os eventos do fechamento forem gravados; falhar aqui não pode impedir a venda, então é
+  // best-effort. Para lead que veio do Magnetic o payload original segue em raw_payload.
+  if (veioPorIndicacao) {
+    const { error: origemErr } = await supabase.from('leads')
+      .update({ origem: 'indicacao' })
+      .eq('id', lead.id).eq('team_id', g.context.activeTeamId)
+    if (origemErr) console.error('[moveLeadAction] origem indicacao:', origemErr.message)
+  }
   const res = await moveLead(supabase as Parameters<typeof moveLead>[0], ownedLead as MovableLead, newStatus, g.context.profile?.name ?? '—', stages, planoId, g.context.user.id, g.context.activeTeamId, avulso)
   if (!res.ok) return { ok: false, error: res.error ?? 'Não foi possível mover o lead.' }
   return { ok: true, notes: res.notes }

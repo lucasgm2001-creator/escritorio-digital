@@ -197,13 +197,13 @@ export function KanbanBoard({ initialLeads, initialStages, initialClients, curre
 
   // Executa o movimento de fato: otimista → persiste via moveLead (que dispara o won-flow/comissão
   // ao ir pra is_won) → rollback+toast se falhar. planoId só é usado no fechamento.
-  const doMove = useCallback(async (lead: Lead, newStatus: LeadStatus, planoId: string | null = null, customWeeklyUsd: number | null = null): Promise<boolean> => {
+  const doMove = useCallback(async (lead: Lead, newStatus: LeadStatus, planoId: string | null = null, customWeeklyUsd: number | null = null, veioPorIndicacao = false): Promise<boolean> => {
     if (lead.status === newStatus) return true
     const prevStatus = lead.status
     const prevStage = lead.stage_changed_at
     const nowIso = new Date().toISOString()
     setLeads(prev => prev.map(l => l.id === lead.id ? { ...l, status: newStatus, stage_changed_at: nowIso } : l))   // otimista
-    const res = await moveLeadAction(lead, newStatus, planoId, customWeeklyUsd)   // servidor: can(commercial,edit) + won-flow/comissão
+    const res = await moveLeadAction(lead, newStatus, planoId, customWeeklyUsd, veioPorIndicacao)   // servidor: can(commercial,edit) + won-flow/comissão
     if (!res.ok) {
       setLeads(prev => prev.map(l => l.id === lead.id ? { ...l, status: prevStatus, stage_changed_at: prevStage } : l))   // rollback
       showToast(`Não foi possível mover o lead: ${res.error}`, 'error')
@@ -226,11 +226,11 @@ export function KanbanBoard({ initialLeads, initialStages, initialClients, curre
   }, [wonStatus, doMove])
 
   // Confirma o fechamento com o plano escolhido → cria a venda pelo % do plano e fecha o diário.
-  const confirmWon = useCallback(async (planoId: string | null, customWeeklyUsd: number | null = null) => {
+  const confirmWon = useCallback(async (planoId: string | null, customWeeklyUsd: number | null = null, veioPorIndicacao = false) => {
     const lead = pendingWon
     setPendingWon(null)
     if (!lead) return
-    await doMove(lead, wonStatus, planoId, customWeeklyUsd)
+    await doMove(lead, wonStatus, planoId, customWeeklyUsd, veioPorIndicacao)
     setSelectedLead(null)
   }, [pendingWon, wonStatus, doMove])
 
