@@ -5,8 +5,10 @@ import { todaySP, formatDateBR } from '@/lib/date'
 import { loadTeamRates } from '@/lib/commission/fx'
 import { createHash, timingSafeEqual } from 'crypto'
 
-// Robô diário: agenda semanas vencidas. Nunca confirma recebimento e nunca gera comissão sozinho.
-// ?dryRun=1 retorna o que ELA INSERIRIA hoje, SEM gravar nada (auditoria).
+// Robô diário: confirma as semanas vencidas como PAGAS (AUTO-PAGA-001) — receita + comissão, sem passo
+// humano. Antes só agendava a pendência. Cliente que parar de pagar precisa ser corrigido à mão no editor
+// de semana; o robô não distingue "venceu" de "recebeu".
+// ?dryRun=1 retorna o que ELA REGISTRARIA hoje, SEM gravar nada (auditoria).
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
@@ -56,7 +58,7 @@ export async function GET(req: Request) {
   )
 
   if (dryRun) {
-    const items: { client: string; numero_semana: number; due_on: string; valor_previsto_usd: number; status: 'vencida' }[] = []
+    const items: { client: string; numero_semana: number; due_on: string; valor_previsto_usd: number; status: 'paga' }[] = []
     for (const c of eligible) {
     const start = String(c.billing_anchor_date ?? c.start_date).slice(0, 10)
       const dia = Number(c.dia_pagamento_semana)
@@ -70,13 +72,13 @@ export async function GET(req: Request) {
         if (due > today) break
         reg.add(n)
         const { valorUsd } = planAtWeek(n)
-        items.push({ client: c.name as string, numero_semana: n, due_on: due, valor_previsto_usd: valorUsd, status: 'vencida' })
+        items.push({ client: c.name as string, numero_semana: n, due_on: due, valor_previsto_usd: valorUsd, status: 'paga' })
       }
     }
     return NextResponse.json({ ok: true, dryRun: true, today, rate, eligibleClients: eligible.length, count: items.length, items })
   }
 
-  // Execução real (idempotente) — cria a pendência; pagamento exige confirmação humana.
+  // Execução real (idempotente) — registra receita + comissão da semana vencida.
   const results: { client: string; marked: number[]; reason: string }[] = []
   for (const c of eligible) {
     // BUGFIX team_id: sem sessão (cron/service-role) o trigger set_team_id_default não resolve a equipe no

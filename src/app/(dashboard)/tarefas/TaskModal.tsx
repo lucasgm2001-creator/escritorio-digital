@@ -128,9 +128,11 @@ export function TaskModal({ onClose, onSaved, linkOptions, task, prefill, aiFill
     ? [{ id: task.responsavel_id, name: task.responsavel_nome || 'Responsável atual' }]
     : [{ id: DEFAULT_TASK_OWNER_ID, name: DEFAULT_TASK_OWNER_NAME }])
   const [responsavelId, setResponsavelId] = useState<string>(task?.responsavel_id ?? DEFAULT_TASK_OWNER_ID)
-  const [addCall, setAddCall]     = useState<boolean>(task?.add_call ?? false)   // gera um Google Meet pro evento (caminho OAuth)
+  // Reunião nasce com a chamada LIGADA (gera o Google Meet). Nas demais tarefas segue desligada: link de
+  // vídeo em tarefa de ligação ou follow-up só polui a agenda. Ao EDITAR, respeita o que já está salvo.
+  const [addCall, setAddCall]     = useState<boolean>(task?.add_call ?? (prefill?.kind === 'reuniao' || inferTaskKind(prefill?.title ?? '', null) === 'reuniao'))
   // Duração/Fuso do evento (toda tarefa com data vai pro Google Agenda). NÃO há mais "modo reunião".
-  const [durationMin, setDurationMin] = useState<number>(task?.duration_min ?? 30)
+  const [durationMin, setDurationMin] = useState<number>(task?.duration_min ?? 60)
   const [timezone, setTimezone]   = useState<string>(task?.timezone ?? 'America/Sao_Paulo')
 
   const supabase = createClient()
@@ -272,7 +274,11 @@ export function TaskModal({ onClose, onSaved, linkOptions, task, prefill, aiFill
               value={title}
               onChange={e => {
                 setTitle(e.target.value)
-                if (!kindTouched) setKind(inferTaskKind(e.target.value))
+                if (!kindTouched) {
+                  const k = inferTaskKind(e.target.value)
+                  setKind(k)
+                  if (k === 'reuniao') { setAddCall(true); setDurationMin(d => (d === 30 ? 60 : d)) }
+                }
               }}
               className={inputCls}
               placeholder="Ex: Ligar para o Flávio sobre a proposta"
@@ -282,7 +288,12 @@ export function TaskModal({ onClose, onSaved, linkOptions, task, prefill, aiFill
           <Field label="Tipo de ação">
             <div className="grid grid-cols-3 gap-1.5">
               {TASK_KINDS.map(([value, label]) => (
-                <button key={value} type="button" onClick={() => { setKind(value); setKindTouched(true) }}
+                <button key={value} type="button" onClick={() => {
+                  setKind(value); setKindTouched(true)
+                  // Escolher "Reunião" já deixa o compromisso pronto: 1 hora e Google Meet ligado. Trocar
+                  // para outro tipo NÃO desliga nada — quem mexeu no toggle de propósito não é sobrescrito.
+                  if (value === 'reuniao') { setAddCall(true); setDurationMin(d => (d === 30 ? 60 : d)) }
+                }}
                   className={cn('min-h-[38px] rounded-btn border px-2 text-xs font-medium transition-colors',
                     kind === value ? 'border-lime/50 bg-lime/10 text-lime-fg' : 'border-bento-border bg-bento-bg text-bento-muted hover:text-bento-text')}>
                   {label}

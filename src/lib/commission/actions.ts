@@ -112,7 +112,7 @@ export type CommissionOutcome = 'paid' | 'capped' | 'no_deal' | 'dup' | 'frozen'
 
 // Deriva a semana de comissão a partir da semana paga do cliente — pelo MESMO payWeek
 // (US$25, teto 4, trava). NÃO muda a regra; só decide SE chama e com quais paidNumbers.
-async function deriveCommission(
+export async function deriveCommission(
   supabase: SupaClient, clientId: string, numero: number, paidOn: string, rate: number, teamId?: string | null,
 ): Promise<CommissionOutcome> {
   // ALINHAMENTO COM save_client_week (P2-DERIVE-001): a RPC do banco — caminho REAL da UI — escolhe o deal
@@ -208,9 +208,17 @@ export function dueDateFor(startYmd: string, diaPagamento: number, n: number): s
   return addDaysYmd(startYmd, offset + 7 * (n - 1))
 }
 
-// Agenda semanas vencidas sem fingir que houve recebimento. A linha ocupa o número da semana,
-// mas fica anulado=true/status=vencida, portanto não entra em receita nem libera comissão.
-// Usado exclusivamente pelos robôs; confirmação de pagamento é sempre uma ação humana.
+// AUTO-CONFIRMAÇÃO (AUTO-PAGA-001). Semana vencida entra JÁ COMO PAGA: receita registrada e comissão
+// derivada, sem passo humano. Antes a linha nascia vencida/anulada e esperava confirmação.
+//
+// A troca é uma decisão de operação, não técnica, e tem um preço explícito: o sistema deixa de distinguir
+// "venceu" de "recebeu". Cliente que PARAR de pagar continua gerando receita e comissão em silêncio, e a
+// correção passa a ser manual — desmarcar a semana no editor. O alerta de pendência fica mudo por
+// consequência: não existe mais pendência para avisar.
+//
+// due_on continua sendo o VENCIMENTO real (não a data de hoje): a régua de cobrança, o financeiro do
+// cliente e a regra de renovação (4 semanas pagas a partir da data de renovação) leem esse campo.
+// paid_on é HOJE, seguindo a regra de competência: o dinheiro conta no mês em que foi confirmado.
 export async function scheduleDueWeeks(
   supabase: SupaClient, clientId: string, rate: number, maxWeeks = 12, teamId?: string | null,
 ): Promise<{ scheduled: number[]; reason: string }> {
@@ -235,14 +243,20 @@ export async function scheduleDueWeeks(
     if (due > today) break
     registered.add(n)
     const { planoId, valorUsd } = planAtWeek(n)
+    const hoje = spToday()
     const { error } = await supabase.from('client_payments').insert({
-      client_id: clientId, numero_semana: n, valor_usd: valorUsd, paid_on: null,
-      cotacao_usd_brl: rate, plano_id: planoId, status: 'vencida', due_on: due,
-      valor_previsto_usd: valorUsd, valor_pago_usd: 0, anulado: true,
-      anulado_motivo: 'Aguardando confirmação de pagamento', ...withTeam(teamId),
+      client_id: clientId, numero_semana: n, valor_usd: valorUsd, paid_on: hoje,
+      cotacao_usd_brl: rate, plano_id: planoId, status: 'paga', due_on: due,
+      valor_previsto_usd: valorUsd, valor_pago_usd: valorUsd, anulado: false,
+      anulado_motivo: null, ...withTeam(teamId),
     })
     if (error && error.code !== '23505') return { scheduled, reason: error.message }
-    if (!error) scheduled.push(n)
+    if (!error) {
+      // Receita gravada; a comissão sai do MESMO motor do fluxo manual (teto de 4 semanas, kind='sale',
+      // vendedor que gera comissão). Sem isto a semana entraria como receita e a comissão nunca nasceria.
+      await deriveCommission(supabase, clientId, n, hoje, rate, teamId)
+      scheduled.push(n)
+    }
   }
   return { scheduled, reason: scheduled.length ? 'ok' : 'nada_vencido' }
 }

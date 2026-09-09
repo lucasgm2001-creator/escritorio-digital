@@ -298,9 +298,9 @@ export async function moveLead(
           kind: stageTask.kind,
           done: false,
           due_date: spToday(),
-          // Reunião nasce com 30 min explícitos — o mesmo padrão do editor e do fluxo de tarefas. Sem hora
-          // ainda (o funil não pergunta), então o evento é de dia inteiro até alguém definir o horário.
-          ...(stageTask.kind === 'reuniao' ? { duration_min: 30 } : {}),
+          // Reunião nasce com 1 hora e chamada ligada — o mesmo padrão do editor e do fluxo de tarefas.
+          // Sem hora ainda (o funil não pergunta), então o evento é de dia inteiro até alguém definir o horário.
+          ...(stageTask.kind === 'reuniao' ? { duration_min: 60, add_call: true } : {}),
           linked_type: 'lead',
           linked_id: lead.id,
           linked_name: lead.name,

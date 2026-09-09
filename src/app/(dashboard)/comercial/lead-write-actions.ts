@@ -372,8 +372,8 @@ export async function updateLeadSituationAction(input: {
       // e a reunião ficava sem. Agora o link nasce com a reunião, que é onde ele serve.
       add_call: isMeeting,
       // Duração só faz sentido no compromisso; sem ela o evento sairia com a duração padrão de qualquer jeito,
-      // mas explícita mantém a agenda coerente com o que a tela mostra.
-      ...(isMeeting ? { duration_min: 30 } : {}),
+      // mas explícita mantém a agenda coerente com o que a tela mostra. Padrão da reunião: 1 hora.
+      ...(isMeeting ? { duration_min: 60 } : {}),
       kind: isMeeting ? 'reuniao' : taskKindForNextAction(input.nextAction),
       due_date: nextContact ?? null,
       // due_time SEMPRE explícito (P1-HORARIO-001). Quando esta action reaproveita a tarefa de origem

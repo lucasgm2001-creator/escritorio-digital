@@ -10,7 +10,10 @@ import { getUserCalendar } from '@/lib/google/oauth'
 
 const SA_SCOPES = ['https://www.googleapis.com/auth/calendar.events']
 const TIMEZONE = 'America/Sao_Paulo'
-const DURATION_MIN = 30
+const DURATION_MIN = 60          // reunião padrão: 1 hora
+// Cor do evento no Google Agenda. A API usa ids fixos da paleta; '5' é o "Banana" (amarelo). Só a REUNIÃO
+// recebe cor — as demais tarefas seguem a cor padrão da agenda, senão tudo vira amarelo e a cor perde a função.
+const MEETING_COLOR_ID = '5'
 
 // Cliente do Calendar + calendarId + se PODE criar Meet (só o caminho OAuth pode).
 type CalCtx = { calendar: calendar_v3.Calendar; calendarId: string; meet: boolean }
@@ -129,19 +132,20 @@ function buildEventBody(task: TaskRow): calendar_v3.Schema$Event | null {
   if (!task.due_date) return null
   const base = { summary: eventSummary(task), description: buildDescription(task) }
 
+  const cor = task.kind === 'reuniao' ? { colorId: MEETING_COLOR_ID } : {}
   if (task.due_time) {
     const t = task.due_time.slice(0, 5)
     const tz = task.timezone?.trim() || TIMEZONE                 // fuso da reunião (default Brasília)
-    const dur = task.duration_min && task.duration_min > 0 ? task.duration_min : DURATION_MIN   // duração (default 30)
+    const dur = task.duration_min && task.duration_min > 0 ? task.duration_min : DURATION_MIN   // default 1h
     const end = addMinutes(task.due_date, t, dur)
     return {
-      ...base,
+      ...base, ...cor,
       start: { dateTime: `${task.due_date}T${t}:00`, timeZone: tz },
       end:   { dateTime: `${end.date}T${end.time}:00`, timeZone: tz },
     }
   }
   // Dia inteiro: end.date é EXCLUSIVO (dia seguinte).
-  return { ...base, start: { date: task.due_date }, end: { date: addDays(task.due_date, 1) } }
+  return { ...base, ...cor, start: { date: task.due_date }, end: { date: addDays(task.due_date, 1) } }
 }
 
 // URL do Google Meet a partir do recurso do evento: hangoutLink, senão o entryPoint de vídeo.

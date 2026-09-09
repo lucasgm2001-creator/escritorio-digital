@@ -10,7 +10,7 @@ import { sameOriginError } from '@/server/security/request-origin'
 export const runtime = 'nodejs'
 export const maxDuration = 60
 
-// Auto-preenchimento DATE-GATED: agenda cobranças vencidas, sem registrar receita/comissão.
+// Auto-preenchimento DATE-GATED: confirma as cobranças vencidas como pagas (receita + comissão).
 
 // Comparação em tempo constante (sha256 → buffers de mesmo tamanho; não vaza comprimento).
 function secretsMatch(a: string, b: string): boolean {

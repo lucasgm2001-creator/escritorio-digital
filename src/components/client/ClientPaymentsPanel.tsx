@@ -169,7 +169,7 @@ export function ClientPaymentsPanel({
         <ChevronRight className={cn('w-4 h-4 shrink-0 text-bento-muted transition-transform', open && 'rotate-90')} />
       </button>
       {open && <div className="px-3 pb-3 pt-2 border-t border-bento-border/60 space-y-2">
-        <p className="font-tech text-[10px] text-bento-muted px-1">Vencimento não é pagamento. A receita e a comissão só são liberadas após confirmação.</p>
+        <p className="font-tech text-[10px] text-bento-muted px-1">A semana vencida é confirmada automaticamente como paga. Se um cliente não pagar, mude a situação aqui — a receita e a comissão daquela semana saem junto.</p>
         {clients.map(client => {
           const rows = (payments[client.id] ?? []).slice().sort((a, b) => a.numero_semana - b.numero_semana)
           const total = rows.filter(p => ['paga', 'parcial'].includes(normalizedStatus(p))).reduce((sum, p) => sum + Number(p.valor_pago_usd ?? p.valor_usd ?? 0), 0)
