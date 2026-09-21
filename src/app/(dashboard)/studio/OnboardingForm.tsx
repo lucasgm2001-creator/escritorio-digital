@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState, useTransition } from 'react'
-import { Check, ChevronLeft, Clock3, FileDown, Minimize2, RotateCcw } from 'lucide-react'
+import { AlertTriangle, Check, ChevronLeft, Clock3, CloudUpload, FileDown, Minimize2, RotateCcw } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Portal } from '@/components/ui/Portal'
 import {
@@ -47,9 +47,16 @@ export function OnboardingForm({ clientId, clientName, topicos, rows, onVoltar, 
     () => Object.fromEntries(rows.map(r => [r.step_id, r.resposta ?? ''])))
   const [aberta, setAberta] = useState<string | null>(
     () => proximaEtapaAberta(ordem, new Set(rows.map(r => r.step_id))))
-  const [pending, startTransition] = useTransition()
+  const [, startTransition] = useTransition()
   const [erro, setErro] = useState<string | null>(null)
   const [pdfBusy, setPdfBusy] = useState(false)
+  // Confirmação de gravação por etapa. A atualização é otimista (a próxima etapa precisa abrir na hora),
+  // então "apareceu recolhida" NÃO é prova de que salvou — só de que o clique foi registrado na tela.
+  // `emVoo` = esperando o servidor · `falhou` = servidor recusou. O cabeçalho resume os dois.
+  const [emVoo, setEmVoo] = useState<Set<string>>(new Set())
+  const [falhou, setFalhou] = useState<Set<string>>(new Set())
+  const marca = (set: React.Dispatch<React.SetStateAction<Set<string>>>, id: string, dentro: boolean) =>
+    set(s0 => { const n = new Set(s0); if (dentro) n.add(id); else n.delete(id); return n })
 
   // ESC sai do modo reunião. Sem isto, em tela cheia não há como voltar a não ser com o mouse.
   useEffect(() => {
@@ -62,31 +69,38 @@ export function OnboardingForm({ clientId, clientName, topicos, rows, onVoltar, 
   const porEtapa = new Map(Array.from(estado, ([k, v]) => [k, v.status]))
   const prog = onboardingProgress(ordem, porEtapa)
 
-  function decidir(stepKey: string, status: OnboardingStatus) {
-    if (pending) return
+  // SEM trava global: antes um `if (pending) return` descartava o clique na próxima etapa enquanto a
+  // anterior ainda salvava. Numa reunião rápida isso some com decisões sem avisar ninguém. Cada etapa
+  // tem a sua gravação; só a MESMA etapa em voo é ignorada.
+  function decidir(stepId: string, status: OnboardingStatus) {
+    if (emVoo.has(stepId)) return
     setErro(null)
-    const resposta = texto[stepKey]?.trim() || null
+    const resposta = texto[stepId]?.trim() || null
     // Otimista: na reunião a próxima etapa tem de abrir na hora, sem esperar o servidor.
-    setEstado(m => new Map(m).set(stepKey, { status, resposta }))
-    const decididas = new Set([...estado.keys(), stepKey])
+    setEstado(m => new Map(m).set(stepId, { status, resposta }))
+    const decididas = new Set([...estado.keys(), stepId])
     setAberta(proximaEtapaAberta(ordem, decididas))
+    marca(setEmVoo, stepId, true); marca(setFalhou, stepId, false)
     startTransition(async () => {
-      const r = await saveOnboardingStepAction(clientId, stepKey, status, resposta)
+      const r = await saveOnboardingStepAction(clientId, stepId, status, resposta)
+      marca(setEmVoo, stepId, false)
       if (!r.ok) {
+        // NÃO desfaz mais a decisão: apagar o que a pessoa acabou de marcar no meio da reunião é pior do
+        // que mostrar que falhou. A etapa fica marcada como não salva e pode ser reenviada com um clique.
         setErro(r.error)
-        setEstado(m => { const n = new Map(m); n.delete(stepKey); return n })   // desfaz
-        setAberta(stepKey)
+        marca(setFalhou, stepId, true)
       }
     })
   }
 
-  function reabrir(stepKey: string) {
-    if (pending) return
+  function reabrir(stepId: string) {
+    if (emVoo.has(stepId)) return
     setErro(null)
-    setEstado(m => { const n = new Map(m); n.delete(stepKey); return n })
-    setAberta(stepKey)
+    setEstado(m => { const n = new Map(m); n.delete(stepId); return n })
+    setAberta(stepId)
+    marca(setFalhou, stepId, false)
     startTransition(async () => {
-      const r = await clearOnboardingStepAction(clientId, stepKey)
+      const r = await clearOnboardingStepAction(clientId, stepId)
       if (!r.ok) setErro(r.error)
     })
   }
@@ -128,6 +142,15 @@ export function OnboardingForm({ clientId, clientName, topicos, rows, onVoltar, 
           <p className="font-tech text-caption text-bento-muted">
             {prog.concluidas} de {prog.total} concluídas · {prog.pendentes} pendente(s)
           </p>
+          {/* Resposta a "como sei que salvou?": estado da gravação sempre à vista, sem precisar procurar. */}
+          <p className={cn('mt-1 inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 font-tech text-[10px]',
+            falhou.size > 0 ? 'border-red-500/40 bg-red-500/10 text-red-300'
+              : emVoo.size > 0 ? 'border-bento-border text-bento-muted'
+                : 'border-lime/40 bg-lime/10 text-lime-fg')}>
+            {falhou.size > 0 ? <><AlertTriangle className="h-3 w-3" /> {falhou.size} etapa(s) nao salva(s)</>
+              : emVoo.size > 0 ? <><CloudUpload className="h-3 w-3 animate-pulse" /> salvando...</>
+                : <><Check className="h-3 w-3" /> tudo salvo</>}
+          </p>
         </div>
         <button type="button" onClick={gerarPdf} disabled={pdfBusy}
           className="inline-flex items-center gap-2 rounded-btn border border-bento-border px-3 min-h-[40px] text-sm font-medium text-bento-dim transition-colors hover:border-lime hover:text-bento-text disabled:opacity-50">
@@ -149,10 +172,11 @@ export function OnboardingForm({ clientId, clientName, topicos, rows, onVoltar, 
           return (
             <div key={step.id}
               className={cn('rounded-bento border p-4 transition-colors min-w-0', step.parentId && 'ml-5',
-                estaAberta ? 'border-lime/50 bg-bento-panel'
-                  : atual?.status === 'concluido' ? 'border-bento-border bg-bento-bg/40'
-                    : atual?.status === 'pendente' ? 'border-amber-500/40 bg-amber-500/[0.04]'
-                      : 'border-bento-border/50 bg-bento-bg/20')}>
+                falhou.has(step.id) ? 'border-red-500/50 bg-red-500/[0.05]'
+                  : estaAberta ? 'border-lime/50 bg-bento-panel'
+                    : atual?.status === 'concluido' ? 'border-bento-border bg-bento-bg/40'
+                      : atual?.status === 'pendente' ? 'border-amber-500/40 bg-amber-500/[0.04]'
+                        : 'border-bento-border/50 bg-bento-bg/20')}>
               <div className="flex items-start gap-3">
                 <span className={cn('grid h-6 min-w-[1.5rem] flex-none place-items-center rounded-full border px-1 font-tech text-[10px]',
                   atual?.status === 'concluido' ? 'border-lime bg-lime text-lime-ink'
@@ -174,8 +198,17 @@ export function OnboardingForm({ clientId, clientName, topicos, rows, onVoltar, 
                     </p>
                   )}
                 </div>
+                {/* Por etapa: em voo, falhou, ou nada (= gravado). Silencio aqui significa salvo. */}
+                {emVoo.has(step.id) && <CloudUpload className="h-3.5 w-3.5 flex-none animate-pulse text-bento-muted" aria-label="Salvando" />}
+                {falhou.has(step.id) && (
+                  <button type="button" onClick={() => atual && decidir(step.id, atual.status)}
+                    title="Nao salvou - clique para tentar de novo"
+                    className="flex-none inline-flex items-center gap-1 rounded-btn border border-red-500/40 px-1.5 py-1 font-tech text-[10px] text-red-300 hover:bg-red-500/10">
+                    <AlertTriangle className="h-3 w-3" /> tentar de novo
+                  </button>
+                )}
                 {atual && !estaAberta && (
-                  <button type="button" onClick={() => reabrir(step.id)} disabled={pending} title="Reabrir"
+                  <button type="button" onClick={() => reabrir(step.id)} disabled={emVoo.has(step.id)} title="Reabrir"
                     className="flex-none rounded-btn p-1.5 text-bento-muted hover:text-bento-text disabled:opacity-40">
                     <RotateCcw className="h-3.5 w-3.5" />
                   </button>
@@ -199,11 +232,11 @@ export function OnboardingForm({ clientId, clientName, topicos, rows, onVoltar, 
                     </label>
                   )}
                   <div className="flex flex-wrap gap-2">
-                    <button type="button" onClick={() => decidir(step.id, 'concluido')} disabled={pending}
+                    <button type="button" onClick={() => decidir(step.id, 'concluido')} disabled={emVoo.has(step.id)}
                       className="bento-btn inline-flex items-center gap-1.5 rounded-btn px-4 min-h-[40px] text-sm font-semibold disabled:opacity-50">
                       <Check className="h-4 w-4" /> Concluído
                     </button>
-                    <button type="button" onClick={() => decidir(step.id, 'pendente')} disabled={pending}
+                    <button type="button" onClick={() => decidir(step.id, 'pendente')} disabled={emVoo.has(step.id)}
                       className="inline-flex items-center gap-1.5 rounded-btn border border-bento-border px-4 min-h-[40px] text-sm font-medium text-bento-muted transition-colors hover:border-amber-400/60 hover:text-amber-300 disabled:opacity-50">
                       <Clock3 className="h-4 w-4" /> Não concluído
                     </button>
