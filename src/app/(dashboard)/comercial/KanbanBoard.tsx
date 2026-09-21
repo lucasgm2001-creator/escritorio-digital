@@ -26,6 +26,7 @@ const ContatosTab   = dynamic(() => import('./tabs/ContatosTab').then(m => ({ de
 const RadarTab      = dynamic(() => import('./tabs/RadarTab').then(m => ({ default: m.RadarTab })),           { ssr: false, loading: TabLoading })
 const VisaoGeralTab = dynamic(() => import('./tabs/VisaoGeralTab').then(m => ({ default: m.VisaoGeralTab })), { ssr: false, loading: TabLoading })
 import { moveLeadAction, addLeadInteractionAction } from './lead-write-actions'
+import { SEMANAL, type BillingCadence } from '@/lib/commission/billing'
 import { useRealtimeRows } from '@/lib/hooks/useRealtimeRows'
 import { usdCompact as fmtUSDc } from '@/lib/format'
 import type { Client as ClienteRow } from '../clientes/types'
@@ -197,13 +198,13 @@ export function KanbanBoard({ initialLeads, initialStages, initialClients, curre
 
   // Executa o movimento de fato: otimista → persiste via moveLead (que dispara o won-flow/comissão
   // ao ir pra is_won) → rollback+toast se falhar. planoId só é usado no fechamento.
-  const doMove = useCallback(async (lead: Lead, newStatus: LeadStatus, planoId: string | null = null, customWeeklyUsd: number | null = null, veioPorIndicacao = false): Promise<boolean> => {
+  const doMove = useCallback(async (lead: Lead, newStatus: LeadStatus, planoId: string | null = null, customWeeklyUsd: number | null = null, veioPorIndicacao = false, cadence: BillingCadence = SEMANAL): Promise<boolean> => {
     if (lead.status === newStatus) return true
     const prevStatus = lead.status
     const prevStage = lead.stage_changed_at
     const nowIso = new Date().toISOString()
     setLeads(prev => prev.map(l => l.id === lead.id ? { ...l, status: newStatus, stage_changed_at: nowIso } : l))   // otimista
-    const res = await moveLeadAction(lead, newStatus, planoId, customWeeklyUsd, veioPorIndicacao)   // servidor: can(commercial,edit) + won-flow/comissão
+    const res = await moveLeadAction(lead, newStatus, planoId, customWeeklyUsd, veioPorIndicacao, cadence)   // servidor: can(commercial,edit) + won-flow/comissão
     if (!res.ok) {
       setLeads(prev => prev.map(l => l.id === lead.id ? { ...l, status: prevStatus, stage_changed_at: prevStage } : l))   // rollback
       showToast(`Não foi possível mover o lead: ${res.error}`, 'error')
@@ -226,11 +227,11 @@ export function KanbanBoard({ initialLeads, initialStages, initialClients, curre
   }, [wonStatus, doMove])
 
   // Confirma o fechamento com o plano escolhido → cria a venda pelo % do plano e fecha o diário.
-  const confirmWon = useCallback(async (planoId: string | null, customWeeklyUsd: number | null = null, veioPorIndicacao = false) => {
+  const confirmWon = useCallback(async (planoId: string | null, customWeeklyUsd: number | null = null, veioPorIndicacao = false, cadence: BillingCadence = SEMANAL) => {
     const lead = pendingWon
     setPendingWon(null)
     if (!lead) return
-    await doMove(lead, wonStatus, planoId, customWeeklyUsd, veioPorIndicacao)
+    await doMove(lead, wonStatus, planoId, customWeeklyUsd, veioPorIndicacao, cadence)
     setSelectedLead(null)
   }, [pendingWon, wonStatus, doMove])
 

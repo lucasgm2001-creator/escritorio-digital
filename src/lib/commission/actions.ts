@@ -1,7 +1,8 @@
 import type { createClient } from '@/lib/supabase/client'
 import { weeklyCommissionUsd, hasCommissionPct, LEGACY_VPS_USD, DEFAULT_TETO_SEMANAS } from '@/lib/commission/planCommission'
 import { meetingCommissionCounts } from '@/lib/commission/constants'
-import { todaySP as spToday, dowOfYmd, addDaysYmd } from '@/lib/date'
+import { todaySP as spToday, dowOfYmd } from '@/lib/date'
+import { dueDateForCadence, cadenceOf, SEMANAL, type BillingCadence } from '@/lib/commission/billing'
 
 type SupaClient = ReturnType<typeof createClient>
 
@@ -203,9 +204,10 @@ export async function payClientWeek(
 // ── Date-gating do auto: marca SÓ as semanas cuja DATA REAL de vencimento já chegou ──
 // spToday/dowOfYmd/addDaysYmd — fonte única @/lib/date (importados acima; dueDateFor os usa).
 // due_date(n) = n-ésima ocorrência do dia de pagamento a partir do start_date (semana 1 = 1º pagamento; +7/sem).
-export function dueDateFor(startYmd: string, diaPagamento: number, n: number): string {
-  const offset = (((diaPagamento - dowOfYmd(startYmd)) % 7) + 7) % 7
-  return addDaysYmd(startYmd, offset + 7 * (n - 1))
+// Assinatura preservada porque 11 arquivos dependem dela. Sem cadência = SEMANAL, que é exatamente o
+// cálculo antigo (conferido vencimento a vencimento). Quem conhece o cliente passa a cadência real.
+export function dueDateFor(startYmd: string, diaPagamento: number, n: number, cadence: BillingCadence = SEMANAL): string {
+  return dueDateForCadence(startYmd, diaPagamento, n, cadence)
 }
 
 // AUTO-CONFIRMAÇÃO (AUTO-PAGA-001). Semana vencida entra JÁ COMO PAGA: receita registrada e comissão
@@ -223,7 +225,7 @@ export async function scheduleDueWeeks(
   supabase: SupaClient, clientId: string, rate: number, maxWeeks = 12, teamId?: string | null,
 ): Promise<{ scheduled: number[]; reason: string }> {
   const { data: cli } = await supabase.from('clients')
-    .select('status, start_date, billing_anchor_date, dia_pagamento_semana, plano_id, plan_weekly')
+    .select('status, start_date, billing_anchor_date, dia_pagamento_semana, plano_id, plan_weekly, billing_every, billing_unit')
     .eq('id', clientId).is('deleted_at', null).maybeSingle()
   if (!cli) return { scheduled: [], reason: 'nao_encontrado' }
   if (cli.status !== 'ativo') return { scheduled: [], reason: 'inativo' }
@@ -231,6 +233,7 @@ export async function scheduleDueWeeks(
 
   const start = String(cli.billing_anchor_date ?? cli.start_date).slice(0, 10)
   const dia = cli.dia_pagamento_semana ?? dowOfYmd(start)
+  const cadence = cadenceOf(cli)   // cliente sem cadência configurada → semanal (comportamento histórico)
   const today = spToday()
   const planAtWeek = await resolveClientPlanTimeline(supabase, clientId)
   const { data: rows } = await supabase.from('client_payments').select('numero_semana').eq('client_id', clientId)
@@ -239,7 +242,7 @@ export async function scheduleDueWeeks(
 
   for (let i = 0; i < maxWeeks; i++) {
     let n = 1; while (registered.has(n)) n++
-    const due = dueDateFor(start, dia, n)
+    const due = dueDateFor(start, dia, n, cadence)
     if (due > today) break
     registered.add(n)
     const { planoId, valorUsd } = planAtWeek(n)

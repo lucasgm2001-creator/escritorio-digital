@@ -29,6 +29,15 @@ export const addDaysYmd = (s: string, days: number): string => {
   return new Date(Date.UTC(y, m - 1, d) + days * 86_400_000).toISOString().slice(0, 10)
 }
 
+/** YMD + N meses → YMD, preso ao último dia quando o mês destino é mais curto (31/01 +1 mês = 28/02). */
+export const addMonthsYmd = (s: string, months: number): string => {
+  const [y, m, d] = s.split('-').map(Number)
+  const alvo = new Date(Date.UTC(y, m - 1 + months, 1))
+  const ultimoDia = new Date(Date.UTC(alvo.getUTCFullYear(), alvo.getUTCMonth() + 1, 0)).getUTCDate()
+  alvo.setUTCDate(Math.min(d, ultimoDia))
+  return alvo.toISOString().slice(0, 10)
+}
+
 // ── Limites de intervalo (Date) — base do rangeFor e de janelas de relatório. Semana começa na SEGUNDA. ──
 export const startOfDay = (d: Date): Date => { const x = new Date(d); x.setHours(0, 0, 0, 0); return x }
 export const endOfDay = (d: Date): Date => { const x = new Date(d); x.setHours(23, 59, 59, 999); return x }

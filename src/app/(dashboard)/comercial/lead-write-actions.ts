@@ -11,6 +11,7 @@ import { logStageEvent } from '@/lib/stageEvents'
 import { saveLeadHistory, type LeadHistoryInput } from '@/lib/commission/actions'
 import { resolveRate } from '@/lib/commission/calc'
 import type { FxConfig } from '@/lib/commission/types'
+import { cadenceOf, type BillingCadence } from '@/lib/commission/billing'
 import { moveLead, type ActionNote, type MovableLead } from './leadActions'
 import { eventBus, createDomainEvent } from '@/lib/events/runtime'
 import {
@@ -130,7 +131,7 @@ export async function updateLeadAction(leadId: string, patch: Record<string, unk
 // Move um lead de fase — reusa moveLead (won-flow/comissão/histórico) sem duplicar nada.
 export async function moveLeadAction(
   lead: MovableLead, newStatus: LeadStatus, planoId: string | null = null, customWeeklyUsd: number | null = null,
-  veioPorIndicacao = false,
+  veioPorIndicacao = false, cadence?: BillingCadence,
 ): Promise<Res<{ notes: ActionNote[] }>> {
   const g = await guard('edit', DENY_EDIT)
   if (!g.context) return { ok: false, error: g.error }
@@ -169,7 +170,9 @@ export async function moveLeadAction(
       .eq('id', lead.id).eq('team_id', g.context.activeTeamId)
     if (origemErr) console.error('[moveLeadAction] origem indicacao:', origemErr.message)
   }
-  const res = await moveLead(supabase as Parameters<typeof moveLead>[0], ownedLead as MovableLead, newStatus, g.context.profile?.name ?? '—', stages, planoId, g.context.user.id, g.context.activeTeamId, avulso)
+  // Cadência vem da UI → normalizada no SERVIDOR (cadenceOf recusa unidade inválida e volta para semanal).
+  const cad = cadenceOf({ billing_every: cadence?.every ?? null, billing_unit: cadence?.unit ?? null })
+  const res = await moveLead(supabase as Parameters<typeof moveLead>[0], ownedLead as MovableLead, newStatus, g.context.profile?.name ?? '—', stages, planoId, g.context.user.id, g.context.activeTeamId, avulso, cad)
   if (!res.ok) return { ok: false, error: res.error ?? 'Não foi possível mover o lead.' }
   return { ok: true, notes: res.notes }
 }

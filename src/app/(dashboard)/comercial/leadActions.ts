@@ -2,14 +2,15 @@ import { resolveRate } from '@/lib/commission/calc'
 import type { FxConfig } from '@/lib/commission/types'
 import type { createClient } from '@/lib/supabase/client'
 import { ALL_COLUMNS, type LeadStatus } from './types'
-import { ymd, todaySP as spToday } from '@/lib/date'
+import { ymd, todaySP as spToday, dowOfYmd } from '@/lib/date'
 import { markMilestones } from '@/lib/leadMilestones'
 import { wonSlug, marcosForSlug, type FunnelStage } from '@/lib/funnelStages'
 import { payClientWeek, registerMeeting, resolveSellerForCommission } from '@/lib/commission/actions'
-import { weeklyCommissionUsd, hasCommissionPct, LEGACY_VPS_USD, DEFAULT_TETO_SEMANAS } from '@/lib/commission/planCommission'
+import { weeklyCommissionUsd, hasCommissionPct, LEGACY_VPS_USD } from '@/lib/commission/planCommission'
 import { meetingCommissionCounts } from '@/lib/commission/constants'
 import { logStageEvent } from '@/lib/stageEvents'
 import { stageTaskFor } from '@/lib/tasks/task-kind'
+import { chargesInFirstMonth, cadenceLabel, SEMANAL, type BillingCadence } from '@/lib/commission/billing'
 import { DEFAULT_TASK_OWNER_ID, DEFAULT_TASK_OWNER_NAME } from '@/lib/tasks/default-task-owner'
 
 type SupaClient = ReturnType<typeof createClient>
@@ -43,7 +44,7 @@ export interface MovableLead {
 // — o cliente nasce com plano_id null e plan_weekly = este valor, que é exatamente como resolveClientPlan já
 // lê (plano_id null → plan_weekly). Cobrança, agendador e receita seguem idênticos aos planos do catálogo, e a
 // comissão usa o MESMO % do catálogo sobre este valor, nas mesmas 4 primeiras semanas.
-async function runWonFlow(supabase: SupaClient, lead: MovableLead, userName: string, planoId: string | null = null, teamId: string | null = null, customWeeklyUsd: number | null = null): Promise<ActionNote[]> {
+async function runWonFlow(supabase: SupaClient, lead: MovableLead, userName: string, planoId: string | null = null, teamId: string | null = null, customWeeklyUsd: number | null = null, cadence: BillingCadence = SEMANAL): Promise<ActionNote[]> {
   const notes: ActionNote[] = []
   const today = ymd(new Date())
 
@@ -99,6 +100,10 @@ async function runWonFlow(supabase: SupaClient, lead: MovableLead, userName: str
       city: lead.city ?? null, state: lead.state ?? null, area_code: lead.area_code ?? null,
       plano_id: novoPlanoId, plan_weekly: novoPlanWeekly, status: 'ativo',
       dia_pagamento_semana: diaPagamentoSemana,
+      // Cadência escolhida no fechamento. Define o calendário de vencimentos e, por consequência, em
+      // quantas parcelas a comissão do 1º mês é dividida.
+      billing_every: cadence.every, billing_unit: cadence.unit,
+      periodicidade: cadence.unit === 'mes' && cadence.every === 1 ? 'mensal' : 'semanal',
       assigned_to: lead.assigned_to ?? null, assigned_name: lead.assigned_name ?? null,
       start_date: startIso,
       ...(teamId ? { team_id: teamId } : {}),
@@ -114,6 +119,23 @@ async function runWonFlow(supabase: SupaClient, lead: MovableLead, userName: str
     notes.push({ message: 'Lead movido, mas NÃO lancei a comissão: não consegui vincular o cliente. Cadastre o cliente e lance a venda manualmente.', type: 'error' })
     return notes
   }
+
+  // Cadência também no cliente REUSADO: o fluxo reaproveita por nome, então sem isto um cliente que volta
+  // manteria a cadência antiga e a cobrança sairia no calendário errado.
+  let updCad = supabase.from('clients')
+    .update({ billing_every: cadence.every, billing_unit: cadence.unit })
+    .eq('id', clientId)
+  if (teamId) updCad = updCad.eq('team_id', teamId)
+  const { error: cadErr } = await updCad
+  if (cadErr) console.error('[runWonFlow] cadencia:', cadErr.message)
+
+  // Âncora e dia de cobrança REAIS do cliente (ele pode ter sido reusado, e aí os valores da criação acima
+  // nem existem). É a base do cálculo de quantas cobranças cabem no primeiro mês.
+  const { data: cliBase } = await supabase.from('clients')
+    .select('start_date, billing_anchor_date, dia_pagamento_semana')
+    .eq('id', clientId).maybeSingle()
+  const baseIso = String(cliBase?.billing_anchor_date ?? cliBase?.start_date ?? today).slice(0, 10)
+  const baseDia = cliBase?.dia_pagamento_semana ?? dowOfYmd(baseIso)
 
   // PLANO AVULSO no cliente (PLANO-AVULSO-001) — aqui, e não dentro do bloco de comissão: o cliente pode JÁ
   // existir (reusado por nome acima, sem passar pela criação) e o responsável pode não gerar comissão. Plano é
@@ -165,7 +187,12 @@ async function runWonFlow(supabase: SupaClient, lead: MovableLead, userName: str
         if (hasCommissionPct(pct)) { pctUsed = pct; vps = weeklyCommissionUsd(Number(pl.valor_semanal), pct) }
       }
     }
-    const tetoSemanas = DEFAULT_TETO_SEMANAS
+    // COMISSÃO MOLDADA PELA CADÊNCIA (BILLING-CADENCE-001). A regra é "20% de todo dinheiro que entra no
+    // primeiro mês": o TOTAL é sempre o mesmo, muda só em quantas parcelas ele é pago.
+    //   semanal → 4 parcelas de 20% da semana   quinzenal → 2 de 20% da quinzena   mensal → 1 de 20% do mês
+    // `vps` já é 20% do valor de UMA cobrança (weeklyCommissionUsd sobre o valor do plano), então basta o
+    // teto virar o número de cobranças do primeiro mês. Cliente semanal dá 4 — idêntico ao que já existe.
+    const tetoSemanas = chargesInFirstMonth(baseIso, baseDia, cadence)
     const valorTotalUsd = Math.round(vps * tetoSemanas * 100) / 100
 
     const dealIns = await supabase.from('deals').insert({
@@ -182,6 +209,9 @@ async function runWonFlow(supabase: SupaClient, lead: MovableLead, userName: str
       if (!deal) { notes.push({ message: `Cliente ok, mas não foi possível lançar a comissão: ${dealIns.error.message}`, type: 'error' }); return notes }
     }
     if (!deal) { notes.push({ message: 'Cliente ok, mas não foi possível lançar a comissão.', type: 'error' }); return notes }
+    if (cadence.unit !== 'semana' || cadence.every !== 1) {
+      notes.push({ message: `Cobrança ${cadenceLabel(cadence).toLowerCase()} — comissão em ${tetoSemanas} parcela(s) de ${vps.toFixed(2)}.`, type: 'success' })
+    }
   }
 
   // 3) 1ª semana de RECEITA (client_payments) + deriva a comissão (só se houver deal). Idempotente (unique 23505).
@@ -209,7 +239,7 @@ const MEETING_USD = 15
 //  resolveSellerForCommission, lib/commission/actions. Parte 3.)
 
 export async function moveLead(
-  supabase: SupaClient, lead: MovableLead, newStatus: LeadStatus, userName: string, stages: FunnelStage[], planoId: string | null = null, userId: string | null = null, teamId: string | null = null, customWeeklyUsd: number | null = null,
+  supabase: SupaClient, lead: MovableLead, newStatus: LeadStatus, userName: string, stages: FunnelStage[], planoId: string | null = null, userId: string | null = null, teamId: string | null = null, customWeeklyUsd: number | null = null, cadence: BillingCadence = SEMANAL,
 ): Promise<{ ok: boolean; error?: string; notes: ActionNote[] }> {
   if (lead.status === newStatus) return { ok: true, notes: [] }
   const nowIso = new Date().toISOString()
@@ -315,6 +345,6 @@ export async function moveLead(
     } catch (e) { console.error('[moveLead] tarefa da fase (erro inesperado):', e instanceof Error ? e.message : String(e)) }
   }
 
-  if (isWon) notes.push(...await runWonFlow(supabase, lead, userName, planoId, teamId, customWeeklyUsd))
+  if (isWon) notes.push(...await runWonFlow(supabase, lead, userName, planoId, teamId, customWeeklyUsd, cadence))
   return { ok: true, notes }
 }

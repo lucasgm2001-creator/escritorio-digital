@@ -6,6 +6,7 @@ import { createClient } from '@/lib/supabase/client'
 import { cn } from '@/lib/utils'
 import { usd } from '@/lib/format'
 import { Portal } from '@/components/ui/Portal'
+import { chargesInFirstMonth, cadenceLabel, type BillingUnit, type BillingCadence } from '@/lib/commission/billing'
 import { useDialog } from '@/components/ui/useDialog'
 
 interface PlanRow { id: string; nome: string; valor_semanal: number; comissao_percentual: number | null }
@@ -21,13 +22,16 @@ interface PlanRow { id: string; nome: string; valor_semanal: number; comissao_pe
 // A comissão segue o MESMO padrão: % do catálogo (20%) sobre o valor semanal, nas 4 primeiras semanas.
 export function WonPlanModal({ leadName, onConfirm, onCancel }: {
   leadName: string
-  onConfirm: (planoId: string | null, customWeeklyUsd: number | null, veioPorIndicacao: boolean) => void
+  onConfirm: (planoId: string | null, customWeeklyUsd: number | null, veioPorIndicacao: boolean, cadence: BillingCadence) => void
   onCancel: () => void
 }) {
   const supabase = createClient()
   const [plans, setPlans] = useState<PlanRow[]>([])
   const [selected, setSelected] = useState<string | null>(null)
   const [indicacao, setIndicacao] = useState(false)    // veio por indicação (só marca a origem do lead)
+  // CADÊNCIA: de quanto em quanto tempo o cliente paga. 'semana/1' é o padrão histórico.
+  const [cadEvery, setCadEvery] = useState(1)
+  const [cadUnit, setCadUnit] = useState<BillingUnit>('semana')
   const [custom, setCustom] = useState(false)          // "Personalizado" escolhido
   const [customValue, setCustomValue] = useState('')   // valor semanal digitado (USD)
   const [pct, setPct] = useState(20)                   // % do catálogo, só p/ mostrar a comissão prevista
@@ -66,8 +70,9 @@ export function WonPlanModal({ leadName, onConfirm, onCancel }: {
   const confirm = () => {
     if (busy || !podeConfirmar) return
     setBusy(true)
-    if (custom) onConfirm(null, Math.round(customNum * 100) / 100, indicacao)
-    else onConfirm(selected, null, indicacao)
+    const cadence: BillingCadence = { every: cadEvery, unit: cadUnit }
+    if (custom) onConfirm(null, Math.round(customNum * 100) / 100, indicacao, cadence)
+    else onConfirm(selected, null, indicacao, cadence)
   }
 
   return (
@@ -143,6 +148,42 @@ export function WonPlanModal({ leadName, onConfirm, onCancel }: {
               )}
             </div>
           )}
+        </div>
+
+        {/* CADÊNCIA DE COBRANÇA (BILLING-CADENCE-001) — de quanto em quanto tempo o cliente paga. Decide o
+            calendário de vencimentos E em quantas parcelas a comissão do primeiro mês é dividida. */}
+        <div className="shrink-0 border-t border-bento-border px-5 pt-4 space-y-2">
+          <p className="font-tech text-[10px] uppercase tracking-label text-bento-muted">Como o cliente paga</p>
+          <div className="flex flex-wrap gap-1.5">
+            {([['semana', 1, 'Semanal'], ['mes', 1, 'Mensal'], ['semana', 2, 'Quinzenal']] as const).map(([u, e, label]) => {
+              const on = cadUnit === u && cadEvery === e
+              return (
+                <button key={label} type="button" onClick={() => { setCadUnit(u); setCadEvery(e) }}
+                  className={cn('rounded-btn border px-3 py-1.5 text-xs font-medium transition-colors',
+                    on ? 'border-lime bg-lime/10 text-lime-fg' : 'border-bento-border text-bento-muted hover:border-lime/60')}>
+                  {label}
+                </button>
+              )
+            })}
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="font-tech text-[11px] text-bento-dim">ou a cada</span>
+            <input type="number" min="1" max="365" value={cadEvery}
+              onChange={e => setCadEvery(Math.max(1, Math.min(365, Number(e.target.value) || 1)))}
+              aria-label="Intervalo entre cobranças"
+              className="w-20 rounded-btn border border-bento-border bg-bento-bg px-2.5 py-1.5 text-sm text-bento-text focus:border-lime focus:outline-none" />
+            <select value={cadUnit} onChange={e => setCadUnit(e.target.value as BillingUnit)}
+              aria-label="Unidade do intervalo"
+              className="rounded-btn border border-bento-border bg-bento-bg px-2.5 py-1.5 text-sm text-bento-text focus:border-lime focus:outline-none">
+              <option value="dia">dias</option>
+              <option value="semana">semanas</option>
+              <option value="mes">meses</option>
+            </select>
+          </div>
+          <p className="font-tech text-[11px] text-bento-dim">
+            {cadenceLabel({ every: cadEvery, unit: cadUnit })} · comissão de 20% do 1º mês em{' '}
+            {chargesInFirstMonth(new Date().toISOString().slice(0, 10), new Date().getDay(), { every: cadEvery, unit: cadUnit })} parcela(s)
+          </p>
         </div>
 
         {/* ORIGEM: indicação (ORIGEM-INDICACAO-001). Só marca de onde o cliente veio — não muda plano,
