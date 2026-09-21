@@ -71,7 +71,7 @@ export type MyCompensationView = {
   lastUpdate: string | null   // data do último lançamento (última atualização)
   months: CompMonth[]
   pending: PendingCommissionResult  // comissões pendentes das primeiras 4 semanas por cliente (reusa dealTotal)
-  forecastMonthUsd: number          // comissão prevista DO MÊS = recebida no mês + pendente que vence no mês
+  forecastMonthUsd: number          // PREVISTO A RECEBER no mês = salário fixo + comissão recebida + a vencer
   sources: CompSource[]             // procedência de cada indicador (mesma ordem dos cards)
 }
 
@@ -298,17 +298,18 @@ export async function getMyCompensationView(context: RequestContext): Promise<My
     })
   }
 
-  // PREVISTO DO MÊS (COMP-PREVISTO-002): "quanto fecho este mês se tudo que vence neste mês for pago".
-  // NÃO é acumulado: só o que JÁ entrou no mês somado ao que ainda vence DENTRO do mês. Semana que vence em
-  // setembro é previsão de setembro, não de agosto — misturar as duas coisas dava um número que não
-  // respondia nenhuma pergunta prática.
+  // PREVISTO A RECEBER (COMP-PREVISTO-003): "quanto eu levo este mês se tudo que vence nele for pago".
+  // É o número que responde à pergunta do fim do mês, então inclui o SALÁRIO FIXO — antes o card só somava
+  // comissão e ficava menor que o "Receber este mês" ao lado, o que não fazia sentido nenhum.
+  // NÃO é acumulado: só o que pertence a ESTE mês. Semana que vence em outubro é previsão de outubro.
   const mesFim = `${monthKey}-31`   // string YMD: '-31' cobre o mês todo na comparação lexicográfica
   const pendenteNoMes = semanasAVencer
     .filter(x => x.due >= `${monthKey}-01` && x.due <= mesFim)
     .sort((a, b) => a.due.localeCompare(b.due))
   const pendenteNoMesUsd = round2(pendenteNoMes.reduce((acc, x) => acc + x.valorUsd, 0))
   const comissaoDoMesUsd = round2(currentMonth.weeksUsd + currentMonth.meetingsUsd)
-  const forecastMonthUsd = round2(comissaoDoMesUsd + pendenteNoMesUsd)
+  // currentMonth.totalUsd = salário + reuniões + semanas recebidas. Somar o que ainda vence fecha o mês.
+  const forecastMonthUsd = round2(currentMonth.totalUsd + pendenteNoMesUsd)
 
   const sources: CompSource[] = [
     { key: 'salario', title: 'Salário fixo', description: `Salário vigente na competência de ${monthKey}.`,
@@ -325,17 +326,18 @@ export async function getMyCompensationView(context: RequestContext): Promise<My
     { key: 'ateAgora', title: 'Comissão até agora', description: 'Tudo que já foi recebido, do início até hoje, agrupado por cliente.',
       totalUsd: totalReceivedUsd, lines: ateAgoraLinhas,
       emptyMessage: 'Nenhuma comissão recebida ainda.' },
-    { key: 'previsto', title: 'Comissão prevista do mês',
-      description: 'Quanto fecha este mês se tudo que ainda vence dentro dele for pago.',
+    { key: 'previsto', title: 'Previsto a receber',
+      description: 'Salário fixo mais tudo que já entrou e o que ainda vence neste mês, se for pago em dia.',
       totalUsd: forecastMonthUsd,
       lines: [
+        ...salarioLinhas,
         ...doMes,
         ...pendenteNoMes.map(x => ({
           label: `Venda · semana ${x.numero}`, cliente: x.cliente, data: x.due,
-          valorUsd: x.valorUsd, hint: 'a receber',
+          valorUsd: x.valorUsd, hint: `a receber · vence ${x.due}`,
         })),
       ],
-      emptyMessage: 'Nada recebido nem previsto para este mês.' },
+      emptyMessage: 'Nada previsto para este mês.' },
   ]
 
   return {
