@@ -3,21 +3,27 @@
 import { useState } from 'react'
 import { Check, Clock3, FileDown, MinusCircle } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { ONBOARDING_STEPS, onboardingProgress, type OnboardingStatus } from '@/lib/client/onboarding'
+import {
+  onboardingProgress, numeracao, flattenTopics, type OnboardingStatus, type OnboardingTopic,
+} from '@/lib/client/onboarding'
 
 // ESPELHO do onboarding (ONBOARDING-002). Só LEITURA: o preenchimento acontece no Studio, que é a tela
 // compartilhada com o cliente. Aqui é a visão da EQUIPE — o mesmo conteúdo, ao lado do financeiro, da
 // timeline e do resto do workspace, que o cliente nunca vê.
 // Ter um único ponto de escrita evita a pergunta "qual das duas telas vale?" quando as duas divergirem.
 
-export type MirrorRow = { step_key: string; status: OnboardingStatus; resposta: string | null }
+export type MirrorRow = { step_id: string; status: OnboardingStatus; resposta: string | null }
 
-export function OnboardingMirror({ clientName, rows }: { clientName: string; rows: MirrorRow[] }) {
+export function OnboardingMirror({ clientName, topicos, rows }: {
+  clientName: string; topicos: OnboardingTopic[]; rows: MirrorRow[]
+}) {
+  const ordem = flattenTopics(topicos)
+  const num = numeracao(topicos)
   const [pdfBusy, setPdfBusy] = useState(false)
   const [erro, setErro] = useState<string | null>(null)
-  const porEtapa = new Map(rows.map(r => [r.step_key, r.status]))
-  const resposta = new Map(rows.map(r => [r.step_key, r.resposta]))
-  const prog = onboardingProgress(porEtapa)
+  const porEtapa = new Map(rows.map(r => [r.step_id, r.status]))
+  const resposta = new Map(rows.map(r => [r.step_id, r.resposta]))
+  const prog = onboardingProgress(ordem, porEtapa)
 
   async function gerarPdf() {
     if (pdfBusy) return
@@ -26,8 +32,9 @@ export function OnboardingMirror({ clientName, rows }: { clientName: string; row
       const { buildOnboardingPdf } = await import('@/lib/client/onboarding-pdf')
       await buildOnboardingPdf({
         clientName,
-        itens: ONBOARDING_STEPS.map(s => ({
-          titulo: s.titulo, status: porEtapa.get(s.key) ?? null, resposta: resposta.get(s.key) ?? null,
+        itens: ordem.map(s => ({
+          titulo: `${num.get(s.id) ?? ''} ${s.titulo}`.trim(),
+          status: porEtapa.get(s.id) ?? null, resposta: resposta.get(s.id) ?? null,
         })),
       })
     } catch { setErro('Não foi possível gerar o PDF.') } finally { setPdfBusy(false) }
@@ -56,23 +63,23 @@ export function OnboardingMirror({ clientName, rows }: { clientName: string; row
       {erro && <p className="rounded-btn border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs text-red-300">{erro}</p>}
 
       <div className="space-y-2">
-        {ONBOARDING_STEPS.map((step, i) => {
-          const st = porEtapa.get(step.key)
-          const txt = resposta.get(step.key)
+        {ordem.map(step => {
+          const st = porEtapa.get(step.id)
+          const txt = resposta.get(step.id)
           return (
-            <div key={step.key}
-              className={cn('rounded-bento border p-3.5 min-w-0',
+            <div key={step.id}
+              className={cn('rounded-bento border p-3.5 min-w-0', step.parentId && 'ml-5',
                 st === 'concluido' ? 'border-bento-border bg-bento-bg/40'
                   : st === 'pendente' ? 'border-amber-500/40 bg-amber-500/[0.04]'
                     : 'border-bento-border/50 bg-bento-bg/20')}>
               <div className="flex items-start gap-3">
-                <span className={cn('grid h-6 w-6 flex-none place-items-center rounded-full border font-tech text-[11px]',
+                <span className={cn('grid h-6 min-w-[1.5rem] flex-none place-items-center rounded-full border px-1 font-tech text-[10px]',
                   st === 'concluido' ? 'border-lime bg-lime text-lime-ink'
                     : st === 'pendente' ? 'border-amber-400 text-amber-300'
                       : 'border-bento-border text-bento-muted')}>
                   {st === 'concluido' ? <Check className="h-3.5 w-3.5" />
                     : st === 'pendente' ? <Clock3 className="h-3.5 w-3.5" />
-                      : i + 1}
+                      : (num.get(step.id) ?? '')}
                 </span>
                 <div className="min-w-0 flex-1">
                   <p className={cn('text-sm font-semibold break-words', st ? 'text-bento-text' : 'text-bento-muted')}>

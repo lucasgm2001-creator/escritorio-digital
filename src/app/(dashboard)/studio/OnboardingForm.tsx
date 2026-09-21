@@ -4,7 +4,8 @@ import { useState, useTransition } from 'react'
 import { Check, ChevronLeft, Clock3, FileDown, RotateCcw } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import {
-  ONBOARDING_STEPS, onboardingProgress, proximaEtapaAberta, type OnboardingStatus,
+  onboardingProgress, proximaEtapaAberta, numeracao, flattenTopics,
+  type OnboardingStatus, type OnboardingTopic,
 } from '@/lib/client/onboarding'
 import { saveOnboardingStepAction, clearOnboardingStepAction } from '@/app/(dashboard)/clientes/[id]/onboarding/onboarding-actions'
 
@@ -21,26 +22,30 @@ import { saveOnboardingStepAction, clearOnboardingStepAction } from '@/app/(dash
 //
 // Escrever NÃO é obrigatório para avançar, e só algumas etapas têm campo.
 
-export type OnboardingRow = { step_key: string; status: OnboardingStatus; resposta: string | null }
+export type OnboardingRow = { step_id: string; status: OnboardingStatus; resposta: string | null }
 
-export function OnboardingForm({ clientId, clientName, rows, onVoltar }: {
+export function OnboardingForm({ clientId, clientName, topicos, rows, onVoltar }: {
   clientId: string
   clientName: string
+  topicos: OnboardingTopic[]
   rows: OnboardingRow[]
   onVoltar: () => void
 }) {
+  // Ordem da reunião: tópico → seus subtópicos → próximo tópico. A numeração (1, 2, 3.1) sai da posição.
+  const ordem = flattenTopics(topicos)
+  const num = numeracao(topicos)
   const [estado, setEstado] = useState<Map<string, { status: OnboardingStatus; resposta: string | null }>>(
-    () => new Map(rows.map(r => [r.step_key, { status: r.status, resposta: r.resposta }])))
+    () => new Map(rows.map(r => [r.step_id, { status: r.status, resposta: r.resposta }])))
   const [texto, setTexto] = useState<Record<string, string>>(
-    () => Object.fromEntries(rows.map(r => [r.step_key, r.resposta ?? ''])))
+    () => Object.fromEntries(rows.map(r => [r.step_id, r.resposta ?? ''])))
   const [aberta, setAberta] = useState<string | null>(
-    () => proximaEtapaAberta(new Set(rows.map(r => r.step_key))))
+    () => proximaEtapaAberta(ordem, new Set(rows.map(r => r.step_id))))
   const [pending, startTransition] = useTransition()
   const [erro, setErro] = useState<string | null>(null)
   const [pdfBusy, setPdfBusy] = useState(false)
 
   const porEtapa = new Map(Array.from(estado, ([k, v]) => [k, v.status]))
-  const prog = onboardingProgress(porEtapa)
+  const prog = onboardingProgress(ordem, porEtapa)
 
   function decidir(stepKey: string, status: OnboardingStatus) {
     if (pending) return
@@ -49,7 +54,7 @@ export function OnboardingForm({ clientId, clientName, rows, onVoltar }: {
     // Otimista: na reunião a próxima etapa tem de abrir na hora, sem esperar o servidor.
     setEstado(m => new Map(m).set(stepKey, { status, resposta }))
     const decididas = new Set([...estado.keys(), stepKey])
-    setAberta(proximaEtapaAberta(decididas))
+    setAberta(proximaEtapaAberta(ordem, decididas))
     startTransition(async () => {
       const r = await saveOnboardingStepAction(clientId, stepKey, status, resposta)
       if (!r.ok) {
@@ -78,10 +83,10 @@ export function OnboardingForm({ clientId, clientName, rows, onVoltar }: {
       const { buildOnboardingPdf } = await import('@/lib/client/onboarding-pdf')
       await buildOnboardingPdf({
         clientName,
-        itens: ONBOARDING_STEPS.map(s => ({
-          titulo: s.titulo,
-          status: estado.get(s.key)?.status ?? null,
-          resposta: estado.get(s.key)?.resposta ?? null,
+        itens: ordem.map(s => ({
+          titulo: `${num.get(s.id) ?? ''} ${s.titulo}`.trim(),
+          status: estado.get(s.id)?.status ?? null,
+          resposta: estado.get(s.id)?.resposta ?? null,
         })),
       })
     } catch {
@@ -115,28 +120,28 @@ export function OnboardingForm({ clientId, clientName, rows, onVoltar }: {
       {erro && <p className="rounded-btn border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs text-red-300">{erro}</p>}
 
       <div className="space-y-2">
-        {ONBOARDING_STEPS.map((step, i) => {
-          const atual = estado.get(step.key)
-          const estaAberta = aberta === step.key
+        {ordem.map(step => {
+          const atual = estado.get(step.id)
+          const estaAberta = aberta === step.id
           const futura = !atual && !estaAberta
           return (
-            <div key={step.key}
-              className={cn('rounded-bento border p-4 transition-colors min-w-0',
+            <div key={step.id}
+              className={cn('rounded-bento border p-4 transition-colors min-w-0', step.parentId && 'ml-5',
                 estaAberta ? 'border-lime/50 bg-bento-panel'
                   : atual?.status === 'concluido' ? 'border-bento-border bg-bento-bg/40'
                     : atual?.status === 'pendente' ? 'border-amber-500/40 bg-amber-500/[0.04]'
                       : 'border-bento-border/50 bg-bento-bg/20')}>
               <div className="flex items-start gap-3">
-                <span className={cn('grid h-6 w-6 flex-none place-items-center rounded-full border font-tech text-[11px]',
+                <span className={cn('grid h-6 min-w-[1.5rem] flex-none place-items-center rounded-full border px-1 font-tech text-[10px]',
                   atual?.status === 'concluido' ? 'border-lime bg-lime text-lime-ink'
                     : atual?.status === 'pendente' ? 'border-amber-400 text-amber-300'
                       : estaAberta ? 'border-lime text-lime-fg' : 'border-bento-border text-bento-muted')}>
-                  {atual?.status === 'concluido' ? <Check className="h-3.5 w-3.5" /> : i + 1}
+                  {atual?.status === 'concluido' ? <Check className="h-3.5 w-3.5" /> : (num.get(step.id) ?? '')}
                 </span>
                 <div className="min-w-0 flex-1">
                   <p className={cn('text-sm font-semibold break-words',
                     futura ? 'text-bento-muted' : 'text-bento-text')}>{step.titulo}</p>
-                  {estaAberta && <p className="mt-0.5 text-caption text-bento-muted break-words">{step.ajuda}</p>}
+                  {estaAberta && step.ajuda && <p className="mt-0.5 text-caption text-bento-muted break-words">{step.ajuda}</p>}
                   {/* Recolhida: mostra o que ficou decidido, que é o que interessa depois. */}
                   {atual?.resposta && !estaAberta && (
                     <p className="mt-1 text-note text-bento-dim break-words whitespace-pre-wrap">{atual.resposta}</p>
@@ -148,7 +153,7 @@ export function OnboardingForm({ clientId, clientName, rows, onVoltar }: {
                   )}
                 </div>
                 {atual && !estaAberta && (
-                  <button type="button" onClick={() => reabrir(step.key)} disabled={pending} title="Reabrir"
+                  <button type="button" onClick={() => reabrir(step.id)} disabled={pending} title="Reabrir"
                     className="flex-none rounded-btn p-1.5 text-bento-muted hover:text-bento-text disabled:opacity-40">
                     <RotateCcw className="h-3.5 w-3.5" />
                   </button>
@@ -158,25 +163,25 @@ export function OnboardingForm({ clientId, clientName, rows, onVoltar }: {
               {estaAberta && (
                 <div className="mt-3 space-y-3 pl-9">
                   {/* Campo só nas etapas que têm o que anotar — escrever nunca trava o avanço. */}
-                  {step.resposta && (
+                  {step.pedeResposta && (
                     <label className="block">
                       <span className="font-tech text-[10px] uppercase tracking-label text-bento-muted">
-                        {step.resposta.rotulo} <span className="normal-case text-bento-dim">(opcional)</span>
+                        {step.rotuloResposta ?? 'Resposta'} <span className="normal-case text-bento-dim">(opcional)</span>
                       </span>
                       <textarea
-                        value={texto[step.key] ?? ''}
-                        onChange={e => setTexto(t => ({ ...t, [step.key]: e.target.value }))}
+                        value={texto[step.id] ?? ''}
+                        onChange={e => setTexto(t => ({ ...t, [step.id]: e.target.value }))}
                         rows={2} autoFocus
-                        placeholder={step.resposta.exemplo}
+                        placeholder={step.exemploResposta ?? ''}
                         className="mt-1 w-full resize-none rounded-btn border border-bento-border bg-bento-bg px-3 py-2 text-sm text-bento-text placeholder:text-bento-muted focus:border-lime focus:outline-none" />
                     </label>
                   )}
                   <div className="flex flex-wrap gap-2">
-                    <button type="button" onClick={() => decidir(step.key, 'concluido')} disabled={pending}
+                    <button type="button" onClick={() => decidir(step.id, 'concluido')} disabled={pending}
                       className="bento-btn inline-flex items-center gap-1.5 rounded-btn px-4 min-h-[40px] text-sm font-semibold disabled:opacity-50">
                       <Check className="h-4 w-4" /> Concluído
                     </button>
-                    <button type="button" onClick={() => decidir(step.key, 'pendente')} disabled={pending}
+                    <button type="button" onClick={() => decidir(step.id, 'pendente')} disabled={pending}
                       className="inline-flex items-center gap-1.5 rounded-btn border border-bento-border px-4 min-h-[40px] text-sm font-medium text-bento-muted transition-colors hover:border-amber-400/60 hover:text-amber-300 disabled:opacity-50">
                       <Clock3 className="h-4 w-4" /> Não concluído
                     </button>

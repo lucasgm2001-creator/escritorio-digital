@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import {
-  Home, Briefcase, ListChecks, Projector, Users, Palette, Accessibility, Image as ImageIcon, User,
+  Home, Briefcase, Rocket, ListChecks, Projector, Users, Palette, Accessibility, Image as ImageIcon, User,
   LayoutGrid, Database, Plug, Info, Map, Boxes, ChevronLeft, ChevronDown, ShieldCheck, TrendingUp,
   Sparkles, Settings, type LucideIcon,
 } from 'lucide-react'
@@ -16,6 +16,7 @@ function FasesTabLoading() { return <div className="py-16 text-center text-sm te
 const FasesTab = dynamic(() => import('../comercial/tabs/FasesTab').then(m => ({ default: m.FasesTab })), { ssr: false, loading: FasesTabLoading })
 import { HubClientesSettings } from '../clientes/HubClientesSettings'
 import { TeamSettingsSection, type TeamSettingsInvite, type TeamSettingsMember } from './TeamSettingsSection'
+import { OnboardingSteps } from './OnboardingSteps'
 import {
   ThemeSection, AccessibilitySection, AboutSection, ContaSection, AparenciaSection, DadosSection,
   IntegracoesSection, AndarSection, MapSettingsContent, LogoUploadSection, HallSettingsSection,
@@ -61,6 +62,7 @@ const GROUPS: { title: string; items: NavItem[] }[] = [
   ] },
   { title: 'Clientes', items: [
     { key: 'hub-clientes', label: 'Hub de Clientes', Icon: Boxes },
+    { key: 'onboarding', label: 'Roteiro de onboarding', Icon: Rocket },
     { key: 'andar-clientes', label: 'Organização do andar', Icon: Users },
   ] },
   { title: 'Tráfego', items: [
@@ -119,6 +121,7 @@ export function ConfiguracoesClient({ userId, google, teamSettings }: Props) {
       case 'dados': return <DadosSection />
       case 'integracoes': return <IntegracoesSection google={google} />
       case 'planos': return <PlanosSection />
+      case 'onboarding': return <Panel label="Roteiro de onboarding"><OnboardingSteps /></Panel>
       default: return null
     }
   }

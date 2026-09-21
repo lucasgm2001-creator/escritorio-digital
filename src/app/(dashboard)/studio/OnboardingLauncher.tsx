@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { Rocket, Search } from 'lucide-react'
 import { OnboardingForm, type OnboardingRow } from './OnboardingForm'
 import { createClient } from '@/lib/supabase/client'
+import { buildTopics, mapStep, STEP_COLUMNS, type OnboardingTopic } from '@/lib/client/onboarding'
 import { cn } from '@/lib/utils'
 
 // Entrada da reunião de ONBOARDING (ONBOARDING-001). O Studio é onde as reuniões começam, então o
@@ -23,6 +24,7 @@ export function OnboardingLauncher() {
   const supabase = createClient()
   const [escolhido, setEscolhido] = useState<ClienteOpcao | null>(null)
   const [rows, setRows] = useState<OnboardingRow[] | null>(null)
+  const [topicos, setTopicos] = useState<OnboardingTopic[]>([])
   const [clientes, setClientes] = useState<ClienteOpcao[]>([])
   const [busca, setBusca] = useState('')
   const [carregando, setCarregando] = useState(true)
@@ -53,15 +55,18 @@ export function OnboardingLauncher() {
   // Abre o roteiro do cliente sem sair do Studio. Carrega o que já foi decidido (reunião pode ser retomada).
   const abrir = async (c: ClienteOpcao) => {
     setEscolhido(c); setRows(null)
-    const { data } = await supabase.from('client_onboarding')
-      .select('step_key, status, resposta').eq('client_id', c.id)
+    const [{ data: steps }, { data }] = await Promise.all([
+      supabase.from('onboarding_steps').select(STEP_COLUMNS).eq('ativo', true).order('posicao'),
+      supabase.from('client_onboarding').select('step_id, status, resposta').eq('client_id', c.id),
+    ])
+    setTopicos(buildTopics((steps ?? []).map(mapStep)))
     setRows((data ?? []) as OnboardingRow[])
   }
 
   if (escolhido) {
     if (!rows) return <p className="p-6 text-center text-sm text-bento-muted">Abrindo roteiro…</p>
     return (
-      <OnboardingForm clientId={escolhido.id} clientName={escolhido.name} rows={rows}
+      <OnboardingForm clientId={escolhido.id} clientName={escolhido.name} topicos={topicos} rows={rows}
         onVoltar={() => { setEscolhido(null); setRows(null) }} />
     )
   }
