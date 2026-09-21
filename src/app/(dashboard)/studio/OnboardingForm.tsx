@@ -193,7 +193,14 @@ export function OnboardingForm({ clientId, clientName, topicos, rows, onVoltar }
         })}
       </div>
 
-      {aberta === null && (
+      {/* Roteiro sem tópicos: dizer "concluído" seria falso — não há nada para concluir. */}
+      {ordem.length === 0 && (
+        <p className="rounded-btn border border-amber-500/30 bg-amber-500/[0.06] px-3 py-2.5 text-note text-amber-200">
+          Nenhum tópico configurado. Monte o roteiro em Configurações › Roteiro de onboarding.
+        </p>
+      )}
+
+      {ordem.length > 0 && aberta === null && (
         <p className="rounded-btn border border-lime/30 bg-lime/[0.06] px-3 py-2.5 text-note text-lime-fg">
           Roteiro concluído. As respostas já estão no Onboarding do workspace — gere o PDF para enviar à equipe.
         </p>

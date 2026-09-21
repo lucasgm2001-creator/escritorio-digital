@@ -1,22 +1,32 @@
 'use client'
 
-import { useState } from 'react'
-import { Check, Clock3, FileDown, MinusCircle } from 'lucide-react'
+import { useState, useTransition } from 'react'
+import { useRouter } from 'next/navigation'
+import { Check, Clock3, FileDown, MinusCircle, Pencil, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import {
   onboardingProgress, numeracao, flattenTopics, type OnboardingStatus, type OnboardingTopic,
 } from '@/lib/client/onboarding'
+import { saveOnboardingStepAction, clearOnboardingStepAction } from './onboarding-actions'
 
-// ESPELHO do onboarding (ONBOARDING-002). Só LEITURA: o preenchimento acontece no Studio, que é a tela
-// compartilhada com o cliente. Aqui é a visão da EQUIPE — o mesmo conteúdo, ao lado do financeiro, da
-// timeline e do resto do workspace, que o cliente nunca vê.
-// Ter um único ponto de escrita evita a pergunta "qual das duas telas vale?" quando as duas divergirem.
+// ESPELHO do onboarding (ONBOARDING-002 · edição em ONBOARDING-004). O preenchimento AO VIVO acontece no
+// Studio, que é a tela compartilhada com o cliente; aqui é a visão da EQUIPE, ao lado do financeiro e da
+// timeline que o cliente nunca vê.
+//
+// Editar aqui também: depois da reunião sempre aparece o dado que faltava (o domínio que o cliente mandou
+// por mensagem, a licença que chegou depois). Obrigar a voltar ao Studio para corrigir uma linha seria
+// fricção sem motivo. Não há risco de divergir: as duas telas gravam nas MESMAS linhas, pela MESMA
+// action — são dois pontos de entrada, não duas fontes.
 
 export type MirrorRow = { step_id: string; status: OnboardingStatus; resposta: string | null }
 
-export function OnboardingMirror({ clientName, topicos, rows }: {
-  clientName: string; topicos: OnboardingTopic[]; rows: MirrorRow[]
+export function OnboardingMirror({ clientId, clientName, topicos, rows }: {
+  clientId: string; clientName: string; topicos: OnboardingTopic[]; rows: MirrorRow[]
 }) {
+  const router = useRouter()
+  const [pending, startTransition] = useTransition()
+  const [editando, setEditando] = useState<string | null>(null)
+  const [rascunho, setRascunho] = useState('')
   const ordem = flattenTopics(topicos)
   const num = numeracao(topicos)
   const [pdfBusy, setPdfBusy] = useState(false)
@@ -24,6 +34,26 @@ export function OnboardingMirror({ clientName, topicos, rows }: {
   const porEtapa = new Map(rows.map(r => [r.step_id, r.status]))
   const resposta = new Map(rows.map(r => [r.step_id, r.resposta]))
   const prog = onboardingProgress(ordem, porEtapa)
+
+  function salvar(stepId: string, status: OnboardingStatus) {
+    if (pending) return
+    setErro(null)
+    startTransition(async () => {
+      const r = await saveOnboardingStepAction(clientId, stepId, status, rascunho)
+      if (!r.ok) { setErro(r.error); return }
+      setEditando(null); router.refresh()
+    })
+  }
+
+  function limpar(stepId: string) {
+    if (pending) return
+    setErro(null)
+    startTransition(async () => {
+      const r = await clearOnboardingStepAction(clientId, stepId)
+      if (!r.ok) { setErro(r.error); return }
+      setEditando(null); router.refresh()
+    })
+  }
 
   async function gerarPdf() {
     if (pdfBusy) return
@@ -92,12 +122,47 @@ export function OnboardingMirror({ clientName, topicos, rows }: {
                       <MinusCircle className="h-3 w-3" /> Não tratada
                     </p>
                   ) : null}
-                  {st === 'pendente' && (
+                  {st === 'pendente' && editando !== step.id && (
                     <p className="mt-0.5 inline-flex items-center gap-1 font-tech text-caption text-amber-300">
                       <Clock3 className="h-3 w-3" /> Pendente
                     </p>
                   )}
+
+                  {editando === step.id && (
+                    <div className="mt-2 space-y-2">
+                      {step.pedeResposta && (
+                        <textarea value={rascunho} onChange={e => setRascunho(e.target.value)} rows={2} autoFocus
+                          placeholder={step.exemploResposta ?? ''}
+                          className="w-full resize-none rounded-btn border border-bento-border bg-bento-bg px-3 py-2 text-sm text-bento-text placeholder:text-bento-muted focus:border-lime focus:outline-none" />
+                      )}
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        <button type="button" onClick={() => salvar(step.id, 'concluido')} disabled={pending}
+                          className="bento-btn inline-flex items-center gap-1.5 rounded-btn px-3 min-h-[34px] text-xs font-semibold disabled:opacity-50">
+                          <Check className="h-3.5 w-3.5" /> Concluído
+                        </button>
+                        <button type="button" onClick={() => salvar(step.id, 'pendente')} disabled={pending}
+                          className="inline-flex items-center gap-1.5 rounded-btn border border-bento-border px-3 min-h-[34px] text-xs text-bento-muted hover:border-amber-400/60 hover:text-amber-300 disabled:opacity-50">
+                          <Clock3 className="h-3.5 w-3.5" /> Pendente
+                        </button>
+                        {st && (
+                          <button type="button" onClick={() => limpar(step.id)} disabled={pending}
+                            className="rounded-btn border border-bento-border px-3 min-h-[34px] text-xs text-bento-muted hover:text-bento-text disabled:opacity-50">
+                            Limpar
+                          </button>
+                        )}
+                        <button type="button" onClick={() => setEditando(null)} aria-label="Cancelar"
+                          className="rounded-btn p-1.5 text-bento-muted hover:text-bento-text"><X className="h-3.5 w-3.5" /></button>
+                      </div>
+                    </div>
+                  )}
                 </div>
+                {editando !== step.id && (
+                  <button type="button" onClick={() => { setEditando(step.id); setRascunho(txt ?? '') }}
+                    disabled={pending} aria-label="Editar etapa"
+                    className="flex-none rounded-btn p-1.5 text-bento-muted hover:text-bento-text disabled:opacity-40">
+                    <Pencil className="h-3.5 w-3.5" />
+                  </button>
+                )}
               </div>
             </div>
           )

@@ -29,10 +29,10 @@ export default async function ClientOnboardingPage(props: { params: Promise<{ id
     <div className="space-y-4">
       <WorkspaceHeader
         title="Onboarding"
-        subtitle={`O que foi definido na reunião de início com ${client.name}. Preenchido no Studio; aqui é só leitura.`}
+        subtitle={`O que foi definido na reunião de início com ${client.name}. Preenchido no Studio e editável aqui.`}
         size="compact"
       />
-      <OnboardingMirror clientName={client.name} topicos={topicos} rows={(data ?? []) as MirrorRow[]} />
+      <OnboardingMirror clientId={id} clientName={client.name} topicos={topicos} rows={(data ?? []) as MirrorRow[]} />
     </div>
   )
 }
