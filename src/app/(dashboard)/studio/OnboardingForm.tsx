@@ -107,6 +107,12 @@ export function OnboardingForm({ clientId, clientName, topicos, rows, onVoltar, 
 
   async function gerarPdf() {
     if (pdfBusy) return
+    // O PDF sai do estado da TELA, que é otimista. Com etapa não salva, o papel afirmaria algo que o
+    // sistema não tem — e é esse papel que vai para a equipe. Resolve a pendência antes.
+    if (falhou.size > 0) {
+      setErro(`${falhou.size} etapa(s) não foram salvas. Reenvie antes de gerar o PDF para a equipe.`)
+      return
+    }
     setPdfBusy(true); setErro(null)
     try {
       const { buildOnboardingPdf } = await import('@/lib/client/onboarding-pdf')
@@ -152,7 +158,8 @@ export function OnboardingForm({ clientId, clientName, topicos, rows, onVoltar, 
                 : <><Check className="h-3 w-3" /> tudo salvo</>}
           </p>
         </div>
-        <button type="button" onClick={gerarPdf} disabled={pdfBusy}
+        <button type="button" onClick={gerarPdf} disabled={pdfBusy || falhou.size > 0}
+          title={falhou.size > 0 ? 'Resolva as etapas não salvas antes de gerar o PDF' : undefined}
           className="inline-flex items-center gap-2 rounded-btn border border-bento-border px-3 min-h-[40px] text-sm font-medium text-bento-dim transition-colors hover:border-lime hover:text-bento-text disabled:opacity-50">
           <FileDown className="h-4 w-4" />{pdfBusy ? 'Gerando…' : 'Gerar PDF'}
         </button>

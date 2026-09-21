@@ -20,8 +20,10 @@ import { saveOnboardingStepAction, clearOnboardingStepAction } from './onboardin
 
 export type MirrorRow = { step_id: string; status: OnboardingStatus; resposta: string | null }
 
-export function OnboardingMirror({ clientId, clientName, topicos, rows }: {
-  clientId: string; clientName: string; topicos: OnboardingTopic[]; rows: MirrorRow[]
+export type ForaDoRoteiro = MirrorRow & { titulo: string }
+
+export function OnboardingMirror({ clientId, clientName, topicos, rows, fora = [] }: {
+  clientId: string; clientName: string; topicos: OnboardingTopic[]; rows: MirrorRow[]; fora?: ForaDoRoteiro[]
 }) {
   const router = useRouter()
   const [pending, startTransition] = useTransition()
@@ -62,10 +64,14 @@ export function OnboardingMirror({ clientId, clientName, topicos, rows }: {
       const { buildOnboardingPdf } = await import('@/lib/client/onboarding-pdf')
       await buildOnboardingPdf({
         clientName,
-        itens: ordem.map(s => ({
-          titulo: `${num.get(s.id) ?? ''} ${s.titulo}`.trim(),
-          status: porEtapa.get(s.id) ?? null, resposta: resposta.get(s.id) ?? null,
-        })),
+        itens: [
+          ...ordem.map(s => ({
+            titulo: `${num.get(s.id) ?? ''} ${s.titulo}`.trim(),
+            status: porEtapa.get(s.id) ?? null, resposta: resposta.get(s.id) ?? null,
+          })),
+          // Respondidos antes de saírem do roteiro: entram no PDF para a equipe não perder o combinado.
+          ...fora.map(f => ({ titulo: `${f.titulo} (fora do roteiro atual)`, status: f.status, resposta: f.resposta })),
+        ],
       })
     } catch { setErro('Não foi possível gerar o PDF.') } finally { setPdfBusy(false) }
   }
@@ -168,6 +174,20 @@ export function OnboardingMirror({ clientId, clientName, topicos, rows }: {
           )
         })}
       </div>
+
+      {/* Tópicos que saíram do roteiro depois de respondidos. Ficam à parte para não se confundirem com o
+          roteiro atual, mas continuam visíveis: foi o que se combinou com este cliente. */}
+      {fora.length > 0 && (
+        <div className="space-y-2">
+          <p className="font-tech text-label uppercase tracking-label text-bento-muted">Fora do roteiro atual</p>
+          {fora.map(f => (
+            <div key={f.step_id} className="rounded-bento border border-bento-border/50 bg-bento-bg/20 p-3.5 min-w-0">
+              <p className="text-sm font-semibold text-bento-muted break-words">{f.titulo}</p>
+              {f.resposta && <p className="mt-1 whitespace-pre-wrap break-words text-note text-bento-dim">{f.resposta}</p>}
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   )
 }

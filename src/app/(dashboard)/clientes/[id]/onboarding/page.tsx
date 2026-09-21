@@ -19,11 +19,19 @@ export default async function ClientOnboardingPage(props: { params: Promise<{ id
   const supabase = createClient()
   // Roteiro vem do banco (editável em Configurações) e as respostas do cliente vêm à parte: tópico
   // removido do roteiro some daqui, mas a resposta continua gravada.
+  // Carrega TODOS os tópicos, não só os ativos: um tópico removido do roteiro continua com as respostas
+  // dos clientes que passaram por ele, e essa é a razão de a remoção ser lógica (ativo=false) e não DELETE.
+  // Sem isto a resposta ficava no banco mas invisível — a preservação não serviria para nada.
   const [{ data: steps }, { data }] = await Promise.all([
-    supabase.from('onboarding_steps').select(STEP_COLUMNS).eq('ativo', true).order('posicao'),
+    supabase.from('onboarding_steps').select(`${STEP_COLUMNS}, ativo`).order('posicao'),
     supabase.from('client_onboarding').select('step_id, status, resposta').eq('client_id', id),
   ])
-  const topicos = buildTopics((steps ?? []).map(mapStep))
+  const todos = (steps ?? []) as (Parameters<typeof mapStep>[0] & { ativo: boolean })[]
+  const topicos = buildTopics(todos.filter(x => x.ativo).map(mapStep))
+  const noRoteiro = new Set(todos.filter(x => x.ativo).map(x => x.id))
+  const fora = ((data ?? []) as MirrorRow[])
+    .filter(r => !noRoteiro.has(r.step_id))
+    .map(r => ({ ...r, titulo: todos.find(x => x.id === r.step_id)?.titulo ?? 'Tópico removido' }))
 
   return (
     <div className="space-y-4">
@@ -32,7 +40,7 @@ export default async function ClientOnboardingPage(props: { params: Promise<{ id
         subtitle={`O que foi definido na reunião de início com ${client.name}. Preenchido no Studio e editável aqui.`}
         size="compact"
       />
-      <OnboardingMirror clientId={id} clientName={client.name} topicos={topicos} rows={(data ?? []) as MirrorRow[]} />
+      <OnboardingMirror clientId={id} clientName={client.name} topicos={topicos} rows={(data ?? []) as MirrorRow[]} fora={fora} />
     </div>
   )
 }
