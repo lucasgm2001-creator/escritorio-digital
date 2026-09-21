@@ -11,6 +11,12 @@ import { requireActionContext } from '@/server/actions/safe-action'
 
 type Res = { ok: true } | { ok: false; error: string }
 
+// Todo id que vem da UI é validado como UUID antes de virar filtro. O `.or()` do PostgREST recebe a
+// string CRUA: um id como "x,titulo.neq.zzz" viraria um segundo filtro e atingiria linhas que não foram
+// pedidas. Continua limitado à equipe pelo .eq('team_id'), mas aceitar só UUID fecha a porta na origem.
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+const ehUuid = (v: string): boolean => UUID.test(v)
+
 async function guard() {
   const g = await requireActionContext({
     permission: { module: 'clients', action: 'edit' },
@@ -18,7 +24,7 @@ async function guard() {
     expiredMessage: 'Sessão expirada. Entre novamente.',
   })
   if (!g.context?.activeTeamId) return null
-  return { context: g.context, teamId: g.context.activeTeamId, supabase: createClient() }
+  return { teamId: g.context.activeTeamId, supabase: createClient() }
 }
 
 export type StepInput = {
@@ -39,6 +45,7 @@ export async function createOnboardingStepAction(input: StepInput): Promise<Res>
   // Subtópico de subtópico não existe: a hierarquia é de UM nível. Se o pai já tem pai, sobe para a raiz
   // dele — assim um clique errado não cria uma árvore que a tela não sabe desenhar.
   let parentId = input.parentId ?? null
+  if (parentId && !ehUuid(parentId)) return { ok: false, error: 'Tópico pai inválido.' }
   if (parentId) {
     const { data: pai } = await g.supabase.from('onboarding_steps')
       .select('id, parent_id').eq('id', parentId).eq('team_id', g.teamId).maybeSingle()
@@ -70,6 +77,7 @@ export async function createOnboardingStepAction(input: StepInput): Promise<Res>
 export async function updateOnboardingStepAction(id: string, input: StepInput): Promise<Res> {
   const g = await guard()
   if (!g) return { ok: false, error: 'Sem permissão para configurar o onboarding.' }
+  if (!ehUuid(id)) return { ok: false, error: 'Tópico inválido.' }
   const titulo = input.titulo?.trim()
   if (!titulo) return { ok: false, error: 'Dê um título ao tópico.' }
 
@@ -89,6 +97,7 @@ export async function updateOnboardingStepAction(id: string, input: StepInput): 
 export async function removeOnboardingStepAction(id: string): Promise<Res> {
   const g = await guard()
   if (!g) return { ok: false, error: 'Sem permissão para configurar o onboarding.' }
+  if (!ehUuid(id)) return { ok: false, error: 'Tópico inválido.' }
   const agora = new Date().toISOString()
   const { error } = await g.supabase.from('onboarding_steps')
     .update({ ativo: false, updated_at: agora })
@@ -101,6 +110,7 @@ export async function removeOnboardingStepAction(id: string): Promise<Res> {
 export async function moveOnboardingStepAction(id: string, direcao: 'cima' | 'baixo'): Promise<Res> {
   const g = await guard()
   if (!g) return { ok: false, error: 'Sem permissão para configurar o onboarding.' }
+  if (!ehUuid(id)) return { ok: false, error: 'Tópico inválido.' }
 
   const { data: alvo } = await g.supabase.from('onboarding_steps')
     .select('id, parent_id, posicao').eq('id', id).eq('team_id', g.teamId).maybeSingle()
@@ -116,8 +126,9 @@ export async function moveOnboardingStepAction(id: string, direcao: 'cima' | 'ba
   const j = direcao === 'cima' ? i - 1 : i + 1
   if (i < 0 || j < 0 || j >= lista.length) return { ok: true }   // já é o primeiro/último
 
-  // Troca as posições. Duas escritas pequenas — reordenar a lista inteira seria pior com muitos tópicos.
-  await g.supabase.from('onboarding_steps').update({ posicao: lista[j].posicao }).eq('id', lista[i].id).eq('team_id', g.teamId)
-  await g.supabase.from('onboarding_steps').update({ posicao: lista[i].posicao }).eq('id', lista[j].id).eq('team_id', g.teamId)
+  // Troca ATÔMICA no banco. Em duas escritas separadas, falhar na segunda deixaria as duas etapas com a
+  // mesma posição — e com o índice único por nível a primeira escrita nem passaria.
+  const { data: ok, error } = await g.supabase.rpc('swap_onboarding_steps', { p_a: lista[i].id, p_b: lista[j].id })
+  if (error || ok === false) return { ok: false, error: 'Não foi possível reordenar.' }
   return { ok: true }
 }
