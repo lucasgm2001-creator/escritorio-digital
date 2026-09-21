@@ -1,8 +1,9 @@
 'use client'
 
-import { useState, useTransition } from 'react'
-import { Check, ChevronLeft, Clock3, FileDown, RotateCcw } from 'lucide-react'
+import { useEffect, useState, useTransition } from 'react'
+import { Check, ChevronLeft, Clock3, FileDown, Minimize2, RotateCcw } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { Portal } from '@/components/ui/Portal'
 import {
   onboardingProgress, proximaEtapaAberta, numeracao, flattenTopics,
   type OnboardingStatus, type OnboardingTopic,
@@ -21,15 +22,21 @@ import { saveOnboardingStepAction, clearOnboardingStepAction } from '@/app/(dash
 // visíveis e recolhidas (dá para conferir e reabrir); as futuras aparecem apagadas, só como contexto.
 //
 // Escrever NÃO é obrigatório para avançar, e só algumas etapas têm campo.
+//
+// MODO REUNIÃO (ONBOARDING-005): a tela é compartilhada, então o Studio inteiro — menu lateral, cabeçalho,
+// abas, relógios — vira ruído e mostra caminhos que o cliente não deve enxergar. Iniciar a reunião joga só
+// o roteiro em tela cheia, por cima de tudo, com saída por ESC ou pelo botão.
 
 export type OnboardingRow = { step_id: string; status: OnboardingStatus; resposta: string | null }
 
-export function OnboardingForm({ clientId, clientName, topicos, rows, onVoltar }: {
+export function OnboardingForm({ clientId, clientName, topicos, rows, onVoltar, reuniao = false, onSairReuniao }: {
   clientId: string
   clientName: string
   topicos: OnboardingTopic[]
   rows: OnboardingRow[]
   onVoltar: () => void
+  reuniao?: boolean
+  onSairReuniao?: () => void
 }) {
   // Ordem da reunião: tópico → seus subtópicos → próximo tópico. A numeração (1, 2, 3.1) sai da posição.
   const ordem = flattenTopics(topicos)
@@ -43,6 +50,14 @@ export function OnboardingForm({ clientId, clientName, topicos, rows, onVoltar }
   const [pending, startTransition] = useTransition()
   const [erro, setErro] = useState<string | null>(null)
   const [pdfBusy, setPdfBusy] = useState(false)
+
+  // ESC sai do modo reunião. Sem isto, em tela cheia não há como voltar a não ser com o mouse.
+  useEffect(() => {
+    if (!reuniao || !onSairReuniao) return
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onSairReuniao() }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [reuniao, onSairReuniao])
 
   const porEtapa = new Map(Array.from(estado, ([k, v]) => [k, v.status]))
   const prog = onboardingProgress(ordem, porEtapa)
@@ -94,14 +109,21 @@ export function OnboardingForm({ clientId, clientName, topicos, rows, onVoltar }
     } finally { setPdfBusy(false) }
   }
 
-  return (
+  const corpo = (
     <div className="mx-auto w-full max-w-2xl space-y-4 p-4 sm:p-6">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
-          <button type="button" onClick={onVoltar}
-            className="inline-flex items-center gap-1 font-tech text-caption text-bento-muted hover:text-bento-text">
-            <ChevronLeft className="h-3 w-3" /> Trocar cliente
-          </button>
+          {reuniao ? (
+            <button type="button" onClick={onSairReuniao}
+              className="inline-flex items-center gap-1 font-tech text-caption text-bento-muted hover:text-bento-text">
+              <Minimize2 className="h-3 w-3" /> Sair da reunião (ESC)
+            </button>
+          ) : (
+            <button type="button" onClick={onVoltar}
+              className="inline-flex items-center gap-1 font-tech text-caption text-bento-muted hover:text-bento-text">
+              <ChevronLeft className="h-3 w-3" /> Trocar cliente
+            </button>
+          )}
           <h2 className="mt-1 font-display text-lg font-bold text-bento-text break-words">{clientName}</h2>
           <p className="font-tech text-caption text-bento-muted">
             {prog.concluidas} de {prog.total} concluídas · {prog.pendentes} pendente(s)
@@ -206,5 +228,13 @@ export function OnboardingForm({ clientId, clientName, topicos, rows, onVoltar }
         </p>
       )}
     </div>
+  )
+
+  if (!reuniao) return corpo
+  // Tela cheia por cima do app: o compartilhamento mostra só o roteiro.
+  return (
+    <Portal>
+      <div className="fixed inset-0 z-[300] overflow-y-auto overscroll-contain bg-bento-bg">{corpo}</div>
+    </Portal>
   )
 }

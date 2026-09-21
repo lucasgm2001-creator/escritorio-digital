@@ -1,8 +1,9 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import { Rocket, Search } from 'lucide-react'
+import { Presentation, Rocket, Search } from 'lucide-react'
 import { OnboardingForm, type OnboardingRow } from './OnboardingForm'
+import { OnboardingPrep } from './OnboardingPrep'
 import { createClient } from '@/lib/supabase/client'
 import { buildTopics, mapStep, STEP_COLUMNS, type OnboardingTopic } from '@/lib/client/onboarding'
 import { cn } from '@/lib/utils'
@@ -25,6 +26,8 @@ export function OnboardingLauncher() {
   const [escolhido, setEscolhido] = useState<ClienteOpcao | null>(null)
   const [rows, setRows] = useState<OnboardingRow[] | null>(null)
   const [topicos, setTopicos] = useState<OnboardingTopic[]>([])
+  const [prep, setPrep] = useState(false)        // modal de preparação (contexto do cliente)
+  const [reuniao, setReuniao] = useState(false)  // roteiro em tela cheia
   const [clientes, setClientes] = useState<ClienteOpcao[]>([])
   const [busca, setBusca] = useState('')
   const [carregando, setCarregando] = useState(true)
@@ -66,8 +69,31 @@ export function OnboardingLauncher() {
   if (escolhido) {
     if (!rows) return <p className="p-6 text-center text-sm text-bento-muted">Abrindo roteiro…</p>
     return (
-      <OnboardingForm clientId={escolhido.id} clientName={escolhido.name} topicos={topicos} rows={rows}
-        onVoltar={() => { setEscolhido(null); setRows(null) }} />
+      <>
+        {/* UMA instância do formulário, sempre. Ele é que decide se desenha embutido no Studio ou em tela
+            cheia. Renderizar dois (um de fundo e outro por cima) daria dois estados independentes: o que
+            fosse decidido na reunião não apareceria ao sair dela. */}
+        <div className="space-y-3">
+          {!reuniao && (
+            <div className="flex justify-end px-4 pt-4 sm:px-6">
+              <button type="button" onClick={() => setPrep(true)}
+                className="bento-btn inline-flex items-center gap-2 rounded-btn px-4 min-h-[40px] text-sm font-semibold">
+                <Presentation className="h-4 w-4" /> Preparar reunião
+              </button>
+            </div>
+          )}
+          <OnboardingForm
+            clientId={escolhido.id} clientName={escolhido.name} topicos={topicos} rows={rows}
+            onVoltar={() => { setEscolhido(null); setRows(null) }}
+            reuniao={reuniao} onSairReuniao={() => setReuniao(false)} />
+        </div>
+
+        {prep && (
+          <OnboardingPrep clientId={escolhido.id} clientName={escolhido.name}
+            onFechar={() => setPrep(false)}
+            onIniciar={() => { setPrep(false); setReuniao(true) }} />
+        )}
+      </>
     )
   }
 
