@@ -28,6 +28,9 @@ export function OnboardingSteps() {
   const supabase = createClient()
   const [topicos, setTopicos] = useState<OnboardingTopic[] | null>(null)
   const [editor, setEditor] = useState<Editor | null>(null)
+  // Confirmação de remoção. Um clique apagava o tópico E os subtópicos, sem desfazer na tela — e o
+  // roteiro é o processo da equipe, não um rascunho. Pede confirmação no próprio item, sem modal.
+  const [confirmando, setConfirmando] = useState<string | null>(null)
   const [erro, setErro] = useState<string | null>(null)
   const [pending, startTransition] = useTransition()
 
@@ -91,18 +94,24 @@ export function OnboardingSteps() {
         {topicos.map(t => (
           <div key={t.id} className="space-y-1.5">
             <Linha step={t} numero={num.get(t.id) ?? ''} pending={pending}
+              confirmando={confirmando === t.id} filhos={t.filhos.length}
               onEditar={() => setEditor({ id: t.id, parentId: null, titulo: t.titulo, ajuda: t.ajuda ?? '',
                 pedeResposta: t.pedeResposta, rotuloResposta: t.rotuloResposta ?? '', exemploResposta: t.exemploResposta ?? '' })}
               onSub={() => setEditor(vazio(t.id))}
               onMover={d => rodar(() => moveOnboardingStepAction(t.id, d))}
-              onRemover={() => rodar(() => removeOnboardingStepAction(t.id))} />
+              onPedirRemover={() => setConfirmando(t.id)}
+              onCancelarRemover={() => setConfirmando(null)}
+              onRemover={() => { setConfirmando(null); rodar(() => removeOnboardingStepAction(t.id)) }} />
             {t.filhos.map(f => (
               <div key={f.id} className="pl-6">
                 <Linha step={f} numero={num.get(f.id) ?? ''} pending={pending} sub
+                  confirmando={confirmando === f.id} filhos={0}
                   onEditar={() => setEditor({ id: f.id, parentId: t.id, titulo: f.titulo, ajuda: f.ajuda ?? '',
                     pedeResposta: f.pedeResposta, rotuloResposta: f.rotuloResposta ?? '', exemploResposta: f.exemploResposta ?? '' })}
                   onMover={d => rodar(() => moveOnboardingStepAction(f.id, d))}
-                  onRemover={() => rodar(() => removeOnboardingStepAction(f.id))} />
+                  onPedirRemover={() => setConfirmando(f.id)}
+                  onCancelarRemover={() => setConfirmando(null)}
+                  onRemover={() => { setConfirmando(null); rodar(() => removeOnboardingStepAction(f.id)) }} />
               </div>
             ))}
           </div>
@@ -172,12 +181,34 @@ export function OnboardingSteps() {
   )
 }
 
-function Linha({ step, numero, pending, sub, onEditar, onSub, onMover, onRemover }: {
+function Linha({ step, numero, pending, sub, confirmando, filhos, onEditar, onSub, onMover, onPedirRemover, onCancelarRemover, onRemover }: {
   step: { id: string; titulo: string; ajuda: string | null; pedeResposta: boolean }
-  numero: string; pending: boolean; sub?: boolean
+  numero: string; pending: boolean; sub?: boolean; confirmando: boolean; filhos: number
   onEditar: () => void; onSub?: () => void
-  onMover: (d: 'cima' | 'baixo') => void; onRemover: () => void
+  onMover: (d: 'cima' | 'baixo') => void
+  onPedirRemover: () => void; onCancelarRemover: () => void; onRemover: () => void
 }) {
+  if (confirmando) {
+    return (
+      <div className="flex flex-wrap items-center gap-2 rounded-bento border border-red-500/40 bg-red-500/[0.06] p-3">
+        <p className="min-w-0 flex-1 text-sm text-bento-text break-words">
+          Remover <strong>{step.titulo}</strong> do roteiro
+          {filhos > 0 && <> e {filhos === 1 ? 'o subtópico dentro dele' : `os ${filhos} subtópicos dentro dele`}</>}?
+          <span className="block font-tech text-caption text-bento-muted">
+            As respostas já registradas continuam guardadas no onboarding dos clientes.
+          </span>
+        </p>
+        <button type="button" onClick={onRemover} disabled={pending}
+          className="rounded-btn border border-red-500/50 px-3 min-h-[34px] text-xs font-semibold text-red-300 hover:bg-red-500/10 disabled:opacity-50">
+          Remover
+        </button>
+        <button type="button" onClick={onCancelarRemover}
+          className="rounded-btn border border-bento-border px-3 min-h-[34px] text-xs text-bento-muted hover:text-bento-text">
+          Cancelar
+        </button>
+      </div>
+    )
+  }
   return (
     <div className={cn('flex items-start gap-2 rounded-bento border p-3 min-w-0',
       sub ? 'border-bento-border/60 bg-bento-bg/30' : 'border-bento-border bg-bento-bg/50')}>
@@ -199,7 +230,7 @@ function Linha({ step, numero, pending, sub, onEditar, onSub, onMover, onRemover
         )}
         <button type="button" onClick={onEditar} disabled={pending} aria-label="Editar"
           className="rounded-btn p-1.5 text-bento-muted hover:text-bento-text disabled:opacity-40"><Pencil className="h-3.5 w-3.5" /></button>
-        <button type="button" onClick={onRemover} disabled={pending} aria-label="Remover"
+        <button type="button" onClick={onPedirRemover} disabled={pending} aria-label="Remover"
           className="rounded-btn p-1.5 text-bento-muted hover:text-red-400 disabled:opacity-40"><Trash2 className="h-3.5 w-3.5" /></button>
       </div>
     </div>

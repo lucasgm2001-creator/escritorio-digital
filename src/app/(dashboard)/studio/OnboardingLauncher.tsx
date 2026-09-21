@@ -82,7 +82,10 @@ export function OnboardingLauncher() {
               </button>
             </div>
           )}
+          {/* key por cliente: o estado do formulário nasce de `rows` num inicializador, que NÃO reage a
+              mudança de prop. Sem a key, trocar de cliente sem desmontar deixaria o estado do anterior. */}
           <OnboardingForm
+            key={escolhido.id}
             clientId={escolhido.id} clientName={escolhido.name} topicos={topicos} rows={rows}
             onVoltar={() => { setEscolhido(null); setRows(null) }}
             reuniao={reuniao} onSairReuniao={() => setReuniao(false)} />

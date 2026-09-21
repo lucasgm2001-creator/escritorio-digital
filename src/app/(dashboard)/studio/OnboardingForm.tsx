@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useTransition } from 'react'
+import { useEffect, useRef, useState, useTransition, type Dispatch, type SetStateAction } from 'react'
 import { AlertTriangle, Check, ChevronLeft, Clock3, CloudUpload, FileDown, Minimize2, RotateCcw } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Portal } from '@/components/ui/Portal'
@@ -55,7 +55,15 @@ export function OnboardingForm({ clientId, clientName, topicos, rows, onVoltar, 
   // `emVoo` = esperando o servidor · `falhou` = servidor recusou. O cabeçalho resume os dois.
   const [emVoo, setEmVoo] = useState<Set<string>>(new Set())
   const [falhou, setFalhou] = useState<Set<string>>(new Set())
-  const marca = (set: React.Dispatch<React.SetStateAction<Set<string>>>, id: string, dentro: boolean) =>
+  // A guarda de clique duplo usa REF, não o state: `emVoo` dentro do handler é o valor do RENDER. Dois
+  // cliques rápidos na mesma etapa leem o mesmo valor antigo e disparam duas gravações — a primeira a
+  // terminar limparia o indicador com a segunda ainda em voo, mostrando "tudo salvo" cedo demais.
+  const emVooRef = useRef<Set<string>>(new Set())
+  // Conjunto das etapas já decididas, em ref: é ele que diz qual é a PRÓXIMA a abrir. Derivar isso do
+  // `estado` do render erra quando duas decisões caem no mesmo tick — as duas leriam o mesmo conjunto
+  // antigo, calculariam a mesma "próxima" e uma etapa seria pulada na reunião.
+  const decididasRef = useRef<Set<string>>(new Set(rows.map(r => r.step_id)))
+  const marca = (set: Dispatch<SetStateAction<Set<string>>>, id: string, dentro: boolean) =>
     set(s0 => { const n = new Set(s0); if (dentro) n.add(id); else n.delete(id); return n })
 
   // ESC sai do modo reunião. Sem isto, em tela cheia não há como voltar a não ser com o mouse.
@@ -73,16 +81,18 @@ export function OnboardingForm({ clientId, clientName, topicos, rows, onVoltar, 
   // anterior ainda salvava. Numa reunião rápida isso some com decisões sem avisar ninguém. Cada etapa
   // tem a sua gravação; só a MESMA etapa em voo é ignorada.
   function decidir(stepId: string, status: OnboardingStatus) {
-    if (emVoo.has(stepId)) return
+    if (emVooRef.current.has(stepId)) return
     setErro(null)
     const resposta = texto[stepId]?.trim() || null
     // Otimista: na reunião a próxima etapa tem de abrir na hora, sem esperar o servidor.
     setEstado(m => new Map(m).set(stepId, { status, resposta }))
-    const decididas = new Set([...estado.keys(), stepId])
-    setAberta(proximaEtapaAberta(ordem, decididas))
+    decididasRef.current.add(stepId)
+    setAberta(proximaEtapaAberta(ordem, decididasRef.current))
+    emVooRef.current.add(stepId)
     marca(setEmVoo, stepId, true); marca(setFalhou, stepId, false)
     startTransition(async () => {
       const r = await saveOnboardingStepAction(clientId, stepId, status, resposta)
+      emVooRef.current.delete(stepId)
       marca(setEmVoo, stepId, false)
       if (!r.ok) {
         // NÃO desfaz mais a decisão: apagar o que a pessoa acabou de marcar no meio da reunião é pior do
@@ -94,14 +104,24 @@ export function OnboardingForm({ clientId, clientName, topicos, rows, onVoltar, 
   }
 
   function reabrir(stepId: string) {
-    if (emVoo.has(stepId)) return
+    if (emVooRef.current.has(stepId)) return
     setErro(null)
+    const anterior = estado.get(stepId)
     setEstado(m => { const n = new Map(m); n.delete(stepId); return n })
+    decididasRef.current.delete(stepId)
     setAberta(stepId)
     marca(setFalhou, stepId, false)
+    emVooRef.current.add(stepId); marca(setEmVoo, stepId, true)
     startTransition(async () => {
       const r = await clearOnboardingStepAction(clientId, stepId)
-      if (!r.ok) setErro(r.error)
+      emVooRef.current.delete(stepId); marca(setEmVoo, stepId, false)
+      // Falhou: a linha continua no banco. Restaura o que estava na tela — deixar como reaberta faria a
+      // tela mentir sobre o que está gravado.
+      if (!r.ok && anterior) {
+        setErro(r.error)
+        setEstado(m => new Map(m).set(stepId, anterior))
+        decididasRef.current.add(stepId)
+      } else if (!r.ok) setErro(r.error)
     })
   }
 
