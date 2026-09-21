@@ -1,8 +1,8 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import { useRouter } from 'next/navigation'
 import { Rocket, Search } from 'lucide-react'
+import { OnboardingForm, type OnboardingRow } from './OnboardingForm'
 import { createClient } from '@/lib/supabase/client'
 import { cn } from '@/lib/utils'
 
@@ -13,12 +13,16 @@ import { cn } from '@/lib/utils'
 //
 // Busca por digitação em vez de lista rolável: com dezenas de clientes, achar na lista é mais lento do
 // que escrever três letras do nome. Enter abre o primeiro resultado — o caminho mais curto possível.
+//
+// Escolher o cliente abre o formulário AQUI (ONBOARDING-002), sem navegar para o workspace: esta é a tela
+// compartilhada com o cliente e ela não pode dar passagem para financeiro/timeline.
 
 type ClienteOpcao = { id: string; name: string; company: string | null; status: string | null }
 
 export function OnboardingLauncher() {
-  const router = useRouter()
   const supabase = createClient()
+  const [escolhido, setEscolhido] = useState<ClienteOpcao | null>(null)
+  const [rows, setRows] = useState<OnboardingRow[] | null>(null)
   const [clientes, setClientes] = useState<ClienteOpcao[]>([])
   const [busca, setBusca] = useState('')
   const [carregando, setCarregando] = useState(true)
@@ -46,7 +50,21 @@ export function OnboardingLauncher() {
       c.name.toLowerCase().includes(q) || (c.company ?? '').toLowerCase().includes(q)).slice(0, 8)
   }, [clientes, busca])
 
-  const abrir = (id: string) => router.push(`/clientes/${id}/onboarding`)
+  // Abre o roteiro do cliente sem sair do Studio. Carrega o que já foi decidido (reunião pode ser retomada).
+  const abrir = async (c: ClienteOpcao) => {
+    setEscolhido(c); setRows(null)
+    const { data } = await supabase.from('client_onboarding')
+      .select('step_key, status, resposta').eq('client_id', c.id)
+    setRows((data ?? []) as OnboardingRow[])
+  }
+
+  if (escolhido) {
+    if (!rows) return <p className="p-6 text-center text-sm text-bento-muted">Abrindo roteiro…</p>
+    return (
+      <OnboardingForm clientId={escolhido.id} clientName={escolhido.name} rows={rows}
+        onVoltar={() => { setEscolhido(null); setRows(null) }} />
+    )
+  }
 
   return (
     <div className="mx-auto w-full max-w-xl space-y-4 p-4 sm:p-6">
@@ -65,7 +83,7 @@ export function OnboardingLauncher() {
         <input
           value={busca}
           onChange={e => setBusca(e.target.value)}
-          onKeyDown={e => { if (e.key === 'Enter' && filtrados[0]) abrir(filtrados[0].id) }}
+          onKeyDown={e => { if (e.key === 'Enter' && filtrados[0]) void abrir(filtrados[0]) }}
           autoFocus
           placeholder="Escreva o nome do cliente…"
           aria-label="Buscar cliente"
@@ -78,7 +96,7 @@ export function OnboardingLauncher() {
         ) : filtrados.length === 0 ? (
           <p className="py-6 text-center text-sm text-bento-muted">Nenhum cliente com esse nome.</p>
         ) : filtrados.map(c => (
-          <button key={c.id} type="button" onClick={() => abrir(c.id)}
+          <button key={c.id} type="button" onClick={() => void abrir(c)}
             className="flex w-full items-center gap-3 rounded-bento border border-bento-border p-3 text-left transition-colors hover:border-lime/60 hover:bg-bento-bg">
             <span className="grid h-8 w-8 flex-none place-items-center rounded-full bg-lime/15 font-display text-xs font-bold text-lime-fg">
               {c.name.slice(0, 2).toUpperCase()}

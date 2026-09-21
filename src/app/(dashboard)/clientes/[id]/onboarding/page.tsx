@@ -3,10 +3,11 @@ import { getRequestContext } from '@/server/context/request-context'
 import { getClientWorkspace } from '@/server/services/ClientWorkspaceService'
 import { createClient } from '@/lib/supabase/server'
 import { WorkspaceHeader } from '@/components/ui/WorkspaceHeader'
-import { OnboardingChecklist, type OnboardingRow } from './OnboardingChecklist'
+import { OnboardingMirror, type MirrorRow } from './OnboardingMirror'
 
-// Onboarding do cliente (ONBOARDING-001). O roteiro é fixo (lib/client/onboarding); aqui só carregamos o
-// que já foi decidido. Etapa sem linha no banco é "aberta" — por isso a leitura é só das linhas tocadas.
+// Onboarding do cliente — ESPELHO só leitura (ONBOARDING-002). O preenchimento acontece no Studio, que é a
+// tela compartilhada com o cliente; aqui é a visão da equipe, ao lado do financeiro e da timeline que o
+// cliente nunca vê. Etapa sem linha no banco é "não tratada".
 export default async function ClientOnboardingPage(props: { params: Promise<{ id: string }> }) {
   const { id } = await props.params
   const context = await getRequestContext()
@@ -22,10 +23,10 @@ export default async function ClientOnboardingPage(props: { params: Promise<{ id
     <div className="space-y-4">
       <WorkspaceHeader
         title="Onboarding"
-        subtitle={`Roteiro da reunião de início com ${client.name}. Escreva o que foi combinado e marque o desfecho de cada etapa.`}
+        subtitle={`O que foi definido na reunião de início com ${client.name}. Preenchido no Studio; aqui é só leitura.`}
         size="compact"
       />
-      <OnboardingChecklist clientId={id} rows={(data ?? []) as OnboardingRow[]} />
+      <OnboardingMirror clientName={client.name} rows={(data ?? []) as MirrorRow[]} />
     </div>
   )
 }
