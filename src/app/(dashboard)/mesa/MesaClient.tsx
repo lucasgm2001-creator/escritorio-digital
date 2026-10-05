@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import {
   AlertTriangle, CalendarDays, Check, CheckCircle2, ChevronRight, CircleDot, Clock3,
-  ExternalLink, FileText, Mail, MessageCircle, Phone, Plus, RefreshCw, UserRound, Video,
+  ExternalLink, FileText, Mail, MessageCircle, Phone, Plus, RefreshCw, Search, UserRound, Video, X,
   type LucideIcon,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -47,13 +47,18 @@ export interface MesaLead {
   situation_updated_at?: string | null
 }
 
-type Filter = 'hoje' | 'reunioes' | 'aguardando' | 'proximas' | 'atencao' | 'concluidas'
+type Filter = 'hoje' | 'reunioes' | 'leads' | 'aguardando' | 'proximas' | 'atencao' | 'concluidas'
 type Interaction = { id: string; type: string; note: string | null; created_by_name: string | null; created_at: string }
 
 const TERMINAL = new Set<LeadStatus>(['fechado', 'perdido', 'negocio_futuro', 'lixeira'])
 const HOT = new Set(['muito_quente', 'quente', 'muito_interessado', 'interessado'])
 const COLD = new Set(['esfriando', 'frio', 'pouco_interessado'])
 const STATUS_LABEL = new Map(ALL_COLUMNS.map(column => [column.key, column.label]))
+
+// Busca sem acento e sem caixa: a base tem "Gouvêa", "André", "Mizael". Exigir o acento certo faria a
+// busca falhar justamente nos nomes que mais precisam dela.
+const normalizar = (v: string): string =>
+  v.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim()
 
 function taskSort(a: Task, b: Task): number {
   const priority: Record<string, number> = { urgente: 3, alta: 2, normal: 1 }
@@ -115,6 +120,7 @@ export function MesaClient({ initialTasks, initialLeads, linkOptions, currentUse
   const [interactions, setInteractions] = useState<Interaction[]>([])
   const [interactionsLoading, setInteractionsLoading] = useState(false)
   const [busyTaskId, setBusyTaskId] = useState<string | null>(null)
+  const [busca, setBusca] = useState('')
 
   const today = ymd(new Date())
   const pending = useMemo(() => tasks.filter(task => !task.done).sort(taskSort), [tasks])
@@ -124,18 +130,22 @@ export function MesaClient({ initialTasks, initialLeads, linkOptions, currentUse
   const doneTasks = useMemo(() => tasks.filter(task => task.done).sort((a, b) => (b.completed_at ?? b.updated_at).localeCompare(a.completed_at ?? a.updated_at)).slice(0, 30), [tasks])
   const waitingLeads = useMemo(() => leads.filter(lead => !TERMINAL.has(lead.status) && isWaiting(lead)), [leads])
   const attentionLeads = useMemo(() => leads.filter(lead => needsAttention(lead, today)), [leads, today])
+  // TODOS os leads em jogo, para percorrer sem precisar digitar nada. Fora os terminais (fechado, perdido,
+  // negócio futuro): numa lista de navegação eles são ruído — quem procura um fechado usa a busca, que os
+  // inclui. Ordem: quem precisa de ação primeiro, depois por score, que é a ordem em que vale ligar.
+  const allLeads = useMemo(() => {
+    const vivos = leads.filter(lead => !TERMINAL.has(lead.status))
+    return [...vivos].sort((a, b) =>
+      (needsAttention(b, today) ? 1 : 0) - (needsAttention(a, today) ? 1 : 0) || b.score - a.score)
+  }, [leads, today])
 
   const selectedTask = selectedTaskId ? tasks.find(task => task.id === selectedTaskId) ?? null : null
   const selectedLead = selectedLeadId ? leads.find(lead => lead.id === selectedLeadId) ?? null : null
 
-  useEffect(() => {
-    if (selectedLeadId || selectedTaskId) return
-    const first = todayTasks.find(task => task.linked_type === 'lead' && task.linked_id) ?? todayTasks[0] ?? pending[0]
-    if (first) {
-      setSelectedTaskId(first.id)
-      if (first.linked_type === 'lead') setSelectedLeadId(first.linked_id ?? null)
-    } else if (attentionLeads[0]) setSelectedLeadId(attentionLeads[0].id)
-  }, [attentionLeads, pending, selectedLeadId, selectedTaskId, todayTasks])
+  // A Mesa abre SEM nada selecionado (MESA-BUSCA-001). Antes um efeito escolhia a primeira tarefa de hoje
+  // ligada a lead — ou o primeiro que precisava de atenção — e o painel da direita já abria no contexto de
+  // um lead que o usuário nunca pediu. Agora o painel começa no estado vazio e quem escolhe é quem usa.
+  // O lead certo se acha pela BUSCA ou pelas listas, não por um palpite da tela.
 
   useEffect(() => {
     if (!selectedLeadId) { setInteractions([]); return }
@@ -153,14 +163,34 @@ export function MesaClient({ initialTasks, initialLeads, linkOptions, currentUse
   const filters: { id: Filter; label: string; Icon: LucideIcon; count: number }[] = [
     { id: 'hoje', label: 'Hoje', Icon: CircleDot, count: todayTasks.length },
     { id: 'reunioes', label: 'Reuniões', Icon: Video, count: meetingTasks.length },
+    { id: 'leads', label: 'Leads', Icon: UserRound, count: allLeads.length },
     { id: 'aguardando', label: 'Aguardando', Icon: Clock3, count: waitingLeads.length },
     { id: 'proximas', label: 'Próximas', Icon: CalendarDays, count: upcomingTasks.length },
     { id: 'atencao', label: 'Precisam de ação', Icon: AlertTriangle, count: attentionLeads.length },
     { id: 'concluidas', label: 'Concluídas', Icon: CheckCircle2, count: doneTasks.length },
   ]
 
+  // Resultado da busca: varre TODOS os leads carregados, não só os do filtro ativo — procurar um lead e
+  // não achar porque ele estava fora da aba selecionada seria pior que não ter busca. Terminal (fechado,
+  // perdido, negócio futuro) entra também: achar um fechado para consultar é uso legítimo, e a linha
+  // mostra o estágio, então não há confusão sobre onde ele está.
+  const termo = normalizar(busca)
+  const resultados = useMemo(() => {
+    if (!termo) return []
+    return leads
+      .filter(lead => normalizar(lead.name).includes(termo) || normalizar(lead.company ?? '').includes(termo))
+      .sort((a, b) => {
+        // Quem começa com o termo digitado vem primeiro: buscando "ma", Mael antes de "Firma Mael".
+        const aStart = normalizar(a.name).startsWith(termo) ? 0 : 1
+        const bStart = normalizar(b.name).startsWith(termo) ? 0 : 1
+        return aStart - bStart || a.name.localeCompare(b.name)
+      })
+      .slice(0, 40)
+  }, [leads, termo])
+  const buscando = termo.length > 0
+
   const taskRows = filter === 'hoje' ? todayTasks : filter === 'reunioes' ? meetingTasks : filter === 'proximas' ? upcomingTasks : filter === 'concluidas' ? doneTasks : []
-  const leadRows = filter === 'aguardando' ? waitingLeads : filter === 'atencao' ? attentionLeads : []
+  const leadRows = filter === 'leads' ? allLeads : filter === 'aguardando' ? waitingLeads : filter === 'atencao' ? attentionLeads : []
 
   function selectTask(task: Task) {
     setSelectedTaskId(task.id)
@@ -278,23 +308,72 @@ export function MesaClient({ initialTasks, initialLeads, linkOptions, currentUse
 
               <section className="bento-fx min-w-0 overflow-hidden">
                 <div className="flex items-center justify-between gap-3 px-4 py-3 border-b border-bento-border">
-                  <div>
-                    <h2 className="font-display font-semibold text-bento-text">{filters.find(item => item.id === filter)?.label}</h2>
-                    <p className="text-xs text-bento-muted mt-0.5">{taskRows.length || leadRows.length} {taskRows.length + leadRows.length === 1 ? 'item' : 'itens'}</p>
+                  <div className="min-w-0">
+                    <h2 className="font-display font-semibold text-bento-text truncate">
+                      {buscando ? 'Busca de leads' : filters.find(item => item.id === filter)?.label}
+                    </h2>
+                    <p className="text-xs text-bento-muted mt-0.5">
+                      {buscando
+                        ? `${resultados.length} ${resultados.length === 1 ? 'lead encontrado' : 'leads encontrados'}`
+                        : `${taskRows.length || leadRows.length} ${taskRows.length + leadRows.length === 1 ? 'item' : 'itens'}`}
+                    </p>
                   </div>
                   <button type="button" onClick={() => router.refresh()} aria-label="Atualizar" className="p-2 text-bento-muted hover:text-bento-text rounded-btn hover:bg-bento-bg">
                     <RefreshCw className="w-4 h-4" />
                   </button>
                 </div>
+
+                {/* BUSCA DE LEAD (MESA-BUSCA-001). Procura em TODOS os leads carregados, por nome ou empresa,
+                    sem acento e sem caixa. Enquanto há termo digitado, a lista mostra o resultado em vez do
+                    filtro — o filtro continua escolhido e volta sozinho ao limpar a busca. */}
+                <div className="border-b border-bento-border px-3 py-2.5">
+                  <div className="relative">
+                    <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-bento-muted" />
+                    <input
+                      value={busca}
+                      onChange={event => setBusca(event.target.value)}
+                      onKeyDown={event => {
+                        if (event.key === 'Escape') setBusca('')
+                        // Enter abre o primeiro resultado: digitar o nome e apertar Enter é o caminho mais
+                        // curto entre "quero esse lead" e ter o contexto dele na tela.
+                        if (event.key === 'Enter' && resultados[0]) selectLead(resultados[0])
+                      }}
+                      placeholder="Buscar lead por nome ou empresa…"
+                      aria-label="Buscar lead por nome ou empresa"
+                      className="w-full rounded-btn border border-bento-border bg-bento-bg py-2.5 pl-9 pr-9 text-sm text-bento-text placeholder:text-bento-muted focus:border-lime focus:outline-none"
+                    />
+                    {busca && (
+                      <button type="button" onClick={() => setBusca('')} aria-label="Limpar busca"
+                        className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 text-bento-muted hover:text-bento-text">
+                        <X className="h-4 w-4" />
+                      </button>
+                    )}
+                  </div>
+                </div>
+
                 <div className="p-2 sm:p-3 space-y-2">
-                  {taskRows.map(task => (
-                    <TaskRow key={task.id} task={task} active={selectedTaskId === task.id} today={today}
-                      busy={busyTaskId === task.id} onSelect={() => selectTask(task)} onToggle={() => toggleTask(task)} onEdit={() => openEdit(task)} />
-                  ))}
-                  {leadRows.map(lead => (
-                    <LeadRow key={lead.id} lead={lead} active={selectedLeadId === lead.id} onSelect={() => selectLead(lead)} />
-                  ))}
-                  {taskRows.length === 0 && leadRows.length === 0 && <EmptyFilter filter={filter} />}
+                  {buscando ? (
+                    resultados.length === 0 ? (
+                      <p className="px-2 py-10 text-center text-sm text-bento-muted">
+                        Nenhum lead com “{busca.trim()}” no nome ou na empresa.
+                      </p>
+                    ) : resultados.map(lead => (
+                      <LeadRow key={lead.id} lead={lead} active={selectedLeadId === lead.id}
+                        mostrarEmpresa onSelect={() => selectLead(lead)} />
+                    ))
+                  ) : (
+                    <>
+                      {taskRows.map(task => (
+                        <TaskRow key={task.id} task={task} active={selectedTaskId === task.id} today={today}
+                          busy={busyTaskId === task.id} onSelect={() => selectTask(task)} onToggle={() => toggleTask(task)} onEdit={() => openEdit(task)} />
+                      ))}
+                      {leadRows.map(lead => (
+                        <LeadRow key={lead.id} lead={lead} active={selectedLeadId === lead.id}
+                          mostrarEmpresa={filter === 'leads'} onSelect={() => selectLead(lead)} />
+                      ))}
+                      {taskRows.length === 0 && leadRows.length === 0 && <EmptyFilter filter={filter} />}
+                    </>
+                  )}
                 </div>
               </section>
 
@@ -396,15 +475,22 @@ function TaskRow({ task, active, today, busy, onSelect, onToggle, onEdit }: {
   )
 }
 
-function LeadRow({ lead, active, onSelect }: { lead: MesaLead; active: boolean; onSelect: () => void }) {
+// `mostrarEmpresa`: nos resultados de busca a segunda linha passa a ser EMPRESA · ESTÁGIO em vez da
+// situação escrita. Quem busca por empresa precisa ver a empresa para confirmar que achou o lead certo —
+// e o estágio diz onde ele está, inclusive quando é um fechado ou perdido.
+function LeadRow({ lead, active, mostrarEmpresa, onSelect }: { lead: MesaLead; active: boolean; mostrarEmpresa?: boolean; onSelect: () => void }) {
   const temperature = lead.temperature ? TEMPERATURE_LABEL[lead.temperature as keyof typeof TEMPERATURE_LABEL] ?? lead.temperature : 'Sem avaliação'
+  const estagio = STATUS_LABEL.get(lead.status) || lead.status
+  const segundaLinha = mostrarEmpresa
+    ? [lead.company, estagio].filter(Boolean).join(' · ')
+    : (lead.current_situation || estagio)
   return (
     <button type="button" onClick={onSelect} className={cn('w-full flex items-center gap-3 rounded-bento border p-3 text-left transition-colors',
       active ? 'border-lime/50 bg-lime/[0.07]' : 'border-bento-border bg-bento-bg/35 hover:border-bento-dim/60')}>
       <span className={cn('w-2 h-2 rounded-full shrink-0', HOT.has(lead.temperature ?? '') ? 'bg-lime' : COLD.has(lead.temperature ?? '') ? 'bg-blue-400' : 'bg-amber-400')} />
       <span className="min-w-0 flex-1">
         <span className="block text-sm font-medium text-bento-text truncate">{lead.name}</span>
-        <span className="block text-[11px] text-bento-muted truncate">{lead.current_situation || STATUS_LABEL.get(lead.status) || lead.status}</span>
+        <span className="block text-[11px] text-bento-muted truncate">{segundaLinha}</span>
       </span>
       <span className="text-[10px] text-bento-muted shrink-0">{temperature}</span>
       <ChevronRight className="w-4 h-4 text-bento-muted" />
@@ -527,7 +613,8 @@ function ContextBlock({ label, value }: { label: string; value: string }) {
 
 function EmptyFilter({ filter }: { filter: Filter }) {
   const messages: Record<Filter, string> = {
-    hoje: 'Nenhuma ação pendente para hoje.', reunioes: 'Nenhuma reunião pendente.', aguardando: 'Nenhum lead aguardando retorno.',
+    hoje: 'Nenhuma ação pendente para hoje.', reunioes: 'Nenhuma reunião pendente.', leads: 'Nenhum lead em andamento.',
+    aguardando: 'Nenhum lead aguardando retorno.',
     proximas: 'Nenhuma próxima ação organizada.', atencao: 'Nenhuma ação vencida ou sem data.', concluidas: 'Nenhuma tarefa concluída recentemente.',
   }
   return <div className="py-16 text-center"><CheckCircle2 className="w-8 h-8 text-bento-muted mx-auto mb-3" /><p className="text-sm text-bento-dim">{messages[filter]}</p></div>
