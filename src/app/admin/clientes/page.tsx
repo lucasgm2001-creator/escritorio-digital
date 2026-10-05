@@ -5,7 +5,7 @@ import { requireModuleEntry } from '@/server/security/module-guard'
 import { getClientsFinanceSummary } from '@/server/services/ClientsFinanceSummaryService'
 import type { Client, Nicho, ClientIntegration } from '@/app/(dashboard)/clientes/types'
 
-const CLIENT_LIST_COLUMNS = 'id, name, company, email, phone, plan_weekly, plano_id, dia_pagamento_semana, periodicidade, forma_pagamento, status, start_date, billing_anchor_date, end_date, assigned_name, nicho, fuso, city, state, area_code, jobs, created_at'
+const CLIENT_LIST_COLUMNS = 'id, name, company, email, phone, plan_weekly, plano_id, dia_pagamento_semana, periodicidade, forma_pagamento, status, start_date, billing_anchor_date, end_date, end_reason, assigned_name, nicho, fuso, city, state, area_code, jobs, created_at'
 
 // Administração › Clientes (CLIENT-HISTORY-ADMIN-003): a lista de clientes vive AQUI agora — deixou de ser andar
 // principal. REUSA o MESMO ClientesFloor do domínio (sem duplicar tela) e a MESMA projeção de dados da rota

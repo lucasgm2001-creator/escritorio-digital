@@ -30,13 +30,18 @@ export function nextUnpaidWeek(deal: { tetoSemanas: number; status: string }, pa
 // NÃO cria deal. Congela a cotação `rate` no lançamento.
 export async function payWeek(
   supabase: SupaClient, deal: PayDeal, paidNumbers: number[], numero: number, paidOn: string, rate: number,
-  teamId?: string | null,
+  teamId?: string | null, clientPaymentId?: string | null,
 ): Promise<{ ok: boolean; reason?: PayWeekReason; message?: string; row?: WeekRowDb }> {
   if (deal.status !== 'em_andamento') return { ok: false, reason: 'frozen' }
   if (!Number.isInteger(numero) || numero < 1 || numero > deal.tetoSemanas) return { ok: false, reason: 'invalid' }
   if (paidNumbers.includes(numero)) return { ok: false, reason: 'dup' }
+  // client_payment_id amarra a comissão à semana do cliente que a originou. Sem ele a linha fica órfã e
+  // editar a semana depois não encontrava a comissão para remover — a receita caía e a remuneração seguia
+  // dizendo que a semana foi paga. save_client_week já casa por (cliente, semana) como rede de segurança,
+  // mas o vínculo é a informação correta e é o que a auditoria lê.
   const { data, error } = await supabase.from('weekly_payments').insert({
     deal_id: deal.id, numero_semana: numero, valor_usd: deal.valorPorSemanaUsd, paid_on: paidOn, cotacao_usd_brl: rate,
+    ...(clientPaymentId ? { client_payment_id: clientPaymentId } : {}),
     ...withTeam(teamId),
   }).select('id, deal_id, numero_semana, valor_usd, paid_on, cotacao_usd_brl').single()
   if (error) {
@@ -115,6 +120,7 @@ export type CommissionOutcome = 'paid' | 'capped' | 'no_deal' | 'dup' | 'frozen'
 // (US$25, teto 4, trava). NÃO muda a regra; só decide SE chama e com quais paidNumbers.
 export async function deriveCommission(
   supabase: SupaClient, clientId: string, numero: number, paidOn: string, rate: number, teamId?: string | null,
+  clientPaymentId?: string | null,
 ): Promise<CommissionOutcome> {
   // ALINHAMENTO COM save_client_week (P2-DERIVE-001): a RPC do banco — caminho REAL da UI — escolhe o deal
   // com kind='sale' E vendedor que gera comissão, desempatando por data_fechamento desc, created_at desc.
@@ -135,7 +141,7 @@ export async function deriveCommission(
   const res = await payWeek(
     supabase,
     { id: deal.id, valorPorSemanaUsd: Number(deal.valor_por_semana_usd), tetoSemanas: deal.teto_semanas, status: deal.status },
-    paidNumbers, numero, paidOn, rate, teamId,
+    paidNumbers, numero, paidOn, rate, teamId, clientPaymentId,
   )
   if (res.ok) return 'paid'
   if (res.reason === 'dup') return 'dup'
@@ -247,17 +253,19 @@ export async function scheduleDueWeeks(
     registered.add(n)
     const { planoId, valorUsd } = planAtWeek(n)
     const hoje = spToday()
-    const { error } = await supabase.from('client_payments').insert({
+    const { data: inserted, error } = await supabase.from('client_payments').insert({
       client_id: clientId, numero_semana: n, valor_usd: valorUsd, paid_on: hoje,
       cotacao_usd_brl: rate, plano_id: planoId, status: 'paga', due_on: due,
       valor_previsto_usd: valorUsd, valor_pago_usd: valorUsd, anulado: false,
       anulado_motivo: null, ...withTeam(teamId),
-    })
+    }).select('id').single()
     if (error && error.code !== '23505') return { scheduled, reason: error.message }
     if (!error) {
       // Receita gravada; a comissão sai do MESMO motor do fluxo manual (teto de 4 semanas, kind='sale',
       // vendedor que gera comissão). Sem isto a semana entraria como receita e a comissão nunca nasceria.
-      await deriveCommission(supabase, clientId, n, hoje, rate, teamId)
+      // O id da semana vai adiante para a comissão nascer JÁ ligada a ela — é o que permite corrigir o
+      // financeiro depois e a remuneração acompanhar.
+      await deriveCommission(supabase, clientId, n, hoje, rate, teamId, (inserted as { id?: string } | null)?.id ?? null)
       scheduled.push(n)
     }
   }

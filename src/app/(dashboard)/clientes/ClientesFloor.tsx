@@ -14,8 +14,9 @@ import dynamic from 'next/dynamic'
 const FloorLoading = () => <div className="py-16 text-center text-sm text-bento-muted">Carregando…</div>
 const IntegracoesTab = dynamic(() => import('./IntegracoesTab').then(m => m.IntegracoesTab), { ssr: false, loading: FloorLoading })
 const ClienteDetalhe = dynamic(() => import('./ClienteDetalhe').then(m => m.ClienteDetalhe), { ssr: false, loading: FloorLoading })
+const DesativadosTab = dynamic(() => import('./DesativadosTab').then(m => m.DesativadosTab), { ssr: false, loading: FloorLoading })
 
-type Tab = 'hub' | 'integracoes'
+type Tab = 'hub' | 'desativados' | 'integracoes'
 
 export function ClientesFloor({ initialClients, initialNichos, initialIntegrations, finance = {} }: {
   initialClients: Client[]
@@ -51,8 +52,12 @@ export function ClientesFloor({ initialClients, initialNichos, initialIntegratio
     )
   }
 
+  // Contagem na aba: encerrar um cliente o tirava do Hub sem deixar rastro na tela. O número avisa que
+  // existe gente ali, em vez de depender de abrir para descobrir.
+  const desativados = clients.filter(c => c.status !== 'ativo').length
   const TABS: { key: Tab; label: string }[] = [
     { key: 'hub', label: 'Hub' },
+    { key: 'desativados', label: desativados > 0 ? `Desativados (${desativados})` : 'Desativados' },
     { key: 'integracoes', label: 'Integrações' },
   ]
 
@@ -83,6 +88,9 @@ export function ClientesFloor({ initialClients, initialNichos, initialIntegratio
         {tab === 'hub' && (
           <HubTab clients={clients} nichos={nichos} integrations={integrations} finance={finance}
             onOpen={setDetailId} onNichoCreated={(n) => setNichos(prev => [...prev, n])} />
+        )}
+        {tab === 'desativados' && (
+          <DesativadosTab clients={clients} finance={finance} onOpen={setDetailId} />
         )}
         {tab === 'integracoes' && (
           <IntegracoesTab clients={clients} integrations={integrations} onChange={upsertInteg} />

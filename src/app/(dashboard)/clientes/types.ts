@@ -16,6 +16,7 @@ export interface Client {
   start_date?: string
   billing_anchor_date?: string | null   // primeira semana paga; ancora a recorrência sem alterar o início do contrato
   end_date?: string
+  end_reason?: string | null   // motivo da rescisão, gravado ao desativar. Só a aba Desativados o exibe.
   assigned_name?: string
   nicho?: string
   fuso?: 'leste' | 'central' | 'montanha' | 'pacifico' | null
