@@ -54,6 +54,20 @@ export type CompSource = {
   emptyMessage: string
 }
 
+// DETALHE DE UM MÊS ESCOLHIDO (COMP-MESES-001). O que a tela mostra ao navegar para trás.
+// Traz só indicadores que FAZEM SENTIDO por competência: salário do mês, comissão que entrou nele e a
+// soma dos dois. "Receber esta semana", "Comissão até agora" e "Previsto a receber" ficam de fora de
+// propósito — são perguntas sobre HOJE, não sobre um mês fechado, e exibi-las num mês passado daria um
+// número que parece histórico e não é.
+export type CompMonthDetail = {
+  key: string
+  label: string
+  isCurrent: boolean
+  summary: MonthlySummary
+  payments: CompPaymentLine[]
+  sources: CompSource[]
+}
+
 export type MyCompensationView = {
   hasComp: boolean            // false = usuário não é vendedor / sem seller vinculado → estado honesto
   sellerName: string
@@ -70,30 +84,28 @@ export type MyCompensationView = {
   status: string              // status do vendedor (ativo/inativo)
   lastUpdate: string | null   // data do último lançamento (última atualização)
   months: CompMonth[]
+  // Limites da navegação por mês: do primeiro lançamento até o mês corrente. A UI anda dentro disso em
+  // vez de depender de `months`, que só lista meses COM evento — um mês sem comissão é resposta válida.
+  monthRange: { first: string; last: string } | null
   pending: PendingCommissionResult  // comissões pendentes das primeiras 4 semanas por cliente (reusa dealTotal)
   forecastMonthUsd: number          // PREVISTO A RECEBER no mês = salário fixo + comissão recebida + a vencer
   sources: CompSource[]             // procedência de cada indicador (mesma ordem dos cards)
 }
 
-export async function getMyCompensationView(context: RequestContext): Promise<MyCompensationView> {
-  const emptyPending: PendingCommissionResult = {
-    totalPendenteUsd: 0, totalPagoNasElegiveisUsd: 0, clientesPendentes: 0, clientesCompletos: 0,
-    semanasPendentesTotais: 0, lines: [],
-  }
-  const empty: MyCompensationView = {
-    hasComp: false, sellerName: context.profile?.name ?? '', cargo: null, department: null, rule: null,
-    currentMonth: null, nextPayout: null, yearReceivedUsd: 0, totalReceivedUsd: 0, dealsCount: 0,
-    thisWeekUsd: 0, thisWeekRange: null, status: 'ativo', lastUpdate: null, months: [], pending: emptyPending,
-    forecastMonthUsd: 0, sources: [],
-  }
+// Carregamento das FONTES de remuneração do usuário logado. Extraído de getMyCompensationView sem
+// alterar uma linha de cálculo: agora a visão do mês corrente e a de um mês ESCOLHIDO leem exatamente os
+// mesmos dados, pelo mesmo caminho. Duas leituras divergentes seriam duas verdades sobre o mesmo dinheiro.
+//
+// SEGURANÇA continua aqui: o seller sai de sellers.user_id = usuário logado, nunca de parâmetro da UI.
+async function loadCompBundle(context: RequestContext) {
   const teamId = context.activeTeamId
-  if (!teamId) return empty
+  if (!teamId) return null
   const supabase = createClient()
   const userId = context.user.id
 
   // SEGURANÇA: o seller é o do usuário logado. Sem parâmetro da UI → ninguém abre a remuneração de outro.
   const { data: seller } = await supabase.from('sellers').select('id, name, status').eq('user_id', userId).eq('team_id', teamId).maybeSingle()
-  if (!seller) return empty
+  if (!seller) return null
 
   // Cargo/departamento reais (team_members RH — migration 044), resolvidos no catálogo oficial.
   const { data: rh } = await supabase.from('team_members').select('role_key, department_key').eq('team_id', teamId).eq('user_id', userId).maybeSingle()
@@ -134,6 +146,28 @@ export async function getMyCompensationView(context: RequestContext): Promise<My
   // vazio zerava TODO o BRL desta tela e do PDF (o USD, moeda base, nunca dependeu disto).
   const referencia = fxRes.data?.cotacao_referencia != null ? Number(fxRes.data.cotacao_referencia) : null
   const automaticRate = referencia ?? manual ?? 0
+
+  return {
+    supabase, teamId,
+    seller: seller as { id: string; name: string; status?: string },
+    role, dept, rule, salaries, meetings, mtgClient, deals, dealById, weeks, fx, automaticRate,
+  }
+}
+
+export async function getMyCompensationView(context: RequestContext): Promise<MyCompensationView> {
+  const emptyPending: PendingCommissionResult = {
+    totalPendenteUsd: 0, totalPagoNasElegiveisUsd: 0, clientesPendentes: 0, clientesCompletos: 0,
+    semanasPendentesTotais: 0, lines: [],
+  }
+  const empty: MyCompensationView = {
+    hasComp: false, sellerName: context.profile?.name ?? '', cargo: null, department: null, rule: null,
+    currentMonth: null, nextPayout: null, yearReceivedUsd: 0, totalReceivedUsd: 0, dealsCount: 0,
+    thisWeekUsd: 0, thisWeekRange: null, status: 'ativo', lastUpdate: null, months: [], monthRange: null, pending: emptyPending,
+    forecastMonthUsd: 0, sources: [],
+  }
+  const bundle = await loadCompBundle(context)
+  if (!bundle) return empty
+  const { supabase, seller, role, dept, rule, salaries, meetings, mtgClient, deals, dealById, weeks, fx, automaticRate } = bundle
 
   const now = new Date()
   const y = now.getFullYear(), m = now.getMonth() + 1
@@ -343,7 +377,83 @@ export async function getMyCompensationView(context: RequestContext): Promise<My
   return {
     hasComp: true, sellerName: seller.name, cargo: role?.name ?? null, department: dept?.name ?? null,
     rule, currentMonth, nextPayout, yearReceivedUsd, totalReceivedUsd, dealsCount: deals.filter(d => d.kind === 'sale').length,
-    thisWeekUsd, thisWeekRange, status: (seller as { status?: string }).status ?? 'ativo', lastUpdate, months, pending,
+    thisWeekUsd, thisWeekRange, status: (seller as { status?: string }).status ?? 'ativo', lastUpdate, months,
+    monthRange: { first: Array.from(monthKeys).sort()[0] ?? `${y}-${pad2(m)}`, last: `${y}-${pad2(m)}` },
+    pending,
     forecastMonthUsd, sources,
   }
+}
+
+// DETALHE DE UM MÊS ESCOLHIDO (COMP-MESES-001). Lê pelo MESMO loadCompBundle e calcula pelo MESMO
+// monthlySummary da visão principal — é a mesma verdade, recortada por competência. Mês sem lançamento
+// devolve zeros em vez de null: "não houve comissão em julho" é uma resposta, não um erro.
+//
+// Rótulos e agrupamentos repetem os da visão corrente de propósito: o colaborador compara agosto com
+// setembro lendo as mesmas palavras.
+export async function getMyCompensationMonth(
+  context: RequestContext, monthKey: string,
+): Promise<CompMonthDetail | null> {
+  if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(monthKey)) return null
+  const bundle = await loadCompBundle(context)
+  if (!bundle) return null
+  const { salaries, meetings, mtgClient, dealById, weeks, fx, automaticRate } = bundle
+
+  const [yy, mm] = monthKey.split('-').map(Number)
+  const summary = monthlySummary({ year: yy, month: mm, salaries, meetings, weeks, fx, automaticRate })
+  const now = new Date()
+  const isCurrent = monthKey === `${now.getFullYear()}-${pad2(now.getMonth() + 1)}`
+
+  const noMes = <T,>(arr: T[], dataDe: (x: T) => string) => arr.filter(x => dataDe(x).slice(0, 7) === monthKey)
+  const nomeCliente = (dealId: string) => dealById.get(dealId)?.client_name ?? null
+  const rotuloSemana = (w: WeeklyPayment) =>
+    w.kind === 'upgrade' ? `Upgrade · parcela ${w.numeroSemana}`
+      : w.kind === 'renewal' ? 'Bônus de renovação'
+        : `Venda · semana ${w.numeroSemana}`
+
+  const semanasDoMes = noMes(weeks, w => w.paidOn)
+  const reunioesDoMes = noMes(meetings, m2 => m2.metOn)
+
+  const payments: CompPaymentLine[] = []
+  if (summary.salaryUsd > 0) {
+    payments.push({ origem: 'Salário fixo', cliente: null, data: `${monthKey}-01`, valorUsd: summary.salaryUsd, valorBrl: summary.salaryBrl, status: null })
+  }
+  semanasDoMes.forEach(w => {
+    const d = dealById.get(w.dealId)
+    payments.push({
+      origem: rotuloSemana(w), cliente: d?.client_name ?? null, data: w.paidOn,
+      valorUsd: w.valorUsd, valorBrl: round2(w.valorUsd * w.cotacaoUsdBrl), status: d?.status ?? null,
+    })
+  })
+  reunioesDoMes.forEach(m2 => {
+    payments.push({
+      origem: 'Reunião', cliente: mtgClient.get(m2.id) ?? null, data: m2.metOn,
+      valorUsd: m2.valorUsd, valorBrl: round2(m2.valorUsd * m2.cotacaoUsdBrl), status: null,
+    })
+  })
+  payments.sort((a, b) => (a.data < b.data ? 1 : -1))
+
+  const recentesPrimeiro = (a: CompSourceLine, b: CompSourceLine) => (b.data ?? '').localeCompare(a.data ?? '')
+  const doMes: CompSourceLine[] = [
+    ...semanasDoMes.map(w => ({ label: rotuloSemana(w), cliente: nomeCliente(w.dealId), data: w.paidOn, valorUsd: w.valorUsd, hint: 'recebida' })),
+    ...reunioesDoMes.map(m2 => ({ label: 'Reunião', cliente: mtgClient.get(m2.id) ?? null, data: m2.metOn, valorUsd: m2.valorUsd, hint: 'recebida' })),
+  ].sort(recentesPrimeiro)
+
+  const salarioLinhas: CompSourceLine[] = summary.salaryUsd > 0
+    ? [{ label: 'Salário fixo', cliente: null, data: `${monthKey}-01`, valorUsd: summary.salaryUsd,
+        hint: summary.salaryBrl > 0 ? `equivale a R$ ${summary.salaryBrl.toFixed(2)}` : null }]
+    : []
+
+  const comissaoDoMesUsd = round2(summary.weeksUsd + summary.meetingsUsd)
+  const label = `${MONTH_NAMES[mm - 1]} ${yy}`
+
+  const sources: CompSource[] = [
+    { key: 'salario', title: 'Salário fixo', description: `Salário vigente na competência de ${label}.`,
+      totalUsd: summary.salaryUsd, lines: salarioLinhas, emptyMessage: 'Nenhum salário fixo nesta competência.' },
+    { key: 'mesComissao', title: 'Comissão do mês', description: 'Semanas recebidas, bônus e reuniões que entraram neste mês.',
+      totalUsd: comissaoDoMesUsd, lines: doMes, emptyMessage: 'Nenhuma comissão entrou neste mês.' },
+    { key: 'mesTotal', title: 'Total do mês', description: 'Salário da competência somado à comissão recebida nela.',
+      totalUsd: summary.totalUsd, lines: [...salarioLinhas, ...doMes], emptyMessage: 'Nada lançado neste mês.' },
+  ]
+
+  return { key: monthKey, label, isCurrent, summary, payments, sources }
 }

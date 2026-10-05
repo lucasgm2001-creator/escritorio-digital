@@ -1,13 +1,14 @@
 'use client'
 
-import { useState } from 'react'
-import { Wallet, ChevronDown, Download } from 'lucide-react'
+import { useEffect, useState, useTransition } from 'react'
+import { Wallet, ChevronDown, ChevronLeft, ChevronRight, Download, FileText } from 'lucide-react'
 import { MetricCard } from '@/components/ui/MetricCard'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { usd, brl } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import { buildMyCompensationPdf } from '@/lib/commercial/my-compensation-pdf'
-import type { CompSource, MyCompensationView } from '@/server/services/MyCompensationService'
+import { getCompensationMonthAction } from './profile-actions'
+import type { CompMonthDetail, CompSource, MyCompensationView } from '@/server/services/MyCompensationService'
 import type { PendingClientLine } from '@/lib/commission/types'
 import type { CommissionType, PaymentRule } from '@/server/repositories/CompensationRepository'
 
@@ -25,14 +26,58 @@ function commissionText(c: { enabled: boolean; type: CommissionType; value: numb
 }
 const STATUS_LABEL: Record<string, string> = { em_andamento: 'Em andamento', concluido: 'Concluído', interrompido: 'Interrompido' }
 
+// Anda um mês para trás/frente numa chave 'YYYY-MM', sem Date — aritmética de calendário em fuso é a
+// origem clássica do "mês que pula".
+const shiftMonth = (key: string, delta: number): string => {
+  const [y, m] = key.split('-').map(Number)
+  const total = y * 12 + (m - 1) + delta
+  return `${Math.floor(total / 12)}-${String((total % 12) + 1).padStart(2, '0')}`
+}
+
 export function MinhaRemuneracao({ vm, workspace }: { vm: MyCompensationView; workspace: string }) {
   const [open, setOpen] = useState<string | null>(vm.months[0]?.key ?? null)
   // Card aberto: cada indicador mostra a PROCEDÊNCIA (as linhas que o compõem). Clicar de novo fecha.
   const [fonte, setFonte] = useState<string | null>(null)
   const [pdfLoading, setPdfLoading] = useState(false)
+
+  // NAVEGAÇÃO POR MÊS (COMP-MESES-001). `mesAtivo` null = mês corrente, servido direto pelo `vm` que já
+  // veio pronto — navegar não cobra nada de quem só quer ver o mês de hoje. Escolher outro mês busca a
+  // competência no servidor, pelo mesmo motor.
+  const mesCorrente = vm.monthRange?.last ?? null
+  const [mesKey, setMesKey] = useState<string | null>(null)
+  const [mes, setMes] = useState<CompMonthDetail | null>(null)
+  const [mesErro, setMesErro] = useState<string | null>(null)
+  const [carregando, startCarregar] = useTransition()
+
+  useEffect(() => {
+    if (!mesKey) { setMes(null); setMesErro(null); return }
+    let vivo = true
+    startCarregar(async () => {
+      const r = await getCompensationMonthAction(mesKey)
+      if (!vivo) return
+      if (!r.ok) { setMesErro(r.error); setMes(null); return }
+      setMesErro(null); setMes(r.mes)
+    })
+    return () => { vivo = false }
+  }, [mesKey])
+
+  const navegar = (delta: number) => {
+    const base = mesKey ?? mesCorrente
+    if (!base) return
+    const alvo = shiftMonth(base, delta)
+    if (vm.monthRange && (alvo < vm.monthRange.first || alvo > vm.monthRange.last)) return
+    // Voltar ao mês corrente limpa o estado em vez de buscá-lo: o `vm` já o tem completo, com os
+    // indicadores de hoje ("Receber esta semana", "Previsto") que a visão por competência não traz.
+    setMesKey(alvo === mesCorrente ? null : alvo)
+    setFonte(null)
+  }
+
+  const noPrimeiro = !!vm.monthRange && (mesKey ?? mesCorrente ?? '') <= vm.monthRange.first
+  const noUltimo = !mesKey
+
   const downloadPdf = async () => {
     setPdfLoading(true)
-    try { await buildMyCompensationPdf(vm, workspace) } finally { setPdfLoading(false) }
+    try { await buildMyCompensationPdf(vm, workspace, mes ?? undefined) } finally { setPdfLoading(false) }
   }
 
   if (!vm.hasComp) {
@@ -62,14 +107,48 @@ export function MinhaRemuneracao({ vm, workspace }: { vm: MyCompensationView; wo
         </div>
         <button type="button" onClick={downloadPdf} disabled={pdfLoading}
           className="inline-flex w-full sm:w-auto items-center justify-center gap-1.5 shrink-0 border border-bento-border text-bento-muted hover:border-lime hover:text-bento-text px-3 min-h-[42px] rounded-btn text-note font-medium transition-colors disabled:opacity-50">
-          <Download className="w-3.5 h-3.5" />{pdfLoading ? 'Gerando…' : 'Baixar PDF'}
+          {mes ? <FileText className="w-3.5 h-3.5" /> : <Download className="w-3.5 h-3.5" />}
+          {pdfLoading ? 'Gerando…' : mes ? `Relatório de ${mes.label}` : 'Gerar relatório'}
         </button>
       </div>
 
+      {/* NAVEGADOR DE MÊS (COMP-MESES-001). Antes a tela só mostrava o mês corrente: conferir o que entrou
+          em agosto exigia abrir o acordeão lá embaixo, que só traz o resumo. Agora a competência inteira —
+          indicadores, procedência e relatório — segue o mês escolhido. */}
+      {vm.monthRange && (
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="flex items-center gap-1">
+            <button type="button" onClick={() => navegar(-1)} disabled={noPrimeiro} aria-label="Mês anterior"
+              className="grid h-9 w-9 place-items-center rounded-btn border border-bento-border text-bento-muted transition-colors hover:border-lime hover:text-bento-text disabled:opacity-40 disabled:hover:border-bento-border">
+              <ChevronLeft className="h-4 w-4" />
+            </button>
+            <button type="button" onClick={() => navegar(1)} disabled={noUltimo} aria-label="Mês seguinte"
+              className="grid h-9 w-9 place-items-center rounded-btn border border-bento-border text-bento-muted transition-colors hover:border-lime hover:text-bento-text disabled:opacity-40 disabled:hover:border-bento-border">
+              <ChevronRight className="h-4 w-4" />
+            </button>
+          </div>
+          <p className="font-display text-sm font-bold capitalize text-bento-text">
+            {mes ? mes.label : 'Mês atual'}
+          </p>
+          {carregando && <span className="font-tech text-caption text-bento-muted">carregando…</span>}
+          {mes && (
+            <button type="button" onClick={() => { setMesKey(null); setFonte(null) }}
+              className="rounded-btn border border-bento-border px-2.5 py-1 font-tech text-caption text-bento-muted transition-colors hover:border-lime hover:text-bento-text">
+              Voltar ao mês atual
+            </button>
+          )}
+        </div>
+      )}
+
+      {mesErro && <p className="rounded-btn border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs text-red-300">{mesErro}</p>}
+
       {/* Indicadores (Parte 3) — cada card ABRE a procedência do próprio número (COMP-FONTES-001).
-          O valor exibido continua vindo pronto do servidor; a lista abaixo deriva das MESMAS fontes. */}
+          O valor exibido continua vindo pronto do servidor; a lista abaixo deriva das MESMAS fontes.
+          Num mês passado vêm só os indicadores de COMPETÊNCIA (salário, comissão do mês, total): "Receber
+          esta semana", "Previsto" e "Próximo pagamento" são perguntas sobre hoje e, exibidas sob o rótulo
+          de agosto, pareceriam histórico sem ser. */}
       <div className="grid grid-cols-1 min-[420px]:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4 gap-3">
-        {vm.sources.map(src => (
+        {(mes ? mes.sources : vm.sources).map(src => (
           <MetricCard
             key={src.key}
             title={src.title}
@@ -80,15 +159,28 @@ export function MinhaRemuneracao({ vm, workspace }: { vm: MyCompensationView; wo
             onClick={() => setFonte(f => f === src.key ? null : src.key)}
           />
         ))}
-        <MetricCard title="Próximo pagamento" value={vm.nextPayout?.date ?? '—'} size="sm" tone="muted"
-          subtitle={`${usd(vm.nextPayout?.totalUsd ?? 0)} previsto`} />
+        {!mes && (
+          <MetricCard title="Próximo pagamento" value={vm.nextPayout?.date ?? '—'} size="sm" tone="muted"
+            subtitle={`${usd(vm.nextPayout?.totalUsd ?? 0)} previsto`} />
+        )}
       </div>
 
-      {fonte && <SourcePanel src={vm.sources.find(x => x.key === fonte)!} onClose={() => setFonte(null)} />}
+      {mes && (
+        <p className="text-caption text-bento-dim">
+          Competência de {mes.label}{mes.summary.weeksCount === 0 && mes.summary.salaryUsd === 0 ? ' — nada lançado neste mês.' : '.'}
+          {' '}Indicadores de hoje ficam de fora: eles aparecem no mês atual.
+        </p>
+      )}
+
+      {(() => {
+        const lista = mes ? mes.sources : vm.sources
+        const sel = fonte ? lista.find(x => x.key === fonte) : null
+        return sel ? <SourcePanel src={sel} onClose={() => setFonte(null)} /> : null
+      })()}
 
       {/* Comissões pendentes — primeiras 4 semanas por cliente (SELLER-COMMISSION-PENDING-001). Reusa o motor:
           os números vêm prontos de vm.pending (pendingCommission → dealTotal). Só exibição, cards compactos. */}
-      {vm.pending.lines.length > 0 && (
+      {!mes && vm.pending.lines.length > 0 && (
         <div className="bento-fx p-4 sm:p-5 space-y-4">
           <div className="flex flex-col items-start gap-2 sm:flex-row sm:items-center sm:justify-between">
             <p className="font-tech text-label uppercase tracking-label text-bento-muted">Comissões pendentes · primeiras 4 semanas</p>
@@ -164,6 +256,16 @@ export function MinhaRemuneracao({ vm, workspace }: { vm: MyCompensationView; wo
                   </div>
                   <span className="text-sm font-semibold text-bento-text tabular-nums shrink-0">{usd(mo.summary.totalUsd)}</span>
                 </button>
+                {/* Liga o histórico ao navegador: daqui o mês abre em cima, com indicadores e relatório
+                    próprios, em vez de obrigar a contar cliques nas setas até chegar nele. */}
+                {mo.key !== mesCorrente && (
+                  <div className="border-t border-bento-border px-3.5 py-2">
+                    <button type="button" onClick={() => { setMesKey(mo.key); setFonte(null); setOpen(null) }}
+                      className="font-tech text-caption text-bento-muted underline-offset-2 transition-colors hover:text-lime-fg hover:underline">
+                      Abrir {mo.label} nos indicadores ↑
+                    </button>
+                  </div>
+                )}
                 {isOpen && (
                   <div className="border-t border-bento-border divide-y divide-bento-border/60">
                     {mo.payments.length === 0 ? (
