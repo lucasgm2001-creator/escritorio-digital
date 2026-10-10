@@ -58,3 +58,25 @@ export async function closeStaleLeadTasksAction(leadId: string, keepTaskId: stri
   if (error) return { ok: false, fechadas: 0, error: 'Não foi possível fechar as duplicadas.' }
   return { ok: true, fechadas: (data ?? []).length }
 }
+
+/** Encerra um lote de tarefas do próprio usuário. Base do mutirão de atrasados. */
+export async function closeTasksBatchAction(ids: string[]): Promise<{ ok: boolean; fechadas: number; error?: string }> {
+  const context = await getRequestContext()
+  if (!context?.activeTeamId) return { ok: false, fechadas: 0, error: 'Sessão expirada. Entre novamente.' }
+  const limpos = [...new Set(ids)].filter(id => UUID.test(id))
+  if (limpos.length === 0) return { ok: true, fechadas: 0 }
+  // Teto por chamada: a UI manda o que o usuário revisou na tela, e um lote gigante vindo de uma chamada
+  // forjada encerraria a agenda inteira de uma vez. 300 cobre com folga o maior mutirão real (112).
+  if (limpos.length > 300) return { ok: false, fechadas: 0, error: 'Lote grande demais. Encerre em partes.' }
+
+  const supabase = createClient()
+  // Só tarefas DO PRÓPRIO usuário e ainda abertas. Concluída em vez de apagada: a tarefa existiu, e o
+  // histórico de "Concluídas" é o registro de que foi encerrada no mutirão.
+  const { data, error } = await supabase.from('tasks')
+    .update({ done: true, completed_at: new Date().toISOString() })
+    .eq('user_id', context.user.id).eq('team_id', context.activeTeamId)
+    .eq('done', false).in('id', limpos)
+    .select('id')
+  if (error) return { ok: false, fechadas: 0, error: 'Não foi possível encerrar as tarefas.' }
+  return { ok: true, fechadas: (data ?? []).length }
+}

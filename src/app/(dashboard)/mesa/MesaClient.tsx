@@ -15,7 +15,7 @@ import { createClient } from '@/lib/supabase/client'
 import { useRealtimeRows } from '@/lib/hooks/useRealtimeRows'
 import { useToast } from '@/components/ui/toast'
 import { updateTaskAction } from '../tarefas/task-write-actions'
-import { toggleLeadFocusAction, closeStaleLeadTasksAction } from './focus-actions'
+import { toggleLeadFocusAction, closeStaleLeadTasksAction, closeTasksBatchAction } from './focus-actions'
 import { useTasksState } from '../tarefas/useTasksState'
 import { TaskModal, type TaskPrefill } from '../tarefas/TaskModal'
 import type { LinkOption, Task } from '../tarefas/types'
@@ -25,6 +25,7 @@ import { NEXT_ACTION_LABEL, TEMPERATURE_LABEL, isNextAction } from '@/lib/commer
 import { inferTaskKind } from '@/lib/tasks/task-kind'
 import { ObservationsBox } from '@/components/observations/ObservationsBox'
 import { RelatorioPanel } from './RelatorioPanel'
+import { LimparAtrasados } from './LimparAtrasados'
 
 export interface MesaLead {
   id: string
@@ -49,7 +50,7 @@ export interface MesaLead {
   situation_updated_at?: string | null
 }
 
-type Filter = 'hoje' | 'atrasado' | 'acompanhando' | 'reunioes' | 'leads' | 'aguardando' | 'proximas' | 'atencao' | 'concluidas'
+type Filter = 'hoje' | 'atrasado' | 'acompanhando' | 'reunioes' | 'leads' | 'aguardando' | 'proximas' | 'semplano' | 'concluidas'
 type Interaction = { id: string; type: string; note: string | null; created_by_name: string | null; created_at: string }
 
 const TERMINAL = new Set<LeadStatus>(['fechado', 'perdido', 'negocio_futuro', 'lixeira'])
@@ -124,6 +125,8 @@ export function MesaClient({ initialTasks, initialLeads, initialFocus, linkOptio
   const [interactionsLoading, setInteractionsLoading] = useState(false)
   const [busyTaskId, setBusyTaskId] = useState<string | null>(null)
   const [busca, setBusca] = useState('')
+  const [limpando, setLimpando] = useState(false)
+  const [limpezaBusy, setLimpezaBusy] = useState(false)
   const [focus, setFocus] = useState<Set<string>>(() => new Set(initialFocus))
   useEffect(() => setFocus(new Set(initialFocus)), [initialFocus])
 
@@ -212,7 +215,19 @@ export function MesaClient({ initialTasks, initialLeads, initialFocus, linkOptio
   }, [hoje, atrasado, proximas])
   const doneTasks = useMemo(() => tasks.filter(task => task.done).sort((a, b) => (b.completed_at ?? b.updated_at).localeCompare(a.completed_at ?? a.updated_at)).slice(0, 30), [tasks])
   const waitingLeads = useMemo(() => leads.filter(lead => !TERMINAL.has(lead.status) && isWaiting(lead)), [leads])
-  const attentionLeads = useMemo(() => leads.filter(lead => needsAttention(lead, today)), [leads, today])
+  // SEM PLANO (MESA-SEMPLANO-001). A aba se chamava "Precisam de ação" e marcava 199 — mas 156 daqueles
+  // (78%) eram leads que nunca tiveram próximo passo definido, não leads atrasados. O rótulo prometia uma
+  // lista de ação e entregava o backlog de prospecção inteiro, com um número que assusta e não orienta.
+  //
+  // Agora mede o que o nome diz: lead sem próximo contato, sem próxima ação E SEM TAREFA ABERTA. A última
+  // condição é a que faltava — ter tarefa marcada É ter plano, e esses leads já aparecem em Hoje, Atrasado
+  // ou Próximas. Sem ela, a mesma pessoa era contada em duas abas com números que nunca batiam.
+  const leadsComTarefa = useMemo(() =>
+    new Set(pending.filter(t => t.linked_type === 'lead' && t.linked_id).map(t => t.linked_id as string)),
+    [pending])
+  const semPlanoLeads = useMemo(() => leads.filter(lead =>
+    !TERMINAL.has(lead.status) && !isWaiting(lead) && !leadsComTarefa.has(lead.id) &&
+    !lead.next_contact && (!lead.next_action || lead.next_action === 'nenhuma')), [leads, leadsComTarefa])
   // Exclui quem já aparece como TAREFA de hoje: o lead chegou hoje e alguém já agendou algo para ele, então
   // mostrá-lo também como "lead novo" repetiria a mesma pessoa na mesma aba — a duplicação que esta
   // reorganização existe para acabar.
@@ -275,7 +290,7 @@ export function MesaClient({ initialTasks, initialLeads, initialFocus, linkOptio
     { id: 'leads', label: 'Leads', Icon: UserRound, count: allLeads.length },
     { id: 'aguardando', label: 'Aguardando', Icon: Clock3, count: waitingLeads.length },
     { id: 'proximas', label: 'Próximas', Icon: CalendarDays, count: upcomingTasks.length },
-    { id: 'atencao', label: 'Precisam de ação', Icon: AlertTriangle, count: attentionLeads.length },
+    { id: 'semplano', label: 'Sem plano', Icon: CircleDot, count: semPlanoLeads.length },
     { id: 'concluidas', label: 'Concluídas', Icon: CheckCircle2, count: doneTasks.length },
   ]
 
@@ -303,7 +318,20 @@ export function MesaClient({ initialTasks, initialLeads, initialFocus, linkOptio
   // "Hoje" mostra as duas coisas: o que vence hoje E quem chegou hoje — leads novos são trabalho do dia
   // tanto quanto uma tarefa agendada, e antes só apareciam se alguém criasse tarefa para eles.
   const leadRows = filter === 'hoje' ? newLeadsToday : filter === 'acompanhando' ? focusLeads
-    : filter === 'leads' ? allLeads : filter === 'aguardando' ? waitingLeads : filter === 'atencao' ? attentionLeads : []
+    : filter === 'leads' ? allLeads : filter === 'aguardando' ? waitingLeads : filter === 'semplano' ? semPlanoLeads : []
+
+  // Mutirão de atrasados: a tela devolve só o que a pessoa marcou e confirmou.
+  async function encerrarLote(ids: string[]) {
+    if (ids.length === 0) return
+    setLimpezaBusy(true)
+    const r = await closeTasksBatchAction(ids)
+    setLimpezaBusy(false)
+    if (!r.ok) { toast({ type: 'error', message: r.error ?? 'Não foi possível encerrar.' }); return }
+    const fechadas = new Set(ids)
+    setTasks(atual => atual.map(t => fechadas.has(t.id) ? { ...t, done: true } : t))
+    setLimpando(false)
+    toast({ type: 'success', message: `${r.fechadas} tarefa(s) encerrada(s).` })
+  }
 
   function selectTask(task: Task) {
     setSelectedTaskId(task.id)
@@ -463,9 +491,17 @@ export function MesaClient({ initialTasks, initialLeads, initialFocus, linkOptio
                         : `${taskRows.length || leadRows.length} ${taskRows.length + leadRows.length === 1 ? 'item' : 'itens'}`}
                     </p>
                   </div>
-                  <button type="button" onClick={() => router.refresh()} aria-label="Atualizar" className="p-2 text-bento-muted hover:text-bento-text rounded-btn hover:bg-bento-bg">
-                    <RefreshCw className="w-4 h-4" />
-                  </button>
+                  <div className="flex items-center gap-1.5">
+                    {filter === 'atrasado' && overdueTasks.length > 0 && !buscando && (
+                      <button type="button" onClick={() => setLimpando(true)}
+                        className="rounded-btn border border-bento-border px-2.5 py-1.5 font-tech text-[11px] text-bento-muted transition-colors hover:border-lime hover:text-bento-text">
+                        Limpar atrasados
+                      </button>
+                    )}
+                    <button type="button" onClick={() => router.refresh()} aria-label="Atualizar" className="p-2 text-bento-muted hover:text-bento-text rounded-btn hover:bg-bento-bg">
+                      <RefreshCw className="w-4 h-4" />
+                    </button>
+                  </div>
                 </div>
 
                 {/* BUSCA DE LEAD (MESA-BUSCA-001). Procura em TODOS os leads carregados, por nome ou empresa,
@@ -518,7 +554,7 @@ export function MesaClient({ initialTasks, initialLeads, initialFocus, linkOptio
                       ))}
                       {leadRows.map(lead => (
                         <LeadRow key={lead.id} lead={lead} active={selectedLeadId === lead.id}
-                          mostrarEmpresa={filter === 'leads' || filter === 'acompanhando' || filter === 'hoje'}
+                          mostrarEmpresa={filter !== 'aguardando'}
                           noRadar={focus.has(lead.id)} onToggleFocus={() => toggleFocus(lead.id)}
                           onSelect={() => selectLead(lead)} />
                       ))}
@@ -548,6 +584,11 @@ export function MesaClient({ initialTasks, initialLeads, initialFocus, linkOptio
           </>
         )}
       </div>
+
+      {limpando && (
+        <LimparAtrasados tasks={overdueTasks} today={today} busy={limpezaBusy}
+          onFechar={() => setLimpando(false)} onConfirmar={encerrarLote} />
+      )}
 
       {modalOpen && (
         <TaskModal key={modalKey} onClose={() => setModalOpen(false)} onSaved={handleSaved} currentUser={currentUser}
@@ -817,10 +858,11 @@ function EmptyFilter({ filter }: { filter: Filter }) {
   const messages: Record<Filter, string> = {
     hoje: 'Nada para hoje: nenhuma tarefa vence hoje e nenhum lead novo chegou.',
     atrasado: 'Nada atrasado. Dia em ordem.',
+    semplano: 'Todo lead em jogo tem um próximo passo definido.',
     acompanhando: 'Nenhum lead no radar. Use a estrela para marcar os que você está trabalhando.',
     reunioes: 'Nenhuma reunião pendente.', leads: 'Nenhum lead em andamento.',
     aguardando: 'Nenhum lead aguardando retorno.',
-    proximas: 'Nenhuma próxima ação organizada.', atencao: 'Nenhuma ação vencida ou sem data.', concluidas: 'Nenhuma tarefa concluída recentemente.',
+    proximas: 'Nenhuma próxima ação organizada.', concluidas: 'Nenhuma tarefa concluída recentemente.',
   }
   return <div className="py-16 text-center"><CheckCircle2 className="w-8 h-8 text-bento-muted mx-auto mb-3" /><p className="text-sm text-bento-dim">{messages[filter]}</p></div>
 }
