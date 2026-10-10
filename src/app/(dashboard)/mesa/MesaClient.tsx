@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import {
-  AlertTriangle, CalendarDays, Check, CheckCircle2, ChevronRight, CircleDot, Clock3,
+  AlertTriangle, CalendarDays, Check, CheckCircle2, ChevronRight, CircleDot, Clock3, Star,
   ExternalLink, FileText, Mail, MessageCircle, Phone, Plus, RefreshCw, Search, UserRound, Video, X,
   type LucideIcon,
 } from 'lucide-react'
@@ -15,6 +15,7 @@ import { createClient } from '@/lib/supabase/client'
 import { useRealtimeRows } from '@/lib/hooks/useRealtimeRows'
 import { useToast } from '@/components/ui/toast'
 import { updateTaskAction } from '../tarefas/task-write-actions'
+import { toggleLeadFocusAction, closeStaleLeadTasksAction } from './focus-actions'
 import { useTasksState } from '../tarefas/useTasksState'
 import { TaskModal, type TaskPrefill } from '../tarefas/TaskModal'
 import type { LinkOption, Task } from '../tarefas/types'
@@ -39,6 +40,7 @@ export interface MesaLead {
   last_contact_at?: string | null
   stage_changed_at?: string | null
   created_at: string
+  received_at?: string | null
   current_situation?: string | null
   last_action?: string | null
   next_action?: string | null
@@ -47,7 +49,7 @@ export interface MesaLead {
   situation_updated_at?: string | null
 }
 
-type Filter = 'hoje' | 'reunioes' | 'leads' | 'aguardando' | 'proximas' | 'atencao' | 'concluidas'
+type Filter = 'hoje' | 'atrasado' | 'acompanhando' | 'reunioes' | 'leads' | 'aguardando' | 'proximas' | 'atencao' | 'concluidas'
 type Interaction = { id: string; type: string; note: string | null; created_by_name: string | null; created_at: string }
 
 const TERMINAL = new Set<LeadStatus>(['fechado', 'perdido', 'negocio_futuro', 'lixeira'])
@@ -94,9 +96,10 @@ function needsAttention(lead: MesaLead, today: string): boolean {
     (!lead.next_contact && (!lead.next_action || lead.next_action === 'nenhuma'))
 }
 
-export function MesaClient({ initialTasks, initialLeads, linkOptions, currentUser }: {
+export function MesaClient({ initialTasks, initialLeads, initialFocus, linkOptions, currentUser }: {
   initialTasks: Task[]
   initialLeads: MesaLead[]
+  initialFocus: string[]
   linkOptions: LinkOption[]
   currentUser: { id: string; name: string }
 }) {
@@ -121,10 +124,46 @@ export function MesaClient({ initialTasks, initialLeads, linkOptions, currentUse
   const [interactionsLoading, setInteractionsLoading] = useState(false)
   const [busyTaskId, setBusyTaskId] = useState<string | null>(null)
   const [busca, setBusca] = useState('')
+  const [focus, setFocus] = useState<Set<string>>(() => new Set(initialFocus))
+  useEffect(() => setFocus(new Set(initialFocus)), [initialFocus])
 
   const today = ymd(new Date())
-  const pending = useMemo(() => tasks.filter(task => !task.done).sort(taskSort), [tasks])
-  const todayTasks = useMemo(() => pending.filter(task => !!task.due_date && task.due_date <= today), [pending, today])
+  const pendingRaw = useMemo(() => tasks.filter(task => !task.done).sort(taskSort), [tasks])
+
+  // UMA TAREFA POR LEAD (MESA-DEDUP-001). O mesmo lead acumulava 2 ou 3 tarefas abertas: uma antiga que
+  // ficou para trás e a nova criada no contato seguinte ("Ligar para Cesar [17/09]" e "Ligar novamente:
+  // Cesar [12/10]"). Eram 137 tarefas para 119 leads — 18 linhas de resíduo competindo pela mesma pessoa.
+  //
+  // Vale a MAIS RECENTE (created_at), porque é a última decisão tomada sobre aquele lead. As anteriores
+  // não somem caladas: a linha mostra "+N anteriores" e dá para encerrá-las de uma vez.
+  const supersededByTask = useMemo(() => {
+    const porLead = new Map<string, Task[]>()
+    for (const task of pendingRaw) {
+      if (task.linked_type !== 'lead' || !task.linked_id) continue
+      const lista = porLead.get(task.linked_id) ?? []
+      lista.push(task)
+      porLead.set(task.linked_id, lista)
+    }
+    const vencedora = new Map<string, Task>()
+    const antigas = new Map<string, Task[]>()
+    for (const [leadId, lista] of porLead) {
+      const ordenada = [...lista].sort((a, b) => (b.created_at ?? '').localeCompare(a.created_at ?? ''))
+      vencedora.set(leadId, ordenada[0])
+      antigas.set(ordenada[0].id, ordenada.slice(1))
+    }
+    return { vencedora, antigas }
+  }, [pendingRaw])
+
+  // Lista de trabalho já deduplicada: tarefa sem lead passa direto; com lead, só a vencedora.
+  const pending = useMemo(() => pendingRaw.filter(task =>
+    task.linked_type !== 'lead' || !task.linked_id ||
+    supersededByTask.vencedora.get(task.linked_id)?.id === task.id), [pendingRaw, supersededByTask])
+
+  // HOJE = só o que é de hoje (MESA-HOJE-001). Antes era `due_date <= today`, então as 131 atrasadas
+  // entravam aqui e a aba abria com 133 itens — uma pilha, não uma lista de trabalho. Atrasado ganhou
+  // aba própria para continuar visível sem afogar o dia.
+  const todayTasks = useMemo(() => pending.filter(task => task.due_date === today), [pending, today])
+  const overdueTasks = useMemo(() => pending.filter(task => !!task.due_date && task.due_date < today), [pending, today])
   const meetingTasks = useMemo(() => pending.filter(task => inferTaskKind(task.title, task.kind) === 'reuniao'), [pending])
   const upcomingTasks = useMemo(() => pending.filter(task => !task.due_date || task.due_date > today), [pending, today])
   const doneTasks = useMemo(() => tasks.filter(task => task.done).sort((a, b) => (b.completed_at ?? b.updated_at).localeCompare(a.completed_at ?? a.updated_at)).slice(0, 30), [tasks])
@@ -133,6 +172,23 @@ export function MesaClient({ initialTasks, initialLeads, linkOptions, currentUse
   // TODOS os leads em jogo, para percorrer sem precisar digitar nada. Fora os terminais (fechado, perdido,
   // negócio futuro): numa lista de navegação eles são ruído — quem procura um fechado usa a busca, que os
   // inclui. Ordem: quem precisa de ação primeiro, depois por score, que é a ordem em que vale ligar.
+  // Leads que CHEGARAM HOJE. received_at é a data de entrada (o webhook do Magnetic a preenche; está
+  // presente em 100% da base), com created_at de reserva para qualquer lead criado à mão sem ela.
+  const chegouHoje = (lead: MesaLead): boolean =>
+    (lead.received_at ?? lead.created_at ?? '').slice(0, 10) === today
+  const newLeadsToday = useMemo(() => leads.filter(lead => !TERMINAL.has(lead.status) && chegouHoje(lead)),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [leads, today])
+
+  // Radar pessoal: a ordem segue a urgência real — quem precisa de ação primeiro, depois quem está parado
+  // há mais tempo. É a aba para onde o lead vai DEPOIS do contato, para não se perder entre os atrasados.
+  const focusLeads = useMemo(() => leads
+    .filter(lead => focus.has(lead.id))
+    .sort((a, b) =>
+      (needsAttention(b, today) ? 1 : 0) - (needsAttention(a, today) ? 1 : 0) ||
+      (daysSince(b.last_contact_at) ?? 0) - (daysSince(a.last_contact_at) ?? 0)),
+    [leads, focus, today])
+
   const allLeads = useMemo(() => {
     const vivos = leads.filter(lead => !TERMINAL.has(lead.status))
     return [...vivos].sort((a, b) =>
@@ -161,7 +217,9 @@ export function MesaClient({ initialTasks, initialLeads, linkOptions, currentUse
   }, [selectedLeadId])
 
   const filters: { id: Filter; label: string; Icon: LucideIcon; count: number }[] = [
-    { id: 'hoje', label: 'Hoje', Icon: CircleDot, count: todayTasks.length },
+    { id: 'hoje', label: 'Hoje', Icon: CircleDot, count: todayTasks.length + newLeadsToday.length },
+    { id: 'atrasado', label: 'Atrasado', Icon: AlertTriangle, count: overdueTasks.length },
+    { id: 'acompanhando', label: 'Acompanhando', Icon: Star, count: focusLeads.length },
     { id: 'reunioes', label: 'Reuniões', Icon: Video, count: meetingTasks.length },
     { id: 'leads', label: 'Leads', Icon: UserRound, count: allLeads.length },
     { id: 'aguardando', label: 'Aguardando', Icon: Clock3, count: waitingLeads.length },
@@ -189,12 +247,41 @@ export function MesaClient({ initialTasks, initialLeads, linkOptions, currentUse
   }, [leads, termo])
   const buscando = termo.length > 0
 
-  const taskRows = filter === 'hoje' ? todayTasks : filter === 'reunioes' ? meetingTasks : filter === 'proximas' ? upcomingTasks : filter === 'concluidas' ? doneTasks : []
-  const leadRows = filter === 'leads' ? allLeads : filter === 'aguardando' ? waitingLeads : filter === 'atencao' ? attentionLeads : []
+  const taskRows = filter === 'hoje' ? todayTasks : filter === 'atrasado' ? overdueTasks
+    : filter === 'reunioes' ? meetingTasks : filter === 'proximas' ? upcomingTasks : filter === 'concluidas' ? doneTasks : []
+  // "Hoje" mostra as duas coisas: o que vence hoje E quem chegou hoje — leads novos são trabalho do dia
+  // tanto quanto uma tarefa agendada, e antes só apareciam se alguém criasse tarefa para eles.
+  const leadRows = filter === 'hoje' ? newLeadsToday : filter === 'acompanhando' ? focusLeads
+    : filter === 'leads' ? allLeads : filter === 'aguardando' ? waitingLeads : filter === 'atencao' ? attentionLeads : []
 
   function selectTask(task: Task) {
     setSelectedTaskId(task.id)
     setSelectedLeadId(task.linked_type === 'lead' ? task.linked_id ?? null : null)
+  }
+
+  // Radar: otimista, com rollback. Marcar um lead no meio de uma ligação não pode esperar round-trip.
+  async function toggleFocus(leadId: string) {
+    const ligar = !focus.has(leadId)
+    setFocus(atual => { const proximo = new Set(atual); if (ligar) proximo.add(leadId); else proximo.delete(leadId); return proximo })
+    const r = await toggleLeadFocusAction(leadId, ligar)
+    if (!r.ok) {
+      setFocus(atual => { const proximo = new Set(atual); if (ligar) proximo.delete(leadId); else proximo.add(leadId); return proximo })
+      toast({ type: 'error', message: r.error })
+    }
+  }
+
+  // Encerra as tarefas antigas do lead, mantendo a atual. É a saída para o resíduo que a dedupe revela.
+  async function resolverDuplicadas(task: Task) {
+    if (!task.linked_id) return
+    const antigas = supersededByTask.antigas.get(task.id) ?? []
+    if (antigas.length === 0) return
+    setBusyTaskId(task.id)
+    const r = await closeStaleLeadTasksAction(task.linked_id, task.id)
+    setBusyTaskId(null)
+    if (!r.ok) { toast({ type: 'error', message: r.error ?? 'Não foi possível fechar as duplicadas.' }); return }
+    const ids = new Set(antigas.map(t => t.id))
+    setTasks(atual => atual.map(t => ids.has(t.id) ? { ...t, done: true } : t))
+    toast({ type: 'success', message: `${r.fechadas} tarefa(s) antiga(s) encerrada(s).` })
   }
 
   function selectLead(lead: MesaLead) {
@@ -285,10 +372,16 @@ export function MesaClient({ initialTasks, initialLeads, linkOptions, currentUse
         ) : (
           <>
             <section className="grid grid-cols-2 lg:grid-cols-4 gap-2.5" aria-label="Resumo do dia">
-              <SummaryCard label="Para hoje" value={todayTasks.length} hint={todayTasks.some(task => task.due_date && task.due_date < today) ? 'inclui atrasadas' : 'em ordem'} tone="default" />
+              {/* O topo passou a separar HOJE de ATRASADO. Antes "Para hoje" somava as atrasadas e marcava
+                  133 — um número que assusta e não diz o que fazer. Agora o dia é o dia, e o passivo tem
+                  o próprio lugar. "Acompanhando" entra no lugar de "Precisam de ação": é a lista curta
+                  que a pessoa mantém, não a contagem de 200 que ninguém consegue atacar. */}
+              <SummaryCard label="Para hoje" value={todayTasks.length + newLeadsToday.length}
+                hint={newLeadsToday.length ? `${newLeadsToday.length} lead(s) novo(s)` : 'tarefas de hoje'} tone="default" />
+              <SummaryCard label="Atrasado" value={overdueTasks.length} hint="de dias anteriores"
+                tone={overdueTasks.length ? 'warning' : 'muted'} />
               <SummaryCard label="Reuniões" value={meetingTasks.filter(task => task.due_date === today).length} hint="hoje" tone="default" />
-              <SummaryCard label="Aguardando" value={waitingLeads.length} hint="retorno do lead" tone="muted" />
-              <SummaryCard label="Precisam de ação" value={attentionLeads.length} hint="vencida ou ausente" tone={attentionLeads.length ? 'warning' : 'muted'} />
+              <SummaryCard label="Acompanhando" value={focusLeads.length} hint="no seu radar" tone="muted" />
             </section>
 
             <div className="grid grid-cols-1 xl:grid-cols-[184px_minmax(0,1fr)_360px] gap-3 items-start">
@@ -359,17 +452,23 @@ export function MesaClient({ initialTasks, initialLeads, linkOptions, currentUse
                       </p>
                     ) : resultados.map(lead => (
                       <LeadRow key={lead.id} lead={lead} active={selectedLeadId === lead.id}
-                        mostrarEmpresa onSelect={() => selectLead(lead)} />
+                        mostrarEmpresa noRadar={focus.has(lead.id)} onToggleFocus={() => toggleFocus(lead.id)}
+                        onSelect={() => selectLead(lead)} />
                     ))
                   ) : (
                     <>
                       {taskRows.map(task => (
-                        <TaskRow key={task.id} task={task} active={selectedTaskId === task.id} today={today}
-                          busy={busyTaskId === task.id} onSelect={() => selectTask(task)} onToggle={() => toggleTask(task)} onEdit={() => openEdit(task)} />
+                        <TaskRowComDuplicadas key={task.id} task={task} active={selectedTaskId === task.id} today={today}
+                          busy={busyTaskId === task.id}
+                          antigas={(supersededByTask.antigas.get(task.id) ?? []).length}
+                          onResolver={() => resolverDuplicadas(task)}
+                          onSelect={() => selectTask(task)} onToggle={() => toggleTask(task)} onEdit={() => openEdit(task)} />
                       ))}
                       {leadRows.map(lead => (
                         <LeadRow key={lead.id} lead={lead} active={selectedLeadId === lead.id}
-                          mostrarEmpresa={filter === 'leads'} onSelect={() => selectLead(lead)} />
+                          mostrarEmpresa={filter === 'leads' || filter === 'acompanhando' || filter === 'hoje'}
+                          noRadar={focus.has(lead.id)} onToggleFocus={() => toggleFocus(lead.id)}
+                          onSelect={() => selectLead(lead)} />
                       ))}
                       {taskRows.length === 0 && leadRows.length === 0 && <EmptyFilter filter={filter} />}
                     </>
@@ -380,6 +479,7 @@ export function MesaClient({ initialTasks, initialLeads, linkOptions, currentUse
               <aside className="bento-fx xl:sticky xl:top-3 min-w-0">
                 {selectedLead ? (
                   <LeadContext lead={selectedLead} task={selectedTask} interactions={interactions} loading={interactionsLoading}
+                    noRadar={focus.has(selectedLead.id)} onToggleFocus={() => toggleFocus(selectedLead.id)}
                     onNewTask={() => openNew(selectedLead)} onEditTask={selectedTask ? () => openEdit(selectedTask) : undefined}
                     onSituation={() => setSituation({ lead: selectedLead, taskId: null })} />
                 ) : selectedTask ? (
@@ -441,9 +541,12 @@ function SummaryCard({ label, value, hint, tone }: { label: string; value: numbe
   )
 }
 
-function TaskRow({ task, active, today, busy, onSelect, onToggle, onEdit }: {
-  task: Task; active: boolean; today: string; busy: boolean; onSelect: () => void; onToggle: () => void; onEdit: () => void
-}) {
+type TaskRowProps = {
+  task: Task; active: boolean; today: string; busy: boolean
+  onSelect: () => void; onToggle: () => void; onEdit: () => void
+}
+
+function TaskRow({ task, active, today, busy, onSelect, onToggle, onEdit }: TaskRowProps) {
   const overdue = !task.done && !!task.due_date && task.due_date < today
   const kind = inferTaskKind(task.title, task.kind)
   return (
@@ -475,31 +578,70 @@ function TaskRow({ task, active, today, busy, onSelect, onToggle, onEdit }: {
   )
 }
 
+// Linha de tarefa com o aviso de resíduo: este lead tem N tarefas abertas mais antigas que esta, que a
+// lista escondeu para não mostrar a mesma pessoa três vezes. Fica visível e com saída em um clique —
+// esconder sem dizer seria trocar um problema de ruído por um de confiança.
+function TaskRowComDuplicadas({ antigas = 0, onResolver, ...props }: TaskRowProps & { antigas?: number; onResolver?: () => void }) {
+  return (
+    <div className="space-y-0">
+      <TaskRow {...props} />
+      {antigas > 0 && onResolver && (
+        <div className="-mt-1 flex flex-wrap items-center gap-2 rounded-b-bento border border-t-0 border-bento-border bg-bento-bg/60 px-3 py-1.5">
+          <span className="font-tech text-[10px] text-bento-muted">
+            +{antigas} tarefa(s) mais antiga(s) deste lead, ocultas
+          </span>
+          <button type="button" onClick={onResolver} disabled={props.busy}
+            className="font-tech text-[10px] text-lime-fg underline-offset-2 hover:underline disabled:opacity-50">
+            encerrar antigas
+          </button>
+        </div>
+      )}
+    </div>
+  )
+}
+
 // `mostrarEmpresa`: nos resultados de busca a segunda linha passa a ser EMPRESA · ESTÁGIO em vez da
 // situação escrita. Quem busca por empresa precisa ver a empresa para confirmar que achou o lead certo —
 // e o estágio diz onde ele está, inclusive quando é um fechado ou perdido.
-function LeadRow({ lead, active, mostrarEmpresa, onSelect }: { lead: MesaLead; active: boolean; mostrarEmpresa?: boolean; onSelect: () => void }) {
+function LeadRow({ lead, active, mostrarEmpresa, noRadar, onToggleFocus, onSelect }: {
+  lead: MesaLead; active: boolean; mostrarEmpresa?: boolean; noRadar?: boolean
+  onToggleFocus?: () => void; onSelect: () => void
+}) {
   const temperature = lead.temperature ? TEMPERATURE_LABEL[lead.temperature as keyof typeof TEMPERATURE_LABEL] ?? lead.temperature : 'Sem avaliação'
   const estagio = STATUS_LABEL.get(lead.status) || lead.status
   const segundaLinha = mostrarEmpresa
     ? [lead.company, estagio].filter(Boolean).join(' · ')
     : (lead.current_situation || estagio)
+  // A estrela é irmã do botão da linha, não filha: <button> dentro de <button> é HTML inválido e o
+  // clique de dentro viraria seleção do lead.
   return (
-    <button type="button" onClick={onSelect} className={cn('w-full flex items-center gap-3 rounded-bento border p-3 text-left transition-colors',
+    <div className={cn('flex items-center gap-2 rounded-bento border pr-2 transition-colors',
       active ? 'border-lime/50 bg-lime/[0.07]' : 'border-bento-border bg-bento-bg/35 hover:border-bento-dim/60')}>
-      <span className={cn('w-2 h-2 rounded-full shrink-0', HOT.has(lead.temperature ?? '') ? 'bg-lime' : COLD.has(lead.temperature ?? '') ? 'bg-blue-400' : 'bg-amber-400')} />
-      <span className="min-w-0 flex-1">
-        <span className="block text-sm font-medium text-bento-text truncate">{lead.name}</span>
-        <span className="block text-[11px] text-bento-muted truncate">{segundaLinha}</span>
-      </span>
-      <span className="text-[10px] text-bento-muted shrink-0">{temperature}</span>
-      <ChevronRight className="w-4 h-4 text-bento-muted" />
-    </button>
+      <button type="button" onClick={onSelect} className="flex min-w-0 flex-1 items-center gap-3 p-3 text-left">
+        <span className={cn('w-2 h-2 rounded-full shrink-0', HOT.has(lead.temperature ?? '') ? 'bg-lime' : COLD.has(lead.temperature ?? '') ? 'bg-blue-400' : 'bg-amber-400')} />
+        <span className="min-w-0 flex-1">
+          <span className="block text-sm font-medium text-bento-text truncate">{lead.name}</span>
+          <span className="block text-[11px] text-bento-muted truncate">{segundaLinha}</span>
+        </span>
+        <span className="text-[10px] text-bento-muted shrink-0">{temperature}</span>
+      </button>
+      {onToggleFocus && (
+        <button type="button" onClick={onToggleFocus} aria-pressed={!!noRadar}
+          aria-label={noRadar ? `Tirar ${lead.name} do radar` : `Acompanhar ${lead.name}`}
+          title={noRadar ? 'Tirar do radar' : 'Acompanhar este lead'}
+          className={cn('grid h-8 w-8 flex-none place-items-center rounded-btn transition-colors',
+            noRadar ? 'text-lime-fg hover:bg-lime/10' : 'text-bento-muted hover:text-lime-fg hover:bg-bento-bg')}>
+          <Star className={cn('h-4 w-4', noRadar && 'fill-current')} />
+        </button>
+      )}
+      <ChevronRight className="w-4 h-4 text-bento-muted flex-none" />
+    </div>
   )
 }
 
-function LeadContext({ lead, task, interactions, loading, onNewTask, onEditTask, onSituation }: {
+function LeadContext({ lead, task, interactions, loading, noRadar, onToggleFocus, onNewTask, onEditTask, onSituation }: {
   lead: MesaLead; task: Task | null; interactions: Interaction[]; loading: boolean
+  noRadar: boolean; onToggleFocus: () => void
   onNewTask: () => void; onEditTask?: () => void; onSituation: () => void
 }) {
   const stopped = daysSince(lead.last_contact_at ?? lead.stage_changed_at ?? lead.created_at)
@@ -515,6 +657,14 @@ function LeadContext({ lead, task, interactions, loading, onNewTask, onEditTask,
             <h2 className="font-display font-semibold text-bento-text truncate">{lead.name}</h2>
             <p className="text-xs text-bento-muted truncate">{lead.company || 'Sem empresa informada'}</p>
           </div>
+          {/* A estrela fica AQUI, no painel aberto: é o momento em que se decide acompanhar — logo depois
+              de falar com a pessoa. Ter que voltar para a lista para marcar seria a hora de desistir. */}
+          <button type="button" onClick={onToggleFocus} aria-pressed={noRadar}
+            aria-label={noRadar ? 'Tirar do radar' : 'Acompanhar este lead'}
+            title={noRadar ? 'Acompanhando — clique para tirar do radar' : 'Acompanhar este lead'}
+            className={cn('p-2 rounded-btn transition-colors', noRadar ? 'text-lime-fg hover:bg-lime/10' : 'text-bento-muted hover:text-lime-fg hover:bg-bento-bg')}>
+            <Star className={cn('w-4 h-4', noRadar && 'fill-current')} />
+          </button>
           <Link href={`/comercial?lead=${encodeURIComponent(lead.id)}`} aria-label="Abrir lead completo" className="p-2 rounded-btn text-bento-muted hover:text-lime-fg hover:bg-bento-bg">
             <ExternalLink className="w-4 h-4" />
           </Link>
@@ -613,7 +763,10 @@ function ContextBlock({ label, value }: { label: string; value: string }) {
 
 function EmptyFilter({ filter }: { filter: Filter }) {
   const messages: Record<Filter, string> = {
-    hoje: 'Nenhuma ação pendente para hoje.', reunioes: 'Nenhuma reunião pendente.', leads: 'Nenhum lead em andamento.',
+    hoje: 'Nada para hoje: nenhuma tarefa vence hoje e nenhum lead novo chegou.',
+    atrasado: 'Nada atrasado. Dia em ordem.',
+    acompanhando: 'Nenhum lead no radar. Use a estrela para marcar os que você está trabalhando.',
+    reunioes: 'Nenhuma reunião pendente.', leads: 'Nenhum lead em andamento.',
     aguardando: 'Nenhum lead aguardando retorno.',
     proximas: 'Nenhuma próxima ação organizada.', atencao: 'Nenhuma ação vencida ou sem data.', concluidas: 'Nenhuma tarefa concluída recentemente.',
   }
