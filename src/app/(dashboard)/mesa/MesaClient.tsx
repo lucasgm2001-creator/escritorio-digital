@@ -128,67 +128,118 @@ export function MesaClient({ initialTasks, initialLeads, initialFocus, linkOptio
   useEffect(() => setFocus(new Set(initialFocus)), [initialFocus])
 
   const today = ymd(new Date())
-  const pendingRaw = useMemo(() => tasks.filter(task => !task.done).sort(taskSort), [tasks])
+  const pending = useMemo(() => tasks.filter(task => !task.done).sort(taskSort), [tasks])
 
-  // UMA TAREFA POR LEAD (MESA-DEDUP-001). O mesmo lead acumulava 2 ou 3 tarefas abertas: uma antiga que
-  // ficou para trás e a nova criada no contato seguinte ("Ligar para Cesar [17/09]" e "Ligar novamente:
-  // Cesar [12/10]"). Eram 137 tarefas para 119 leads — 18 linhas de resíduo competindo pela mesma pessoa.
+  // UMA LINHA POR LEAD, DENTRO DE CADA LISTA (MESA-DEDUP-002).
   //
-  // Vale a MAIS RECENTE (created_at), porque é a última decisão tomada sobre aquele lead. As anteriores
-  // não somem caladas: a linha mostra "+N anteriores" e dá para encerrá-las de uma vez.
-  const supersededByTask = useMemo(() => {
-    const porLead = new Map<string, Task[]>()
-    for (const task of pendingRaw) {
-      if (task.linked_type !== 'lead' || !task.linked_id) continue
-      const lista = porLead.get(task.linked_id) ?? []
-      lista.push(task)
-      porLead.set(task.linked_id, lista)
+  // A primeira versão deduplicava GLOBALMENTE, escolhendo por lead a tarefa criada mais recentemente. Duas
+  // coisas quebraram, e as duas apareceram na base real:
+  //   · 7 das 8 reuniões abertas sumiram da aba Reuniões, suprimidas por uma tarefa criada depois. A aba
+  //     existe justamente para não perder compromisso marcado — ela nunca pode esconder nada.
+  //   · O plano NOVO podia ser o escondido: Paulino tinha "Acompanhar proposta [07/10]" (atrasada) e
+  //     "Ligar novamente [14/10]" (futura), criadas no mesmo dia; a atrasada venceu o desempate e a tela
+  //     mostrava exatamente o contrário do que se queria.
+  //
+  // Agora cada lista decide sozinha, com o critério que faz sentido nela, e nenhuma suprime as outras.
+  const umaPorLead = (lista: Task[], melhor: (a: Task, b: Task) => Task) => {
+    const escolhida = new Map<string, Task>()
+    const soltas: Task[] = []
+    for (const task of lista) {
+      if (task.linked_type !== 'lead' || !task.linked_id) { soltas.push(task); continue }
+      const atual = escolhida.get(task.linked_id)
+      escolhida.set(task.linked_id, atual ? melhor(atual, task) : task)
     }
-    const vencedora = new Map<string, Task>()
-    const antigas = new Map<string, Task[]>()
-    for (const [leadId, lista] of porLead) {
-      const ordenada = [...lista].sort((a, b) => (b.created_at ?? '').localeCompare(a.created_at ?? ''))
-      vencedora.set(leadId, ordenada[0])
-      antigas.set(ordenada[0].id, ordenada.slice(1))
+    const vencedoras = new Set([...escolhida.values()].map(t => t.id))
+    const ocultasPor = new Map<string, number>()
+    for (const task of lista) {
+      if (task.linked_type !== 'lead' || !task.linked_id || vencedoras.has(task.id)) continue
+      const dona = escolhida.get(task.linked_id)
+      if (dona) ocultasPor.set(dona.id, (ocultasPor.get(dona.id) ?? 0) + 1)
     }
-    return { vencedora, antigas }
-  }, [pendingRaw])
+    return { rows: lista.filter(t => vencedoras.has(t.id) || soltas.includes(t)), ocultasPor }
+  }
 
-  // Lista de trabalho já deduplicada: tarefa sem lead passa direto; com lead, só a vencedora.
-  const pending = useMemo(() => pendingRaw.filter(task =>
-    task.linked_type !== 'lead' || !task.linked_id ||
-    supersededByTask.vencedora.get(task.linked_id)?.id === task.id), [pendingRaw, supersededByTask])
+  const maisNova = (a: Task, b: Task) => ((b.created_at ?? '') > (a.created_at ?? '') ? b : a)
+  const maisUrgente = (a: Task, b: Task) => ((b.due_date ?? '9999') < (a.due_date ?? '9999') ? b : a)
 
-  // HOJE = só o que é de hoje (MESA-HOJE-001). Antes era `due_date <= today`, então as 131 atrasadas
-  // entravam aqui e a aba abria com 133 itens — uma pilha, não uma lista de trabalho. Atrasado ganhou
-  // aba própria para continuar visível sem afogar o dia.
-  const todayTasks = useMemo(() => pending.filter(task => task.due_date === today), [pending, today])
-  const overdueTasks = useMemo(() => pending.filter(task => !!task.due_date && task.due_date < today), [pending, today])
+  // Última data planejada por lead. É o que diz se um atraso já foi RESOLVIDO: remarcar para frente
+  // significa que a pessoa foi tratada, e era essa a queixa principal — "mesmo entrando em contato, o
+  // lead continua como atrasado".
+  const ultimaDataPorLead = useMemo(() => {
+    const mapa = new Map<string, string>()
+    for (const task of pending) {
+      if (task.linked_type !== 'lead' || !task.linked_id || !task.due_date) continue
+      const atual = mapa.get(task.linked_id)
+      if (!atual || task.due_date > atual) mapa.set(task.linked_id, task.due_date)
+    }
+    return mapa
+  }, [pending])
+
+  // HOJE = só o que é de hoje (MESA-HOJE-001). Antes era `due_date <= today`, então as atrasadas entravam
+  // aqui e a aba abria com 133 itens — pilha, não lista de trabalho.
+  const hoje = useMemo(() => umaPorLead(pending.filter(t => t.due_date === today), maisNova),
+     
+    [pending, today])
+  const todayTasks = hoje.rows
+
+  // ATRASADO: só quem NÃO tem plano novo. Se existe tarefa aberta com data de hoje em diante, o lead já
+  // foi retomado e não deve continuar pesando aqui.
+  const atrasado = useMemo(() => umaPorLead(
+    pending.filter(t => !!t.due_date && t.due_date < today &&
+      !(t.linked_type === 'lead' && t.linked_id && (ultimaDataPorLead.get(t.linked_id) ?? '') >= today)),
+    maisNova),
+     
+    [pending, today, ultimaDataPorLead])
+  const overdueTasks = atrasado.rows
+
+  // REUNIÕES: sem dedupe nenhuma. Compromisso marcado não é resíduo — se existem duas, as duas aparecem.
   const meetingTasks = useMemo(() => pending.filter(task => inferTaskKind(task.title, task.kind) === 'reuniao'), [pending])
-  const upcomingTasks = useMemo(() => pending.filter(task => !task.due_date || task.due_date > today), [pending, today])
+
+  // PRÓXIMAS: uma por lead, a de data MAIS PRÓXIMA — é o próximo passo, não o mais distante.
+  const proximas = useMemo(() => umaPorLead(pending.filter(t => !t.due_date || t.due_date > today), maisUrgente),
+     
+    [pending, today])
+  const upcomingTasks = proximas.rows
+
+  // Quantas linhas cada lista escondeu, por tarefa visível. Some os três mapas porque a mesma tarefa pode
+  // ser a visível em listas diferentes e o aviso tem de refletir a lista em que ela está sendo mostrada.
+  const ocultasPorTarefa = useMemo(() => {
+    const total = new Map<string, number>()
+    for (const mapa of [hoje.ocultasPor, atrasado.ocultasPor, proximas.ocultasPor]) {
+      for (const [id, n] of mapa) total.set(id, Math.max(total.get(id) ?? 0, n))
+    }
+    return total
+  }, [hoje, atrasado, proximas])
   const doneTasks = useMemo(() => tasks.filter(task => task.done).sort((a, b) => (b.completed_at ?? b.updated_at).localeCompare(a.completed_at ?? a.updated_at)).slice(0, 30), [tasks])
   const waitingLeads = useMemo(() => leads.filter(lead => !TERMINAL.has(lead.status) && isWaiting(lead)), [leads])
   const attentionLeads = useMemo(() => leads.filter(lead => needsAttention(lead, today)), [leads, today])
-  // TODOS os leads em jogo, para percorrer sem precisar digitar nada. Fora os terminais (fechado, perdido,
-  // negócio futuro): numa lista de navegação eles são ruído — quem procura um fechado usa a busca, que os
-  // inclui. Ordem: quem precisa de ação primeiro, depois por score, que é a ordem em que vale ligar.
-  // Leads que CHEGARAM HOJE. received_at é a data de entrada (o webhook do Magnetic a preenche; está
-  // presente em 100% da base), com created_at de reserva para qualquer lead criado à mão sem ela.
-  const chegouHoje = (lead: MesaLead): boolean =>
-    (lead.received_at ?? lead.created_at ?? '').slice(0, 10) === today
-  const newLeadsToday = useMemo(() => leads.filter(lead => !TERMINAL.has(lead.status) && chegouHoje(lead)),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [leads, today])
+  // Exclui quem já aparece como TAREFA de hoje: o lead chegou hoje e alguém já agendou algo para ele, então
+  // mostrá-lo também como "lead novo" repetiria a mesma pessoa na mesma aba — a duplicação que esta
+  // reorganização existe para acabar.
+  const newLeadsToday = useMemo(() => {
+    const jaNasTarefas = new Set(todayTasks.filter(t => t.linked_type === 'lead').map(t => t.linked_id))
+    // received_at é a data de entrada (o webhook do Magnetic a preenche; está presente em 100% da base),
+    // com created_at de reserva para lead criado à mão sem ela.
+    return leads.filter(lead => !TERMINAL.has(lead.status) &&
+      (lead.received_at ?? lead.created_at ?? '').slice(0, 10) === today &&
+      !jaNasTarefas.has(lead.id))
+  }, [leads, today, todayTasks])
 
   // Radar pessoal: a ordem segue a urgência real — quem precisa de ação primeiro, depois quem está parado
   // há mais tempo. É a aba para onde o lead vai DEPOIS do contato, para não se perder entre os atrasados.
+  // `daysSince` devolve null para quem nunca foi contatado. Tratar isso como 0 jogava o lead NUNCA
+  // contatado para o fim da fila, quando ele é o mais urgente da lista — por isso o fallback é Infinity.
+  const paradoHa = (lead: MesaLead): number => daysSince(lead.last_contact_at) ?? Number.POSITIVE_INFINITY
   const focusLeads = useMemo(() => leads
     .filter(lead => focus.has(lead.id))
     .sort((a, b) =>
       (needsAttention(b, today) ? 1 : 0) - (needsAttention(a, today) ? 1 : 0) ||
-      (daysSince(b.last_contact_at) ?? 0) - (daysSince(a.last_contact_at) ?? 0)),
+      paradoHa(b) - paradoHa(a)),
     [leads, focus, today])
 
+  // TODOS os leads em jogo, para percorrer sem precisar digitar nada. Fora os terminais (fechado, perdido,
+  // negócio futuro): numa lista de navegação eles são ruído — quem procura um fechado usa a busca, que os
+  // inclui. Ordem: quem precisa de ação primeiro, depois por score, que é a ordem em que vale ligar.
   const allLeads = useMemo(() => {
     const vivos = leads.filter(lead => !TERMINAL.has(lead.status))
     return [...vivos].sort((a, b) =>
@@ -272,15 +323,16 @@ export function MesaClient({ initialTasks, initialLeads, initialFocus, linkOptio
 
   // Encerra as tarefas antigas do lead, mantendo a atual. É a saída para o resíduo que a dedupe revela.
   async function resolverDuplicadas(task: Task) {
-    if (!task.linked_id) return
-    const antigas = supersededByTask.antigas.get(task.id) ?? []
-    if (antigas.length === 0) return
+    if (!task.linked_id || (ocultasPorTarefa.get(task.id) ?? 0) === 0) return
+    const leadId = task.linked_id
     setBusyTaskId(task.id)
-    const r = await closeStaleLeadTasksAction(task.linked_id, task.id)
+    const r = await closeStaleLeadTasksAction(leadId, task.id)
     setBusyTaskId(null)
     if (!r.ok) { toast({ type: 'error', message: r.error ?? 'Não foi possível fechar as duplicadas.' }); return }
-    const ids = new Set(antigas.map(t => t.id))
-    setTasks(atual => atual.map(t => ids.has(t.id) ? { ...t, done: true } : t))
+    // Fecha localmente as OUTRAS abertas deste lead — a mesma regra que a action aplicou no servidor.
+    setTasks(atual => atual.map(t =>
+      t.linked_type === 'lead' && t.linked_id === leadId && t.id !== task.id && !t.done
+        ? { ...t, done: true } : t))
     toast({ type: 'success', message: `${r.fechadas} tarefa(s) antiga(s) encerrada(s).` })
   }
 
@@ -460,7 +512,7 @@ export function MesaClient({ initialTasks, initialLeads, initialFocus, linkOptio
                       {taskRows.map(task => (
                         <TaskRowComDuplicadas key={task.id} task={task} active={selectedTaskId === task.id} today={today}
                           busy={busyTaskId === task.id}
-                          antigas={(supersededByTask.antigas.get(task.id) ?? []).length}
+                          antigas={ocultasPorTarefa.get(task.id) ?? 0}
                           onResolver={() => resolverDuplicadas(task)}
                           onSelect={() => selectTask(task)} onToggle={() => toggleTask(task)} onEdit={() => openEdit(task)} />
                       ))}
