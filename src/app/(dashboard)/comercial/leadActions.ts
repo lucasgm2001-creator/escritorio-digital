@@ -409,5 +409,54 @@ export async function moveLead(
   }
 
   if (isWon) notes.push(...await runWonFlow(supabase, lead, userName, planoId, teamId, customWeeklyUsd, cadence))
+
+  // LEAD MORTO → as tarefas dele também morrem (MESA-MORTOS-001). Mesma ideia do lead que vira cliente:
+  // mover para Perdido / Desqualificado / Negócio Futuro é dizer que não há mais o que fazer agora, mas a
+  // agenda continuava cobrando "Ligar novamente" todo dia. Eram 14 tarefas nessa situação, de leads sobre
+  // os quais não existe decisão a tomar.
+  //
+  // A anotação da tarefa vira interação do LEAD (não do cliente — aqui não há cliente): é onde o histórico
+  // do lead vive, e é o que a pessoa vai reler se um dia esse lead voltar.
+  if (MORTOS.has(newStatus)) {
+    await encerrarTarefasDeLeadMorto(supabase, lead.id, teamId, userName, notes)
+  }
   return { ok: true, notes }
+}
+
+/** Estágios em que o lead sai de jogo. Reabrir o lead não ressuscita as tarefas — cria-se a próxima. */
+const MORTOS = new Set(['perdido', 'desqualificado', 'negocio_futuro'])
+
+/**
+ * Encerra as tarefas abertas de um lead que saiu de jogo, preservando o texto como interação do lead.
+ * Best-effort: não pode derrubar a mudança de fase, que é o fato que o usuário pediu.
+ */
+async function encerrarTarefasDeLeadMorto(
+  supabase: SupaClient, leadId: string, teamId: string | null, userName: string, notes: ActionNote[],
+): Promise<void> {
+  const { data: abertas, error } = await supabase.from('tasks')
+    .select('id, title, notes')
+    .eq('linked_type', 'lead').eq('linked_id', leadId).eq('done', false)
+  if (error || !abertas?.length) { if (error) console.error('[moveLead] tarefas do lead morto:', error.message); return }
+
+  const comTexto = abertas.filter(t => String(t.notes ?? '').trim().length > 0)
+  if (comTexto.length) {
+    const { error: obsErr } = await supabase.from('lead_interactions').insert(
+      comTexto.map(t => ({
+        ...(teamId ? { team_id: teamId } : {}),
+        lead_id: leadId,
+        type: 'nota',
+        note: `${String(t.notes).trim()}\n\n— da tarefa “${t.title}”, encerrada ao sair do funil`,
+        score_delta: 0,
+        created_by_name: userName,
+      })),
+    )
+    // Sem o texto salvo, não encerra: perder a anotação é pior que manter a tarefa aberta.
+    if (obsErr) { console.error('[moveLead] interações do lead morto:', obsErr.message); return }
+  }
+
+  const { error: closeErr } = await supabase.from('tasks')
+    .update({ done: true, completed_at: new Date().toISOString() })
+    .in('id', abertas.map(t => t.id))
+  if (closeErr) { console.error('[moveLead] encerrar tarefas do lead morto:', closeErr.message); return }
+  notes.push({ message: `Encerrei ${abertas.length} tarefa(s) abertas deste lead.`, type: 'success' })
 }

@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import {
-  AlertTriangle, CalendarDays, Check, CheckCircle2, ChevronLeft, ChevronRight, CircleDot, Clock3, Star,
+  AlertTriangle, CalendarDays, Check, CheckCircle2, ChevronDown, ChevronLeft, ChevronRight, CircleDot, Clock3, Star,
   ExternalLink, FileText, Mail, MessageCircle, Phone, Plus, RefreshCw, Search, UserRound, Video, X,
   type LucideIcon,
 } from 'lucide-react'
@@ -57,6 +57,21 @@ const TERMINAL = new Set<LeadStatus>(['fechado', 'perdido', 'negocio_futuro', 'l
 const HOT = new Set(['muito_quente', 'quente', 'muito_interessado', 'interessado'])
 const COLD = new Set(['esfriando', 'frio', 'pouco_interessado'])
 const STATUS_LABEL = new Map(ALL_COLUMNS.map(column => [column.key, column.label]))
+
+// ORDEM DE VALOR do atrasado (MESA-ATRASADO-002). A lista era plana e 130 linhas pesavam igual — uma
+// proposta parada valia o mesmo que um lead que nunca atendeu. Aqui a ordem é o quanto custa NÃO ligar:
+// quem já viu preço e quem faltou à reunião primeiro; quem nunca interagiu por último.
+// Quem não está nesta lista (lead morto, venda fechada) cai em "Outros" — e, na prática, não deveria
+// existir: as tarefas desses leads são encerradas na origem quando eles saem do funil.
+const ORDEM_ATRASADO: { status: string; titulo: string; porque: string }[] = [
+  { status: 'proposta',      titulo: 'Proposta em análise', porque: 'já viu preço — é onde está o dinheiro' },
+  { status: 'no_show',       titulo: 'No-show',             porque: 'marcou e faltou; vale resgatar' },
+  { status: 'reagendamento', titulo: 'Reagendamento',       porque: 'pediu outra data' },
+  { status: 'reuniao',       titulo: 'Reunião agendada',    porque: 'compromisso de pé' },
+  { status: 'interagiu',     titulo: 'Interagiu',           porque: 'respondeu alguma vez' },
+  { status: 'novo',          titulo: 'Novo, nunca contatado', porque: 'chegou e ninguém ligou' },
+  { status: 'nao_interagiu', titulo: 'Não interagiu',       porque: 'nunca respondeu' },
+]
 
 // Busca sem acento e sem caixa: a base tem "Gouvêa", "André", "Mizael". Exigir o acento certo faria a
 // busca falhar justamente nos nomes que mais precisam dela.
@@ -142,6 +157,10 @@ export function MesaClient({ initialTasks, initialLeads, initialFocus, linkOptio
   // DIA DE REFERÊNCIA da aba Hoje (MESA-DIA-001). Default = hoje. As setas andam um dia; "Hoje" volta.
   // Serve para revisar ontem sem caçar no meio dos 145 atrasados — que era o pedido.
   const [dia, setDia] = useState<string | null>(null)
+  // Grupos do Atrasado fechados por padrão, menos o primeiro: abrir 130 linhas de uma vez recriaria a
+  // pilha que o agrupamento existe para desfazer. `null` = ainda não mexeu, aí vale o padrão.
+  const [grupoAberto, setGrupoAberto] = useState<string | null>(null)
+  const [mexeuNoGrupo, setMexeuNoGrupo] = useState(false)
   const [limpando, setLimpando] = useState(false)
   const [limpezaBusy, setLimpezaBusy] = useState(false)
   const [focus, setFocus] = useState<Set<string>>(() => new Set(initialFocus))
@@ -221,6 +240,26 @@ export function MesaClient({ initialTasks, initialLeads, initialFocus, linkOptio
      
     [pending, today, ultimaDataPorLead])
   const overdueTasks = atrasado.rows
+
+  // Atrasado agrupado por estágio do lead, na ordem de valor. Grupo vazio não aparece.
+  const atrasadoPorEstagio = useMemo(() => {
+    const statusPorLead = new Map(leads.map(l => [l.id, l.status as string]))
+    const porStatus = new Map<string, Task[]>()
+    for (const task of overdueTasks) {
+      const st = task.linked_type === 'lead' && task.linked_id
+        ? statusPorLead.get(task.linked_id) ?? 'outros' : 'outros'
+      const lista = porStatus.get(st) ?? []
+      lista.push(task)
+      porStatus.set(st, lista)
+    }
+    const grupos = ORDEM_ATRASADO
+      .map(g => ({ ...g, tasks: porStatus.get(g.status) ?? [] }))
+      .filter(g => g.tasks.length > 0)
+    const conhecidos = new Set(ORDEM_ATRASADO.map(g => g.status))
+    const resto = [...porStatus.entries()].filter(([st]) => !conhecidos.has(st)).flatMap(([, v]) => v)
+    if (resto.length) grupos.push({ status: 'outros', titulo: 'Outros', porque: 'sem estágio reconhecido', tasks: resto })
+    return grupos
+  }, [overdueTasks, leads])
 
   // REUNIÕES: sem dedupe nenhuma. Compromisso marcado não é resíduo — se existem duas, as duas aparecem.
   const meetingTasks = useMemo(() => pending.filter(task => inferTaskKind(task.title, task.kind) === 'reuniao'), [pending])
@@ -586,7 +625,40 @@ export function MesaClient({ initialTasks, initialLeads, initialFocus, linkOptio
                 </div>
 
                 <div className="p-2 sm:p-3 space-y-2">
-                  {buscando ? (
+                  {filter === 'atrasado' && !buscando ? (
+                    atrasadoPorEstagio.length === 0 ? <EmptyFilter filter={filter} /> : (
+                      <div className="space-y-2">
+                        {atrasadoPorEstagio.map((grupo, i) => {
+                          const aberto = mexeuNoGrupo ? grupoAberto === grupo.status : i === 0
+                          return (
+                            <div key={grupo.status} className="rounded-bento border border-bento-border bg-bento-bg/30">
+                              <button type="button"
+                                onClick={() => { setMexeuNoGrupo(true); setGrupoAberto(aberto ? null : grupo.status) }}
+                                className="flex w-full items-center gap-2.5 p-3 text-left">
+                                <ChevronDown className={cn('h-4 w-4 shrink-0 text-bento-muted transition-transform', aberto && 'rotate-180')} />
+                                <span className="min-w-0 flex-1">
+                                  <span className="block text-sm font-semibold text-bento-text">{grupo.titulo}</span>
+                                  <span className="block font-tech text-caption text-bento-muted">{grupo.porque}</span>
+                                </span>
+                                <span className="font-tech text-[11px] tabular-nums text-bento-muted">{grupo.tasks.length}</span>
+                              </button>
+                              {aberto && (
+                                <div className="space-y-2 border-t border-bento-border/60 p-2">
+                                  {grupo.tasks.map(task => (
+                                    <TaskRowComDuplicadas key={task.id} task={task} active={selectedTaskId === task.id} today={today}
+                                      busy={busyTaskId === task.id}
+                                      antigas={ocultasPorTarefa.get(task.id) ?? 0}
+                                      onResolver={() => resolverDuplicadas(task)}
+                                      onSelect={() => selectTask(task)} onToggle={() => toggleTask(task)} onEdit={() => openEdit(task)} />
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          )
+                        })}
+                      </div>
+                    )
+                  ) : buscando ? (
                     resultados.length === 0 ? (
                       <p className="px-2 py-10 text-center text-sm text-bento-muted">
                         Nenhum lead com “{busca.trim()}” no nome ou na empresa.
