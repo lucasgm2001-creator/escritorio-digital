@@ -4,9 +4,9 @@
 //        (ou)  npx ts-node --compiler-options '{"module":"CommonJS"}' scripts/commission-test.ts
 
 import {
-  monthlySummary, dealTotal, nextPayoutProjection, resolveRate, salaryForMonth,
+  monthlySummary, dealTotal, nextPayoutProjection, resolveRate, salaryForMonth, pendingCommission,
 } from '../src/lib/commission/calc'
-import type { Deal, WeeklyPayment, Meeting, SalaryPeriod, FxConfig } from '../src/lib/commission/types'
+import type { Deal, DealWithClient, WeeklyPayment, Meeting, SalaryPeriod, FxConfig } from '../src/lib/commission/types'
 
 let failures = 0
 const USD = (n: number) => `US$${n.toFixed(2)}`
@@ -120,6 +120,36 @@ check('vendas separadas', c6.salesCommissionUsd, 25)
 check('upgrade separado', c6.upgradeBonusUsd, 10)
 check('renovação separada', c6.renewalBonusUsd, 50)
 check('total preservado', c6.totalUsd, 85)
+
+// ──────────────────────────────────────────────────────────────────────────
+section('Teste 7 — Cliente DESATIVADO não gera comissão pendente')
+// Caso real: Cristiane, inativa desde 14/09/2026, com 2 das 4 semanas pagas (as outras duas foram
+// marcadas como não pagas). A venda continua 'em_andamento' porque ninguém mexe no deal ao encerrar o
+// cliente — e por isso ela seguia projetando US$76 que nunca entrariam.
+const baseCristiane = {
+  id: 'cristiane', sellerId: 's1', valorTotalUsd: 152, tetoSemanas: 4,
+  valorPorSemanaUsd: 38, status: 'em_andamento' as const, dataFechamento: '2026-08-22',
+  kind: 'sale' as const, clientName: 'Cristiane Barros',
+}
+const semanasCristiane: WeeklyPayment[] = [
+  { id: 'w1', dealId: 'cristiane', numeroSemana: 1, valorUsd: 38, paidOn: '2026-08-22', cotacaoUsdBrl: 5, kind: 'sale' },
+  { id: 'w3', dealId: 'cristiane', numeroSemana: 3, valorUsd: 38, paidOn: '2026-09-09', cotacaoUsdBrl: 5, kind: 'sale' },
+]
+
+const comClienteAtivo: DealWithClient[] = [{ ...baseCristiane }]
+const antes = pendingCommission(comClienteAtivo, semanasCristiane)
+console.log(`  cliente ATIVO  → situação ${antes.lines[0].situacao}, pendente ${USD(antes.totalPendenteUsd)}`)
+check('cliente ativo projeta as 2 que faltam', antes.totalPendenteUsd, 76)
+check('cliente ativo conta como pendente', antes.clientesPendentes, 1)
+
+const comClienteInativo: DealWithClient[] = [{ ...baseCristiane, clienteInativo: true }]
+const depois = pendingCommission(comClienteInativo, semanasCristiane)
+console.log(`  cliente INATIVO → situação ${depois.lines[0].situacao}, pendente ${USD(depois.totalPendenteUsd)}`)
+check('cliente inativo não projeta nada', depois.totalPendenteUsd, 0)
+check('cliente inativo sai dos pendentes', depois.clientesPendentes, 0)
+check('cliente inativo vira "encerrado"', depois.lines[0].situacao === 'encerrado' ? 1 : 0, 1)
+check('o que já foi pago continua contando', depois.lines[0].comissaoPagaUsd, 76)
+
 
 // ──────────────────────────────────────────────────────────────────────────
 console.log(`\n${failures === 0 ? '✅ TODOS OS CASOS BATERAM COM O ESPERADO' : `❌ ${failures} verificação(ões) FALHARAM`}`)

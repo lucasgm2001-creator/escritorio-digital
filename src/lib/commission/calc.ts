@@ -87,6 +87,10 @@ export function monthlySummary(input: MonthlyInput): MonthlySummary {
  * Total de uma venda considerando o status:
  *  - em_andamento: soma o recebido + projeta as semanas que faltam até o teto.
  *  - interrompido/concluido: congela só no que foi pago (sem projeção).
+ *  - CLIENTE DESATIVADO: congela também, mesmo com a venda em_andamento. O deal continua 'em_andamento'
+ *    quando o cliente é encerrado — ninguém mexe nele —, então a Cristiane aparecia em "comissões
+ *    pendentes" projetando 2 semanas de um contrato que acabou em 14/09. Contrato encerrado não paga mais
+ *    semana; projetar o que falta inventa dinheiro que nunca vai entrar.
  */
 export function dealTotal(deal: Deal, weeks: WeeklyPayment[]): DealTotal {
   const pagas = weeks.filter(w => w.dealId === deal.id)
@@ -94,7 +98,7 @@ export function dealTotal(deal: Deal, weeks: WeeklyPayment[]): DealTotal {
   const recebidoUsd = round2(pagas.reduce((s, w) => s + w.valorUsd, 0))
   const recebidoBrl = round2(pagas.reduce((s, w) => s + w.valorUsd * w.cotacaoUsdBrl, 0))
 
-  const congelado = deal.status !== 'em_andamento'
+  const congelado = deal.status !== 'em_andamento' || !!deal.clienteInativo
   const semanasRestantes = congelado ? 0 : Math.max(0, deal.tetoSemanas - semanasPagas)
   const projetadoRestanteUsd = round2(semanasRestantes * deal.valorPorSemanaUsd)
   const totalProjetadoUsd = round2(recebidoUsd + projetadoRestanteUsd)

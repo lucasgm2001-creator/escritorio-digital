@@ -183,10 +183,25 @@ export async function getMyCompensationView(context: RequestContext): Promise<My
   const totalReceivedUsd = round2(weeks.reduce((s, w) => s + w.valorUsd, 0) + meetings.reduce((s, mm) => s + mm.valorUsd, 0))
 
   // Vendas do vendedor no formato do motor (+ nome do cliente p/ exibição). REUSO único p/ "esta semana" e "pendentes".
+  // Situação dos clientes de TODAS as vendas, numa leitura só. Serve a dois usos que antes não
+  // conversavam: congelar a projeção de cliente desativado (abaixo) e a régua de vencimentos
+  // ("Receber esta semana"), que já pulava inativo mas consultava o banco por conta própria.
+  const todosClientIds = Array.from(new Set(deals.map(d => d.client_id).filter((v): v is string => !!v)))
+  const { data: cliRows } = todosClientIds.length
+    ? await supabase.from('clients')
+        .select('id, status, start_date, billing_anchor_date, dia_pagamento_semana')
+        .in('id', todosClientIds).is('deleted_at', null)
+    : { data: [] as { id: string; status: string; start_date: string | null; billing_anchor_date: string | null; dia_pagamento_semana: number | null }[] }
+  const cliById = new Map((cliRows ?? []).map(c => [c.id as string, c]))
+  // Cliente que não está mais na carteira (inativo/prospect) OU que sumiu da tabela conta como encerrado.
+  const clienteInativo = (clientId: string | null): boolean =>
+    !!clientId && (cliById.get(clientId)?.status ?? 'inativo') !== 'ativo'
+
   const dealsWithClient: DealWithClient[] = deals.map(d => ({
     id: d.id, sellerId: seller.id, valorTotalUsd: Number(d.valor_total_usd), tetoSemanas: Number(d.teto_semanas),
     valorPorSemanaUsd: Number(d.valor_por_semana_usd), status: d.status as DealStatus,
     dataFechamento: d.data_fechamento ?? '', clientName: d.client_name, kind: d.kind ?? 'sale',
+    clienteInativo: clienteInativo(d.client_id),
   }))
   // Receber esta semana (P1-THISWEEK-001 + P1-THISWEEK-002) — janela de DATA, e só o que FALTA receber.
   // 1ª versão: somava a parcela de toda venda ativa com semanas restantes → repetia o MESMO número toda
@@ -205,18 +220,13 @@ export async function getMyCompensationView(context: RequestContext): Promise<My
   const weekTo = addDaysYmd(weekFrom, 6)                                    // domingo
   const thisWeekRange = { from: weekFrom, to: weekTo }
 
-  const clientIds = Array.from(new Set(deals.filter(d => d.kind === 'sale' && d.status === 'em_andamento' && d.client_id).map(d => d.client_id as string)))
   // Semanas de comissão JÁ recebidas (estorno já saiu na fonte, acima) — chave `dealId:numeroSemana`.
   const recebidas = new Set(weeks.map(w => `${w.dealId}:${w.numeroSemana}`))
   // Semanas de comissão que AINDA não entraram, com o vencimento de cada uma. Uma varredura só alimenta
   // dois indicadores: "Receber esta semana" (vencimento na semana civil) e "Comissão prevista do mês"
   // (vencimento dentro do mês corrente). Teto é 4, então varrer tudo é trivial.
   const semanasAVencer: { cliente: string | null; numero: number; due: string; valorUsd: number }[] = []
-  if (clientIds.length) {
-    const { data: cliRows } = await supabase.from('clients')
-      .select('id, status, start_date, billing_anchor_date, dia_pagamento_semana')
-      .in('id', clientIds).is('deleted_at', null)
-    const cliById = new Map((cliRows ?? []).map(c => [c.id as string, c]))
+  {
     // 1 comissão por cliente: a venda mais recente (mesmo desempate de save_client_week).
     const dealByClient = new Map<string, typeof deals[number]>()
     for (const d of deals) {

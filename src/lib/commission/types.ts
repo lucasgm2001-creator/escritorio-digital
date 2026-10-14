@@ -37,6 +37,13 @@ export interface Deal {
   status: DealStatus
   dataFechamento: string    // 'YYYY-MM-DD' (informativo; NÃO define o mês das semanas)
   kind: DealKind
+  /**
+   * Cliente DESATIVADO (status ≠ 'ativo'). Congela a projeção igual a uma venda interrompida: contrato
+   * encerrado não gera mais semana, então projetar o que falta inventa dinheiro que não vem. Opcional
+   * para não quebrar quem monta Deal sem a informação — a ausência significa "não sei", e aí vale só o
+   * status da venda, que é o comportamento histórico.
+   */
+  clienteInativo?: boolean
 }
 
 /** Semana de uma venda RECEBIDA pelo cliente. Conta no mês de paidOn. */

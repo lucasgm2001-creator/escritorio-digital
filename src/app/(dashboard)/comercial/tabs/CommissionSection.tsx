@@ -100,9 +100,9 @@ export function CommissionSection({ sellerId, sellerName }: { sellerId: string; 
     const [salRes, mtgRes, dealRes, fxRes, cliRes, leadRes, renewalRes] = await Promise.all([
       supabase.from('seller_salaries').select('seller_id, valor_usd, effective_from').eq('seller_id', sellerId).order('effective_from', { ascending: false }),
       supabase.from('meetings').select('id, seller_id, met_on, valor_usd, cotacao_usd_brl, client_name').eq('seller_id', sellerId).order('met_on', { ascending: false }),
-      supabase.from('deals').select('id, seller_id, client_name, valor_total_usd, teto_semanas, valor_por_semana_usd, status, data_fechamento, kind').eq('seller_id', sellerId).order('data_fechamento', { ascending: false }),
+      supabase.from('deals').select('id, seller_id, client_id, client_name, valor_total_usd, teto_semanas, valor_por_semana_usd, status, data_fechamento, kind').eq('seller_id', sellerId).order('data_fechamento', { ascending: false }),
       supabase.from('fx_config').select('cotacao_manual, cotacao_travada, cotacao_referencia').eq('id', 1).maybeSingle(),
-      supabase.from('clients').select('id, name').order('name'),
+      supabase.from('clients').select('id, name, status').order('name'),
       supabase.from('leads').select('id, name').order('name'),
       supabase.from('collaborator_compensation_settings').select('renewal_bonus_enabled, renewal_bonus_value, upgrade_commission_enabled')
         .eq('seller_id', sellerId).lte('effective_from', todayISO()).order('effective_from', { ascending: false }).limit(1).maybeSingle(),
@@ -111,7 +111,18 @@ export function CommissionSection({ sellerId, sellerName }: { sellerId: string; 
     setSalaries((salRes.data ?? []).map(s => ({ sellerId: s.seller_id, valorUsd: Number(s.valor_usd), effectiveFrom: s.effective_from })))
     // Corte (Parte 6): reuniões ≥ JUL/2026 não são comissão — não aparecem na lista/histórico do vendedor.
     setMeetings((mtgRes.data ?? []).filter(m => meetingCommissionCounts(m.met_on)).map(toMeeting))
-    const ds = (dealRes.data ?? []).map(toDealUI)
+    // Cliente DESATIVADO congela a projeção da venda (igual a uma venda interrompida): contrato encerrado
+    // não gera mais semana. Sem isto, "Por cliente" e "Comissão pendente" seguiam projetando as semanas
+    // que faltavam de quem já saiu da carteira — foi assim que a Cristiane, inativa desde 14/09, continuou
+    // aparecendo como pendente.
+    const statusPorCliente = new Map(((cliRes.data ?? []) as { id: string; status?: string }[]).map(c => [c.id, c.status]))
+    const ds = (dealRes.data ?? []).map(r => {
+      const clientId = (r as { client_id?: string | null }).client_id ?? null
+      return {
+        ...toDealUI(r),
+        clienteInativo: !!clientId && (statusPorCliente.get(clientId) ?? 'inativo') !== 'ativo',
+      }
+    })
     setDeals(ds)
     setClients((cliRes.data ?? []) as { id: string; name: string }[])
     setLeads((leadRes.data ?? []) as { id: string; name: string }[])
