@@ -44,6 +44,58 @@ export interface MovableLead {
 // — o cliente nasce com plano_id null e plan_weekly = este valor, que é exatamente como resolveClientPlan já
 // lê (plano_id null → plan_weekly). Cobrança, agendador e receita seguem idênticos aos planos do catálogo, e a
 // comissão usa o MESMO % do catálogo sobre este valor, nas mesmas 4 primeiras semanas.
+
+/**
+ * Encerra as tarefas ABERTAS do lead que acabou de virar cliente e leva as anotações delas para as
+ * observações do cliente. Best-effort: falhar aqui não pode derrubar o fechamento da venda, que é o fato
+ * importante — por isso só registra no console e segue.
+ */
+async function encerrarTarefasDoLead(
+  supabase: SupaClient, leadId: string, clientId: string, teamId: string | null,
+  userName: string, notes: ActionNote[],
+): Promise<void> {
+  const { data: abertas, error } = await supabase.from('tasks')
+    .select('id, title, notes')
+    .eq('linked_type', 'lead').eq('linked_id', leadId).eq('done', false)
+  if (error) { console.error('[runWonFlow] tarefas do lead:', error.message); return }
+  if (!abertas?.length) return
+
+  // Só o que tem texto vira observação — encerrar 5 tarefas vazias não deve poluir o histórico do cliente
+  // com 5 linhas em branco.
+  const comTexto = abertas.filter(t => String(t.notes ?? '').trim().length > 0)
+  if (comTexto.length) {
+    const { error: obsErr } = await supabase.from('entity_observations').insert(
+      comTexto.map(t => ({
+        ...(teamId ? { team_id: teamId } : {}),
+        entity_type: 'client',
+        entity_id: clientId,
+        body: String(t.notes).trim(),
+        source_type: 'task',
+        source_label: `Anotação da tarefa “${t.title}”`,
+        created_by_name: userName,
+      })),
+    )
+    if (obsErr) {
+      // Não encerra as tarefas se a anotação não foi salva: perder o texto é pior que manter o ruído.
+      console.error('[runWonFlow] observações a partir das tarefas:', obsErr.message)
+      notes.push({ message: 'Venda fechada, mas não consegui mover as anotações das tarefas para o cliente — elas seguem nas tarefas.', type: 'error' })
+      return
+    }
+  }
+
+  const { error: closeErr } = await supabase.from('tasks')
+    .update({ done: true, completed_at: new Date().toISOString() })
+    .in('id', abertas.map(t => t.id))
+  if (closeErr) { console.error('[runWonFlow] encerrar tarefas:', closeErr.message); return }
+
+  notes.push({
+    message: comTexto.length
+      ? `Encerrei ${abertas.length} tarefa(s) de prospecção e levei ${comTexto.length} anotação(ões) para as observações do cliente.`
+      : `Encerrei ${abertas.length} tarefa(s) de prospecção deste lead.`,
+    type: 'success',
+  })
+}
+
 async function runWonFlow(supabase: SupaClient, lead: MovableLead, userName: string, planoId: string | null = null, teamId: string | null = null, customWeeklyUsd: number | null = null, cadence: BillingCadence = SEMANAL): Promise<ActionNote[]> {
   const notes: ActionNote[] = []
   const today = ymd(new Date())
@@ -119,6 +171,17 @@ async function runWonFlow(supabase: SupaClient, lead: MovableLead, userName: str
     notes.push({ message: 'Lead movido, mas NÃO lancei a comissão: não consegui vincular o cliente. Cadastre o cliente e lance a venda manualmente.', type: 'error' })
     return notes
   }
+
+  // LEAD VIROU CLIENTE → as tarefas de prospecção dele morrem aqui (MESA-CONVERSAO-001).
+  //
+  // Sem isto, "Ligar novamente: Fulano" e "Acompanhar proposta: Fulano" seguiam abertas e vencidas na Mesa
+  // DEPOIS da venda fechada — cobrando uma ligação de prospecção para quem já é cliente. Era ruído que
+  // nunca se resolvia sozinho, porque fechar a venda não tinha relação nenhuma com a agenda.
+  //
+  // O que estava ESCRITO na tarefa não se perde: a anotação vira observação do CLIENTE, marcada com a
+  // origem, e passa a aparecer no workspace dele junto com o resto do histórico. A tarefa é encerrada
+  // (done), não apagada — ela existiu, e o histórico de concluídas registra isso.
+  await encerrarTarefasDoLead(supabase, lead.id, clientId, teamId, userName, notes)
 
   // Cadência também no cliente REUSADO: o fluxo reaproveita por nome, então sem isto um cliente que volta
   // manteria a cadência antiga e a cobrança sairia no calendário errado.

@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import {
-  AlertTriangle, CalendarDays, Check, CheckCircle2, ChevronRight, CircleDot, Clock3, Star,
+  AlertTriangle, CalendarDays, Check, CheckCircle2, ChevronLeft, ChevronRight, CircleDot, Clock3, Star,
   ExternalLink, FileText, Mail, MessageCircle, Phone, Plus, RefreshCw, Search, UserRound, Video, X,
   type LucideIcon,
 } from 'lucide-react'
@@ -60,6 +60,20 @@ const STATUS_LABEL = new Map(ALL_COLUMNS.map(column => [column.key, column.label
 
 // Busca sem acento e sem caixa: a base tem "Gouvêa", "André", "Mizael". Exigir o acento certo faria a
 // busca falhar justamente nos nomes que mais precisam dela.
+// Anda dias numa chave 'YYYY-MM-DD' sem Date local — aritmética de fuso é a origem clássica do dia que pula.
+const shiftDia = (ymdStr: string, delta: number): string => {
+  const d = new Date(`${ymdStr}T12:00:00Z`)
+  d.setUTCDate(d.getUTCDate() + delta)
+  return d.toISOString().slice(0, 10)
+}
+const rotuloDia = (alvo: string, hoje: string): string => {
+  if (alvo === hoje) return 'Hoje'
+  if (alvo === shiftDia(hoje, -1)) return 'Ontem'
+  if (alvo === shiftDia(hoje, 1)) return 'Amanhã'
+  const [y, m, d] = alvo.split('-')
+  return `${d}/${m}/${y}`
+}
+
 const normalizar = (v: string): string =>
   v.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim()
 
@@ -125,6 +139,9 @@ export function MesaClient({ initialTasks, initialLeads, initialFocus, linkOptio
   const [interactionsLoading, setInteractionsLoading] = useState(false)
   const [busyTaskId, setBusyTaskId] = useState<string | null>(null)
   const [busca, setBusca] = useState('')
+  // DIA DE REFERÊNCIA da aba Hoje (MESA-DIA-001). Default = hoje. As setas andam um dia; "Hoje" volta.
+  // Serve para revisar ontem sem caçar no meio dos 145 atrasados — que era o pedido.
+  const [dia, setDia] = useState<string | null>(null)
   const [limpando, setLimpando] = useState(false)
   const [limpezaBusy, setLimpezaBusy] = useState(false)
   const [focus, setFocus] = useState<Set<string>>(() => new Set(initialFocus))
@@ -180,10 +197,20 @@ export function MesaClient({ initialTasks, initialLeads, initialFocus, linkOptio
 
   // HOJE = só o que é de hoje (MESA-HOJE-001). Antes era `due_date <= today`, então as atrasadas entravam
   // aqui e a aba abria com 133 itens — pilha, não lista de trabalho.
-  const hoje = useMemo(() => umaPorLead(pending.filter(t => t.due_date === today), maisNova),
-     
+  // O contador da aba é SEMPRE do dia de hoje, mesmo navegando para ontem: é o sinal permanente na
+  // lateral, e mudá-lo conforme a navegação faria o número piscar sem querer dizer nada.
+  const tarefasDeHojeCount = useMemo(
+    () => umaPorLead(pending.filter(t => t.due_date === today), maisNova).rows.length,
     [pending, today])
+
+  const diaRef = dia ?? today
+  const hoje = useMemo(() => umaPorLead(pending.filter(t => t.due_date === diaRef), maisNova),
+    [pending, diaRef])
   const todayTasks = hoje.rows
+  // Concluídas DAQUELE dia entram quando se olha para trás: revisar ontem sem ver o que foi feito mostraria
+  // um dia vazio e daria a impressão errada de que nada andou.
+  const doneNoDia = useMemo(() => dia && dia !== today
+    ? tasks.filter(t => t.done && t.due_date === dia) : [], [tasks, dia, today])
 
   // ATRASADO: só quem NÃO tem plano novo. Se existe tarefa aberta com data de hoje em diante, o lead já
   // foi retomado e não deve continuar pesando aqui.
@@ -236,9 +263,9 @@ export function MesaClient({ initialTasks, initialLeads, initialFocus, linkOptio
     // received_at é a data de entrada (o webhook do Magnetic a preenche; está presente em 100% da base),
     // com created_at de reserva para lead criado à mão sem ela.
     return leads.filter(lead => !TERMINAL.has(lead.status) &&
-      (lead.received_at ?? lead.created_at ?? '').slice(0, 10) === today &&
+      (lead.received_at ?? lead.created_at ?? '').slice(0, 10) === diaRef &&
       !jaNasTarefas.has(lead.id))
-  }, [leads, today, todayTasks])
+  }, [leads, diaRef, todayTasks])
 
   // Radar pessoal: a ordem segue a urgência real — quem precisa de ação primeiro, depois quem está parado
   // há mais tempo. É a aba para onde o lead vai DEPOIS do contato, para não se perder entre os atrasados.
@@ -283,7 +310,7 @@ export function MesaClient({ initialTasks, initialLeads, initialFocus, linkOptio
   }, [selectedLeadId])
 
   const filters: { id: Filter; label: string; Icon: LucideIcon; count: number }[] = [
-    { id: 'hoje', label: 'Hoje', Icon: CircleDot, count: todayTasks.length + newLeadsToday.length },
+    { id: 'hoje', label: 'Hoje', Icon: CircleDot, count: tarefasDeHojeCount + newLeadsToday.length },
     { id: 'atrasado', label: 'Atrasado', Icon: AlertTriangle, count: overdueTasks.length },
     { id: 'acompanhando', label: 'Acompanhando', Icon: Star, count: focusLeads.length },
     { id: 'reunioes', label: 'Reuniões', Icon: Video, count: meetingTasks.length },
@@ -483,15 +510,41 @@ export function MesaClient({ initialTasks, initialLeads, initialFocus, linkOptio
                 <div className="flex items-center justify-between gap-3 px-4 py-3 border-b border-bento-border">
                   <div className="min-w-0">
                     <h2 className="font-display font-semibold text-bento-text truncate">
-                      {buscando ? 'Busca de leads' : filters.find(item => item.id === filter)?.label}
+                      {buscando ? 'Busca de leads'
+                        : filter === 'hoje' ? rotuloDia(diaRef, today)
+                        : filters.find(item => item.id === filter)?.label}
                     </h2>
                     <p className="text-xs text-bento-muted mt-0.5">
                       {buscando
                         ? `${resultados.length} ${resultados.length === 1 ? 'lead encontrado' : 'leads encontrados'}`
                         : `${taskRows.length || leadRows.length} ${taskRows.length + leadRows.length === 1 ? 'item' : 'itens'}`}
+                      {filter === 'hoje' && dia && dia !== today && doneNoDia.length > 0 &&
+                        ` · ${doneNoDia.length} concluída(s)`}
                     </p>
                   </div>
                   <div className="flex items-center gap-1.5">
+                    {/* Navegação por DIA, só na aba Hoje: rever ontem sem caçar no meio dos atrasados. */}
+                    {filter === 'hoje' && !buscando && (
+                      <>
+                        <button type="button" onClick={() => setDia(shiftDia(diaRef, -1))} aria-label="Dia anterior"
+                          className="grid h-8 w-8 place-items-center rounded-btn border border-bento-border text-bento-muted transition-colors hover:border-lime hover:text-bento-text">
+                          <ChevronLeft className="h-4 w-4" />
+                        </button>
+                        <button type="button" onClick={() => setDia(shiftDia(diaRef, 1))} aria-label="Próximo dia"
+                          className="grid h-8 w-8 place-items-center rounded-btn border border-bento-border text-bento-muted transition-colors hover:border-lime hover:text-bento-text">
+                          <ChevronRight className="h-4 w-4" />
+                        </button>
+                        {diaRef !== today && (
+                          <button type="button" onClick={() => setDia(null)}
+                            className="rounded-btn border border-bento-border px-2.5 py-1.5 font-tech text-[11px] text-bento-muted transition-colors hover:border-lime hover:text-bento-text">
+                            Hoje
+                          </button>
+                        )}
+                        <input type="date" value={diaRef} onChange={e => setDia(e.target.value || null)}
+                          aria-label="Escolher dia"
+                          className="h-8 rounded-btn border border-bento-border bg-bento-bg px-2 font-tech text-[11px] text-bento-muted focus:border-lime focus:outline-none" />
+                      </>
+                    )}
                     {filter === 'atrasado' && overdueTasks.length > 0 && !buscando && (
                       <button type="button" onClick={() => setLimpando(true)}
                         className="rounded-btn border border-bento-border px-2.5 py-1.5 font-tech text-[11px] text-bento-muted transition-colors hover:border-lime hover:text-bento-text">
@@ -558,7 +611,19 @@ export function MesaClient({ initialTasks, initialLeads, initialFocus, linkOptio
                           noRadar={focus.has(lead.id)} onToggleFocus={() => toggleFocus(lead.id)}
                           onSelect={() => selectLead(lead)} />
                       ))}
-                      {taskRows.length === 0 && leadRows.length === 0 && <EmptyFilter filter={filter} />}
+                      {filter === 'hoje' && doneNoDia.length > 0 && (
+                        <div className="space-y-2 pt-1">
+                          <p className="px-1 font-tech text-[10px] uppercase tracking-label text-bento-muted">
+                            Concluídas neste dia
+                          </p>
+                          {doneNoDia.map(task => (
+                            <TaskRow key={task.id} task={task} active={selectedTaskId === task.id} today={today}
+                              busy={busyTaskId === task.id} onSelect={() => selectTask(task)}
+                              onToggle={() => toggleTask(task)} onEdit={() => openEdit(task)} />
+                          ))}
+                        </div>
+                      )}
+                      {taskRows.length === 0 && leadRows.length === 0 && doneNoDia.length === 0 && <EmptyFilter filter={filter} />}
                     </>
                   )}
                 </div>
