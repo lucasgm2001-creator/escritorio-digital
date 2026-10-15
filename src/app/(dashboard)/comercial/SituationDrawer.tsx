@@ -36,7 +36,7 @@ import {
   suggestedStageFromSituation,
   type LastAction, type NextAction, type LeadResponse, type Temperature, type WhenChoice,
 } from '@/lib/commercial/situation'
-import { TASK_KIND_LABEL, type TaskKind } from '@/lib/tasks/task-kind'
+import { TASK_KIND_LABEL, taskKindForNextAction, syncCalendarPadrao, type TaskKind } from '@/lib/tasks/task-kind'
 import { ALL_COLUMNS } from './types'
 
 // Fluxo RÁPIDO de "Atualizar situação do lead" (RADAR-COMERCIAL-001, Part 2/11). Drawer compacto — perguntas
@@ -298,12 +298,21 @@ export function SituationDrawer({ lead, sourceTaskId = null, taskContext, onClos
   // ser arrastado em silêncio para a data nova (era o comportamento anterior — o patch nem tocava due_time).
   const [time, setTime] = useState(() => normalizeDueTime(taskContext?.dueTime) ?? '')
   const [note, setNote] = useState('')
+  // Incluir na agenda (TAREFA-AGENDA-002). Mesma régua do formulário de tarefa: reunião e agendamento
+  // nascem ligados, o resto fica só na Mesa. `null` = ainda no automático, aí o padrão acompanha a próxima
+  // ação escolhida; depois que a pessoa toca no botão, a escolha dela manda.
+  const [syncCal, setSyncCal] = useState<boolean | null>(null)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const { ref, dialogProps } = useDialog<HTMLDivElement>(onClose)
 
   const resultOptions = contactAction ? RESULT_OPTIONS[contactAction] : []
   const needsWhen = nextAction !== 'nenhuma'
+  // MESMA regra do servidor para saber que tarefa vai nascer — se divergisse, o botão mostraria um padrão
+  // e o banco gravaria outro.
+  const proximaEhReuniao = nextAction === 'reuniao_marcada' || lastAction === 'agendamento_confirmado'
+  const proximaKind = proximaEhReuniao ? 'reuniao' : taskKindForNextAction(nextAction)
+  const syncCalEfetivo = syncCal ?? syncCalendarPadrao(proximaKind)
   const skipsPerception = !!lastAction && AUTO_NO_PERCEPTION_RESULTS.has(lastAction)
   const summaryResult = contactAction && lastAction ? RESULT_OPTIONS[contactAction].find(o => o.key === lastAction)?.label ?? LAST_ACTION_LABEL[lastAction] : null
   const summaryWhen = needsWhen ? whenLabel(when, date, time) : null
@@ -349,6 +358,7 @@ export function SituationDrawer({ lead, sourceTaskId = null, taskContext, onClos
       when: needsWhen ? when : null, explicitDate: when === 'data' ? (date || null) : null,
       explicitTime: needsWhen ? normalizeDueTime(time) : null,
       temperature, response, note: note.trim() || null, currentSituation: note.trim() || LAST_ACTION_LABEL[lastAction],
+      syncCalendar: needsWhen ? syncCalEfetivo : null,
     })
     setSaving(false)
     if (res.ok) {
@@ -492,6 +502,26 @@ export function SituationDrawer({ lead, sourceTaskId = null, taskContext, onClos
                     </button>
                   )}
                 </label>
+
+                {/* Incluir na agenda: aqui nasce a próxima tarefa, então é aqui que se decide se ela vira
+                    compromisso no Google. Reunião já vem ligada; "Ligar novamente" e "Cobrar retorno",
+                    não — eram elas que entupiam o calendário. */}
+                <div className="flex items-center justify-between gap-3 rounded-btn border border-bento-border bg-bento-bg px-3 py-2.5">
+                  <div className="min-w-0">
+                    <p className="text-note font-medium text-bento-text">Incluir na minha agenda</p>
+                    <p className="font-tech text-caption text-bento-muted">
+                      {syncCalEfetivo
+                        ? (time ? 'Vira evento no Google Agenda no horário acima.' : 'Vira evento no Google Agenda — sem hora, entra como dia inteiro.')
+                        : 'A tarefa fica só na Mesa, fora do calendário.'}
+                    </p>
+                  </div>
+                  <button type="button" role="switch" aria-checked={syncCalEfetivo}
+                    aria-label="Incluir na minha agenda"
+                    onClick={() => setSyncCal(!syncCalEfetivo)}
+                    className={cn('relative h-6 w-11 flex-none rounded-full transition-colors', syncCalEfetivo ? 'bg-lime' : 'bg-bento-border')}>
+                    <span className={cn('absolute left-0.5 top-0.5 h-5 w-5 rounded-full bg-white transition-transform', syncCalEfetivo && 'translate-x-5')} />
+                  </button>
+                </div>
               </Group>
             )}
 

@@ -19,7 +19,7 @@ import {
   isLastAction, isNextAction, isTemperature, suggestedStageFromSituation,
   type LastAction, type NextAction, type Temperature, type LeadResponse, type WhenChoice,
 } from '@/lib/commercial/situation'
-import { taskKindForNextAction, inferTaskKind } from '@/lib/tasks/task-kind'
+import { taskKindForNextAction, inferTaskKind, syncCalendarPadrao } from '@/lib/tasks/task-kind'
 import { withDefaultLeadOwner } from '@/lib/commercial/default-lead-owner'
 import type { Lead, LeadStatus } from './types'
 
@@ -270,6 +270,8 @@ export async function setLeadTaskDoneAction(taskId: string, done: boolean): Prom
 export async function updateLeadSituationAction(input: {
   leadId: string
   sourceTaskId?: string | null
+  /** Veio do botão "Incluir na agenda" do drawer. Ausente = decide pelo tipo da próxima ação. */
+  syncCalendar?: boolean | null
   currentSituation?: string | null
   lastAction: LastAction
   nextAction: NextAction
@@ -374,9 +376,9 @@ export async function updateLeadSituationAction(input: {
       // ligado para 'ligar' e desligado para reunião — invertido: tarefa de telefonema ganhava link de vídeo
       // e a reunião ficava sem. Agora o link nasce com a reunião, que é onde ele serve.
       add_call: isMeeting,
-      // A reunião é compromisso com hora: vai para o Google Agenda. "Ligar novamente" e "Cobrar retorno"
-      // ficam só na Mesa — eram exatamente elas que entupiam o calendário.
-      sync_calendar: isMeeting,
+      // Agenda: o drawer manda a escolha do usuário; sem ela, vale o padrão do tipo da tarefa (reunião e
+      // agendamento entram, o resto fica só na Mesa). Uma chamada antiga sem o campo continua funcionando.
+      sync_calendar: input.syncCalendar ?? syncCalendarPadrao(isMeeting ? 'reuniao' : taskKindForNextAction(input.nextAction)),
       // Duração só faz sentido no compromisso; sem ela o evento sairia com a duração padrão de qualquer jeito,
       // mas explícita mantém a agenda coerente com o que a tela mostra. Padrão da reunião: 1 hora.
       ...(isMeeting ? { duration_min: 60 } : {}),
