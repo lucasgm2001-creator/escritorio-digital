@@ -16,7 +16,7 @@ type Row = Record<string, unknown>
 const TASK_COLS = [
   'title', 'notes', 'due_date', 'due_time', 'priority', 'kind',
   'linked_type', 'linked_id', 'linked_name', 'responsavel_id', 'responsavel_nome',
-  'add_call', 'duration_min', 'timezone',
+  'add_call', 'duration_min', 'timezone', 'sync_calendar',
 ] as const
 // No update também aceitamos o toggle de conclusão.
 const TASK_UPDATE_COLS = [...TASK_COLS, 'done', 'completed_at'] as const

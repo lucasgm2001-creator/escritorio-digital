@@ -1,5 +1,7 @@
 'use server'
 
+import { inferTaskKind, syncCalendarPadrao, addCallPadrao } from '@/lib/tasks/task-kind'
+
 import { getRequestContext } from '@/server/context/request-context'
 import { can } from '@/lib/permissions/can'
 import { createClient } from '@/lib/supabase/server'
@@ -32,8 +34,12 @@ export async function createAgentTaskAction(input: {
     if (data && data[0]) link = { linked_type: 'lead', linked_id: data[0].id as string, linked_name: data[0].name as string }
   }
 
+  // O agente não escolhe tipo: infere do título, a mesma leitura que a Mesa faz. Daí sai se a tarefa vai
+  // para o Google Agenda — "marcar reunião com X" entra, "ligar para X" não.
+  const kind = inferTaskKind(title)
   const { data: created, error } = await supabase.from('tasks').insert({
     user_id: context.user.id, title, due_date: input.dueDate, due_time: input.dueTime, done: false,
+    kind, sync_calendar: syncCalendarPadrao(kind), add_call: addCallPadrao(kind),
     ...(link ?? {}), ...(teamId ? { team_id: teamId } : {}),
   }).select('id').single()
   if (error || !created) return { ok: false, error: error?.message ?? 'Não foi possível criar a tarefa.' }

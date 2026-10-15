@@ -10,7 +10,7 @@ import { cn } from '@/lib/utils'
 import { useToast } from '@/components/ui/toast'
 import type { Task, TaskPriority, LinkOption } from './types'
 import { DEFAULT_TASK_OWNER_ID, DEFAULT_TASK_OWNER_NAME } from '@/lib/tasks/default-task-owner'
-import { TASK_KIND_LABEL, inferTaskKind, type TaskKind } from '@/lib/tasks/task-kind'
+import { TASK_KIND_LABEL, inferTaskKind, syncCalendarPadrao, addCallPadrao, type TaskKind } from '@/lib/tasks/task-kind'
 
 export interface TaskPrefill {
   title?: string
@@ -130,7 +130,13 @@ export function TaskModal({ onClose, onSaved, linkOptions, task, prefill, aiFill
   const [responsavelId, setResponsavelId] = useState<string>(task?.responsavel_id ?? DEFAULT_TASK_OWNER_ID)
   // Reunião nasce com a chamada LIGADA (gera o Google Meet). Nas demais tarefas segue desligada: link de
   // vídeo em tarefa de ligação ou follow-up só polui a agenda. Ao EDITAR, respeita o que já está salvo.
-  const [addCall, setAddCall]     = useState<boolean>(task?.add_call ?? (prefill?.kind === 'reuniao' || inferTaskKind(prefill?.title ?? '', null) === 'reuniao'))
+  // Em EDIÇÃO vale o que está gravado; em tarefa NOVA, o padrão sai do tipo escolhido. `*Touched` marca
+  // que a pessoa mexeu — a partir daí trocar o tipo não desfaz a escolha dela.
+  const kindInicial = prefill?.kind ?? inferTaskKind(task?.title ?? prefill?.title ?? '', task?.kind)
+  const [addCall, setAddCall]     = useState<boolean>(task?.add_call ?? addCallPadrao(kindInicial))
+  const [addCallTouched, setAddCallTouched] = useState(!!task)
+  const [syncCal, setSyncCal]     = useState<boolean>(task?.sync_calendar ?? syncCalendarPadrao(kindInicial))
+  const [syncCalTouched, setSyncCalTouched] = useState(!!task)
   // Duração/Fuso do evento (toda tarefa com data vai pro Google Agenda). NÃO há mais "modo reunião".
   const [durationMin, setDurationMin] = useState<number>(task?.duration_min ?? 60)
   const [timezone, setTimezone]   = useState<string>(task?.timezone ?? 'America/Sao_Paulo')
@@ -186,6 +192,7 @@ export function TaskModal({ onClose, onSaved, linkOptions, task, prefill, aiFill
       // is_meeting aposentado e NÃO lido em lugar nenhum → não enviamos: no insert o banco usa o default
       // (false); na edição o campo NÃO é tocado (antes era forçado a false, zerando a cada save).
       add_call:      addCall,
+      sync_calendar: syncCal,
       duration_min:  durationMin,
       timezone:      timezone,
     }
@@ -277,7 +284,9 @@ export function TaskModal({ onClose, onSaved, linkOptions, task, prefill, aiFill
                 if (!kindTouched) {
                   const k = inferTaskKind(e.target.value)
                   setKind(k)
-                  if (k === 'reuniao') { setAddCall(true); setDurationMin(d => (d === 30 ? 60 : d)) }
+                  if (!syncCalTouched) setSyncCal(syncCalendarPadrao(k))
+                  if (!addCallTouched) setAddCall(addCallPadrao(k))
+                  if (k === 'reuniao') setDurationMin(d => (d === 30 ? 60 : d))
                 }
               }}
               className={inputCls}
@@ -290,9 +299,11 @@ export function TaskModal({ onClose, onSaved, linkOptions, task, prefill, aiFill
               {TASK_KINDS.map(([value, label]) => (
                 <button key={value} type="button" onClick={() => {
                   setKind(value); setKindTouched(true)
-                  // Escolher "Reunião" já deixa o compromisso pronto: 1 hora e Google Meet ligado. Trocar
-                  // para outro tipo NÃO desliga nada — quem mexeu no toggle de propósito não é sobrescrito.
-                  if (value === 'reuniao') { setAddCall(true); setDurationMin(d => (d === 30 ? 60 : d)) }
+                  // Escolher o tipo reajusta os padrões de agenda e vídeo — mas SÓ enquanto a pessoa não
+                  // mexeu neles. Depois que ela decidiu, trocar o tipo não desfaz a escolha.
+                  if (!syncCalTouched) setSyncCal(syncCalendarPadrao(value))
+                  if (!addCallTouched) setAddCall(addCallPadrao(value))
+                  if (value === 'reuniao') setDurationMin(d => (d === 30 ? 60 : d))
                 }}
                   className={cn('min-h-[38px] rounded-btn border px-2 text-xs font-medium transition-colors',
                     kind === value ? 'border-lime/50 bg-lime/10 text-lime-fg' : 'border-bento-border bg-bento-bg text-bento-muted hover:text-bento-text')}>
@@ -325,31 +336,56 @@ export function TaskModal({ onClose, onSaved, linkOptions, task, prefill, aiFill
             </Field>
           </div>
 
-          {/* Evento no Google Agenda — Duração/Fuso + Adicionar chamada (toda tarefa pode virar evento). */}
-          <div className="grid grid-cols-2 gap-3">
-            <Field label="Duração">
-              <select value={durationMin} onChange={e => setDurationMin(Number(e.target.value))} className={inputCls}>
-                {DURATIONS.map(d => <option key={d.v} value={d.v}>{d.l}</option>)}
-              </select>
-            </Field>
-            <Field label="Fuso horário">
-              <select value={timezone} onChange={e => setTimezone(e.target.value)} className={inputCls}>
-                {TIMEZONES.map(t => <option key={t.v} value={t.v}>{t.l}</option>)}
-              </select>
-            </Field>
-          </div>
-          <Field label="Chamada">
+          {/* GOOGLE AGENDA (TAREFA-AGENDA-001). O botão mestre: tarefa comum não vai para o calendário,
+              call e reunião vão. Duração, fuso e chamada só aparecem quando a tarefa de fato vira evento —
+              perguntar fuso horário de um "Ligar para fulano" que nunca sai daqui é ruído. */}
+          <Field label="Google Agenda">
             <div className="flex items-center justify-between gap-3 bg-bento-bg border border-bento-border rounded-btn px-3 py-2.5">
               <div className="min-w-0">
-                <p className="text-sm font-medium text-bento-text">Adicionar chamada</p>
-                <p className="font-tech text-[10px] text-bento-muted/80">Gera um Google Meet pro evento (precisa da conta Google conectada em Integrações).</p>
+                <p className="text-sm font-medium text-bento-text">Incluir na minha agenda</p>
+                <p className="font-tech text-[10px] text-bento-muted/80">
+                  {syncCal
+                    ? 'Vira evento no Google Agenda, com a data e a hora acima.'
+                    : 'Fica só aqui nas tarefas — não entra no calendário.'}
+                </p>
               </div>
-              <button type="button" role="switch" aria-checked={addCall} onClick={() => setAddCall(v => !v)}
-                className={cn('relative w-11 h-6 rounded-full flex-none transition-colors', addCall ? 'bg-lime' : 'bg-bento-border')}>
-                <span className={cn('absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white transition-transform', addCall && 'translate-x-5')} />
+              <button type="button" role="switch" aria-checked={syncCal}
+                onClick={() => { setSyncCal(v => !v); setSyncCalTouched(true) }}
+                className={cn('relative w-11 h-6 rounded-full flex-none transition-colors', syncCal ? 'bg-lime' : 'bg-bento-border')}>
+                <span className={cn('absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white transition-transform', syncCal && 'translate-x-5')} />
               </button>
             </div>
           </Field>
+
+          {syncCal && (
+            <>
+              <div className="grid grid-cols-2 gap-3">
+                <Field label="Duração">
+                  <select value={durationMin} onChange={e => setDurationMin(Number(e.target.value))} className={inputCls}>
+                    {DURATIONS.map(d => <option key={d.v} value={d.v}>{d.l}</option>)}
+                  </select>
+                </Field>
+                <Field label="Fuso horário">
+                  <select value={timezone} onChange={e => setTimezone(e.target.value)} className={inputCls}>
+                    {TIMEZONES.map(t => <option key={t.v} value={t.v}>{t.l}</option>)}
+                  </select>
+                </Field>
+              </div>
+              <Field label="Chamada">
+                <div className="flex items-center justify-between gap-3 bg-bento-bg border border-bento-border rounded-btn px-3 py-2.5">
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium text-bento-text">Adicionar chamada</p>
+                    <p className="font-tech text-[10px] text-bento-muted/80">Gera um Google Meet pro evento (precisa da conta Google conectada em Integrações).</p>
+                  </div>
+                  <button type="button" role="switch" aria-checked={addCall}
+                    onClick={() => { setAddCall(v => !v); setAddCallTouched(true) }}
+                    className={cn('relative w-11 h-6 rounded-full flex-none transition-colors', addCall ? 'bg-lime' : 'bg-bento-border')}>
+                    <span className={cn('absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white transition-transform', addCall && 'translate-x-5')} />
+                  </button>
+                </div>
+              </Field>
+            </>
+          )}
 
           {/* Link do Google Meet do evento — só em edição, quando o sync já preencheu meet_link. */}
           {task?.meet_link && <MeetLinkBox url={task.meet_link} />}

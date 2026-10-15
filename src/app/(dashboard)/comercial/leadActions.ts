@@ -9,7 +9,7 @@ import { payClientWeek, registerMeeting, resolveSellerForCommission } from '@/li
 import { weeklyCommissionUsd, hasCommissionPct, LEGACY_VPS_USD } from '@/lib/commission/planCommission'
 import { meetingCommissionCounts } from '@/lib/commission/constants'
 import { logStageEvent } from '@/lib/stageEvents'
-import { stageTaskFor } from '@/lib/tasks/task-kind'
+import { stageTaskFor, syncCalendarPadrao } from '@/lib/tasks/task-kind'
 import { chargesInFirstMonth, cadenceLabel, SEMANAL, type BillingCadence } from '@/lib/commission/billing'
 import { DEFAULT_TASK_OWNER_ID, DEFAULT_TASK_OWNER_NAME } from '@/lib/tasks/default-task-owner'
 
@@ -394,6 +394,8 @@ export async function moveLead(
           // Reunião nasce com 1 hora e chamada ligada — o mesmo padrão do editor e do fluxo de tarefas.
           // Sem hora ainda (o funil não pergunta), então o evento é de dia inteiro até alguém definir o horário.
           ...(stageTask.kind === 'reuniao' ? { duration_min: 60, add_call: true } : {}),
+          // Mesma régua do formulário: reunião/agendamento entram na agenda, o resto fica só na Mesa.
+          sync_calendar: syncCalendarPadrao(stageTask.kind),
           linked_type: 'lead',
           linked_id: lead.id,
           linked_name: lead.name,

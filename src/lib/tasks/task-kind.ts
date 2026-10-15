@@ -26,6 +26,20 @@ export function inferTaskKind(title: string, stored?: string | null): TaskKind {
   return 'geral'
 }
 
+// ── GOOGLE AGENDA: o que nasce indo para o calendário (TAREFA-AGENDA-001) ───────────────────────
+// Até aqui TODA tarefa com data virava evento, e a agenda enchia de "Ligar para fulano". A regra passou a
+// ser: o calendário é de compromisso com hora marcada — call e reunião. O resto vive só na Mesa, e entra
+// na agenda apenas se a pessoa ligar o botão no formulário.
+// Mora AQUI, e não em cada tela, porque tarefa nasce em cinco lugares (formulário, funil, drawer de
+// situação, agente, webhook) — critério duplicado vira critério divergente.
+const KINDS_NA_AGENDA: ReadonlySet<TaskKind> = new Set<TaskKind>(['reuniao', 'agendamento'])
+
+/** Esta tarefa deve virar evento no Google Agenda por padrão? */
+export const syncCalendarPadrao = (kind: TaskKind): boolean => KINDS_NA_AGENDA.has(kind)
+
+/** Esta tarefa já nasce com link de vídeo? Só reunião — é onde a chamada acontece. */
+export const addCallPadrao = (kind: TaskKind): boolean => kind === 'reuniao'
+
 export function taskKindForNextAction(action: string): TaskKind {
   if (action === 'ligar') return 'ligacao'
   if (action === 'mensagem') return 'whatsapp'

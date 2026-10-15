@@ -29,6 +29,7 @@ interface TaskRow {
   kind?: string | null           // 'reuniao' → evento nomeado "Call | <lead>" na agenda
   google_event_id?: string | null
   add_call?: boolean | null
+  sync_calendar?: boolean | null
   duration_min?: number | null   // reunião: duração do evento (min). Default 30 quando ausente.
   timezone?: string | null       // reunião: fuso IANA do start/end. Default America/Sao_Paulo.
 }
@@ -343,7 +344,7 @@ export async function syncTaskCalendar(taskId: string): Promise<CalSyncResult> {
     const supabase = createServiceClient()
     const { data, error } = await supabase
       .from('tasks')
-      .select('id, user_id, title, notes, due_date, due_time, linked_name, kind, google_event_id, add_call, duration_min, timezone')
+      .select('id, user_id, title, notes, due_date, due_time, linked_name, kind, google_event_id, add_call, duration_min, timezone, sync_calendar')
       .eq('id', taskId)
       .single()
     if (error || !data) return { ok: false, step: 'read', reason: error?.message ?? 'tarefa não encontrada' }
@@ -355,9 +356,14 @@ export async function syncTaskCalendar(taskId: string): Promise<CalSyncResult> {
     if (!ctx) return { ok: true }
     console.log('[gcal] path:', ctx.meet ? 'oauth(+meet)' : 'service-account')
 
-    // (A) SEM due_date: remove o evento (se houver). Só zera o id DEPOIS do delete confirmado — se o delete
-    //     falhar, MANTÉM o id (trilha pra limpar depois) e sinaliza, em vez de perder a referência.
-    if (!task.due_date) {
+    // (A) SEM due_date OU com a agenda DESLIGADA: remove o evento (se houver). Só zera o id DEPOIS do
+    //     delete confirmado — se o delete falhar, MANTÉM o id (trilha pra limpar depois) e sinaliza, em
+    //     vez de perder a referência.
+    //
+    //     `sync_calendar` entra aqui de propósito, no mesmo ramo do "sem data": desligar o botão não é só
+    //     parar de criar daqui pra frente, é TIRAR da agenda o que já estava lá. Um botão que desliga mas
+    //     deixa o evento mentiria sobre o que o calendário contém.
+    if (!task.due_date || task.sync_calendar === false) {
       if (!task.google_event_id) return { ok: true }
       try {
         await deleteEvent(ctx, task.google_event_id)

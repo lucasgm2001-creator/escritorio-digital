@@ -374,6 +374,9 @@ export async function updateLeadSituationAction(input: {
       // ligado para 'ligar' e desligado para reunião — invertido: tarefa de telefonema ganhava link de vídeo
       // e a reunião ficava sem. Agora o link nasce com a reunião, que é onde ele serve.
       add_call: isMeeting,
+      // A reunião é compromisso com hora: vai para o Google Agenda. "Ligar novamente" e "Cobrar retorno"
+      // ficam só na Mesa — eram exatamente elas que entupiam o calendário.
+      sync_calendar: isMeeting,
       // Duração só faz sentido no compromisso; sem ela o evento sairia com a duração padrão de qualquer jeito,
       // mas explícita mantém a agenda coerente com o que a tela mostra. Padrão da reunião: 1 hora.
       ...(isMeeting ? { duration_min: 60 } : {}),
