@@ -442,6 +442,20 @@ export function SituationDrawer({ lead, sourceTaskId = null, taskContext, onClos
               ))}
             </Group>
 
+            {/* "Nenhuma" encerra a tarefa e não cria outra: o lead sai de Hoje, de Atrasado e de Próximas
+                de uma vez. Era o caminho silencioso que deixou 95 leads fora do fluxo de trabalho — 9 deles
+                atualizados nesta semana. Agora o formulário diz o que vai acontecer ANTES de salvar, e a
+                aba Atrasado passou a mostrá-los no grupo da própria fase, em "Sem próximo passo". */}
+            {nextAction === 'nenhuma' && (
+              <div className="rounded-bento border border-amber-500/30 bg-amber-500/[0.06] px-3 py-2.5">
+                <p className="text-note text-amber-200">Sem próxima ação, este lead fica sem tarefa.</p>
+                <p className="mt-0.5 font-tech text-caption text-bento-muted">
+                  Ele continua visível em Tarefas → Atrasado, no grupo
+                  {suggestedStageLabel ? ` “${suggestedStageLabel}”` : ' da fase dele'}, marcado como “Sem próximo passo”.
+                </p>
+              </div>
+            )}
+
             {lastAction && (
               <div className="rounded-bento border border-lime/20 bg-lime/[0.05] p-3">
                 <p className="text-caption font-tech uppercase tracking-label text-lime-fg">O que será atualizado</p>

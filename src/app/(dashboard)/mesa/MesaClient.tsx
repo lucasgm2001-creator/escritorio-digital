@@ -241,7 +241,24 @@ export function MesaClient({ initialTasks, initialLeads, initialFocus, linkOptio
     [pending, today, ultimaDataPorLead])
   const overdueTasks = atrasado.rows
 
-  // Atrasado agrupado por estágio do lead, na ordem de valor. Grupo vazio não aparece.
+  // LEADS PARADOS: vivos, sem nenhuma tarefa aberta e sem próximo passo definido.
+  //
+  // Eram o buraco do fluxo. Ao atualizar a situação escolhendo "Nenhuma" como próximo passo, a tarefa de
+  // origem é encerrada e nenhuma nasce no lugar — o lead sai de Hoje, de Atrasado e de Próximas de uma vez
+  // e só reaparece na aba "Sem plano", que não é por onde se trabalha. São 95 leads nessa situação, e 9
+  // deles foram atualizados nesta semana: o trabalho foi feito e o lead sumiu da tela mesmo assim.
+  //
+  // Agora eles voltam para o Atrasado, DENTRO do grupo da própria fase do funil — que é a posição que o
+  // Lucas pediu. Aparecem como linha de LEAD, não de tarefa, porque tarefa não existe: o que falta neles
+  // é justamente decidir o próximo passo.
+  const leadsParados = useMemo(() => {
+    const comTarefa = new Set(pending.filter(t => t.linked_type === 'lead' && t.linked_id).map(t => t.linked_id as string))
+    return leads.filter(lead =>
+      !TERMINAL.has(lead.status) && !isWaiting(lead) && !comTarefa.has(lead.id) &&
+      !lead.next_contact && (!lead.next_action || lead.next_action === 'nenhuma'))
+  }, [leads, pending])
+
+  // Atrasado agrupado por estágio do lead, na ordem de valor. Grupo sem nada não aparece.
   const atrasadoPorEstagio = useMemo(() => {
     const statusPorLead = new Map(leads.map(l => [l.id, l.status as string]))
     const porStatus = new Map<string, Task[]>()
@@ -252,14 +269,23 @@ export function MesaClient({ initialTasks, initialLeads, initialFocus, linkOptio
       lista.push(task)
       porStatus.set(st, lista)
     }
+    const paradosPorStatus = new Map<string, MesaLead[]>()
+    for (const lead of leadsParados) {
+      const lista = paradosPorStatus.get(lead.status) ?? []
+      lista.push(lead)
+      paradosPorStatus.set(lead.status, lista)
+    }
     const grupos = ORDEM_ATRASADO
-      .map(g => ({ ...g, tasks: porStatus.get(g.status) ?? [] }))
-      .filter(g => g.tasks.length > 0)
+      .map(g => ({ ...g, tasks: porStatus.get(g.status) ?? [], parados: paradosPorStatus.get(g.status) ?? [] }))
+      .filter(g => g.tasks.length > 0 || g.parados.length > 0)
     const conhecidos = new Set(ORDEM_ATRASADO.map(g => g.status))
     const resto = [...porStatus.entries()].filter(([st]) => !conhecidos.has(st)).flatMap(([, v]) => v)
-    if (resto.length) grupos.push({ status: 'outros', titulo: 'Outros', porque: 'sem estágio reconhecido', tasks: resto })
+    const paradosResto = [...paradosPorStatus.entries()].filter(([st]) => !conhecidos.has(st)).flatMap(([, v]) => v)
+    if (resto.length || paradosResto.length) {
+      grupos.push({ status: 'outros', titulo: 'Outros', porque: 'sem estágio reconhecido', tasks: resto, parados: paradosResto })
+    }
     return grupos
-  }, [overdueTasks, leads])
+  }, [overdueTasks, leads, leadsParados])
 
   // REUNIÕES: sem dedupe nenhuma. Compromisso marcado não é resíduo — se existem duas, as duas aparecem.
   const meetingTasks = useMemo(() => pending.filter(task => inferTaskKind(task.title, task.kind) === 'reuniao'), [pending])
@@ -350,7 +376,7 @@ export function MesaClient({ initialTasks, initialLeads, initialFocus, linkOptio
 
   const filters: { id: Filter; label: string; Icon: LucideIcon; count: number }[] = [
     { id: 'hoje', label: 'Hoje', Icon: CircleDot, count: tarefasDeHojeCount + newLeadsToday.length },
-    { id: 'atrasado', label: 'Atrasado', Icon: AlertTriangle, count: overdueTasks.length },
+    { id: 'atrasado', label: 'Atrasado', Icon: AlertTriangle, count: overdueTasks.length + leadsParados.length },
     { id: 'acompanhando', label: 'Acompanhando', Icon: Star, count: focusLeads.length },
     { id: 'reunioes', label: 'Reuniões', Icon: Video, count: meetingTasks.length },
     { id: 'leads', label: 'Leads', Icon: UserRound, count: allLeads.length },
@@ -651,6 +677,23 @@ export function MesaClient({ initialTasks, initialLeads, initialFocus, linkOptio
                                       onResolver={() => resolverDuplicadas(task)}
                                       onSelect={() => selectTask(task)} onToggle={() => toggleTask(task)} onEdit={() => openEdit(task)} />
                                   ))}
+
+                                  {/* Leads desta fase que ficaram SEM próximo passo. Não têm tarefa — o que
+                                      falta neles é decidir o que fazer —, então entram como linha de lead,
+                                      visualmente separados, mas no grupo da fase a que pertencem. */}
+                                  {grupo.parados.length > 0 && (
+                                    <>
+                                      <p className="px-1 pt-1 font-tech text-[10px] uppercase tracking-label text-amber-300/80">
+                                        Sem próximo passo · {grupo.parados.length}
+                                      </p>
+                                      {grupo.parados.map(lead => (
+                                        <LeadRow key={lead.id} lead={lead} active={selectedLeadId === lead.id}
+                                          mostrarEmpresa noRadar={focus.has(lead.id)}
+                                          onToggleFocus={() => toggleFocus(lead.id)}
+                                          onSelect={() => selectLead(lead)} />
+                                      ))}
+                                    </>
+                                  )}
                                 </div>
                               )}
                             </div>
