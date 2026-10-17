@@ -36,7 +36,7 @@ export function Panel({ span = '1', hero = false, label, action, className, body
   return (
     <section
       className={cn(
-        'bento-fx flex flex-col min-w-0 p-5',
+        'bento-fx flex w-full max-w-full flex-col min-w-0 overflow-hidden p-5',
         hero && 'is-hero',
         SPAN_CLS[span],
         className,

@@ -12,8 +12,8 @@ export function ClientSectionTabs({ config }: { config: DomainConfig }) {
   const pathname = usePathname()
   return (
     <div className="sticky top-0 z-20 border-b border-bento-border bg-bento-bg/95 backdrop-blur supports-[backdrop-filter]:bg-bento-bg/80 shrink-0">
-      <div className="mx-auto w-full max-w-6xl px-2 md:px-4 lg:px-6">
-        <nav className="flex gap-0.5 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden" aria-label="Seções do cliente">
+      <div className="mx-auto w-full max-w-6xl px-3 sm:px-4 md:px-6 lg:px-8">
+        <nav className="flex gap-1 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden" aria-label="Seções do cliente">
           {config.sections.map(section => {
             const Icon = section.icon
             const active = pathname === section.href
@@ -23,7 +23,7 @@ export function ClientSectionTabs({ config }: { config: DomainConfig }) {
                 href={section.href}
                 aria-current={active ? 'page' : undefined}
                 className={cn(
-                  'inline-flex items-center gap-1.5 px-3 min-h-[44px] border-b-2 -mb-px text-[13px] font-medium whitespace-nowrap shrink-0 transition-colors [-webkit-tap-highlight-color:transparent]',
+                  'inline-flex items-center gap-1.5 px-3 sm:px-3.5 min-h-[46px] border-b-2 -mb-px text-[13px] font-medium whitespace-nowrap shrink-0 transition-colors [-webkit-tap-highlight-color:transparent]',
                   active ? 'border-lime text-lime-fg' : 'border-transparent text-bento-muted hover:text-bento-text',
                 )}
               >

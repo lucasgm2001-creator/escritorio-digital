@@ -8,39 +8,34 @@ import { createClient } from '@/lib/supabase/server'
 
 export type MLead = { id: string; status: string | null; value: number | null; received_at: string | null; created_at: string | null; stage_changed_at: string | null; score: number | null; origem: string | null }
 export type MStage = { lead_id: string | null; from_stage: string | null; to_stage: string; changed_at: string }
-// met_on = data REAL da reunião (competência para período/timeline); created_at é só quando a linha nasceu no
-// banco. CLIENT-HISTORY-ADMIN-003: reunião histórica (met_on retroativo) tem de cair no período certo.
-export type MMeeting = { id: string; valor_usd: number | null; met_on: string | null; created_at: string | null }
 export type MDeal = { id: string; lead_id: string | null; kind: string | null; valor_total_usd: number | null; status: string | null; data_fechamento: string | null; created_at: string | null }
 
 export type CommercialRaw = {
   leads: MLead[]
   stageEvents: MStage[]
-  meetings: MMeeting[]
   deals: MDeal[]
 }
 
-// withPipeline=true carrega TAMBÉM stage_events + meetings (pipeline/gargalos do Relatório). Os consumidores
-// executivos (Hall/Dashboard/Financeiro/aba Métricas) usam SÓ leads + deals → não varrem essas 2 tabelas
-// inteiras (perf, SPRINT-FINAL-002 Parte 4). Números idênticos: o caminho executivo nunca leu stageEvents/meetings.
+// withPipeline=true carrega TAMBÉM stage_events (funil/movimentações/gargalos do Relatório). Os consumidores
+// executivos (Hall/Dashboard/Financeiro/aba Métricas) usam SÓ leads + deals → não varrem a tabela inteira
+// (perf, SPRINT-FINAL-002 Parte 4). Números idênticos: o caminho executivo nunca leu stageEvents.
+// A tabela `meetings` saiu daqui: o relatório passou a contar reunião pela transição do funil (stage_events),
+// então varrê-la era custo puro. Quem precisa dela é a COMISSÃO, que lê direto.
 export async function getCommercialRaw(teamId: string, opts?: { withPipeline?: boolean }): Promise<CommercialRaw> {
   const supabase = createClient()
   const withPipeline = opts?.withPipeline ?? false
   const emptyRes = <T>() => Promise.resolve({ data: [] as T[], error: null })
-  const [leads, deals, stageEvents, meetings] = await Promise.all([
+  const [leads, deals, stageEvents] = await Promise.all([
     supabase.from('leads').select('id, status, value, received_at, created_at, stage_changed_at, score, origem').eq('team_id', teamId),
     supabase.from('deals').select('id, lead_id, kind, valor_total_usd, status, data_fechamento, created_at').eq('team_id', teamId),
     withPipeline ? supabase.from('stage_events').select('lead_id, from_stage, to_stage, changed_at').eq('team_id', teamId) : emptyRes<MStage>(),
-    withPipeline ? supabase.from('meetings').select('id, valor_usd, met_on, created_at').eq('team_id', teamId) : emptyRes<MMeeting>(),
   ])
   if (leads.error) throw leads.error
   if (deals.error) throw deals.error
   if (stageEvents.error) throw stageEvents.error
-  if (meetings.error) throw meetings.error
   return {
     leads: (leads.data ?? []) as MLead[],
     stageEvents: (stageEvents.data ?? []) as MStage[],
-    meetings: (meetings.data ?? []) as MMeeting[],
     deals: (deals.data ?? []) as MDeal[],
   }
 }
@@ -109,14 +104,24 @@ export async function getMarketingInvestment(teamId: string, fromYMD: string, to
   return (data ?? []).reduce((sum, row) => sum + (Number((row as { amount_usd: number | null }).amount_usd) || 0), 0)
 }
 
-// Reuniões do time (só met_on — leve, sem duplicar stage_events). O Service filtra por janela e aplica a MESMA
-// regra de "reunião realizada" do ReportingService (meetingCommissionCounts) para o custo-por-reunião bater
-// com "Reuniões Realizadas" do relatório.
-export type MMeetingMetric = { met_on: string | null }
+// Reuniões REALIZADAS do time, como FATO DE FUNIL: a transição "Reunião Agendada" → "Proposta em Análise"
+// registrada em stage_events. É a MESMA definição do ReportingService (ReportKpis.meetingsHeld) — só assim
+// "Custo por Reunião" bate com "Reuniões Realizadas" mostradas lado a lado no Dashboard/PDF.
+//
+// Por que NÃO a tabela `meetings`: aquela linha é artefato de COMISSÃO e só nasce quando a reunião gera
+// comissão (MEETINGS_COMMISSION_CUTOFF). Desde jul/2026 nenhuma nasce → o custo-por-reunião ficaria null
+// para sempre. Leitura enxuta: 2 colunas, já filtrada no banco pelo par de fases (nada de varrer a tabela).
+// Os slugs são de fases PROTEGIDAS (isStageProtected) — estáveis mesmo se a equipe renomear a fase.
+export type MMeetingMetric = { lead_id: string | null; changed_at: string }
 
 export async function getMeetingsForMetrics(teamId: string): Promise<MMeetingMetric[]> {
   const supabase = createClient()
-  const { data, error } = await supabase.from('meetings').select('met_on').eq('team_id', teamId)
+  const { data, error } = await supabase
+    .from('stage_events')
+    .select('lead_id, changed_at')
+    .eq('team_id', teamId)
+    .eq('from_stage', 'reuniao')
+    .eq('to_stage', 'proposta')
   if (error) return []
   return (data ?? []) as MMeetingMetric[]
 }

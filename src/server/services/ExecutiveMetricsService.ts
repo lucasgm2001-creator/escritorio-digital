@@ -9,7 +9,6 @@ import { funnelConversionPct } from '@/lib/funnelMetrics'
 import { receivedRevenueBetween, receivedRevenueBySeller, receivedRevenueByPlan, type PaymentRowWithClient } from '@/core/metrics/revenue'
 import { mrr as calcMrr, arr as calcArr, activeClientsCount, newClientsCount, mrrByPlan } from '@/core/metrics/portfolio'
 import { closedValue, closedCount, averageTicket } from '@/core/metrics/sales'
-import { meetingCommissionCounts } from '@/lib/commission/constants'
 import { ymd, todaySP, dowOfYmd } from '@/lib/date'
 
 // ExecutiveMetricsService — CAMADA ÚNICA de leitura executiva (EXECUTIVE-METRICS-001, Parte 1). Todo dashboard,
@@ -30,14 +29,19 @@ const EMPTY = (label: string, from: string, to: string): ExecutiveMetricsVM => (
 
 const round2 = (n: number): number => Math.round((n + Number.EPSILON) * 100) / 100
 
-// Reuniões "realizadas" no período — MESMA regra do ReportKpis.meetingsHeld (ReportingService): met_on
-// dentro da janela + gate de comissão (meetingCommissionCounts). Só assim "Custo por Reunião" bate com
-// "Reuniões Realizadas" exibidas lado a lado no Dashboard/PDF.
+// Reuniões "realizadas" no período: met_on dentro da janela. SEM gate de comissão — meetingCommissionCounts
+// é regra de DINHEIRO (reunião parou de gerar comissão em jul/2026) e não pode governar métrica operacional:
+// com o gate, "Custo por Reunião" ficava null para sempre a partir do corte, porque nenhuma linha nova de
+// `meetings` nasce mais. Denominador operacional é reunião que aconteceu, tenha gerado comissão ou não.
 function meetingsHeldCount(meetings: MMeetingMetric[], fromYMD: string, toYMD: string): number {
-  return meetings.filter(m => {
-    const d = (m.met_on ?? '').slice(0, 10)
-    return !!d && d >= fromYMD && d <= toYMD && meetingCommissionCounts(m.met_on)
-  }).length
+  // Leads DISTINTOS (uma pessoa que voltou pra reunião e avançou de novo é uma reunião, não duas) — mesma
+  // unidade do ReportKpis.meetingsHeld.
+  const ids = new Set<string>()
+  for (const m of meetings) {
+    const d = String(m.changed_at ?? '').slice(0, 10)
+    if (m.lead_id && d >= fromYMD && d <= toYMD) ids.add(m.lead_id)
+  }
+  return ids.size
 }
 
 // Receita PREVISTA: soma, por cliente ativo, das cobranças AGENDADAS (dueDateFor) que caem depois de HOJE e
@@ -78,7 +82,7 @@ export async function getExecutiveMetrics(context: RequestContext, period: Execu
     getClientRevenueForMetrics(),       // client_payments (receita recebida / por vendedor / por plano)
     getExecutiveClients(teamId),        // clients + plans (MRR/ARR / ativos / novos / previsão / dimensões)
     getMarketingInvestment(teamId, from, to),  // Σ marketing_investments no período (Aquisição)
-    getMeetingsForMetrics(teamId),              // reuniões do time (custo por reunião)
+    getMeetingsForMetrics(teamId),              // reuniões REALIZADAS (stage_events) — custo por reunião
   ])
   return composeExecutiveMetrics(raw, revenue, carteira, from, to, label, { investmentUsd, meetings })
 }

@@ -19,10 +19,10 @@ export function ClientWorkspaceShell({ clientId, clientName, subtitle, children 
 }) {
   const config = buildClientConfig(clientId, clientName)
   return (
-    <div className="flex flex-col min-h-full">
+    <div className="flex min-w-0 max-w-full flex-col min-h-full overflow-x-hidden">
       <ClientWorkspaceHeader clientName={clientName} subtitle={subtitle} />
       <ClientSectionTabs config={config} />
-      <div className="flex-1 mx-auto w-full max-w-6xl px-4 md:px-6 lg:px-8 py-5 md:py-6 pb-[max(1.5rem,env(safe-area-inset-bottom))]">
+      <div className="flex-1 mx-auto w-full max-w-6xl min-w-0 px-4 sm:px-5 md:px-6 lg:px-8 py-5 md:py-6 pb-[max(2rem,env(safe-area-inset-bottom))]">
         {children}
       </div>
     </div>

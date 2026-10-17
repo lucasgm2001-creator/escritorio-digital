@@ -14,13 +14,23 @@ export type SaleDeal = {
 
 const round2 = (n: number): number => Math.round((n + Number.EPSILON) * 100) / 100
 
+/**
+ * Este deal é uma VENDA COMERCIAL de verdade? Renovação trimestral e upgrade de plano (kind
+ * 'renewal'/'upgrade', gerados automaticamente por process_due_renewals / register_plan_upgrade_v2) são
+ * movimentos de carteira, NÃO vendas novas — e um contrato interrompido/anulado não vale nada. FONTE ÚNICA
+ * da regra: usada aqui e no ReportingService, para o relatório nunca divergir das métricas executivas.
+ */
+export function isCommercialSale(d: SaleDeal): boolean {
+  const isSale = !d.kind || d.kind === 'sale'
+  const isActive = d.status !== 'interrompido' && d.status !== 'anulado'
+  return isSale && isActive
+}
+
 /** Contratos fechados no período (data_fechamento civil em [fromYMD, toYMD]). */
 function closedDealsInPeriod<T extends SaleDeal>(deals: T[], fromYMD: string, toYMD: string): T[] {
   return deals.filter(d => {
     const dt = (d.data_fechamento ?? '').slice(0, 10)
-    const isSale = !d.kind || d.kind === 'sale'
-    const isActive = d.status !== 'interrompido' && d.status !== 'anulado'
-    return dt >= fromYMD && dt <= toYMD && isSale && isActive
+    return dt >= fromYMD && dt <= toYMD && isCommercialSale(d)
   })
 }
 

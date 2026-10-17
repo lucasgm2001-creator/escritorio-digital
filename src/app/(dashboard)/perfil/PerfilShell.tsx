@@ -20,7 +20,10 @@ const TABS: { key: 'perfil' | 'remuneracao'; label: string; icon: LucideIcon }[]
 export function PerfilShell({ profile, comp, workspace }: { profile: ProfileProps; comp: MyCompensationView; workspace: string }) {
   const [tab, setTab] = useState<'perfil' | 'remuneracao'>('perfil')
   return (
-    <div className="space-y-5">
+    <>
+    {/* Espaçamento compartilhado pelas duas abas: evita conteúdo encostado no main em monitores largos e
+        mantém o mesmo respiro no celular. */}
+    <div className="mx-auto w-full max-w-[1800px] min-w-0 space-y-5 p-4 sm:p-6 lg:p-8 pb-[max(2rem,env(safe-area-inset-bottom))]">
       <div className="overflow-x-auto -mx-1 px-1">
         <div className="flex gap-1 border-b border-bento-border min-w-max">
           {TABS.map(t => (
@@ -34,5 +37,6 @@ export function PerfilShell({ profile, comp, workspace }: { profile: ProfileProp
       </div>
       {tab === 'perfil' ? <PerfilClient {...profile} /> : <MinhaRemuneracao vm={comp} workspace={workspace} />}
     </div>
+    </>
   )
 }

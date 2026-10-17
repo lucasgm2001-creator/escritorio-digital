@@ -14,7 +14,7 @@ export function ClientWorkspaceHeader({ clientName, subtitle, backHref = '/admin
 }) {
   return (
     <div className="border-b border-bento-border bg-bento-bg shrink-0">
-      <div className="mx-auto w-full max-w-6xl px-4 md:px-6 lg:px-8 py-3.5 flex items-center gap-2 min-w-0">
+      <div className="mx-auto w-full max-w-6xl px-4 sm:px-5 md:px-6 lg:px-8 py-3.5 flex items-center gap-2 min-w-0">
         <Link href={backHref} className="inline-flex items-center gap-1 text-[13px] text-bento-muted hover:text-bento-text transition-colors shrink-0 min-h-[36px]">
           <ChevronLeft className="w-4 h-4 shrink-0" /> {backLabel}
         </Link>

@@ -90,7 +90,7 @@ export function DashboardShell({ children, userName, userId, avatarUrl, pageTitl
           teams={teams}
         />
         {/* ÚNICO container que rola na vertical (header e bottom-nav ficam fixos). */}
-        <main className="flex-1 overflow-y-auto overscroll-contain touch-pan-y [-webkit-overflow-scrolling:touch]">
+        <main className="flex-1 min-w-0 overflow-x-hidden overflow-y-auto overscroll-contain touch-pan-y [-webkit-overflow-scrolling:touch]">
           {children}
         </main>
         {/* Navegação inferior — só mobile (<1024px); fica no fluxo, abaixo do main, sem cobrir conteúdo.

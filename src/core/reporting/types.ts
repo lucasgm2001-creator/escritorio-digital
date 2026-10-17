@@ -12,7 +12,9 @@ export type ReportKpis = {
   noShow: number
   proposals: number         // leads distintos movidos para Proposta em Análise no período
   proposalsInReview: number // compatibilidade: mesmo número de propostas movimentadas no período
-  won: number               // transições distintas de Proposta em Análise para uma etapa vencedora
+  // avgTicket/totalValue vêm de core/metrics/sales (deals kind='sale' ativos) — idênticos ao executivo.
+  // Contagem de funil (won/meetingsHeld/…) vem de stage_events. Renovação/upgrade nunca entram como venda.
+  won: number               // leads distintos que ENTRARAM na etapa vencedora no período (venha de onde vier)
   lost: number
   conversionRate: number   // 0..1
   avgCycleDays: number

@@ -4,12 +4,12 @@ import type { RequestContext } from '@/server/context/request-context'
 import type { CommercialReport, ConversionStep, PeriodFunnelStep, PipelineMovement, ReportComparison, ReportInsight, ReportKpis, ReportPeriod, StageRanking } from '@/core/reporting/types'
 import { getCommercialRaw } from '@/server/repositories/CommercialMetricsRepository'
 import { getStages } from '@/lib/funnelStages.server'
+import { closedValue, closedCount, averageTicket, isCommercialSale } from '@/core/metrics/sales'
 
 // ÚNICO lugar que monta o relatório comercial (Constituição: o PDF nunca calcula — consome isto).
 // Mesma fonte do Dashboard (CommercialMetricsRepository) — zero duplicação. Team-scoped (TEAM-001).
 
 const DAY = 86_400_000
-const num = (v: number | null): number => Number(v ?? 0)
 const inPeriod = (iso: string | null, p: ReportPeriod): boolean => {
   if (!iso) return false
   // Comparação NUMÉRICA (data pura → meio-dia local p/ não escorregar de dia por fuso). Cada movimentação
@@ -43,21 +43,31 @@ export async function buildCommercialReport(context: RequestContext, period: Rep
   const interagiuSlugs = namedSlugs('interagiu', (slug, nome) => slug === 'interagiu' || /^interagiu$/i.test(nome.trim()))
   const reuniaoSlugs = namedSlugs('reuniao', (slug, nome) => slug === 'reuniao' || /^reuni[ãa]o agendada$/i.test(nome.trim()))
   const proposalSlugs = namedSlugs('proposta', (slug, nome) => slug === 'proposta' || /^proposta em an[aá]lise$/i.test(nome.trim()))
-  const naoInteragiuSlugs = namedSlugs('nao_interagiu', (slug, nome) => slug === 'nao_interagiu' || /^n[aã]o interagiu$/i.test(nome.trim()))
   const noShowSlugs = new Set(stages.filter(s => /no.?show/i.test(s.slug) || /no.?show/i.test(s.nome)).map(s => s.slug))
   const reagendamentoSlugs = new Set(stages.filter(s => /reagend/i.test(s.slug) || /reagend/i.test(s.nome)).map(s => s.slug))
   const negocioFuturoSlugs = new Set(stages.filter(s => /negocio.?futuro/i.test(s.slug) || /futuro/i.test(s.nome)).map(s => s.slug))
+  const lixeiraSlugs = new Set(stages.filter(s => s.slug === 'lixeira' || /^lixeira$/i.test(s.nome.trim())).map(s => s.slug))
+  // BASE do relatório: fora a Lixeira e os clientes que já existiam e foram jogados no funil
+  // (origem='cliente_existente') — a MESMA exclusão da aba Métricas. Sem isso, cliente antigo entra como
+  // "lead recebido", a Lixeira vira o "maior gargalo" e a conversão do período afunda sozinha.
+  const baseLeads = raw.leads.filter(l => l.origem !== 'cliente_existente' && !(l.status && lixeiraSlugs.has(l.status)))
+  const baseLeadIds = new Set(baseLeads.map(l => l.id))
+  // Movimentação só conta se for de um lead da base — senão arrastar um cliente antigo para "Venda Fechada"
+  // (ou mexer num card já descartado) voltaria a inventar venda/reunião no período.
+  const inBase = (leadId: string | null): boolean => !!leadId && baseLeadIds.has(leadId)
   // Uma mesma pessoa pode ter várias mudanças na semana, mas cada métrica representa pessoas, não cliques.
   const leadIdsFor = (events: typeof raw.stageEvents, matches: (event: typeof raw.stageEvents[number]) => boolean): Set<string> =>
     new Set(events.filter(e => !!e.lead_id && matches(e)).map(e => e.lead_id as string))
 
-  // Métricas de movimentação: venda só existe quando a transição foi Proposta → etapa vencedora.
-  // Registros de deals são financeiros/comerciais auxiliares e não definem o funil.
+  // Métricas de movimentação: VENDA = o lead ENTROU na etapa vencedora ("Venda Fechada") na janela, venha
+  // de onde vier (arrastar de Proposta, de Reunião ou de qualquer outra fase conta igual). Registros de
+  // deals são financeiros/comerciais auxiliares e NÃO definem o funil — é isso que impede uma renovação
+  // trimestral ou um upgrade de plano (deals kind='renewal'/'upgrade', sem lead) de virar venda do mês.
   const periodFunnel = (win: ReportPeriod) => {
-    const evs = raw.stageEvents.filter(e => inPeriod(e.changed_at, win))
-    const wonLeadIds = leadIdsFor(evs, e => proposalSlugs.has(e.from_stage ?? '') && wonSlugs.has(e.to_stage))
+    const evs = raw.stageEvents.filter(e => inPeriod(e.changed_at, win) && inBase(e.lead_id))
+    const wonLeadIds = leadIdsFor(evs, e => wonSlugs.has(e.to_stage))
     return {
-      newLeads: raw.leads.filter(l => inPeriod(l.received_at, win)).length,
+      newLeads: baseLeads.filter(l => inPeriod(l.received_at, win)).length,
       interagiram: leadIdsFor(evs, e => interagiuSlugs.has(e.to_stage)),
       reunioes: leadIdsFor(evs, e => reuniaoSlugs.has(e.to_stage)),
       meetingsHeld: leadIdsFor(evs, e => reuniaoSlugs.has(e.from_stage ?? '') && proposalSlugs.has(e.to_stage)),
@@ -65,7 +75,6 @@ export async function buildCommercialReport(context: RequestContext, period: Rep
       won: wonLeadIds,
       noShow: leadIdsFor(evs, e => noShowSlugs.has(e.to_stage)),
       lost: leadIdsFor(evs, e => lostSlugs.has(e.to_stage)),
-      naoInteragiu: leadIdsFor(evs, e => naoInteragiuSlugs.has(e.to_stage)),
       negociosFuturos: leadIdsFor(evs, e => negocioFuturoSlugs.has(e.to_stage)),
       reagendamentos: leadIdsFor(evs, e => reagendamentoSlugs.has(e.to_stage)),
     }
@@ -73,23 +82,22 @@ export async function buildCommercialReport(context: RequestContext, period: Rep
   const cur = periodFunnel(period)
   const prev = prevPeriod ? periodFunnel(prevPeriod) : null
 
-  const events = raw.stageEvents.filter(e => inPeriod(e.changed_at, period))
-  // Valores só são associados a vendas válidas do funil. Renovação, upgrade, anulação e qualquer deal sem
-  // Proposta → Venda ficam fora de "valor fechado", ticket e ciclo comercial.
-  const dealsP = raw.deals.filter(d =>
-    inPeriod(d.data_fechamento, period)
-    && cur.won.has(d.lead_id ?? '')
-    && (!d.kind || d.kind === 'sale')
-    && d.status !== 'interrompido'
-    && d.status !== 'anulado'
-  )
+  const events = raw.stageEvents.filter(e => inPeriod(e.changed_at, period) && inBase(e.lead_id))
+  // DINHEIRO do relatório sai dos MESMOS primitivos do ExecutiveMetricsService (core/metrics/sales): só
+  // kind='sale' e contrato não interrompido/anulado. Renovação e upgrade ficam fora por construção. Não
+  // exigimos que o lead tenha se movido na janela — "valor fechado" é do CONTRATO (data_fechamento), senão
+  // a mesma página mostraria "Valor Fechado" (exec) e ticket (relatório) divergentes.
+  const fromYMD = String(period.from).slice(0, 10), toYMD = String(period.to).slice(0, 10)
+  const dealsP = raw.deals.filter(d => inPeriod(d.data_fechamento, period) && isCommercialSale(d))
+  const totalValue = closedValue(raw.deals, fromYMD, toYMD)
+  const contratosFechados = closedCount(raw.deals, fromYMD, toYMD)
 
   // "Não interagiram" é a única métrica de coorte: lead que entrou e ainda não teve nenhuma movimentação.
   const movedLeadIds = new Set(events.map(e => e.lead_id).filter(Boolean))
-  const naoInteragiram = raw.leads.filter(l => inPeriod(l.received_at, period) && !movedLeadIds.has(l.id)).length
+  const naoInteragiram = baseLeads.filter(l => inPeriod(l.received_at, period) && !movedLeadIds.has(l.id)).length
 
   const kpis: ReportKpis = {
-    totalLeads: raw.leads.length,
+    totalLeads: baseLeads.length,
     newLeads: cur.newLeads,
     interagiram: cur.interagiram.size,
     meetingsScheduled: cur.reunioes.size,
@@ -105,8 +113,8 @@ export async function buildCommercialReport(context: RequestContext, period: Rep
       const start = lead?.received_at ?? lead?.created_at ?? null
       return start && d.data_fechamento ? Math.max(0, (new Date(d.data_fechamento).getTime() - new Date(start).getTime()) / DAY) : 0
     })) / dealsP.length) : 0,
-    avgTicket: dealsP.length > 0 ? Math.round(sum(dealsP.map(d => num(d.valor_total_usd))) / dealsP.length) : 0,
-    totalValue: Math.round(sum(dealsP.map(d => num(d.valor_total_usd)))),
+    avgTicket: averageTicket(totalValue, contratosFechados),
+    totalValue: Math.round(totalValue),
     naoInteragiram, negociosFuturos: cur.negociosFuturos.size, reagendamentos: cur.reagendamentos.size,
   }
 
@@ -142,10 +150,10 @@ export async function buildCommercialReport(context: RequestContext, period: Rep
 
   // Ranking/gargalos por fase (leads atualmente parados em cada etapa). Agrupa por status UMA vez
   // (fix N+1: O(etapas × leads) → O(leads)).
-  const leadsByStatus = new Map<string, typeof raw.leads>()
-  for (const l of raw.leads) { const k = l.status ?? ''; const arr = leadsByStatus.get(k); if (arr) arr.push(l); else leadsByStatus.set(k, [l]) }
+  const leadsByStatus = new Map<string, typeof baseLeads>()
+  for (const l of baseLeads) { const k = l.status ?? ''; const arr = leadsByStatus.get(k); if (arr) arr.push(l); else leadsByStatus.set(k, [l]) }
   const funnel: StageRanking[] = stages
-    .filter(s => !s.is_won && !s.is_lost)
+    .filter(s => !s.is_won && !s.is_lost && !lixeiraSlugs.has(s.slug))
     .map(s => {
       const leadsHere = leadsByStatus.get(s.slug) ?? []
       return {
@@ -156,14 +164,14 @@ export async function buildCommercialReport(context: RequestContext, period: Rep
     })
     .sort((a, b) => b.count - a.count)
 
-  const stuckLeads = raw.leads.filter(l => l.status && !wonSlugs.has(l.status) && !lostSlugs.has(l.status) && daysSince(l.stage_changed_at ?? l.created_at) > 7).length
+  const stuckLeads = baseLeads.filter(l => l.status && !wonSlugs.has(l.status) && !lostSlugs.has(l.status) && daysSince(l.stage_changed_at ?? l.created_at) > 7).length
 
   // Insights automáticos (sem IA) — derivados das métricas.
   const insights: ReportInsight[] = []
   const gargalo = funnel[0]
   if (gargalo && gargalo.count > 0) insights.push({ kind: 'gargalo', message: `Maior gargalo: ${gargalo.stage} (${gargalo.count} leads, ${gargalo.avgDays ?? 0}d em média).` })
   if (kpis.meetingsScheduled > 0 && kpis.noShow / kpis.meetingsScheduled >= 0.3) insights.push({ kind: 'no_show', message: `No-show alto: ${Math.round((kpis.noShow / kpis.meetingsScheduled) * 100)}% das reuniões marcadas.` })
-  if (kpis.conversionRate < 0.1 && kpis.totalLeads >= 10) insights.push({ kind: 'queda_conversao', message: `Conversão baixa: ${Math.round(kpis.conversionRate * 100)}%.` })
+  if (kpis.newLeads >= 10 && kpis.conversionRate < 0.1) insights.push({ kind: 'queda_conversao', message: `Conversão baixa: ${Math.round(kpis.conversionRate * 100)}%.` })
   const best = funnel.filter(f => f.count > 0).sort((a, b) => (a.avgDays ?? 0) - (b.avgDays ?? 0))[0]
   if (best) insights.push({ kind: 'melhor_etapa', message: `Etapa mais fluida: ${best.stage} (${best.avgDays ?? 0}d em média).` })
   if (stuckLeads > 0) insights.push({ kind: 'pior_etapa', message: `${stuckLeads} leads parados há mais de 7 dias.` })

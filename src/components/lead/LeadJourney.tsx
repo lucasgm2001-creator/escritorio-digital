@@ -10,7 +10,7 @@ function fmtDate(iso: string | null): string {
 // Linha do tempo visual (LEAD-002): jornada Lead criado → Contato → Reunião → Proposta → Fechamento → Cliente.
 export function LeadJourney({ steps }: { steps: LeadJourneyStep[] }) {
   return (
-    <div className="w-full min-w-0 lg:overflow-x-auto lg:overscroll-x-contain lg:pb-1">
+    <div className="w-full min-w-0 max-w-full overflow-hidden lg:overflow-x-auto lg:overscroll-x-contain lg:pb-1">
       <div className="flex w-full flex-col gap-2 lg:min-w-max lg:flex-row lg:items-stretch lg:gap-0">
         {steps.map((step, i) => (
           <Fragment key={step.key}>
