@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import {
-  AlertTriangle, CalendarDays, Check, CheckCircle2, ChevronDown, ChevronLeft, ChevronRight, CircleDot, Clock3, Star,
+  CalendarDays, Check, CheckCircle2, ChevronDown, ChevronLeft, ChevronRight, CircleDot, Star,
   ExternalLink, FileText, Mail, MessageCircle, Phone, Plus, RefreshCw, Search, UserRound, Video, X,
   type LucideIcon,
 } from 'lucide-react'
@@ -50,7 +50,24 @@ export interface MesaLead {
   situation_updated_at?: string | null
 }
 
-type Filter = 'hoje' | 'atrasado' | 'acompanhando' | 'reunioes' | 'leads' | 'aguardando' | 'proximas' | 'semplano' | 'concluidas'
+export type FunnelStage = { slug: string; nome: string; posicao: number; cor: string | null; grupo: string | null }
+
+// QUATRO ABAS (MESA-ABAS-001). Eram nove — Hoje, Atrasado, Acompanhando, Reuniões, Leads, Aguardando,
+// Próximas, Sem plano e Concluídas —, várias medindo recortes da mesma coisa com números que não batiam.
+//
+//   hoje        → o que vence no dia (com navegação por data)
+//   acompanhando→ TODOS os leads em jogo, agrupados pela fase REAL do funil
+//   reunioes    → só compromisso marcado
+//   concluidas  → quem chegou ao fim: virou cliente ou disse não
+//
+// Atrasado deixou de ser aba: atraso virou um atributo da linha dentro da fase, não um lugar. Um lead não
+// "é atrasado", ele está numa fase do funil — e é por fase que o trabalho acontece.
+type Filter = 'hoje' | 'acompanhando' | 'reunioes' | 'concluidas'
+
+// Fases que saem do fluxo de trabalho e vão para "Concluídas". Usa o GRUPO da própria tabela de fases
+// (configuração do usuário), não uma lista fixa aqui: criar uma fase nova em Fechamento/Arquivo já entra
+// no lugar certo sem tocar neste arquivo.
+const GRUPOS_ENCERRADOS = new Set(['Fechamento', 'Arquivo'])
 type Interaction = { id: string; type: string; note: string | null; created_by_name: string | null; created_at: string }
 
 const TERMINAL = new Set<LeadStatus>(['fechado', 'perdido', 'negocio_futuro', 'lixeira'])
@@ -58,20 +75,6 @@ const HOT = new Set(['muito_quente', 'quente', 'muito_interessado', 'interessado
 const COLD = new Set(['esfriando', 'frio', 'pouco_interessado'])
 const STATUS_LABEL = new Map(ALL_COLUMNS.map(column => [column.key, column.label]))
 
-// ORDEM DE VALOR do atrasado (MESA-ATRASADO-002). A lista era plana e 130 linhas pesavam igual — uma
-// proposta parada valia o mesmo que um lead que nunca atendeu. Aqui a ordem é o quanto custa NÃO ligar:
-// quem já viu preço e quem faltou à reunião primeiro; quem nunca interagiu por último.
-// Quem não está nesta lista (lead morto, venda fechada) cai em "Outros" — e, na prática, não deveria
-// existir: as tarefas desses leads são encerradas na origem quando eles saem do funil.
-const ORDEM_ATRASADO: { status: string; titulo: string; porque: string }[] = [
-  { status: 'proposta',      titulo: 'Proposta em análise', porque: 'já viu preço — é onde está o dinheiro' },
-  { status: 'no_show',       titulo: 'No-show',             porque: 'marcou e faltou; vale resgatar' },
-  { status: 'reagendamento', titulo: 'Reagendamento',       porque: 'pediu outra data' },
-  { status: 'reuniao',       titulo: 'Reunião agendada',    porque: 'compromisso de pé' },
-  { status: 'interagiu',     titulo: 'Interagiu',           porque: 'respondeu alguma vez' },
-  { status: 'novo',          titulo: 'Novo, nunca contatado', porque: 'chegou e ninguém ligou' },
-  { status: 'nao_interagiu', titulo: 'Não interagiu',       porque: 'nunca respondeu' },
-]
 
 // Busca sem acento e sem caixa: a base tem "Gouvêa", "André", "Mizael". Exigir o acento certo faria a
 // busca falhar justamente nos nomes que mais precisam dela.
@@ -115,21 +118,13 @@ function daysSince(value?: string | null): number | null {
   return Math.max(0, Math.floor((Date.now() - time) / 86_400_000))
 }
 
-function isWaiting(lead: MesaLead): boolean {
-  return lead.followup_state === 'aguardando' || lead.next_action === 'aguardar'
-}
 
-function needsAttention(lead: MesaLead, today: string): boolean {
-  if (TERMINAL.has(lead.status) || isWaiting(lead)) return false
-  return lead.followup_state === 'precisa_agir' || lead.followup_state === 'sem_atualizacao' ||
-    (!!lead.next_contact && lead.next_contact.slice(0, 10) <= today) ||
-    (!lead.next_contact && (!lead.next_action || lead.next_action === 'nenhuma'))
-}
 
-export function MesaClient({ initialTasks, initialLeads, initialFocus, linkOptions, currentUser }: {
+export function MesaClient({ initialTasks, initialLeads, initialFocus, stages, linkOptions, currentUser }: {
   initialTasks: Task[]
   initialLeads: MesaLead[]
   initialFocus: string[]
+  stages: FunnelStage[]
   linkOptions: LinkOption[]
   currentUser: { id: string; name: string }
 }) {
@@ -199,7 +194,6 @@ export function MesaClient({ initialTasks, initialLeads, initialFocus, linkOptio
   }
 
   const maisNova = (a: Task, b: Task) => ((b.created_at ?? '') > (a.created_at ?? '') ? b : a)
-  const maisUrgente = (a: Task, b: Task) => ((b.due_date ?? '9999') < (a.due_date ?? '9999') ? b : a)
 
   // Última data planejada por lead. É o que diz se um atraso já foi RESOLVIDO: remarcar para frente
   // significa que a pessoa foi tratada, e era essa a queixa principal — "mesmo entrando em contato, o
@@ -240,118 +234,63 @@ export function MesaClient({ initialTasks, initialLeads, initialFocus, linkOptio
      
     [pending, today, ultimaDataPorLead])
   const overdueTasks = atrasado.rows
+  // Quantas linhas a aba Hoje escondeu por lead, para o aviso "+N mais antigas".
+  const ocultasPorTarefa = hoje.ocultasPor
 
-  // LEADS PARADOS: vivos, sem nenhuma tarefa aberta e sem próximo passo definido.
-  //
-  // Eram o buraco do fluxo. Ao atualizar a situação escolhendo "Nenhuma" como próximo passo, a tarefa de
-  // origem é encerrada e nenhuma nasce no lugar — o lead sai de Hoje, de Atrasado e de Próximas de uma vez
-  // e só reaparece na aba "Sem plano", que não é por onde se trabalha. São 95 leads nessa situação, e 9
-  // deles foram atualizados nesta semana: o trabalho foi feito e o lead sumiu da tela mesmo assim.
-  //
-  // Agora eles voltam para o Atrasado, DENTRO do grupo da própria fase do funil — que é a posição que o
-  // Lucas pediu. Aparecem como linha de LEAD, não de tarefa, porque tarefa não existe: o que falta neles
-  // é justamente decidir o próximo passo.
-  const leadsParados = useMemo(() => {
-    const comTarefa = new Set(pending.filter(t => t.linked_type === 'lead' && t.linked_id).map(t => t.linked_id as string))
-    return leads.filter(lead =>
-      !TERMINAL.has(lead.status) && !isWaiting(lead) && !comTarefa.has(lead.id) &&
-      !lead.next_contact && (!lead.next_action || lead.next_action === 'nenhuma'))
-  }, [leads, pending])
-
-  // Atrasado agrupado por estágio do lead, na ordem de valor. Grupo sem nada não aparece.
-  const atrasadoPorEstagio = useMemo(() => {
-    const statusPorLead = new Map(leads.map(l => [l.id, l.status as string]))
-    const porStatus = new Map<string, Task[]>()
-    for (const task of overdueTasks) {
-      const st = task.linked_type === 'lead' && task.linked_id
-        ? statusPorLead.get(task.linked_id) ?? 'outros' : 'outros'
-      const lista = porStatus.get(st) ?? []
-      lista.push(task)
-      porStatus.set(st, lista)
-    }
-    const paradosPorStatus = new Map<string, MesaLead[]>()
-    for (const lead of leadsParados) {
-      const lista = paradosPorStatus.get(lead.status) ?? []
-      lista.push(lead)
-      paradosPorStatus.set(lead.status, lista)
-    }
-    const grupos = ORDEM_ATRASADO
-      .map(g => ({ ...g, tasks: porStatus.get(g.status) ?? [], parados: paradosPorStatus.get(g.status) ?? [] }))
-      .filter(g => g.tasks.length > 0 || g.parados.length > 0)
-    const conhecidos = new Set(ORDEM_ATRASADO.map(g => g.status))
-    const resto = [...porStatus.entries()].filter(([st]) => !conhecidos.has(st)).flatMap(([, v]) => v)
-    const paradosResto = [...paradosPorStatus.entries()].filter(([st]) => !conhecidos.has(st)).flatMap(([, v]) => v)
-    if (resto.length || paradosResto.length) {
-      grupos.push({ status: 'outros', titulo: 'Outros', porque: 'sem estágio reconhecido', tasks: resto, parados: paradosResto })
-    }
-    return grupos
-  }, [overdueTasks, leads, leadsParados])
-
-  // REUNIÕES: sem dedupe nenhuma. Compromisso marcado não é resíduo — se existem duas, as duas aparecem.
-  const meetingTasks = useMemo(() => pending.filter(task => inferTaskKind(task.title, task.kind) === 'reuniao'), [pending])
-
-  // PRÓXIMAS: uma por lead, a de data MAIS PRÓXIMA — é o próximo passo, não o mais distante.
-  const proximas = useMemo(() => umaPorLead(pending.filter(t => !t.due_date || t.due_date > today), maisUrgente),
-     
-    [pending, today])
-  const upcomingTasks = proximas.rows
-
-  // Quantas linhas cada lista escondeu, por tarefa visível. Some os três mapas porque a mesma tarefa pode
-  // ser a visível em listas diferentes e o aviso tem de refletir a lista em que ela está sendo mostrada.
-  const ocultasPorTarefa = useMemo(() => {
-    const total = new Map<string, number>()
-    for (const mapa of [hoje.ocultasPor, atrasado.ocultasPor, proximas.ocultasPor]) {
-      for (const [id, n] of mapa) total.set(id, Math.max(total.get(id) ?? 0, n))
-    }
-    return total
-  }, [hoje, atrasado, proximas])
-  const doneTasks = useMemo(() => tasks.filter(task => task.done).sort((a, b) => (b.completed_at ?? b.updated_at).localeCompare(a.completed_at ?? a.updated_at)).slice(0, 30), [tasks])
-  const waitingLeads = useMemo(() => leads.filter(lead => !TERMINAL.has(lead.status) && isWaiting(lead)), [leads])
-  // SEM PLANO (MESA-SEMPLANO-001). A aba se chamava "Precisam de ação" e marcava 199 — mas 156 daqueles
-  // (78%) eram leads que nunca tiveram próximo passo definido, não leads atrasados. O rótulo prometia uma
-  // lista de ação e entregava o backlog de prospecção inteiro, com um número que assusta e não orienta.
-  //
-  // Agora mede o que o nome diz: lead sem próximo contato, sem próxima ação E SEM TAREFA ABERTA. A última
-  // condição é a que faltava — ter tarefa marcada É ter plano, e esses leads já aparecem em Hoje, Atrasado
-  // ou Próximas. Sem ela, a mesma pessoa era contada em duas abas com números que nunca batiam.
-  const leadsComTarefa = useMemo(() =>
-    new Set(pending.filter(t => t.linked_type === 'lead' && t.linked_id).map(t => t.linked_id as string)),
-    [pending])
-  const semPlanoLeads = useMemo(() => leads.filter(lead =>
-    !TERMINAL.has(lead.status) && !isWaiting(lead) && !leadsComTarefa.has(lead.id) &&
-    !lead.next_contact && (!lead.next_action || lead.next_action === 'nenhuma')), [leads, leadsComTarefa])
-  // Exclui quem já aparece como TAREFA de hoje: o lead chegou hoje e alguém já agendou algo para ele, então
-  // mostrá-lo também como "lead novo" repetiria a mesma pessoa na mesma aba — a duplicação que esta
-  // reorganização existe para acabar.
+  // Leads que chegaram no dia em foco e ainda não têm tarefa — trabalho do dia tanto quanto uma tarefa.
   const newLeadsToday = useMemo(() => {
     const jaNasTarefas = new Set(todayTasks.filter(t => t.linked_type === 'lead').map(t => t.linked_id))
-    // received_at é a data de entrada (o webhook do Magnetic a preenche; está presente em 100% da base),
-    // com created_at de reserva para lead criado à mão sem ela.
+    // received_at é a data de entrada (o webhook do Magnetic preenche), com created_at de reserva.
     return leads.filter(lead => !TERMINAL.has(lead.status) &&
       (lead.received_at ?? lead.created_at ?? '').slice(0, 10) === diaRef &&
       !jaNasTarefas.has(lead.id))
   }, [leads, diaRef, todayTasks])
 
-  // Radar pessoal: a ordem segue a urgência real — quem precisa de ação primeiro, depois quem está parado
-  // há mais tempo. É a aba para onde o lead vai DEPOIS do contato, para não se perder entre os atrasados.
-  // `daysSince` devolve null para quem nunca foi contatado. Tratar isso como 0 jogava o lead NUNCA
-  // contatado para o fim da fila, quando ele é o mais urgente da lista — por isso o fallback é Infinity.
-  const paradoHa = (lead: MesaLead): number => daysSince(lead.last_contact_at) ?? Number.POSITIVE_INFINITY
-  const focusLeads = useMemo(() => leads
-    .filter(lead => focus.has(lead.id))
-    .sort((a, b) =>
-      (needsAttention(b, today) ? 1 : 0) - (needsAttention(a, today) ? 1 : 0) ||
-      paradoHa(b) - paradoHa(a)),
-    [leads, focus, today])
+  // REUNIÕES: sem dedupe nenhuma. Compromisso marcado não é resíduo — se existem duas, as duas aparecem.
+  const meetingTasks = useMemo(() => pending.filter(task => inferTaskKind(task.title, task.kind) === 'reuniao'), [pending])
 
-  // TODOS os leads em jogo, para percorrer sem precisar digitar nada. Fora os terminais (fechado, perdido,
-  // negócio futuro): numa lista de navegação eles são ruído — quem procura um fechado usa a busca, que os
-  // inclui. Ordem: quem precisa de ação primeiro, depois por score, que é a ordem em que vale ligar.
-  const allLeads = useMemo(() => {
-    const vivos = leads.filter(lead => !TERMINAL.has(lead.status))
-    return [...vivos].sort((a, b) =>
-      (needsAttention(b, today) ? 1 : 0) - (needsAttention(a, today) ? 1 : 0) || b.score - a.score)
-  }, [leads, today])
+  // ── AGRUPAMENTO PELO FUNIL REAL (MESA-FUNIL-001) ────────────────────────────────────────────────
+  // Uma linha por LEAD, dentro da fase em que ele está. Mudou de fase no Comercial? Muda de grupo aqui.
+  // A ordem e os nomes saem de funnel_stages — a mesma tabela que desenha o funil —, então fase criada
+  // lá aparece aqui sem tocar neste arquivo.
+  const porFase = useMemo(() => {
+    const tarefaDoLead = new Map<string, Task>()
+    for (const task of pending) {
+      if (task.linked_type !== 'lead' || !task.linked_id) continue
+      const atual = tarefaDoLead.get(task.linked_id)
+      // A tarefa que representa o lead é a de data mais próxima — é o próximo passo dele.
+      if (!atual || (task.due_date ?? '9999') < (atual.due_date ?? '9999')) tarefaDoLead.set(task.linked_id, task)
+    }
+
+    const porSlug = new Map<string, { lead: MesaLead; task: Task | null }[]>()
+    for (const lead of leads) {
+      if (lead.status === 'lixeira') continue
+      const lista = porSlug.get(lead.status) ?? []
+      lista.push({ lead, task: tarefaDoLead.get(lead.id) ?? null })
+      porSlug.set(lead.status, lista)
+    }
+
+    const monta = (encerradas: boolean) => stages
+      .filter(st => GRUPOS_ENCERRADOS.has(st.grupo ?? '') === encerradas && st.slug !== 'lixeira')
+      .map(st => ({
+        slug: st.slug, titulo: st.nome, cor: st.cor, grupo: st.grupo,
+        itens: (porSlug.get(st.slug) ?? []).sort((a, b) => {
+          // Radar primeiro; depois quem tem tarefa vencida; depois a data mais próxima.
+          const favorito = (focus.has(b.lead.id) ? 1 : 0) - (focus.has(a.lead.id) ? 1 : 0)
+          if (favorito) return favorito
+          const atrasoA = a.task?.due_date && a.task.due_date < today ? 1 : 0
+          const atrasoB = b.task?.due_date && b.task.due_date < today ? 1 : 0
+          if (atrasoA !== atrasoB) return atrasoB - atrasoA
+          return (a.task?.due_date ?? '9999').localeCompare(b.task?.due_date ?? '9999')
+        }),
+      }))
+      .filter(g => g.itens.length > 0)
+
+    return { ativas: monta(false), encerradas: monta(true) }
+  }, [leads, pending, stages, focus, today])
+
+  const acompanhandoCount = useMemo(() => porFase.ativas.reduce((n, g) => n + g.itens.length, 0), [porFase])
+  const concluidasCount = useMemo(() => porFase.encerradas.reduce((n, g) => n + g.itens.length, 0), [porFase])
 
   const selectedTask = selectedTaskId ? tasks.find(task => task.id === selectedTaskId) ?? null : null
   const selectedLead = selectedLeadId ? leads.find(lead => lead.id === selectedLeadId) ?? null : null
@@ -376,14 +315,9 @@ export function MesaClient({ initialTasks, initialLeads, initialFocus, linkOptio
 
   const filters: { id: Filter; label: string; Icon: LucideIcon; count: number }[] = [
     { id: 'hoje', label: 'Hoje', Icon: CircleDot, count: tarefasDeHojeCount + newLeadsToday.length },
-    { id: 'atrasado', label: 'Atrasado', Icon: AlertTriangle, count: overdueTasks.length + leadsParados.length },
-    { id: 'acompanhando', label: 'Acompanhando', Icon: Star, count: focusLeads.length },
+    { id: 'acompanhando', label: 'Acompanhando', Icon: UserRound, count: acompanhandoCount },
     { id: 'reunioes', label: 'Reuniões', Icon: Video, count: meetingTasks.length },
-    { id: 'leads', label: 'Leads', Icon: UserRound, count: allLeads.length },
-    { id: 'aguardando', label: 'Aguardando', Icon: Clock3, count: waitingLeads.length },
-    { id: 'proximas', label: 'Próximas', Icon: CalendarDays, count: upcomingTasks.length },
-    { id: 'semplano', label: 'Sem plano', Icon: CircleDot, count: semPlanoLeads.length },
-    { id: 'concluidas', label: 'Concluídas', Icon: CheckCircle2, count: doneTasks.length },
+    { id: 'concluidas', label: 'Concluídas', Icon: CheckCircle2, count: concluidasCount },
   ]
 
   // Resultado da busca: varre TODOS os leads carregados, não só os do filtro ativo — procurar um lead e
@@ -405,25 +339,10 @@ export function MesaClient({ initialTasks, initialLeads, initialFocus, linkOptio
   }, [leads, termo])
   const buscando = termo.length > 0
 
-  const taskRows = filter === 'hoje' ? todayTasks : filter === 'atrasado' ? overdueTasks
-    : filter === 'reunioes' ? meetingTasks : filter === 'proximas' ? upcomingTasks : filter === 'concluidas' ? doneTasks : []
-  // "Hoje" mostra as duas coisas: o que vence hoje E quem chegou hoje — leads novos são trabalho do dia
-  // tanto quanto uma tarefa agendada, e antes só apareciam se alguém criasse tarefa para eles.
-  const leadRows = filter === 'hoje' ? newLeadsToday : filter === 'acompanhando' ? focusLeads
-    : filter === 'leads' ? allLeads : filter === 'aguardando' ? waitingLeads : filter === 'semplano' ? semPlanoLeads : []
-
-  // Mutirão de atrasados: a tela devolve só o que a pessoa marcou e confirmou.
-  async function encerrarLote(ids: string[]) {
-    if (ids.length === 0) return
-    setLimpezaBusy(true)
-    const r = await closeTasksBatchAction(ids)
-    setLimpezaBusy(false)
-    if (!r.ok) { toast({ type: 'error', message: r.error ?? 'Não foi possível encerrar.' }); return }
-    const fechadas = new Set(ids)
-    setTasks(atual => atual.map(t => fechadas.has(t.id) ? { ...t, done: true } : t))
-    setLimpando(false)
-    toast({ type: 'success', message: `${r.fechadas} tarefa(s) encerrada(s).` })
-  }
+  const taskRows = filter === 'hoje' ? todayTasks : filter === 'reunioes' ? meetingTasks : []
+  const leadRows = filter === 'hoje' ? newLeadsToday : []
+  // Os grupos do funil alimentam Acompanhando e Concluídas — a mesma estrutura, recortes diferentes.
+  const gruposDoFunil = filter === 'acompanhando' ? porFase.ativas : filter === 'concluidas' ? porFase.encerradas : []
 
   function selectTask(task: Task) {
     setSelectedTaskId(task.id)
@@ -442,6 +361,19 @@ export function MesaClient({ initialTasks, initialLeads, initialFocus, linkOptio
   }
 
   // Encerra as tarefas antigas do lead, mantendo a atual. É a saída para o resíduo que a dedupe revela.
+  // Mutirão: encerra em lote o que a pessoa marcou e confirmou na tela de revisão.
+  async function encerrarLote(ids: string[]) {
+    if (ids.length === 0) return
+    setLimpezaBusy(true)
+    const r = await closeTasksBatchAction(ids)
+    setLimpezaBusy(false)
+    if (!r.ok) { toast({ type: 'error', message: r.error ?? 'Não foi possível encerrar.' }); return }
+    const fechadas = new Set(ids)
+    setTasks(atual => atual.map(t => fechadas.has(t.id) ? { ...t, done: true } : t))
+    setLimpando(false)
+    toast({ type: 'success', message: `${r.fechadas} tarefa(s) encerrada(s).` })
+  }
+
   async function resolverDuplicadas(task: Task) {
     if (!task.linked_id || (ocultasPorTarefa.get(task.id) ?? 0) === 0) return
     const leadId = task.linked_id
@@ -550,10 +482,10 @@ export function MesaClient({ initialTasks, initialLeads, initialFocus, linkOptio
                   que a pessoa mantém, não a contagem de 200 que ninguém consegue atacar. */}
               <SummaryCard label="Para hoje" value={todayTasks.length + newLeadsToday.length}
                 hint={newLeadsToday.length ? `${newLeadsToday.length} lead(s) novo(s)` : 'tarefas de hoje'} tone="default" />
-              <SummaryCard label="Atrasado" value={overdueTasks.length} hint="de dias anteriores"
+              <SummaryCard label="Acompanhando" value={acompanhandoCount} hint="leads no funil" tone="default" />
+              <SummaryCard label="Reuniões" value={meetingTasks.length} hint="marcadas" tone="default" />
+              <SummaryCard label="Com data vencida" value={overdueTasks.length} hint="dentro das fases"
                 tone={overdueTasks.length ? 'warning' : 'muted'} />
-              <SummaryCard label="Reuniões" value={meetingTasks.filter(task => task.due_date === today).length} hint="hoje" tone="default" />
-              <SummaryCard label="Acompanhando" value={focusLeads.length} hint="no seu radar" tone="muted" />
             </section>
 
             <div className="grid grid-cols-1 xl:grid-cols-[184px_minmax(0,1fr)_360px] gap-3 items-start">
@@ -582,7 +514,9 @@ export function MesaClient({ initialTasks, initialLeads, initialFocus, linkOptio
                     <p className="text-xs text-bento-muted mt-0.5">
                       {buscando
                         ? `${resultados.length} ${resultados.length === 1 ? 'lead encontrado' : 'leads encontrados'}`
-                        : `${taskRows.length || leadRows.length} ${taskRows.length + leadRows.length === 1 ? 'item' : 'itens'}`}
+                        : gruposDoFunil.length > 0
+                          ? `${gruposDoFunil.reduce((n, g) => n + g.itens.length, 0)} lead(s) em ${gruposDoFunil.length} fase(s)`
+                          : `${taskRows.length || leadRows.length} ${taskRows.length + leadRows.length === 1 ? 'item' : 'itens'}`}
                       {filter === 'hoje' && dia && dia !== today && doneNoDia.length > 0 &&
                         ` · ${doneNoDia.length} concluída(s)`}
                     </p>
@@ -610,10 +544,10 @@ export function MesaClient({ initialTasks, initialLeads, initialFocus, linkOptio
                           className="h-8 rounded-btn border border-bento-border bg-bento-bg px-2 font-tech text-[11px] text-bento-muted focus:border-lime focus:outline-none" />
                       </>
                     )}
-                    {filter === 'atrasado' && overdueTasks.length > 0 && !buscando && (
+                    {filter === 'acompanhando' && overdueTasks.length > 0 && !buscando && (
                       <button type="button" onClick={() => setLimpando(true)}
                         className="rounded-btn border border-bento-border px-2.5 py-1.5 font-tech text-[11px] text-bento-muted transition-colors hover:border-lime hover:text-bento-text">
-                        Limpar atrasados
+                        Limpar vencidas ({overdueTasks.length})
                       </button>
                     )}
                     <button type="button" onClick={() => router.refresh()} aria-label="Atualizar" className="p-2 text-bento-muted hover:text-bento-text rounded-btn hover:bg-bento-bg">
@@ -651,56 +585,41 @@ export function MesaClient({ initialTasks, initialLeads, initialFocus, linkOptio
                 </div>
 
                 <div className="p-2 sm:p-3 space-y-2">
-                  {filter === 'atrasado' && !buscando ? (
-                    atrasadoPorEstagio.length === 0 ? <EmptyFilter filter={filter} /> : (
-                      <div className="space-y-2">
-                        {atrasadoPorEstagio.map((grupo, i) => {
-                          const aberto = mexeuNoGrupo ? grupoAberto === grupo.status : i === 0
-                          return (
-                            <div key={grupo.status} className="rounded-bento border border-bento-border bg-bento-bg/30">
-                              <button type="button"
-                                onClick={() => { setMexeuNoGrupo(true); setGrupoAberto(aberto ? null : grupo.status) }}
-                                className="flex w-full items-center gap-2.5 p-3 text-left">
-                                <ChevronDown className={cn('h-4 w-4 shrink-0 text-bento-muted transition-transform', aberto && 'rotate-180')} />
-                                <span className="min-w-0 flex-1">
-                                  <span className="block text-sm font-semibold text-bento-text">{grupo.titulo}</span>
-                                  <span className="block font-tech text-caption text-bento-muted">{grupo.porque}</span>
-                                </span>
-                                <span className="font-tech text-[11px] tabular-nums text-bento-muted">{grupo.tasks.length}</span>
-                              </button>
-                              {aberto && (
-                                <div className="space-y-2 border-t border-bento-border/60 p-2">
-                                  {grupo.tasks.map(task => (
-                                    <TaskRowComDuplicadas key={task.id} task={task} active={selectedTaskId === task.id} today={today}
-                                      busy={busyTaskId === task.id}
-                                      antigas={ocultasPorTarefa.get(task.id) ?? 0}
-                                      onResolver={() => resolverDuplicadas(task)}
-                                      onSelect={() => selectTask(task)} onToggle={() => toggleTask(task)} onEdit={() => openEdit(task)} />
-                                  ))}
-
-                                  {/* Leads desta fase que ficaram SEM próximo passo. Não têm tarefa — o que
-                                      falta neles é decidir o que fazer —, então entram como linha de lead,
-                                      visualmente separados, mas no grupo da fase a que pertencem. */}
-                                  {grupo.parados.length > 0 && (
-                                    <>
-                                      <p className="px-1 pt-1 font-tech text-[10px] uppercase tracking-label text-amber-300/80">
-                                        Sem próximo passo · {grupo.parados.length}
-                                      </p>
-                                      {grupo.parados.map(lead => (
-                                        <LeadRow key={lead.id} lead={lead} active={selectedLeadId === lead.id}
-                                          mostrarEmpresa noRadar={focus.has(lead.id)}
-                                          onToggleFocus={() => toggleFocus(lead.id)}
-                                          onSelect={() => selectLead(lead)} />
-                                      ))}
-                                    </>
-                                  )}
-                                </div>
-                              )}
-                            </div>
-                          )
-                        })}
-                      </div>
-                    )
+                  {gruposDoFunil.length > 0 && !buscando ? (
+                    <div className="space-y-2">
+                      {gruposDoFunil.map((grupo, i) => {
+                        const aberto = mexeuNoGrupo ? grupoAberto === grupo.slug : i === 0
+                        const atrasados = grupo.itens.filter(x => x.task?.due_date && x.task.due_date < today).length
+                        return (
+                          <div key={grupo.slug} className="rounded-bento border border-bento-border bg-bento-bg/30">
+                            <button type="button"
+                              onClick={() => { setMexeuNoGrupo(true); setGrupoAberto(aberto ? null : grupo.slug) }}
+                              className="flex w-full items-center gap-2.5 p-3 text-left">
+                              <ChevronDown className={cn('h-4 w-4 shrink-0 text-bento-muted transition-transform', aberto && 'rotate-180')} />
+                              <span className="h-2.5 w-2.5 shrink-0 rounded-[3px]" style={{ backgroundColor: grupo.cor ?? '#64748b' }} />
+                              <span className="min-w-0 flex-1">
+                                <span className="block text-sm font-semibold text-bento-text">{grupo.titulo}</span>
+                                {atrasados > 0 && (
+                                  <span className="block font-tech text-caption text-amber-300/80">{atrasados} com data vencida</span>
+                                )}
+                              </span>
+                              <span className="font-tech text-[11px] tabular-nums text-bento-muted">{grupo.itens.length}</span>
+                            </button>
+                            {aberto && (
+                              <div className="space-y-2 border-t border-bento-border/60 p-2">
+                                {grupo.itens.map(({ lead, task }) => (
+                                  <LeadNaFase key={lead.id} lead={lead} task={task} today={today}
+                                    active={selectedLeadId === lead.id}
+                                    noRadar={focus.has(lead.id)}
+                                    onToggleFocus={() => toggleFocus(lead.id)}
+                                    onSelect={() => { selectLead(lead); if (task) setSelectedTaskId(task.id) }} />
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        )
+                      })}
+                    </div>
                   ) : buscando ? (
                     resultados.length === 0 ? (
                       <p className="px-2 py-10 text-center text-sm text-bento-muted">
@@ -722,7 +641,7 @@ export function MesaClient({ initialTasks, initialLeads, initialFocus, linkOptio
                       ))}
                       {leadRows.map(lead => (
                         <LeadRow key={lead.id} lead={lead} active={selectedLeadId === lead.id}
-                          mostrarEmpresa={filter !== 'aguardando'}
+                          mostrarEmpresa
                           noRadar={focus.has(lead.id)} onToggleFocus={() => toggleFocus(lead.id)}
                           onSelect={() => selectLead(lead)} />
                       ))}
@@ -869,6 +788,52 @@ function TaskRowComDuplicadas({ antigas = 0, onResolver, ...props }: TaskRowProp
           </button>
         </div>
       )}
+    </div>
+  )
+}
+
+
+// LINHA DO LEAD DENTRO DA FASE (MESA-FUNIL-001). É a unidade de trabalho de Acompanhando e Concluídas:
+// quem é o lead, em que situação ele está e qual o próximo passo — tudo numa linha.
+//
+// Mostra a SITUAÇÃO escrita (current_situation) em vez do título da tarefa: na hora de decidir o que
+// fazer, "pediu para ligar entre terça e quarta" vale mais que "Ligar novamente: Fulano". O próximo passo
+// aparece como data à direita, em âmbar quando já venceu — atraso virou atributo da linha, não uma aba.
+function LeadNaFase({ lead, task, today, active, noRadar, onToggleFocus, onSelect }: {
+  lead: MesaLead; task: Task | null; today: string; active: boolean
+  noRadar: boolean; onToggleFocus: () => void; onSelect: () => void
+}) {
+  const vencida = !!task?.due_date && task.due_date < today
+  const semPlano = !task
+  const situacao = lead.current_situation?.trim() || (lead.company ? lead.company : 'Sem situação registrada')
+  return (
+    <div className={cn('flex items-center gap-2 rounded-bento border pr-2 transition-colors',
+      active ? 'border-lime/50 bg-lime/[0.07]' : 'border-bento-border bg-bento-bg/35 hover:border-bento-dim/60')}>
+      <button type="button" onClick={onSelect} className="flex min-w-0 flex-1 items-center gap-3 p-3 text-left">
+        <span className={cn('h-2 w-2 shrink-0 rounded-full',
+          HOT.has(lead.temperature ?? '') ? 'bg-lime' : COLD.has(lead.temperature ?? '') ? 'bg-blue-400' : 'bg-amber-400')} />
+        <span className="min-w-0 flex-1">
+          <span className="block truncate text-sm font-medium text-bento-text">{lead.name}</span>
+          <span className="block truncate text-[11px] text-bento-muted">{situacao}</span>
+        </span>
+        <span className="flex-none text-right">
+          {semPlano ? (
+            <span className="font-tech text-[10px] text-amber-300/90">sem próximo passo</span>
+          ) : (
+            <span className={cn('font-tech text-[10px] whitespace-nowrap', vencida ? 'text-amber-300' : 'text-bento-muted')}>
+              {dateLabel(task.due_date, task.due_time)}
+            </span>
+          )}
+        </span>
+      </button>
+      <button type="button" onClick={onToggleFocus} aria-pressed={noRadar}
+        aria-label={noRadar ? `Tirar ${lead.name} do radar` : `Acompanhar ${lead.name}`}
+        title={noRadar ? 'No radar — clique para tirar' : 'Marcar no radar'}
+        className={cn('grid h-8 w-8 flex-none place-items-center rounded-btn transition-colors',
+          noRadar ? 'text-lime-fg hover:bg-lime/10' : 'text-bento-muted hover:text-lime-fg hover:bg-bento-bg')}>
+        <Star className={cn('h-4 w-4', noRadar && 'fill-current')} />
+      </button>
+      <ChevronRight className="h-4 w-4 flex-none text-bento-muted" />
     </div>
   )
 }
@@ -1037,12 +1002,9 @@ function ContextBlock({ label, value }: { label: string; value: string }) {
 function EmptyFilter({ filter }: { filter: Filter }) {
   const messages: Record<Filter, string> = {
     hoje: 'Nada para hoje: nenhuma tarefa vence hoje e nenhum lead novo chegou.',
-    atrasado: 'Nada atrasado. Dia em ordem.',
-    semplano: 'Todo lead em jogo tem um próximo passo definido.',
-    acompanhando: 'Nenhum lead no radar. Use a estrela para marcar os que você está trabalhando.',
-    reunioes: 'Nenhuma reunião pendente.', leads: 'Nenhum lead em andamento.',
-    aguardando: 'Nenhum lead aguardando retorno.',
-    proximas: 'Nenhuma próxima ação organizada.', concluidas: 'Nenhuma tarefa concluída recentemente.',
+    acompanhando: 'Nenhum lead em jogo no funil.',
+    reunioes: 'Nenhuma reunião marcada.',
+    concluidas: 'Ninguém chegou ao fim do funil ainda.',
   }
   return <div className="py-16 text-center"><CheckCircle2 className="w-8 h-8 text-bento-muted mx-auto mb-3" /><p className="text-sm text-bento-dim">{messages[filter]}</p></div>
 }
