@@ -159,8 +159,10 @@ export function MesaClient({ initialTasks, initialLeads, initialFocus, stages, l
   const [dia, setDia] = useState<string | null>(null)
   // Grupos do Atrasado fechados por padrão, menos o primeiro: abrir 130 linhas de uma vez recriaria a
   // pilha que o agrupamento existe para desfazer. `null` = ainda não mexeu, aí vale o padrão.
+  // Grupo aberto no funil. O padrão (`null`) abre o PRIMEIRO; depois que a pessoa escolhe, vale a escolha.
+  // Trocar de aba reseta: Acompanhando e Concluídas têm fases diferentes, e guardar o slug de uma na outra
+  // deixava TODOS os grupos fechados — a tela abria vazia sem motivo aparente.
   const [grupoAberto, setGrupoAberto] = useState<string | null>(null)
-  const [mexeuNoGrupo, setMexeuNoGrupo] = useState(false)
   const [limpando, setLimpando] = useState(false)
   const [limpezaBusy, setLimpezaBusy] = useState(false)
   const [focus, setFocus] = useState<Set<string>>(() => new Set(initialFocus))
@@ -195,23 +197,12 @@ export function MesaClient({ initialTasks, initialLeads, initialFocus, stages, l
       const dona = escolhida.get(task.linked_id)
       if (dona) ocultasPor.set(dona.id, (ocultasPor.get(dona.id) ?? 0) + 1)
     }
-    return { rows: lista.filter(t => vencedoras.has(t.id) || soltas.includes(t)), ocultasPor }
+    const avulsas = new Set(soltas.map(t => t.id))
+    return { rows: lista.filter(t => vencedoras.has(t.id) || avulsas.has(t.id)), ocultasPor }
   }
 
   const maisNova = (a: Task, b: Task) => ((b.created_at ?? '') > (a.created_at ?? '') ? b : a)
 
-  // Última data planejada por lead. É o que diz se um atraso já foi RESOLVIDO: remarcar para frente
-  // significa que a pessoa foi tratada, e era essa a queixa principal — "mesmo entrando em contato, o
-  // lead continua como atrasado".
-  const ultimaDataPorLead = useMemo(() => {
-    const mapa = new Map<string, string>()
-    for (const task of pending) {
-      if (task.linked_type !== 'lead' || !task.linked_id || !task.due_date) continue
-      const atual = mapa.get(task.linked_id)
-      if (!atual || task.due_date > atual) mapa.set(task.linked_id, task.due_date)
-    }
-    return mapa
-  }, [pending])
 
   // HOJE = só o que é de hoje (MESA-HOJE-001). Antes era `due_date <= today`, então as atrasadas entravam
   // aqui e a aba abria com 133 itens — pilha, não lista de trabalho.
@@ -230,15 +221,13 @@ export function MesaClient({ initialTasks, initialLeads, initialFocus, stages, l
   const doneNoDia = useMemo(() => dia && dia !== today
     ? tasks.filter(t => t.done && t.due_date === dia) : [], [tasks, dia, today])
 
-  // ATRASADO: só quem NÃO tem plano novo. Se existe tarefa aberta com data de hoje em diante, o lead já
-  // foi retomado e não deve continuar pesando aqui.
-  const atrasado = useMemo(() => umaPorLead(
-    pending.filter(t => !!t.due_date && t.due_date < today &&
-      !(t.linked_type === 'lead' && t.linked_id && (ultimaDataPorLead.get(t.linked_id) ?? '') >= today)),
-    maisNova),
-     
-    [pending, today, ultimaDataPorLead])
-  const overdueTasks = atrasado.rows
+  // VENCIDAS PARA O MUTIRÃO: TODA tarefa aberta com data passada, sem exceção.
+  //
+  // Antes esta lista excluía o lead que já tinha plano novo — regra herdada de quando "Atrasado" era uma
+  // aba de trabalho, onde não fazia sentido cobrar quem já foi retomado. Para a LIMPEZA a regra é o
+  // oposto: a tarefa antiga de um lead já replanejado é justamente o resíduo a encerrar, e excluí-la
+  // tornava impossível limpá-la pela tela.
+  const overdueTasks = useMemo(() => pending.filter(t => !!t.due_date && t.due_date < today), [pending, today])
   // Quantas linhas a aba Hoje escondeu por lead, para o aviso "+N mais antigas".
   const ocultasPorTarefa = hoje.ocultasPor
 
@@ -297,6 +286,11 @@ export function MesaClient({ initialTasks, initialLeads, initialFocus, stages, l
   }, [leads, pending, stages])
 
   const acompanhandoCount = useMemo(() => porFase.ativas.reduce((n, g) => n + g.itens.length, 0), [porFase])
+  // Mesma contagem que os cabeçalhos dos grupos somam — derivada do que está NA TELA (a tarefa que
+  // representa o lead). Antes o cartão usava outra régua e marcava 95 onde os grupos somavam 96: duas
+  // definições de "vencida" convivendo na mesma tela.
+  const vencidasNoFunil = useMemo(() => porFase.ativas.reduce((n, g) =>
+    n + g.itens.filter(x => x.task?.due_date && x.task.due_date < today).length, 0), [porFase, today])
   const concluidasCount = useMemo(() => porFase.encerradas.reduce((n, g) => n + g.itens.length, 0), [porFase])
 
   const selectedTask = selectedTaskId ? tasks.find(task => task.id === selectedTaskId) ?? null : null
@@ -500,15 +494,16 @@ export function MesaClient({ initialTasks, initialLeads, initialFocus, stages, l
                 hint={newLeadsToday.length ? `${newLeadsToday.length} lead(s) novo(s)` : 'tarefas de hoje'} tone="default" />
               <SummaryCard label="Acompanhando" value={acompanhandoCount} hint="leads no funil" tone="default" />
               <SummaryCard label="Reuniões" value={meetingTasks.length} hint="marcadas" tone="default" />
-              <SummaryCard label="Com data vencida" value={overdueTasks.length} hint="dentro das fases"
-                tone={overdueTasks.length ? 'warning' : 'muted'} />
+              <SummaryCard label="Com data vencida" value={vencidasNoFunil} hint="dentro das fases"
+                tone={vencidasNoFunil ? 'warning' : 'muted'} />
             </section>
 
             <div className="grid grid-cols-1 xl:grid-cols-[184px_minmax(0,1fr)_360px] gap-3 items-start">
               <nav className="bento-fx p-2 xl:sticky xl:top-3" aria-label="Organização da mesa">
                 <div className="flex xl:flex-col gap-1 overflow-x-auto scrollbar-none">
                   {filters.map(item => (
-                    <button key={item.id} type="button" onClick={() => setFilter(item.id)}
+                    <button key={item.id} type="button"
+                      onClick={() => { setFilter(item.id); setGrupoAberto(null) }}
                       className={cn('flex items-center gap-2.5 min-h-[42px] px-3 rounded-btn text-sm whitespace-nowrap transition-colors shrink-0 xl:w-full',
                         filter === item.id ? 'bg-lime/12 text-lime-fg' : 'text-bento-muted hover:bg-bento-bg hover:text-bento-text')}>
                       <item.Icon className="w-4 h-4 shrink-0" />
@@ -563,7 +558,7 @@ export function MesaClient({ initialTasks, initialLeads, initialFocus, stages, l
                     {filter === 'acompanhando' && overdueTasks.length > 0 && !buscando && (
                       <button type="button" onClick={() => setLimpando(true)}
                         className="rounded-btn border border-bento-border px-2.5 py-1.5 font-tech text-[11px] text-bento-muted transition-colors hover:border-lime hover:text-bento-text">
-                        Limpar vencidas ({overdueTasks.length})
+                        Limpar vencidas
                       </button>
                     )}
                     <button type="button" onClick={() => router.refresh()} aria-label="Atualizar" className="p-2 text-bento-muted hover:text-bento-text rounded-btn hover:bg-bento-bg">
@@ -611,7 +606,7 @@ export function MesaClient({ initialTasks, initialLeads, initialFocus, stages, l
                        mesma cor do funil do Comercial, então a leitura é imediata. */
                     <div className="space-y-2.5">
                       {gruposDoFunil.map((grupo, i) => {
-                        const aberto = mexeuNoGrupo ? grupoAberto === grupo.slug : i === 0
+                        const aberto = grupoAberto ? grupoAberto === grupo.slug : i === 0
                         const atrasados = grupo.itens.filter(x => x.task?.due_date && x.task.due_date < today).length
                         const cor = grupo.cor ?? '#8A9182'
                         return (
@@ -622,7 +617,7 @@ export function MesaClient({ initialTasks, initialLeads, initialFocus, stages, l
                             <span aria-hidden className="absolute left-0 top-0 h-full w-[3px]" style={{ backgroundColor: cor }} />
 
                             <button type="button"
-                              onClick={() => { setMexeuNoGrupo(true); setGrupoAberto(aberto ? null : grupo.slug) }}
+                              onClick={() => setGrupoAberto(aberto ? '__nenhum__' : grupo.slug)}
                               aria-expanded={aberto}
                               className="flex w-full items-center gap-3 py-3.5 pl-4 pr-3.5 text-left">
                               <ChevronDown className={cn('h-4 w-4 shrink-0 text-bento-muted transition-transform duration-200', aberto && 'rotate-180')} />
@@ -677,7 +672,7 @@ export function MesaClient({ initialTasks, initialLeads, initialFocus, stages, l
                       {taskRows.map(task => (
                         <TaskRowComDuplicadas key={task.id} task={task} active={selectedTaskId === task.id} today={today}
                           busy={busyTaskId === task.id}
-                          antigas={ocultasPorTarefa.get(task.id) ?? 0}
+                          antigas={filter === 'hoje' ? (ocultasPorTarefa.get(task.id) ?? 0) : 0}
                           onResolver={() => resolverDuplicadas(task)}
                           onSelect={() => selectTask(task)} onToggle={() => toggleTask(task)} onEdit={() => openEdit(task)} />
                       ))}
