@@ -68,6 +68,11 @@ type Filter = 'hoje' | 'acompanhando' | 'reunioes' | 'concluidas'
 // (configuração do usuário), não uma lista fixa aqui: criar uma fase nova em Fechamento/Arquivo já entra
 // no lugar certo sem tocar neste arquivo.
 const GRUPOS_ENCERRADOS = new Set(['Fechamento', 'Arquivo'])
+
+// Fases que não entram em Tarefas. "Sem dados" (incompleto) é onde o webhook do Magnetic deixa o lead que
+// chegou sem telefone: não há o que trabalhar ali — falta o dado para ligar. Ele continua no funil do
+// Comercial, que é onde se resolve o cadastro.
+const FASES_FORA_DAS_TAREFAS = new Set(['lixeira', 'incompleto'])
 type Interaction = { id: string; type: string; note: string | null; created_by_name: string | null; created_at: string }
 
 const TERMINAL = new Set<LeadStatus>(['fechado', 'perdido', 'negocio_futuro', 'lixeira'])
@@ -264,14 +269,14 @@ export function MesaClient({ initialTasks, initialLeads, initialFocus, stages, l
 
     const porSlug = new Map<string, { lead: MesaLead; task: Task | null }[]>()
     for (const lead of leads) {
-      if (lead.status === 'lixeira') continue
+      if (FASES_FORA_DAS_TAREFAS.has(lead.status)) continue
       const lista = porSlug.get(lead.status) ?? []
       lista.push({ lead, task: tarefaDoLead.get(lead.id) ?? null })
       porSlug.set(lead.status, lista)
     }
 
     const monta = (encerradas: boolean) => stages
-      .filter(st => GRUPOS_ENCERRADOS.has(st.grupo ?? '') === encerradas && st.slug !== 'lixeira')
+      .filter(st => GRUPOS_ENCERRADOS.has(st.grupo ?? '') === encerradas && !FASES_FORA_DAS_TAREFAS.has(st.slug))
       .map(st => ({
         slug: st.slug, titulo: st.nome, cor: st.cor, grupo: st.grupo,
         itens: (porSlug.get(st.slug) ?? []).sort((a, b) => {
@@ -418,6 +423,15 @@ export function MesaClient({ initialTasks, initialLeads, initialFocus, stages, l
     if (task.linked_type === 'lead') setSelectedLeadId(task.linked_id ?? null)
     setModalOpen(false)
     router.refresh()
+  }
+
+  // CHECK NA LINHA DO LEAD (MESA-FUNIL-003). Em Acompanhando o trabalho é por LEAD, não por tarefa, e
+  // nem todo lead tem tarefa aberta — 95 estão sem próximo passo. Com tarefa, o check conclui e abre o
+  // formulário (mesmo caminho do check da aba Hoje); sem tarefa, abre o formulário direto, que é o único
+  // jeito de registrar o que aconteceu e definir o passo seguinte.
+  function registrarSituacao(lead: MesaLead, task: Task | null) {
+    if (task) { void toggleTask(task); return }
+    setSituation({ lead, taskId: null })
   }
 
   async function toggleTask(task: Task) {
@@ -586,34 +600,60 @@ export function MesaClient({ initialTasks, initialLeads, initialFocus, stages, l
 
                 <div className="p-2 sm:p-3 space-y-2">
                   {gruposDoFunil.length > 0 && !buscando ? (
-                    <div className="space-y-2">
+                    /* FUNIL (MESA-FUNIL-002). Três superfícies em profundidade decrescente para separar o
+                       que é fase do que é lead: o cartão da fase em `bento-panel`, o corpo aberto recuado
+                       em `bento-bg` (a cor da própria página, que vira um "poço"), e os leads de volta em
+                       `bento-panel` dentro dele. Card claro > poço > card claro: o lead destaca do grupo
+                       sem precisar de borda forte, e duas fases abertas nunca se confundem.
+                       A cor da fase entra como trilho à esquerda e como fio-guia vertical no poço — é a
+                       mesma cor do funil do Comercial, então a leitura é imediata. */
+                    <div className="space-y-2.5">
                       {gruposDoFunil.map((grupo, i) => {
                         const aberto = mexeuNoGrupo ? grupoAberto === grupo.slug : i === 0
                         const atrasados = grupo.itens.filter(x => x.task?.due_date && x.task.due_date < today).length
+                        const cor = grupo.cor ?? '#8A9182'
                         return (
-                          <div key={grupo.slug} className="rounded-bento border border-bento-border bg-bento-bg/30">
+                          <div key={grupo.slug}
+                            className={cn('relative overflow-hidden rounded-bento border bg-bento-panel transition-all duration-200',
+                              aberto ? 'border-bento-dim/40 shadow-card' : 'border-bento-border hover:border-bento-dim/40')}>
+                            {/* Trilho da fase, na cor do funil */}
+                            <span aria-hidden className="absolute left-0 top-0 h-full w-[3px]" style={{ backgroundColor: cor }} />
+
                             <button type="button"
                               onClick={() => { setMexeuNoGrupo(true); setGrupoAberto(aberto ? null : grupo.slug) }}
-                              className="flex w-full items-center gap-2.5 p-3 text-left">
-                              <ChevronDown className={cn('h-4 w-4 shrink-0 text-bento-muted transition-transform', aberto && 'rotate-180')} />
-                              <span className="h-2.5 w-2.5 shrink-0 rounded-[3px]" style={{ backgroundColor: grupo.cor ?? '#64748b' }} />
+                              aria-expanded={aberto}
+                              className="flex w-full items-center gap-3 py-3.5 pl-4 pr-3.5 text-left">
+                              <ChevronDown className={cn('h-4 w-4 shrink-0 text-bento-muted transition-transform duration-200', aberto && 'rotate-180')} />
                               <span className="min-w-0 flex-1">
-                                <span className="block text-sm font-semibold text-bento-text">{grupo.titulo}</span>
+                                <span className="block truncate text-sm font-semibold tracking-tight text-bento-text">{grupo.titulo}</span>
                                 {atrasados > 0 && (
-                                  <span className="block font-tech text-caption text-amber-300/80">{atrasados} com data vencida</span>
+                                  <span className="mt-1 inline-flex items-center gap-1 rounded-full border border-amber-500/30 bg-amber-500/10 px-1.5 py-0.5 font-tech text-[10px] text-amber-600 dark:text-amber-300">
+                                    {atrasados} com data vencida
+                                  </span>
                                 )}
                               </span>
-                              <span className="font-tech text-[11px] tabular-nums text-bento-muted">{grupo.itens.length}</span>
+                              <span className={cn('grid h-7 min-w-[28px] flex-none place-items-center rounded-full border px-2 font-tech text-[11px] tabular-nums transition-colors',
+                                aberto ? 'border-transparent bg-bento-text text-bento-panel' : 'border-bento-border bg-bento-bg text-bento-dim')}>
+                                {grupo.itens.length}
+                              </span>
                             </button>
+
                             {aberto && (
-                              <div className="space-y-2 border-t border-bento-border/60 p-2">
-                                {grupo.itens.map(({ lead, task }) => (
-                                  <LeadNaFase key={lead.id} lead={lead} task={task} today={today}
-                                    active={selectedLeadId === lead.id}
-                                    noRadar={focus.has(lead.id)}
-                                    onToggleFocus={() => toggleFocus(lead.id)}
-                                    onSelect={() => { selectLead(lead); if (task) setSelectedTaskId(task.id) }} />
-                                ))}
+                              <div className="relative border-t border-bento-border bg-bento-bg px-2.5 py-2.5">
+                                {/* Fio-guia: amarra visualmente os leads à fase de onde saíram */}
+                                <span aria-hidden className="absolute bottom-3 left-[14px] top-3 w-px rounded-full opacity-40"
+                                  style={{ backgroundColor: cor }} />
+                                <div className="space-y-1.5 pl-5">
+                                  {grupo.itens.map(({ lead, task }) => (
+                                    <LeadNaFase key={lead.id} lead={lead} task={task} today={today}
+                                      active={selectedLeadId === lead.id}
+                                      busy={!!task && busyTaskId === task.id}
+                                      noRadar={focus.has(lead.id)}
+                                      onCheck={() => registrarSituacao(lead, task)}
+                                      onToggleFocus={() => toggleFocus(lead.id)}
+                                      onSelect={() => { selectLead(lead); if (task) setSelectedTaskId(task.id) }} />
+                                  ))}
+                                </div>
                               </div>
                             )}
                           </div>
@@ -799,41 +839,59 @@ function TaskRowComDuplicadas({ antigas = 0, onResolver, ...props }: TaskRowProp
 // Mostra a SITUAÇÃO escrita (current_situation) em vez do título da tarefa: na hora de decidir o que
 // fazer, "pediu para ligar entre terça e quarta" vale mais que "Ligar novamente: Fulano". O próximo passo
 // aparece como data à direita, em âmbar quando já venceu — atraso virou atributo da linha, não uma aba.
-function LeadNaFase({ lead, task, today, active, noRadar, onToggleFocus, onSelect }: {
-  lead: MesaLead; task: Task | null; today: string; active: boolean
-  noRadar: boolean; onToggleFocus: () => void; onSelect: () => void
+function LeadNaFase({ lead, task, today, active, busy, noRadar, onCheck, onToggleFocus, onSelect }: {
+  lead: MesaLead; task: Task | null; today: string; active: boolean; busy: boolean
+  noRadar: boolean; onCheck: () => void; onToggleFocus: () => void; onSelect: () => void
 }) {
   const vencida = !!task?.due_date && task.due_date < today
   const semPlano = !task
-  const situacao = lead.current_situation?.trim() || (lead.company ? lead.company : 'Sem situação registrada')
+  const situacao = lead.current_situation?.trim() || lead.company?.trim() || 'Sem situação registrada'
   return (
-    <div className={cn('flex items-center gap-2 rounded-bento border pr-2 transition-colors',
-      active ? 'border-lime/50 bg-lime/[0.07]' : 'border-bento-border bg-bento-bg/35 hover:border-bento-dim/60')}>
-      <button type="button" onClick={onSelect} className="flex min-w-0 flex-1 items-center gap-3 p-3 text-left">
-        <span className={cn('h-2 w-2 shrink-0 rounded-full',
-          HOT.has(lead.temperature ?? '') ? 'bg-lime' : COLD.has(lead.temperature ?? '') ? 'bg-blue-400' : 'bg-amber-400')} />
+    <div className={cn(
+      // Cartão CLARO sobre o poço escuro/acinzentado do grupo — é essa inversão que separa o lead da fase.
+      'group flex items-center gap-2 rounded-btn border bg-bento-panel pr-1.5 transition-all duration-150',
+      active
+        ? 'border-lime/60 shadow-card ring-1 ring-lime/20'
+        : 'border-bento-border/80 hover:border-bento-dim/50 hover:shadow-card')}>
+      {/* Check: irmão do botão da linha (button dentro de button é HTML inválido). Conclui a tarefa e
+          abre o formulário de situação; sem tarefa, abre o formulário direto. */}
+      <button type="button" onClick={onCheck} disabled={busy}
+        aria-label={task ? `Concluir e registrar situação de ${lead.name}` : `Registrar situação de ${lead.name}`}
+        title={task ? 'Concluir e registrar a situação' : 'Registrar a situação'}
+        className={cn('ml-2.5 grid h-5 w-5 flex-none place-items-center rounded-md border transition-colors',
+          'border-bento-border text-transparent hover:border-lime hover:text-lime-fg disabled:opacity-40')}>
+        <Check className="h-3 w-3" strokeWidth={3} />
+      </button>
+      <button type="button" onClick={onSelect} className="flex min-w-0 flex-1 items-center gap-2.5 py-2.5 text-left">
+        <span className={cn('h-2 w-2 shrink-0 rounded-full ring-2 ring-bento-panel',
+          HOT.has(lead.temperature ?? '') ? 'bg-lime'
+            : COLD.has(lead.temperature ?? '') ? 'bg-blue-400' : 'bg-amber-400')} />
         <span className="min-w-0 flex-1">
-          <span className="block truncate text-sm font-medium text-bento-text">{lead.name}</span>
-          <span className="block truncate text-[11px] text-bento-muted">{situacao}</span>
+          <span className="block truncate text-sm font-medium leading-tight text-bento-text">{lead.name}</span>
+          <span className="mt-0.5 block truncate text-[11px] leading-tight text-bento-muted">{situacao}</span>
         </span>
-        <span className="flex-none text-right">
-          {semPlano ? (
-            <span className="font-tech text-[10px] text-amber-300/90">sem próximo passo</span>
-          ) : (
-            <span className={cn('font-tech text-[10px] whitespace-nowrap', vencida ? 'text-amber-300' : 'text-bento-muted')}>
-              {dateLabel(task.due_date, task.due_time)}
-            </span>
-          )}
-        </span>
+        {/* Próximo passo como etiqueta: vencido em âmbar, "sem próximo passo" com contorno tracejado —
+            a ausência de plano precisa parecer uma lacuna, não um estado normal. */}
+        {semPlano ? (
+          <span className="flex-none rounded-full border border-dashed border-amber-500/40 px-2 py-0.5 font-tech text-[10px] text-amber-600 dark:text-amber-300">
+            sem próximo passo
+          </span>
+        ) : (
+          <span className={cn('flex-none whitespace-nowrap rounded-full border px-2 py-0.5 font-tech text-[10px] tabular-nums',
+            vencida
+              ? 'border-amber-500/40 bg-amber-500/10 text-amber-600 dark:text-amber-300'
+              : 'border-bento-border bg-bento-bg text-bento-dim')}>
+            {dateLabel(task.due_date, task.due_time)}
+          </span>
+        )}
       </button>
       <button type="button" onClick={onToggleFocus} aria-pressed={noRadar}
         aria-label={noRadar ? `Tirar ${lead.name} do radar` : `Acompanhar ${lead.name}`}
         title={noRadar ? 'No radar — clique para tirar' : 'Marcar no radar'}
         className={cn('grid h-8 w-8 flex-none place-items-center rounded-btn transition-colors',
-          noRadar ? 'text-lime-fg hover:bg-lime/10' : 'text-bento-muted hover:text-lime-fg hover:bg-bento-bg')}>
-        <Star className={cn('h-4 w-4', noRadar && 'fill-current')} />
+          noRadar ? 'text-lime-fg' : 'text-bento-border hover:text-lime-fg group-hover:text-bento-muted')}>
+        <Star className={cn('h-3.5 w-3.5', noRadar && 'fill-current')} />
       </button>
-      <ChevronRight className="h-4 w-4 flex-none text-bento-muted" />
     </div>
   )
 }
