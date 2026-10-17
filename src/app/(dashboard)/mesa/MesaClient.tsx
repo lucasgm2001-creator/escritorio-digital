@@ -279,20 +279,22 @@ export function MesaClient({ initialTasks, initialLeads, initialFocus, stages, l
       .filter(st => GRUPOS_ENCERRADOS.has(st.grupo ?? '') === encerradas && !FASES_FORA_DAS_TAREFAS.has(st.slug))
       .map(st => ({
         slug: st.slug, titulo: st.nome, cor: st.cor, grupo: st.grupo,
-        itens: (porSlug.get(st.slug) ?? []).sort((a, b) => {
-          // Radar primeiro; depois quem tem tarefa vencida; depois a data mais próxima.
-          const favorito = (focus.has(b.lead.id) ? 1 : 0) - (focus.has(a.lead.id) ? 1 : 0)
-          if (favorito) return favorito
-          const atrasoA = a.task?.due_date && a.task.due_date < today ? 1 : 0
-          const atrasoB = b.task?.due_date && b.task.due_date < today ? 1 : 0
-          if (atrasoA !== atrasoB) return atrasoB - atrasoA
-          return (a.task?.due_date ?? '9999').localeCompare(b.task?.due_date ?? '9999')
-        }),
+        // ORDEM: quem entrou na fase por último fica no topo (MESA-FUNIL-004). É a mesma régua do funil
+        // do Comercial — mover um lead de fase o torna o mais recente dela. `stage_changed_at` é a data
+        // dessa entrada; `created_at` só cobre o lead que nunca mudou de fase desde que chegou.
+        //
+        // Nada mais reordena: nem o radar, nem a data vencida. Numa lista cuja posição significa "ordem
+        // de chegada", qualquer critério por cima tiraria o sentido de olhar para o topo — o que estava
+        // ali deixaria de ser o que acabou de entrar. Radar e atraso continuam visíveis na própria linha
+        // (estrela preenchida e etiqueta âmbar), que é onde eles informam sem mexer na posição.
+        itens: (porSlug.get(st.slug) ?? []).sort((a, b) =>
+          (b.lead.stage_changed_at ?? b.lead.created_at ?? '')
+            .localeCompare(a.lead.stage_changed_at ?? a.lead.created_at ?? '')),
       }))
       .filter(g => g.itens.length > 0)
 
     return { ativas: monta(false), encerradas: monta(true) }
-  }, [leads, pending, stages, focus, today])
+  }, [leads, pending, stages])
 
   const acompanhandoCount = useMemo(() => porFase.ativas.reduce((n, g) => n + g.itens.length, 0), [porFase])
   const concluidasCount = useMemo(() => porFase.encerradas.reduce((n, g) => n + g.itens.length, 0), [porFase])
