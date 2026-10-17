@@ -7,6 +7,7 @@ import { getClientLeadHub } from '@/server/services/ClientContextService'
 import { clientHealthBand } from '@/lib/client/health-band'
 import { currentBillingProfile } from '@/lib/billing/profile'
 import { ClientResumo } from '@/components/client/ClientResumo'
+import { can } from '@/lib/permissions/can'
 
 // Resumo = home do Workspace do Cliente. Combina identidade + Financeiro + última atividade/reunião +
 // jornada comercial + Saúde. Todas as leituras são cacheadas por request (getClientWorkspace /
@@ -47,6 +48,7 @@ export default async function ClientResumoPage(props: { params: Promise<{ id: st
       health={health}
       journey={leadHub?.journey ?? []}
       billing={currentBillingProfile()}
+      podeEditar={can(context, 'clients', 'edit')}
     />
   )
 }

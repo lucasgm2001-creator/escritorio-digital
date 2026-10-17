@@ -1,5 +1,6 @@
 import { Building2, Phone, MessageSquare, UserPlus, CalendarDays, Clock, Sparkles } from 'lucide-react'
 import { cn, formatCurrency } from '@/lib/utils'
+import { DesativarClienteBox } from './DesativarClienteBox'
 import { formatDateBR } from '@/lib/date'
 import { Panel } from '@/components/bento/Panel'
 import { MetricCard, type MetricTone } from '@/components/ui/MetricCard'
@@ -23,7 +24,7 @@ function contractAge(iso?: string | null): string {
 }
 const HEALTH_TONE: Record<ClientHealthKey, MetricTone> = { excelente: 'emerald', boa: 'lime', atencao: 'muted', critica: 'negative' }
 
-export function ClientResumo({ client, finance, lastActivityAt, lastMeetingAt, lastPaymentAt, health, journey, billing }: {
+export function ClientResumo({ client, finance, lastActivityAt, lastMeetingAt, lastPaymentAt, health, journey, billing, podeEditar }: {
   client: Client
   finance: ClientFinanceVM
   lastActivityAt: string | null
@@ -32,6 +33,7 @@ export function ClientResumo({ client, finance, lastActivityAt, lastMeetingAt, l
   health: ClientHealthBand
   journey: LeadJourneyStep[]
   billing: CustomerBillingProfile
+  podeEditar: boolean
 }) {
   const daysSinceActivity = lastActivityAt ? Math.floor((Date.now() - new Date(lastActivityAt).getTime()) / DAY) : null
   const proximaAcao = finance.semanasPendentes > 0 ? 'Cobrar semana(s) pendente(s)'
@@ -134,6 +136,17 @@ export function ClientResumo({ client, finance, lastActivityAt, lastMeetingAt, l
           </Panel>
         </div>
       </div>
+
+      {/* Encerrar contrato: último bloco do Resumo, depois de plano, financeiro e atividade — é a ordem
+          em que a decisão se forma. Antes isto era um link pequeno no detalhe do Hub, fora do Workspace. */}
+      <DesativarClienteBox
+        clientId={client.id}
+        clientName={client.name}
+        status={client.status}
+        endDate={client.end_date}
+        endReason={client.end_reason}
+        podeEditar={podeEditar}
+      />
     </div>
   )
 }
