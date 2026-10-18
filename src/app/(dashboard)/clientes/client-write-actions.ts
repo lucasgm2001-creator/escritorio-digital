@@ -6,7 +6,9 @@ import { getRequestContext } from '@/server/context/request-context'
 import { todaySP } from '@/lib/date'
 import { createServiceClient } from '@/lib/supabase/service'
 import { assertClientOwnership } from '@/server/security/team-ownership'
-import { saveClientHistory, type ClientHistoryInput } from '@/lib/commission/actions'
+import { saveClientHistory, dueDateFor, resolveClientPlanTimeline, type ClientHistoryInput } from '@/lib/commission/actions'
+import { cadenceOf } from '@/lib/commission/billing'
+import { dowOfYmd } from '@/lib/date'
 import { resolveTeamRate } from '@/lib/commission/fx'
 import { getStages } from '@/lib/funnelStages.server'
 import { wonSlug } from '@/lib/funnelStages'
@@ -76,6 +78,86 @@ export async function deactivateClientAction(clientId: string, reason: string | 
   const { error } = await q
   if (error) return { ok: false, error: error.message }
   return { ok: true, endDate }
+}
+
+
+// Reativa um cliente encerrado a partir de uma DATA DE RECOMEÇO.
+//
+// O ponto perigoso não é o status: é o cron de cobrança. Ele cria toda semana ainda não registrada cujo
+// vencimento já passou, e desde AUTO-PAGA-001 cria JÁ COMO PAGA. Reativar um cliente que ficou meses fora
+// faria o cron inventar semanas pagas do período em que ele não era cliente — receita e comissão que
+// nunca existiram. O Valdemir, parado desde 07/08, geraria 10 semanas assim.
+//
+// Por isso a data de recomeço é obrigatória e faz trabalho de verdade: as semanas cujo vencimento cai
+// ANTES dela são registradas como 'anulada' (período sem contrato — não devida, não paga). O cron então
+// retoma a partir do recomeço, no mesmo dia da semana de sempre.
+//
+// A régua é a MESMA do cron (dueDateFor + cadenceOf + resolveClientPlanTimeline). Recalcular o calendário
+// de outro jeito aqui criaria duas verdades sobre o mesmo vencimento.
+export async function reactivateClientAction(
+  clientId: string, restartDate: string,
+): Promise<Res<{ restartDate: string; semanasFechadas: number }>> {
+  const g = await guardEdit()
+  if (!g.context) return { ok: false, error: g.error }
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(restartDate)) return { ok: false, error: 'Informe a data de recomeço.' }
+
+  const supabase = createClient()
+  const teamId = g.context.activeTeamId
+  let q = supabase.from('clients')
+    .select('id, status, start_date, billing_anchor_date, dia_pagamento_semana, billing_every, billing_unit')
+    .eq('id', clientId)
+  if (teamId) q = q.eq('team_id', teamId)
+  const { data: cli } = await q.maybeSingle()
+  if (!cli) return { ok: false, error: 'Cliente não encontrado nesta equipe.' }
+  if (cli.status === 'ativo') return { ok: false, error: 'Este cliente já está ativo.' }
+
+  const anchor = String(cli.billing_anchor_date ?? cli.start_date ?? '').slice(0, 10)
+  let semanasFechadas = 0
+
+  if (anchor) {
+    const dia = cli.dia_pagamento_semana ?? dowOfYmd(anchor)
+    const cadence = cadenceOf(cli)
+    const planAtWeek = await resolveClientPlanTimeline(supabase, clientId)
+    const { data: existentes } = await supabase.from('client_payments')
+      .select('numero_semana').eq('client_id', clientId)
+    const registradas = new Set((existentes ?? []).map(r => Number(r.numero_semana)))
+
+    // Fecha o buraco entre o que já existe e o recomeço. Teto de 520 (10 anos) por segurança: a condição
+    // real de parada é o vencimento alcançar a data de recomeço.
+    const aFechar: { numero: number; due: string; valorUsd: number; planoId: string | null }[] = []
+    for (let n = 1; n <= 520; n++) {
+      const due = dueDateFor(anchor, dia, n, cadence)
+      if (due >= restartDate) break
+      if (registradas.has(n)) continue
+      const { planoId, valorUsd } = planAtWeek(n)
+      aFechar.push({ numero: n, due, valorUsd, planoId })
+    }
+
+    if (aFechar.length) {
+      const rate = await resolveTeamRate(supabase, teamId)
+      const { error } = await supabase.from('client_payments').insert(aFechar.map(w => ({
+        client_id: clientId, numero_semana: w.numero, valor_usd: w.valorUsd,
+        paid_on: null, cotacao_usd_brl: rate ?? 1, plano_id: w.planoId,
+        status: 'anulada', due_on: w.due,
+        valor_previsto_usd: w.valorUsd, valor_pago_usd: 0,
+        anulado: true, anulado_em: new Date().toISOString(),
+        anulado_motivo: 'Contrato encerrado neste período — reativado em ' + restartDate,
+        ...(teamId ? { team_id: teamId } : {}),
+      })))
+      // Sem conseguir fechar o buraco, NÃO reativa: o cron criaria essas semanas como pagas no próximo
+      // ciclo e inventaria receita. É melhor o cliente continuar inativo do que entrar com dinheiro falso.
+      if (error) return { ok: false, error: 'Não consegui fechar as semanas do período sem contrato. O cliente segue inativo.' }
+      semanasFechadas = aFechar.length
+    }
+  }
+
+  let upd = supabase.from('clients')
+    .update({ status: 'ativo', end_date: null, end_reason: null, updated_at: new Date().toISOString() })
+    .eq('id', clientId)
+  if (teamId) upd = upd.eq('team_id', teamId)
+  const { error: updErr } = await upd
+  if (updErr) return { ok: false, error: updErr.message }
+  return { ok: true, restartDate, semanasFechadas }
 }
 
 // Cria uma prateleira (nicho). Carimba team_id no servidor. Devolve a linha criada para o estado otimista.
