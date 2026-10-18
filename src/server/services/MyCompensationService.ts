@@ -347,13 +347,53 @@ export async function getMyCompensationView(context: RequestContext): Promise<My
   // comissão e ficava menor que o "Receber este mês" ao lado, o que não fazia sentido nenhum.
   // NÃO é acumulado: só o que pertence a ESTE mês. Semana que vence em outubro é previsão de outubro.
   const mesFim = `${monthKey}-31`   // string YMD: '-31' cobre o mês todo na comparação lexicográfica
+
+  // BÔNUS DE RENOVAÇÃO PREVISTO NO MÊS (COMP-PREVISTO-004).
+  //
+  // O bônus nasce quando a 4ª semana contada a partir da data de renovação é paga. Ele não aparecia em
+  // "Previsto a receber" porque a projeção só olhava semanas de VENDA — então um mês com duas renovações
+  // maduras mostrava US$100 a menos do que ia realmente entrar.
+  //
+  // A data prevista sai da MESMA régua de vencimento do resto (dueDateFor): a 4ª cobrança com vencimento
+  // igual ou posterior à renovação. Quando ela cai no mês corrente, o bônus entra na previsão.
+  //
+  // Só cliente ATIVO: contrato encerrado não qualifica mais (process_due_renewals exige ativo para
+  // confirmar), então prever esse dinheiro seria prometer o que o sistema nunca vai pagar.
+  const renovacoesNoMes: { cliente: string | null; due: string; valorUsd: number }[] = []
+  if (rule?.renewalBonus.enabled && todosClientIds.length) {
+    const { data: pendentes } = await supabase.from('contract_renewals')
+      .select('client_id, renewal_date, bonus_usd, clients(name, status)')
+      .eq('status', 'aguardando').in('client_id', todosClientIds)
+    for (const cr of (pendentes ?? []) as { client_id: string; renewal_date: string; bonus_usd: number | null; clients?: { name?: string; status?: string } | null }[]) {
+      if ((cr.clients?.status ?? '') !== 'ativo') continue
+      const c = cliById.get(cr.client_id)
+      if (!c) continue
+      const anchor = String(c.billing_anchor_date ?? c.start_date ?? '').slice(0, 10)
+      if (!anchor) continue
+      const dia = c.dia_pagamento_semana ?? dowOfYmd(anchor)
+      const renovacao = String(cr.renewal_date).slice(0, 10)
+      // A 4ª cobrança com vencimento >= data de renovação. Teto de 520 é só trava de laço.
+      let contadas = 0
+      let quarta: string | null = null
+      for (let n = 1; n <= 520; n++) {
+        const due = dueDateFor(anchor, dia, n)
+        if (due < renovacao) continue
+        contadas += 1
+        if (contadas === 4) { quarta = due; break }
+      }
+      if (!quarta || quarta < `${monthKey}-01` || quarta > mesFim) continue
+      renovacoesNoMes.push({ cliente: cr.clients?.name ?? null, due: quarta, valorUsd: Number(cr.bonus_usd ?? 50) })
+    }
+    renovacoesNoMes.sort((a, b) => a.due.localeCompare(b.due))
+  }
+  const renovacoesNoMesUsd = round2(renovacoesNoMes.reduce((acc, x) => acc + x.valorUsd, 0))
   const pendenteNoMes = semanasAVencer
     .filter(x => x.due >= `${monthKey}-01` && x.due <= mesFim)
     .sort((a, b) => a.due.localeCompare(b.due))
   const pendenteNoMesUsd = round2(pendenteNoMes.reduce((acc, x) => acc + x.valorUsd, 0))
   const comissaoDoMesUsd = round2(currentMonth.weeksUsd + currentMonth.meetingsUsd)
   // currentMonth.totalUsd = salário + reuniões + semanas recebidas. Somar o que ainda vence fecha o mês.
-  const forecastMonthUsd = round2(currentMonth.totalUsd + pendenteNoMesUsd)
+  const forecastMonthUsd = round2(currentMonth.totalUsd + pendenteNoMesUsd + renovacoesNoMesUsd)
 
   const sources: CompSource[] = [
     { key: 'salario', title: 'Salário fixo', description: `Salário vigente na competência de ${monthKey}.`,
@@ -371,7 +411,7 @@ export async function getMyCompensationView(context: RequestContext): Promise<My
       totalUsd: totalReceivedUsd, lines: ateAgoraLinhas,
       emptyMessage: 'Nenhuma comissão recebida ainda.' },
     { key: 'previsto', title: 'Previsto a receber',
-      description: 'Salário fixo mais tudo que já entrou e o que ainda vence neste mês, se for pago em dia.',
+      description: 'Salário fixo, o que já entrou, as semanas que ainda vencem no mês e os bônus de renovação que fecham nele — se tudo for pago em dia.',
       totalUsd: forecastMonthUsd,
       lines: [
         ...salarioLinhas,
@@ -379,6 +419,10 @@ export async function getMyCompensationView(context: RequestContext): Promise<My
         ...pendenteNoMes.map(x => ({
           label: `Venda · semana ${x.numero}`, cliente: x.cliente, data: x.due,
           valorUsd: x.valorUsd, hint: `a receber · vence ${x.due}`,
+        })),
+        ...renovacoesNoMes.map(x => ({
+          label: 'Bônus de renovação', cliente: x.cliente, data: x.due,
+          valorUsd: x.valorUsd, hint: `a receber · fecha 4 semanas em ${x.due}`,
         })),
       ],
       emptyMessage: 'Nada previsto para este mês.' },
