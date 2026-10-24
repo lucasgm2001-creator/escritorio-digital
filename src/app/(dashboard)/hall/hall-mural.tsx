@@ -1,17 +1,14 @@
 'use client'
 
-// Primitivos de apresentação do Hall (Mural + Histórico de atividades) — extraídos VERBATIM do HallClient
+// Primitivos de apresentação do Hall (ícones/cores de atividade + Histórico de atividades) — extraídos VERBATIM do HallClient
 // (UI-POLISH-GIANTS-001). Componentes leaf/self-contained + consts de ícone/cor. Comportamento idêntico.
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { cn } from '@/lib/utils'
 import { TimeAgo } from '@/components/system/TimeAgo'
 import { Portal } from '@/components/ui/Portal'
 import { useDialog } from '@/components/ui/useDialog'
-import { X, Clock } from 'lucide-react'
+import { X } from 'lucide-react'
 import type { Activity } from '@/types'
-import type { Task } from '../tarefas/types'
-import type { CalendarEvent } from './calendarShared'
 
 export const ACTIVITY_ICONS: Record<string, React.ReactNode> = {
   lead: <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" /></svg>,
@@ -38,35 +35,6 @@ export function computeGreeting(): string {
   if (h < 12) return 'Bom dia'
   if (h < 18) return 'Boa tarde'
   return 'Boa noite'
-}
-
-// Linha de evento de agenda no Mural (compacta, 1 linha; toca pra abrir no Calendar).
-export function MuralAgendaRow({ ev, onClick }: { ev: CalendarEvent; onClick: () => void }) {
-  return (
-    <button type="button" onClick={onClick}
-      className="w-full flex items-center gap-2 text-left rounded-bento border border-lime/30 px-3 py-2 hover:border-lime/60 transition-colors">
-      <Clock className="w-3.5 h-3.5 text-lime-fg flex-none" />
-      <span className="text-sm text-bento-text truncate flex-1 min-w-0">{ev.title}</span>
-      {ev.start_time && <span className="font-tech text-[11px] text-bento-muted flex-none tabular-nums">{ev.start_time.slice(0, 5)}</span>}
-    </button>
-  )
-}
-
-// Linha de tarefa no Mural (compacta, 1 linha). O Mural mostra só tarefas de HOJE pendentes,
-// então o ponto lime = "do dia". Título trunca em 1 linha. Toca → aba Tarefas.
-export function MuralTaskRow({ task, onClick, overdue = false }: { task: Task; onClick: () => void; overdue?: boolean }) {
-  const hora = task.due_time ? task.due_time.slice(0, 5) : ''
-  return (
-    <button type="button" onClick={onClick}
-      className={cn('w-full flex items-center gap-2 text-left rounded-bento border px-3 py-2 transition-colors',
-        overdue ? 'border-amber-500/40 hover:border-amber-500/70' : 'border-bento-border hover:border-lime/60')}>
-      <span className={cn('w-1.5 h-1.5 rounded-full flex-none', overdue ? 'bg-amber-400' : 'bg-lime')} />
-      <span className="text-sm text-bento-text truncate flex-1 min-w-0">{task.title}</span>
-      {overdue
-        ? <span className="font-tech text-[10px] uppercase tracking-wide text-amber-400 flex-none">Pendente</span>
-        : hora && <span className="font-tech text-[11px] text-bento-muted flex-none tabular-nums">{hora}</span>}
-    </button>
-  )
 }
 
 // Modal "ver histórico": abre com os itens já em memória (view maior) e, no botão

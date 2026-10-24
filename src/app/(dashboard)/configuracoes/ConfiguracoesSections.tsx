@@ -25,8 +25,6 @@ import { loadA11y, saveA11y, applyA11y, DEFAULT_A11Y, type A11ySettings, type Fo
 import { loadDensity, saveDensity, applyDensity, type Density } from '@/lib/uiPrefs'
 import { useMapPrefs, saveMapPrefs, type MapPrefs } from '@/lib/mapPrefs'
 import { getHallSettings, setHallSettings, DEFAULT_HALL_SETTINGS, type HallSettings } from '@/lib/hallSettings'
-import { funnelConversionLabel } from '@/lib/funnelMetrics'
-import type { MapLead, MapClient } from '../comercial/mapTypes'
 
 // classes compartilhadas das seções
 const inputCls = 'w-full bg-bento-bg border border-bento-border rounded-btn px-3 py-2 text-sm text-bento-text placeholder:text-bento-muted focus:outline-none focus:border-lime min-h-control'
@@ -708,69 +706,21 @@ function HallSwitchRow({ label, on, onToggle }: { label: string; on: boolean; on
 
 export function HallSettingsSection({ userId }: { userId: string }) {
   const [cfg, setCfg] = useState<HallSettings>(DEFAULT_HALL_SETTINGS)
-  const [leads, setLeads] = useState<MapLead[]>([])
-  const [clients, setClients] = useState<MapClient[]>([])
   useEffect(() => { setCfg(getHallSettings(userId)) }, [userId])
-  useEffect(() => {
-    const supabase = createClient()
-    supabase.from('leads').select('id, name, status, state, area_code, created_at, origem').then(({ data }) => { if (data) setLeads(data as MapLead[]) })
-    supabase.from('clients').select('id, name, status, state, area_code').then(({ data }) => { if (data) setClients(data as MapClient[]) })
-  }, [])
   const apply = (next: HallSettings) => { setCfg(next); setHallSettings(userId, next) }
   const tB = (k: keyof HallSettings['blocks']) => apply({ ...cfg, blocks: { ...cfg.blocks, [k]: !cfg.blocks[k] } })
-  const tM = (k: keyof HallSettings['metrics']) => apply({ ...cfg, metrics: { ...cfg.metrics, [k]: !cfg.metrics[k] } })
 
-  const clientesAtivos = clients.filter(c => c.status === 'ativo').length
-  const leadsAbertos = leads.filter(l => l.origem !== 'cliente_existente' && !['fechado', 'perdido', 'lixeira'].includes(l.status)).length
-  const leadsNovos = leads.filter(l => l.origem !== 'cliente_existente' && l.created_at && new Date(l.created_at).getTime() >= Date.now() - 7 * 86400000).length
-  const conversao = funnelConversionLabel(leads)   // MESMA definição do Funil/Mapa (fechados ÷ não-Lixeira)
-  const pm: { k: keyof HallSettings['metrics']; label: string; value: string }[] = [
-    { k: 'clientesAtivos', label: 'Clientes ativos', value: String(clientesAtivos) },
-    { k: 'leadsAbertos', label: 'Leads em aberto', value: String(leadsAbertos) },
-    { k: 'leadsNovos', label: 'Leads novos', value: String(leadsNovos) },
-    { k: 'conversao', label: 'Conversão', value: `${conversao}%` },
-  ]
-
+  // Só os blocos OPCIONAIS da Visão Geral (HALL-EMPRESA-001). Os números da empresa (Dinheiro, Comercial,
+  // Carteira, receita 12 meses) são o propósito do Hall e não se desligam. Saíram: Agenda e Tarefas (moram
+  // no Follow-up) e os 4 interruptores de métricas, que o Hall nunca leu — a "prévia" calculava números
+  // próprios, com outras fórmulas, que não apareciam em lugar nenhum.
   return (
     <Panel label="Configurações · Hall">
-      <div className="flex flex-col lg:flex-row gap-5">
-        <div className="flex-1 space-y-5 min-w-0">
-          <HallSwitchGroup title="Blocos da Visão Geral">
-            <HallSwitchRow label="Agenda" on={cfg.blocks.agenda} onToggle={() => tB('agenda')} />
-            <HallSwitchRow label="Tarefas de hoje" on={cfg.blocks.tarefas} onToggle={() => tB('tarefas')} />
-            <HallSwitchRow label="Atividade recente" on={cfg.blocks.atividade} onToggle={() => tB('atividade')} />
-            <HallSwitchRow label="Notícias" on={cfg.blocks.noticias} onToggle={() => tB('noticias')} />
-          </HallSwitchGroup>
-          <HallSwitchGroup title="Métricas (aba Mapa)">
-            <HallSwitchRow label="Clientes ativos" on={cfg.metrics.clientesAtivos} onToggle={() => tM('clientesAtivos')} />
-            <HallSwitchRow label="Leads em aberto" on={cfg.metrics.leadsAbertos} onToggle={() => tM('leadsAbertos')} />
-            <HallSwitchRow label="Leads novos" on={cfg.metrics.leadsNovos} onToggle={() => tM('leadsNovos')} />
-            <HallSwitchRow label="Conversão" on={cfg.metrics.conversao} onToggle={() => tM('conversao')} />
-          </HallSwitchGroup>
-          {/* Config do mapa saiu daqui: virou a seção própria "Mapa" (controles do LeadMap). */}
-        </div>
-
-        {/* Prévia AO VIVO — atualiza conforme liga/desliga os switches. */}
-        <div className="lg:w-[380px] shrink-0">
-          <p className="font-tech text-label uppercase tracking-label text-bento-muted mb-2">Prévia ao vivo</p>
-          <div className="bento-fx p-3 space-y-3">
-            {pm.some(m => cfg.metrics[m.k]) && (
-              <div className="grid grid-cols-2 gap-2">
-                {pm.filter(m => cfg.metrics[m.k]).map(m => (
-                  <div key={m.k} className="bento-fx px-2.5 py-2">
-                    <p className="font-tech text-label uppercase tracking-wide text-bento-muted truncate">{m.label}</p>
-                    <p className="font-display text-lg font-bold text-bento-text tabular-nums leading-none">{m.value}</p>
-                  </div>
-                ))}
-              </div>
-            )}
-            {/* (Mini-preview do mapa ANTIGO removido — o único mapa é o LeadMap, no Hall.) */}
-            {cfg.blocks.agenda && <div className="bento-fx px-3 py-2 font-tech text-caption text-bento-muted">Agenda</div>}
-            {cfg.blocks.tarefas && <div className="bento-fx px-3 py-2 font-tech text-caption text-bento-muted">Tarefas de hoje</div>}
-            {cfg.blocks.atividade && <div className="bento-fx px-3 py-2 font-tech text-caption text-bento-muted">Atividade recente</div>}
-            {cfg.blocks.noticias && <div className="bento-fx px-3 py-2 font-tech text-caption text-bento-muted">Notícias</div>}
-          </div>
-        </div>
+      <div className="max-w-xl space-y-5">
+        <HallSwitchGroup title="Blocos da Visão Geral">
+          <HallSwitchRow label="Atividade recente" on={cfg.blocks.atividade} onToggle={() => tB('atividade')} />
+          <HallSwitchRow label="Notícias" on={cfg.blocks.noticias} onToggle={() => tB('noticias')} />
+        </HallSwitchGroup>
       </div>
     </Panel>
   )

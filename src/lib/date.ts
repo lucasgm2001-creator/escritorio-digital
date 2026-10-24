@@ -29,6 +29,13 @@ export const addDaysYmd = (s: string, days: number): string => {
   return new Date(Date.UTC(y, m - 1, d) + days * 86_400_000).toISOString().slice(0, 10)
 }
 
+/** Janela ANTERIOR de mesma duração, imediatamente antes de [from, to] (YMD inclusivos). Régua ÚNICA do
+ *  comparativo "vs. anterior" — Resultados, PDF e Hall usam esta, então os números batem entre as telas. */
+export const previousWindowYmd = (fromYMD: string, toYMD: string): { from: string; to: string } => {
+  const sizeDays = Math.round((Date.parse(toYMD) - Date.parse(fromYMD)) / 86_400_000) + 1
+  return { from: addDaysYmd(fromYMD, -sizeDays), to: addDaysYmd(fromYMD, -1) }
+}
+
 /** YMD + N meses → YMD, preso ao último dia quando o mês destino é mais curto (31/01 +1 mês = 28/02). */
 export const addMonthsYmd = (s: string, months: number): string => {
   const [y, m, d] = s.split('-').map(Number)

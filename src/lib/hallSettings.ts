@@ -1,18 +1,15 @@
 // Configuração da "Visão Geral" do Hall — por usuário, em localStorage (sem migration). Lida no
-// CLIENT (useEffect) p/ não dar hydration mismatch. O Hall lê isto p/ mostrar/esconder blocos e
-// métricas e ligar/desligar leads/clientes/fusos no mapa. Configurações > Andares > Hall escreve.
+// CLIENT (useEffect) p/ não dar hydration mismatch. O Hall lê isto p/ mostrar/esconder os blocos opcionais.
+// Configurações > Andares > Hall escreve.
 
 export interface HallSettings {
-  // Blocos da Visão Geral. (O Mapa agora é uma ABA própria do Hall, não um bloco daqui.)
-  blocks: { agenda: boolean; tarefas: boolean; atividade: boolean; noticias: boolean }
-  metrics: { clientesAtivos: boolean; leadsAbertos: boolean; leadsNovos: boolean; conversao: boolean }
-  map: { leads: boolean; clients: boolean; fusos: boolean }
+  // Blocos OPCIONAIS da Visão Geral. Agenda/Tarefas saíram (Follow-up); métricas nunca foram lidas pelo Hall.
+  // (O Mapa é uma ABA própria do Hall, configurada em Configurações › Mapa.)
+  blocks: { atividade: boolean; noticias: boolean }
 }
 
 export const DEFAULT_HALL_SETTINGS: HallSettings = {
-  blocks: { agenda: true, tarefas: true, atividade: true, noticias: true },
-  metrics: { clientesAtivos: true, leadsAbertos: true, leadsNovos: true, conversao: true },
-  map: { leads: true, clients: true, fusos: true },
+  blocks: { atividade: true, noticias: true },
 }
 
 export const HALL_SETTINGS_EVENT = 'ed-hall-settings'
@@ -24,10 +21,12 @@ export function getHallSettings(userId: string): HallSettings {
     const raw = localStorage.getItem(keyFor(userId))
     if (!raw) return DEFAULT_HALL_SETTINGS
     const p = JSON.parse(raw) as Partial<HallSettings>
+    // Salvos antigos podem ter chaves que saíram (agenda/tarefas/metrics/map) — só as atuais são lidas.
     return {
-      blocks: { ...DEFAULT_HALL_SETTINGS.blocks, ...(p.blocks ?? {}) },
-      metrics: { ...DEFAULT_HALL_SETTINGS.metrics, ...(p.metrics ?? {}) },
-      map: { ...DEFAULT_HALL_SETTINGS.map, ...(p.map ?? {}) },
+      blocks: {
+        atividade: p.blocks?.atividade ?? DEFAULT_HALL_SETTINGS.blocks.atividade,
+        noticias: p.blocks?.noticias ?? DEFAULT_HALL_SETTINGS.blocks.noticias,
+      },
     }
   } catch { return DEFAULT_HALL_SETTINGS }
 }

@@ -4,107 +4,130 @@ import { createClient } from '@/lib/supabase/server'
 import type { RequestContext } from '@/server/context/request-context'
 import { can } from '@/lib/permissions/can'
 import { composeExecutiveMetrics } from '@/server/services/ExecutiveMetricsService'
+import { buildCommercialReport } from '@/server/services/ReportingService'
 import { getCommercialRaw, getClientRevenueForMetrics, getExecutiveClients } from '@/server/repositories/CommercialMetricsRepository'
-import { clientsWithLatePay, type PaymentRowWithClient } from '@/core/metrics/revenue'
+import { clientsWithLatePay, receivedRevenueBetween, type PaymentRowWithClient } from '@/core/metrics/revenue'
 import { rangeFor } from '@/lib/period'
-import { ymd } from '@/lib/date'
+import { ymd, previousWindowYmd } from '@/lib/date'
+import type { MetricTrend } from '@/components/ui/MetricCard'
 
-// Cockpit operacional do Hall (DASHBOARD-REAL-001 → EXECUTIVE-METRICS-003). Os KPIs executivos vêm da FONTE
-// ÚNICA (ExecutiveMetricsService) — exatamente os mesmos números do Dashboard Executivo, sem getCommercialDashboard
-// e sem cálculo de KPI aqui. A parte OPERACIONAL (prioridades, alertas, clientes em atraso, integrações, tarefas)
-// é agregada aqui porque o serviço executivo não a cobre. Team-scoped (TEAM-001).
+// Painel da EMPRESA no Hall (HALL-EMPRESA-001). O Hall deixou de ser o lugar do trabalho do dia (tarefas e
+// agenda moram no Follow-up do Comercial) e virou a visão geral da companhia: alertas, dinheiro, comercial do
+// mês, carteira e receita dos últimos 12 meses.
+//
+// Mesmas fontes e a mesma régua de Resultados — mês corrente comparado com a janela anterior de mesma duração
+// (previousWindowYmd) —, então clicar num cartão do Hall leva a Resultados com o mesmo número e a mesma
+// comparação. KPIs executivos: composeExecutiveMetrics sobre UMA carga (raw/revenue/carteira). Funil do mês:
+// buildCommercialReport (mesma fonte dos cartões de funil de Resultados). Team-scoped (TEAM-001).
 
-export type DashKpi = { label: string; value: number | string; href?: string }
+export type DashKpi = { label: string; value: number | string; href?: string; trend?: MetricTrend; subtitle?: string }
 export type DashKpiGroup = { title: string; kpis: DashKpi[] }
 export type DashAlert = { message: string; href?: string }
-export type DashRevenueRow = { label: string; value: number; count: number }
+export type DashMonth = { key: string; label: string; value: number; partial: boolean }   // key = YYYY-MM
 export type DashboardData = {
-  kpiGroups: DashKpiGroup[]
+  pulse: { periodLabel: string; recebida: number; vendas: number; clientesAtivos: number } | null
   alerts: DashAlert[]
-  receitaPorVendedor: DashRevenueRow[]
-  receitaPorPlano: DashRevenueRow[]
+  kpiGroups: DashKpiGroup[]
+  revenue12m: DashMonth[]
 }
 
-export const EMPTY_DASHBOARD: DashboardData = {
-  kpiGroups: [], alerts: [], receitaPorVendedor: [], receitaPorPlano: [],
-}
+export const EMPTY_DASHBOARD: DashboardData = { pulse: null, alerts: [], kpiGroups: [], revenue12m: [] }
 
 const usd = (n: number): string => `US$ ${Math.round(n).toLocaleString('en-US')}`
+const MONTH_ABBR = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez']
+const RESULTADOS = '/comercial?tab=resultados'
+
+// Trend "vs. anterior" — diferença absoluta (mesma forma do Resultados).
+const vs = (cur: number, prev: number, suffix?: string): MetricTrend =>
+  ({ value: Math.round(cur) - Math.round(prev), suffix, label: 'vs. anterior' })
 
 export async function getDashboardData(context: RequestContext): Promise<DashboardData> {
   const teamId = context.activeTeamId
   if (!teamId) return EMPTY_DASHBOARD
   const supabase = createClient()
   const now = new Date()
-  const today = now.toISOString().slice(0, 10)
   const staleDay = new Date(now.getTime() - 9 * 86_400_000).toISOString().slice(0, 10)   // pagamento semanal: gap > 9 dias
   const canManage = can(context, 'teams', 'manage')
 
-  // Carrega UMA vez (mesma fonte do Dashboard) e compõe os KPIs aqui — sem chamar getExecutiveMetrics (que
-  // recarregaria payments/clients). client_payments deixa de ser lido 2× no Hall. Números idênticos.
   const mRange = rangeFor('mes')
-  const [raw, revenue, carteira, integrationsOnRes, integrationsOffRes, openTasksRes, invitesRes] = await Promise.all([
+  const from = ymd(mRange.start), to = ymd(mRange.end)
+  const prev = previousWindowYmd(from, to)
+
+  const [raw, revenue, carteira, integrationsOffRes, invitesRes, report] = await Promise.all([
     getCommercialRaw(teamId),
     getClientRevenueForMetrics(),
     getExecutiveClients(teamId),
-    supabase.from('client_integrations').select('id', { count: 'exact', head: true }).eq('team_id', teamId).eq('ativo', true),
     supabase.from('client_integrations').select('id', { count: 'exact', head: true }).eq('team_id', teamId).eq('ativo', false),
-    supabase.from('tasks').select('id, due_date', { count: 'exact' }).eq('team_id', teamId).eq('done', false),
     canManage
       ? supabase.from('team_invites').select('id, used_at, expires_at').eq('team_id', teamId)
       : Promise.resolve({ data: [] as { id: string; used_at: string | null; expires_at: string | null }[] }),
+    buildCommercialReport(context,
+      { from: `${from}T00:00:00`, to: `${to}T23:59:59.999`, label: mRange.label },
+      { from: `${prev.from}T00:00:00`, to: `${prev.to}T23:59:59.999`, label: 'período anterior' }),
   ])
-  const exec = composeExecutiveMetrics(raw, revenue, carteira, ymd(mRange.start), ymd(mRange.end), mRange.label)
+  const exec = composeExecutiveMetrics(raw, revenue, carteira, from, to, mRange.label)
+  const execPrev = composeExecutiveMetrics(raw, revenue, carteira, prev.from, prev.to, 'período anterior')
+  const k = report.kpis
+  const cmp = report.comparison
 
-  // ── Operacional: clientes com pagamento em atraso (gap > 9 dias) — FONTE ÚNICA (mesma do Financeiro) ──
-  const clientesEmAtraso = clientsWithLatePay(revenue.payments as PaymentRowWithClient[], staleDay)
-
-  const integrationsOn = integrationsOnRes.count ?? 0
+  // ── Clientes com pagamento em atraso (gap > 9 dias) — FONTE ÚNICA (mesma do Financeiro) ──
+  const payments = revenue.payments as PaymentRowWithClient[]
+  const clientesEmAtraso = clientsWithLatePay(payments, staleDay)
   const integrationsOff = integrationsOffRes.count ?? 0
-  const openTasks = openTasksRes.count ?? 0
-  const overdueTasks = (openTasksRes.data ?? []).filter(task => task.due_date && task.due_date < today).length
   const invites = (invitesRes.data ?? []) as { used_at: string | null; expires_at: string | null }[]
   const expiredInvites = invites.filter(i => !i.used_at && (i.expires_at ?? '') <= now.toISOString()).length
 
-  // ── Alertas (só quando HÁ) ──
+  // ── Alertas da EMPRESA (só quando há). Tarefa atrasada não entra: é trabalho pessoal, mora no Follow-up. ──
   const alerts: DashAlert[] = []
-  if (clientesEmAtraso > 0) alerts.push({ message: `${clientesEmAtraso} cliente(s) ativo(s) sem pagamento recente.`, href: '/admin/clientes' })
-  if (integrationsOff > 0) alerts.push({ message: `${integrationsOff} integração(ões) desligada(s).`, href: '/admin/clientes' })
+  if (clientesEmAtraso > 0) alerts.push({ message: `${clientesEmAtraso} cliente(s) ativo(s) sem pagamento recente.`, href: '/admin/financeiro' })
+  if (integrationsOff > 0) alerts.push({ message: `${integrationsOff} integração(ões) desligada(s).`, href: '/admin/integracoes' })
   if (canManage && expiredInvites > 0) alerts.push({ message: `${expiredInvites} convite(s) expirado(s).`, href: '/admin/equipe' })
-  if (overdueTasks >= 10) alerts.push({ message: `${overdueTasks} tarefas realmente atrasadas.`, href: '/comercial' })
+
+  // ── Receita recebida mês a mês (12 meses, o corrente parcial) — mesma primitiva da Receita Recebida ──
+  const revenue12m: DashMonth[] = []
+  for (let i = 11; i >= 0; i--) {
+    const start = new Date(now.getFullYear(), now.getMonth() - i, 1)
+    const end = new Date(now.getFullYear(), now.getMonth() - i + 1, 0)
+    revenue12m.push({
+      key: ymd(start).slice(0, 7),
+      label: MONTH_ABBR[start.getMonth()],
+      value: receivedRevenueBetween(payments, ymd(start), ymd(end)),
+      partial: i === 0,
+    })
+  }
 
   return {
+    pulse: { periodLabel: mRange.label, recebida: exec.receitaRecebida, vendas: k.won, clientesAtivos: exec.clientesAtivos },
+    alerts,
     kpiGroups: [
       {
-        title: 'Receita',
+        title: 'Dinheiro',
         kpis: [
-          { label: 'Receita Recebida', value: usd(exec.receitaRecebida), href: '/admin/clientes' },
-          { label: 'Receita Prevista', value: usd(exec.receitaPrevista), href: '/admin/clientes' },
-          { label: 'Valor Fechado', value: usd(exec.valorFechado), href: '/comercial' },
-          { label: 'MRR', value: usd(exec.mrr), href: '/admin/clientes' },
-          { label: 'ARR', value: usd(exec.arr), href: '/admin/clientes' },
+          { label: 'Receita recebida', value: usd(exec.receitaRecebida), href: RESULTADOS, trend: vs(exec.receitaRecebida, execPrev.receitaRecebida) },
+          { label: 'Receita prevista', value: usd(exec.receitaPrevista), href: '/admin/financeiro', subtitle: 'a receber no mês' },
+          { label: 'MRR', value: usd(exec.mrr), href: '/admin/financeiro', subtitle: 'receita mensal recorrente' },
+          { label: 'ARR', value: usd(exec.arr), href: '/admin/financeiro', subtitle: 'MRR × 12' },
         ],
       },
       {
-        title: 'Comercial & carteira',
+        title: 'Comercial no mês',
         kpis: [
-          { label: 'Conversão', value: `${Math.round(exec.conversao)}%`, href: '/comercial' },
-          { label: 'Ticket Médio', value: usd(exec.ticketMedio), href: '/comercial' },
-          { label: 'Clientes Ativos', value: exec.clientesAtivos, href: '/admin/clientes' },
-          { label: 'Clientes Novos', value: exec.clientesNovos, href: '/admin/clientes' },
+          { label: 'Leads recebidos', value: k.newLeads, href: RESULTADOS, trend: cmp ? vs(k.newLeads, cmp.newLeads) : undefined },
+          { label: 'Reuniões realizadas', value: k.meetingsHeld, href: RESULTADOS, trend: cmp ? vs(k.meetingsHeld, cmp.meetingsHeld) : undefined },
+          { label: 'Vendas', value: k.won, href: RESULTADOS, trend: cmp ? vs(k.won, cmp.won) : undefined },
+          { label: 'Conversão', value: `${Math.round(k.conversionRate * 100)}%`, href: RESULTADOS,
+            trend: cmp ? vs(k.conversionRate * 100, cmp.conversionRate * 100, 'pp') : undefined },
         ],
       },
       {
-        title: 'Operação',
+        title: 'Carteira',
         kpis: [
-          { label: 'Integrações ativas', value: integrationsOn, href: '/admin/clientes' },
-          { label: 'Compromissos abertos', value: openTasks, href: '/comercial' },
-          { label: 'Clientes em atraso', value: clientesEmAtraso, href: '/admin/clientes' },
+          { label: 'Clientes ativos', value: exec.clientesAtivos, href: '/admin/clientes' },
+          { label: 'Clientes novos', value: exec.clientesNovos, href: '/admin/clientes', trend: vs(exec.clientesNovos, execPrev.clientesNovos) },
+          { label: 'Clientes em atraso', value: clientesEmAtraso, href: '/admin/financeiro', subtitle: 'sem pagamento há +9 dias' },
         ],
       },
     ],
-    alerts,
-    receitaPorVendedor: exec.receitaPorVendedor.map(s => ({ label: s.name, value: s.value, count: s.count })),
-    receitaPorPlano: exec.receitaPorPlano.map(p => ({ label: p.plan, value: p.value, count: p.count })),
+    revenue12m,
   }
 }

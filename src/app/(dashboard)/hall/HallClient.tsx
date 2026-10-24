@@ -9,24 +9,20 @@ import { Panel } from '@/components/bento/Panel'
 import { LiveDot } from '@/components/bento/LiveDot'
 import { CollapsibleSection } from '@/components/mobile/CollapsibleSection'
 import { MetricCard } from '@/components/ui/MetricCard'
-import { CalendarDays, Activity as ActivityIcon, Newspaper, AlertTriangle } from 'lucide-react'
+import { Activity as ActivityIcon, Newspaper, AlertTriangle } from 'lucide-react'
 import type { Activity } from '@/types'
-import type { Task } from '../tarefas/types'
 import type { MapLead, MapClient } from '../comercial/mapTypes'
 import type { DashboardData } from '@/server/services/DashboardService'
-import { useTasksState } from '../tarefas/useTasksState'
 import { ErrorBoundary } from '@/components/system/ErrorBoundary'
-import { type CalendarEvent } from './calendarShared'
-import { dayBR } from '@/lib/date'
+import { RevenueChart } from '@/components/dashboard/RevenueChart'
 import dynamic from 'next/dynamic'
 import { getHallSettings, DEFAULT_HALL_SETTINGS, HALL_SETTINGS_EVENT, type HallSettings } from '@/lib/hallSettings'
 import { useMapPrefs } from '@/lib/mapPrefs'
 import { toLeadMarkers } from '@/lib/leadMarkers'
-import { ACTIVITY_ICONS, ACTIVITY_COLORS, computeGreeting, MuralAgendaRow, MuralTaskRow, HistoryModal } from './hall-mural'
+import { ACTIVITY_ICONS, ACTIVITY_COLORS, computeGreeting, HistoryModal } from './hall-mural'
 // LeadMap (mapa de leads 3D/vidro, geografia us-atlas) — só no client, sob demanda. A config (Vista/Modo/
 // Tema/inclinação) vem de Configurações > Mapa (localStorage 'mapPrefs'); a barra de controle saiu do mapa.
 const LeadMap = dynamic(() => import('@/components/map/LeadMap'), { ssr: false })
-const Calendar = dynamic(() => import('./Calendar').then(m => m.Calendar), { ssr: false, loading: HallSectionLoading })
 const NewsSection = dynamic(() => import('./NewsSection').then(m => m.NewsSection), { ssr: false, loading: HallSectionLoading })
 
 // Fallback discreto (DS-005) enquanto o chunk da aba carrega.
@@ -57,8 +53,6 @@ type Tab = 'activities' | 'mapa' | 'agent'
 
 interface Props {
   initialActivities: Activity[]
-  initialTasks: Task[]
-  initialCalendarEvents: CalendarEvent[]
   initialMapLeads: MapLead[]
   initialMapClients: MapClient[]
   userName: string
@@ -80,9 +74,7 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
   )
 }
 
-export function HallClient({ initialActivities, initialTasks, initialCalendarEvents, initialMapLeads, initialMapClients, userName, userId, activeTeamId, dashboard }: Props) {
-  // Estado de tarefas vivo — Mural e Agenda leem a mesma fonte da Minha Mesa.
-  const { tasks } = useTasksState(initialTasks)
+export function HallClient({ initialActivities, initialMapLeads, initialMapClients, userName, userId, activeTeamId, dashboard }: Props) {
   const [activeTab, setActiveTab]     = useState<Tab>('activities')
   const [activities, setActivities]   = useState<Activity[]>(initialActivities)
   // Reflete dados frescos do servidor após router.refresh() (revalidação ao focar a aba).
@@ -90,8 +82,6 @@ export function HallClient({ initialActivities, initialTasks, initialCalendarEve
   const [greeting, setGreeting]       = useState('')
   const [today, setToday]             = useState('')
   const [showHistory, setShowHistory] = useState(false)
-  const [calEvents, setCalEvents]     = useState<CalendarEvent[]>(initialCalendarEvents)
-  const [focusEvent, setFocusEvent]   = useState<CalendarEvent | null>(null)
   const [activitiesExpanded, setActivitiesExpanded] = useState(false)
   // Mapa + métricas (leads/clientes do banco) e config da Visão Geral (por usuário).
   const [mapLeads, setMapLeads]   = useState<MapLead[]>(initialMapLeads)
@@ -157,22 +147,6 @@ export function HallClient({ initialActivities, initialTasks, initialCalendarEve
     return () => { dataChannel.unsubscribe().then(() => supabase.removeChannel(dataChannel)) }
   }, [userId, activeTeamId])
 
-  // ── Mural ↔ Agenda: MESMA fonte (tasks vivo do useTasksState, idêntica à do Calendar) ──────────
-  // Toda tarefa com data que aparece na Agenda aparece aqui também. Ordem: atrasadas →
-  // próximas (por data) → concluídas (apagadas). Mantém os eventos de HOJE e os avisos.
-  // Tarefas/eventos de HOJE (data civil de Brasília) — alimentam a coluna "Tarefas de hoje" (com hora).
-  const hojeStr = dayBR(new Date())
-  const tarefasHoje = tasks
-    .filter(t => t.due_date === hojeStr && !t.done)
-    .sort((a, b) => (a.due_time || '99:99').localeCompare(b.due_time || '99:99'))
-  // Atrasadas: pendentes com data ANTERIOR a hoje. Protagonista do "Hoje" — dados JÁ carregados (sem query nova).
-  const tarefasAtrasadas = tasks
-    .filter(t => !t.done && !!t.due_date && t.due_date < hojeStr)
-    .sort((a, b) => (a.due_date || '').localeCompare(b.due_date || ''))
-  const eventosHoje = calEvents.filter(e => e.date === hojeStr).sort((a, b) => (a.start_time || '99:99').localeCompare(b.start_time || '99:99'))
-  // Resumo do cabecalho executivo — contagem de dados JA carregados (sem query/metrica nova).
-  const reunioesHoje = eventosHoje.filter(e => e.type === 'reuniao').length
-
   const TABS = [
     {
       id: 'activities' as Tab, label: 'Visão Geral',
@@ -191,9 +165,7 @@ export function HallClient({ initialActivities, initialTasks, initialCalendarEve
   return (
     <div className="p-4 sm:p-6 max-w-7xl mx-auto space-y-3 animate-fade-in font-body">
 
-      {/* ══ Z1 · CONTEXTO — hero executivo: quem/quando + resumo do dia + alertas (chips). SÓ reorganiza dados
-          JÁ existentes (saudação, data, contadores de tarefas/reuniões/leads, alerts do DashboardService).
-          Sem query/estado novo; alertas viram chips clicáveis (deixam de ser painel), sem popover. */}
+      {/* ══ Z1 · CONTEXTO — quem/quando + pulso da empresa no mês + alertas da empresa (chips clicáveis). */}
       <div className="space-y-2">
         <div className="flex items-baseline gap-x-3 gap-y-0.5 flex-wrap">
           <h1 suppressHydrationWarning className="font-display text-xl sm:text-2xl font-bold text-bento-text tracking-tight">
@@ -201,20 +173,16 @@ export function HallClient({ initialActivities, initialTasks, initialCalendarEve
           </h1>
           <p suppressHydrationWarning className="text-bento-muted capitalize text-sm">{today}</p>
         </div>
-        <p className="text-sm leading-relaxed">
-          {tarefasAtrasadas.length > 0 ? (
-            <>
-              <strong className="font-semibold text-amber-400">{tarefasAtrasadas.length} {tarefasAtrasadas.length === 1 ? 'tarefa atrasada' : 'tarefas atrasadas'}</strong>
-              <span className="text-bento-muted">{' · '}{tarefasHoje.length} para hoje{' · '}{reunioesHoje} {reunioesHoje === 1 ? 'reunião' : 'reuniões'}</span>
-            </>
-          ) : (
-            <span className="text-bento-muted">
-              Hoje: <strong className="font-semibold text-bento-text">{tarefasHoje.length} {tarefasHoje.length === 1 ? 'tarefa' : 'tarefas'}</strong>
-              {' · '}<strong className="font-semibold text-bento-text">{reunioesHoje} {reunioesHoje === 1 ? 'reunião' : 'reuniões'}</strong>
-              {tarefasHoje.length === 0 && reunioesHoje === 0 ? ' · agenda livre' : ''}
-            </span>
-          )}
-        </p>
+        {/* Pulso da EMPRESA no mês (HALL-EMPRESA-001) — antes era o resumo de tarefas do dia, que agora mora
+            no Follow-up. Mesmos números dos cartões abaixo (DashboardService). */}
+        {dashboard.pulse && (
+          <p className="text-sm leading-relaxed text-bento-muted">
+            <span className="capitalize">{dashboard.pulse.periodLabel}</span> até agora:{' '}
+            <strong className="font-semibold text-bento-text">US$ {Math.round(dashboard.pulse.recebida).toLocaleString('en-US')}</strong> recebidos
+            {' · '}<strong className="font-semibold text-bento-text">{dashboard.pulse.vendas}</strong> {dashboard.pulse.vendas === 1 ? 'venda' : 'vendas'}
+            {' · '}<strong className="font-semibold text-bento-text">{dashboard.pulse.clientesAtivos}</strong> {dashboard.pulse.clientesAtivos === 1 ? 'cliente ativo' : 'clientes ativos'}
+          </p>
+        )}
         {dashboard.alerts.length > 0 && (
           <div className="flex flex-wrap items-center gap-1.5">
             {dashboard.alerts.map((a, i) => (
@@ -257,58 +225,39 @@ export function HallClient({ initialActivities, initialTasks, initialCalendarEve
 
         {activeTab === 'activities' && (
           <div className="flex flex-col gap-3">
-            {/* Alertas + resumo do dia ("Prioridades") migraram para o HERO (Z1) acima — contexto primeiro,
-                sem painel dedicado. Aqui o canvas começa direto no TRABALHO (o que fazer). */}
-            {hallCfg.blocks.tarefas && (
-              <CollapsibleSection title="Tarefas de hoje" icon={CalendarDays} defaultOpen>
-                <Panel className="max-lg:p-3" headerClassName="max-lg:hidden" label="Tarefas de hoje">
-                  <div className="space-y-2">
-                    {/* Atrasadas primeiro — protagonista (âmbar). Cap 4; excedente abre a aba Tarefas. */}
-                    {tarefasAtrasadas.slice(0, 4).map(t => (
-                      <MuralTaskRow key={`late-${t.id}`} task={t} overdue onClick={() => router.push('/comercial')} />
-                    ))}
-                    {tarefasAtrasadas.length > 4 && (
-                      <button type="button" onClick={() => router.push('/comercial')}
-                        className="w-full text-left font-tech text-caption uppercase tracking-label text-amber-400 hover:text-amber-300 transition-colors py-1">
-                        +{tarefasAtrasadas.length - 4} atrasadas — ver todas
-                      </button>
-                    )}
-                    {/* Hoje: reuniões + tarefas do dia */}
-                    {eventosHoje.length === 0 && tarefasHoje.length === 0
-                      ? (tarefasAtrasadas.length === 0 && <p className="text-sm text-bento-muted py-6 text-center">Nada para hoje.</p>)
-                      : <>
-                          {eventosHoje.map(ev => <MuralAgendaRow key={`ev-${ev.id}`} ev={ev} onClick={() => setFocusEvent(ev)} />)}
-                          {tarefasHoje.map(t => <MuralTaskRow key={`tk-${t.id}`} task={t} onClick={() => router.push('/comercial')} />)}
-                        </>}
-                  </div>
-                </Panel>
-              </CollapsibleSection>
-            )}
-
-            {/* ══ INDICADORES ══ Comercial/Financeiro/Operação — do DashboardService (mesma fonte do /comercial),
-                cartões ACIONÁVEIS que abrem o módulo. Substitui o pulso client-side: fonte única, sem recomputar. */}
+            {/* Visão da EMPRESA, do geral para o detalhe: Dinheiro → receita 12 meses → Comercial no mês →
+                Carteira. Tarefas e agenda saíram (trabalho pessoal: Follow-up). Cada cartão abre onde o número
+                vive (Resultados / Financeiro / Clientes), com a mesma régua de comparação. */}
             {dashboard.kpiGroups.map((group, gi) => {
-              // 1º grupo (Receita, financeiro) = tier de COMANDO: cards maiores (md) → destaca Receita/MRR/ARR.
-              // Demais grupos (Comercial, Operação) = tier operacional, compacto (sm). Só apresentação — os
-              // grupos e os números vêm intactos de dashboard.kpiGroups (índice, sem detectar rótulo).
-              const primary = gi === 0
+              const primary = gi === 0   // Dinheiro = tier de comando (cards md); demais compactos (sm)
               return (
-                <div key={group.title} className="flex flex-col gap-2">
-                  <SectionLabel>{group.title}</SectionLabel>
-                  <div className={cn('grid gap-2.5', primary ? 'grid-cols-2 sm:grid-cols-3 lg:grid-cols-5' : 'grid-cols-2 sm:grid-cols-4')}>
-                    {group.kpis.map(k => (
-                      <MetricCard key={k.label} title={k.label} value={k.value} size={primary ? 'md' : 'sm'} href={k.href} />
-                    ))}
+                <div key={group.title} className="flex flex-col gap-3">
+                  <div className="flex flex-col gap-2">
+                    <SectionLabel>{group.title}</SectionLabel>
+                    <div className={cn('grid gap-2.5', primary ? 'grid-cols-2 lg:grid-cols-4' : 'grid-cols-2 sm:grid-cols-4')}>
+                      {group.kpis.map(k => (
+                        <MetricCard key={k.label} title={k.label} value={k.value} subtitle={k.subtitle} trend={k.trend}
+                          size={primary ? 'md' : 'sm'} href={k.href} />
+                      ))}
+                    </div>
                   </div>
+                  {/* Receita dos últimos 12 meses logo abaixo do Dinheiro — a tendência que os cartões não mostram. */}
+                  {primary && dashboard.revenue12m.length > 0 && (
+                    <div className="flex flex-col gap-2">
+                      <SectionLabel>Receita recebida · 12 meses</SectionLabel>
+                      <Panel className="max-lg:p-3">
+                        <RevenueChart months={dashboard.revenue12m} />
+                      </Panel>
+                    </div>
+                  )}
                 </div>
               )
             })}
 
-            {/* ══ SPLIT DESKTOP 8/4 (HALL-PREMIUM-004) — principal (Atividades + Agenda) + rail (Receita +
-                Notícias). Mobile empilha (lg:* inerte; acordeões/agenda/notícias intactos). O gap sobrevive ao
-                lg:contents do CollapsibleSection (space-y não sobreviveria); items-start = rail não estica. */}
+            {/* ══ SPLIT DESKTOP 8/4 (HALL-PREMIUM-004) — principal (Atividades) + rail (Notícias). Mobile empilha.
+                O gap sobrevive ao lg:contents do CollapsibleSection; items-start = rail não estica. */}
             <div className="flex flex-col gap-3 lg:grid lg:grid-cols-12 lg:gap-4 lg:items-start">
-              {/* ── Coluna principal 8/12 — pulso / trabalho ── */}
+              {/* ── Coluna principal 8/12 — o que está acontecendo na empresa ── */}
               <div className="lg:col-span-8 flex flex-col gap-3 min-w-0">
                 {/* ══ ATIVIDADES RECENTES ══ movimentações reais (realtime). */}
                 {hallCfg.blocks.atividade && (
@@ -354,52 +303,9 @@ export function HallClient({ initialActivities, initialTasks, initialCalendarEve
                     </Panel>
                   </CollapsibleSection>
                 )}
-                {/* ── Agenda ── colapsada por padrão; completa (4 vistas + CRUD) ao expandir. */}
-                {hallCfg.blocks.agenda && (
-                  <CollapsibleSection title="Agenda" icon={CalendarDays}>
-                    <LazyVisible force={!!focusEvent}>
-                      <Calendar userId={userId} events={calEvents} tasks={tasks} onEventsChange={setCalEvents} focusEvent={focusEvent} onFocusHandled={() => setFocusEvent(null)} />
-                    </LazyVisible>
-                  </CollapsibleSection>
-                )}
               </div>
               {/* ── Rail lateral 4/12 — consulta / apoio ── */}
               <div className="lg:col-span-4 flex flex-col gap-3 min-w-0">
-                {/* ══ RECEITA POR VENDEDOR / PLANO ══ recebida no mês — mesma FONTE ÚNICA (ExecutiveMetricsService). */}
-                {(dashboard.receitaPorVendedor.length > 0 || dashboard.receitaPorPlano.length > 0) && (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-1 gap-3">
-                    {dashboard.receitaPorVendedor.length > 0 && (
-                      <div className="flex flex-col gap-2">
-                        <SectionLabel>Receita por vendedor</SectionLabel>
-                        <Panel className="max-lg:p-3">
-                          <div className="space-y-1.5">
-                            {dashboard.receitaPorVendedor.map(r => (
-                              <div key={r.label} className="flex items-center justify-between gap-2 text-note">
-                                <span className="text-bento-text truncate">{r.label} <span className="text-bento-dim">· {r.count} cliente(s)</span></span>
-                                <span className="font-tech text-bento-text tabular-nums shrink-0">US$ {Math.round(r.value).toLocaleString('en-US')}</span>
-                              </div>
-                            ))}
-                          </div>
-                        </Panel>
-                      </div>
-                    )}
-                    {dashboard.receitaPorPlano.length > 0 && (
-                      <div className="flex flex-col gap-2">
-                        <SectionLabel>Receita por plano</SectionLabel>
-                        <Panel className="max-lg:p-3">
-                          <div className="space-y-1.5">
-                            {dashboard.receitaPorPlano.map(r => (
-                              <div key={r.label} className="flex items-center justify-between gap-2 text-note">
-                                <span className="text-bento-text truncate">{r.label} <span className="text-bento-dim">· {r.count} cliente(s)</span></span>
-                                <span className="font-tech text-bento-text tabular-nums shrink-0">US$ {Math.round(r.value).toLocaleString('en-US')}</span>
-                              </div>
-                            ))}
-                          </div>
-                        </Panel>
-                      </div>
-                    )}
-                  </div>
-                )}
                 {/* ── Informações ── Notícias (secundário). */}
                 {hallCfg.blocks.noticias && (
                   <div className="flex flex-col gap-2">

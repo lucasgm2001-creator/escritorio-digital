@@ -1,14 +1,14 @@
 import type { LucideIcon } from 'lucide-react'
 import {
   Building2, Users, FolderOpen, Briefcase, Wallet, ShieldCheck,
-  Sparkles, ExternalLink, KeyRound, FileText, TrendingUp, Clock, UserPlus, Webhook, Radio, CalendarDays,
+  Sparkles, ExternalLink, KeyRound, FileText, TrendingUp, Clock, UserPlus, Webhook, Radio,
 } from 'lucide-react'
 
 // Fonte única da estrutura da Administração (Constituição: informação única).
 // Isto é só o modelo de navegação/organização — nenhuma regra de negócio.
 
 export type AdminSectionKey =
-  | 'empresa' | 'equipe' | 'departamentos' | 'cargos' | 'colaboradores' | 'clientes' | 'agenda' | 'financeiro' | 'remuneracao'
+  | 'empresa' | 'equipe' | 'departamentos' | 'cargos' | 'colaboradores' | 'clientes' | 'financeiro' | 'remuneracao'
   | 'permissoes' | 'automacoes' | 'integracoes' | 'api' | 'inbound' | 'eventos' | 'auditoria'
   | 'billing' | 'logs'
 
@@ -80,12 +80,6 @@ export const ADMIN_SECTIONS: AdminSection[] = [
     tagline: 'As pessoas da empresa — departamento, cargo, template e gestor.',
     description: 'O domínio de Pessoas: colaboradores com departamento, cargo, template de remuneração, gestor, status e histórico. A base de permissões, remuneração e automações.',
     planned: ['Cadastro completo de colaboradores', 'Vínculo departamento · cargo · template · gestor', 'Status, histórico e documentos', 'Base para permissões e remuneração'],
-  },
-  {
-    key: 'agenda', label: 'Agendas', href: '/admin/agenda', group: 'organizacao', icon: CalendarDays,
-    tagline: 'A agenda de cada colaborador — visão administrativa (só leitura).',
-    description: 'Owner e Desenvolvedor enxergam a agenda de qualquer colaborador REUSANDO o calendário existente (calendar_events) — sem duplicar calendário nem criar outro. Escolha a pessoa e veja seus compromissos.',
-    planned: ['Lista de colaboradores', 'Agenda individual (só leitura)', 'Reuso do calendário do Hall', 'Filtro por período (futuro)'],
   },
   {
     key: 'clientes', label: 'Clientes', href: '/admin/clientes', group: 'organizacao', icon: Building2,
