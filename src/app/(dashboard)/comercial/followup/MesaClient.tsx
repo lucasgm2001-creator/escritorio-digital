@@ -24,7 +24,6 @@ import { NEXT_ACTION_LABEL, TEMPERATURE_LABEL, isNextAction } from '@/lib/commer
 import { inferTaskKind } from '@/lib/tasks/task-kind'
 import { GRUPOS_ENCERRADOS, closedStageSlugs } from '@/lib/commercial/closed-stages'
 import { ObservationsBox } from '@/components/observations/ObservationsBox'
-import { RelatorioPanel } from './RelatorioPanel'
 import { LimparAtrasados } from './LimparAtrasados'
 
 export interface MesaLead {
@@ -139,8 +138,6 @@ export function MesaClient({ initialTasks, initialLeads, stages, linkOptions, cu
   useRealtimeRows<MesaLead>('leads', setLeads)
   useEffect(() => setLeads(initialLeads), [initialLeads])
 
-  // Alternador Tarefas/Relatório — só client-side (sem navegação de rota). Default = Tarefas.
-  const [panel, setPanel] = useState<'tarefas' | 'relatorio'>('tarefas')
   const [filter, setFilter] = useState<Filter>('hoje')
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null)
   const [selectedLeadId, setSelectedLeadId] = useState<string | null>(null)
@@ -440,254 +437,231 @@ export function MesaClient({ initialTasks, initialLeads, stages, linkOptions, cu
     <div className="min-h-full bg-bento-bg font-body">
       <div className="max-w-[1600px] mx-auto p-4 sm:p-6 space-y-4">
         {/* Barra compacta: a aba vive dentro do Comercial, que já tem título — saudação aqui seria um
-            segundo cabeçalho empurrando a lista para baixo. */}
+            segundo cabeçalho empurrando a lista para baixo. O Relatório saiu daqui: mora em Resultados. */}
         <header className="flex items-center justify-end gap-2 flex-wrap">
-          <div className="flex items-center gap-2 flex-wrap">
-            <div className="inline-flex bg-bento-bg border border-bento-border rounded-btn p-1 gap-1">
-              <button type="button" onClick={() => setPanel('tarefas')}
-                className={cn('px-3.5 py-1.5 rounded-[8px] text-xs font-medium transition-colors',
-                  panel === 'tarefas' ? 'bg-lime text-lime-ink' : 'text-bento-muted hover:text-bento-text')}>
-                Tarefas
-              </button>
-              <button type="button" onClick={() => setPanel('relatorio')}
-                className={cn('px-3.5 py-1.5 rounded-[8px] text-xs font-medium transition-colors',
-                  panel === 'relatorio' ? 'bg-lime text-lime-ink' : 'text-bento-muted hover:text-bento-text')}>
-                Relatório
-              </button>
-            </div>
-            {panel === 'tarefas' && (
-              <button type="button" onClick={() => openNew()} className="bento-btn inline-flex items-center gap-2 px-4 min-h-[42px] rounded-btn text-sm font-semibold">
-                <Plus className="w-4 h-4" /> Nova tarefa
-              </button>
-            )}
-          </div>
+          <button type="button" onClick={() => openNew()} className="bento-btn inline-flex items-center gap-2 px-4 min-h-[42px] rounded-btn text-sm font-semibold">
+            <Plus className="w-4 h-4" /> Nova tarefa
+          </button>
         </header>
 
-        {panel === 'relatorio' ? (
-          <RelatorioPanel />
-        ) : (
-          <>
-
-            <div className="grid grid-cols-1 xl:grid-cols-[184px_minmax(0,1fr)_360px] gap-3 items-start">
-              <nav className="bento-fx p-2 xl:sticky xl:top-3" aria-label="Organização da mesa">
-                <div className="flex xl:flex-col gap-1 overflow-x-auto scrollbar-none">
-                  {filters.map(item => (
-                    <button key={item.id} type="button"
-                      onClick={() => { setFilter(item.id); setGrupoAberto(null) }}
-                      className={cn('flex items-center gap-2.5 min-h-[42px] px-3 rounded-btn text-sm whitespace-nowrap transition-colors shrink-0 xl:w-full',
-                        filter === item.id ? 'bg-lime/12 text-lime-fg' : 'text-bento-muted hover:bg-bento-bg hover:text-bento-text')}>
-                      <item.Icon className="w-4 h-4 shrink-0" />
-                      <span className="xl:flex-1 text-left">{item.label}</span>
-                      <span className="font-tech text-[10px] tabular-nums text-current opacity-70">{item.count}</span>
-                    </button>
-                  ))}
-                </div>
-              </nav>
-
-              <section className="bento-fx min-w-0 overflow-hidden">
-                <div className="flex items-center justify-between gap-3 px-4 py-3 border-b border-bento-border">
-                  <div className="min-w-0">
-                    <h2 className="font-display font-semibold text-bento-text truncate">
-                      {buscando ? 'Busca de leads'
-                        : filter === 'hoje' ? rotuloDia(diaRef, today)
-                        : filters.find(item => item.id === filter)?.label}
-                    </h2>
-                    <p className="text-xs text-bento-muted mt-0.5">
-                      {buscando
-                        ? `${resultados.length} ${resultados.length === 1 ? 'lead encontrado' : 'leads encontrados'}`
-                        : gruposDoFunil.length > 0
-                          ? `${gruposDoFunil.reduce((n, g) => n + g.itens.length, 0)} lead(s) em ${gruposDoFunil.length} fase(s)`
-                          : `${taskRows.length || leadRows.length} ${taskRows.length + leadRows.length === 1 ? 'item' : 'itens'}`}
-                      {filter === 'hoje' && dia && dia !== today && doneNoDia.length > 0 &&
-                        ` · ${doneNoDia.length} concluída(s)`}
-                      {/* Aviso de atraso: era um cartão no topo da Mesa; agora fica onde se resolve. */}
-                      {filter === 'acompanhando' && !buscando && vencidasNoFunil > 0 && (
-                        <span className="text-amber-600 dark:text-amber-300"> · {vencidasNoFunil} com data vencida</span>
-                      )}
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-1.5">
-                    {/* Navegação por DIA, só na aba Hoje: rever ontem sem caçar no meio dos atrasados. */}
-                    {filter === 'hoje' && !buscando && (
-                      <>
-                        <button type="button" onClick={() => setDia(shiftDia(diaRef, -1))} aria-label="Dia anterior"
-                          className="grid h-8 w-8 place-items-center rounded-btn border border-bento-border text-bento-muted transition-colors hover:border-lime hover:text-bento-text">
-                          <ChevronLeft className="h-4 w-4" />
-                        </button>
-                        <button type="button" onClick={() => setDia(shiftDia(diaRef, 1))} aria-label="Próximo dia"
-                          className="grid h-8 w-8 place-items-center rounded-btn border border-bento-border text-bento-muted transition-colors hover:border-lime hover:text-bento-text">
-                          <ChevronRight className="h-4 w-4" />
-                        </button>
-                        {diaRef !== today && (
-                          <button type="button" onClick={() => setDia(null)}
-                            className="rounded-btn border border-bento-border px-2.5 py-1.5 font-tech text-[11px] text-bento-muted transition-colors hover:border-lime hover:text-bento-text">
-                            Hoje
-                          </button>
-                        )}
-                        <input type="date" value={diaRef} onChange={e => setDia(e.target.value || null)}
-                          aria-label="Escolher dia"
-                          className="h-8 rounded-btn border border-bento-border bg-bento-bg px-2 font-tech text-[11px] text-bento-muted focus:border-lime focus:outline-none" />
-                      </>
-                    )}
-                    {filter === 'acompanhando' && overdueTasks.length > 0 && !buscando && (
-                      <button type="button" onClick={() => setLimpando(true)}
-                        className="rounded-btn border border-bento-border px-2.5 py-1.5 font-tech text-[11px] text-bento-muted transition-colors hover:border-lime hover:text-bento-text">
-                        Limpar vencidas
-                      </button>
-                    )}
-                    <button type="button" onClick={() => router.refresh()} aria-label="Atualizar" className="p-2 text-bento-muted hover:text-bento-text rounded-btn hover:bg-bento-bg">
-                      <RefreshCw className="w-4 h-4" />
-                    </button>
-                  </div>
-                </div>
-
-                {/* BUSCA DE LEAD (MESA-BUSCA-001). Procura em TODOS os leads carregados, por nome ou empresa,
-                    sem acento e sem caixa. Enquanto há termo digitado, a lista mostra o resultado em vez do
-                    filtro — o filtro continua escolhido e volta sozinho ao limpar a busca. */}
-                <div className="border-b border-bento-border px-3 py-2.5">
-                  <div className="relative">
-                    <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-bento-muted" />
-                    <input
-                      value={busca}
-                      onChange={event => setBusca(event.target.value)}
-                      onKeyDown={event => {
-                        if (event.key === 'Escape') setBusca('')
-                        // Enter abre o primeiro resultado: digitar o nome e apertar Enter é o caminho mais
-                        // curto entre "quero esse lead" e ter o contexto dele na tela.
-                        if (event.key === 'Enter' && resultados[0]) selectLead(resultados[0])
-                      }}
-                      placeholder="Buscar lead por nome ou empresa…"
-                      aria-label="Buscar lead por nome ou empresa"
-                      className="w-full rounded-btn border border-bento-border bg-bento-bg py-2.5 pl-9 pr-9 text-sm text-bento-text placeholder:text-bento-muted focus:border-lime focus:outline-none"
-                    />
-                    {busca && (
-                      <button type="button" onClick={() => setBusca('')} aria-label="Limpar busca"
-                        className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 text-bento-muted hover:text-bento-text">
-                        <X className="h-4 w-4" />
-                      </button>
-                    )}
-                  </div>
-                </div>
-
-                <div className="p-2 sm:p-3 space-y-2">
-                  {gruposDoFunil.length > 0 && !buscando ? (
-                    /* FUNIL (MESA-FUNIL-002). Três superfícies em profundidade decrescente para separar o
-                       que é fase do que é lead: o cartão da fase em `bento-panel`, o corpo aberto recuado
-                       em `bento-bg` (a cor da própria página, que vira um "poço"), e os leads de volta em
-                       `bento-panel` dentro dele. Card claro > poço > card claro: o lead destaca do grupo
-                       sem precisar de borda forte, e duas fases abertas nunca se confundem.
-                       A cor da fase entra como trilho à esquerda e como fio-guia vertical no poço — é a
-                       mesma cor do funil do Comercial, então a leitura é imediata. */
-                    <div className="space-y-2.5">
-                      {gruposDoFunil.map((grupo, i) => {
-                        const aberto = grupoAberto ? grupoAberto === grupo.slug : i === 0
-                        const atrasados = grupo.itens.filter(x => x.task?.due_date && x.task.due_date < today).length
-                        const cor = grupo.cor ?? '#8A9182'
-                        return (
-                          <div key={grupo.slug}
-                            className={cn('relative overflow-hidden rounded-bento border bg-bento-panel transition-all duration-200',
-                              aberto ? 'border-bento-dim/40 shadow-card' : 'border-bento-border hover:border-bento-dim/40')}>
-                            {/* Trilho da fase, na cor do funil */}
-                            <span aria-hidden className="absolute left-0 top-0 h-full w-[3px]" style={{ backgroundColor: cor }} />
-
-                            <button type="button"
-                              onClick={() => setGrupoAberto(aberto ? '__nenhum__' : grupo.slug)}
-                              aria-expanded={aberto}
-                              className="flex w-full items-center gap-3 py-3.5 pl-4 pr-3.5 text-left">
-                              <ChevronDown className={cn('h-4 w-4 shrink-0 text-bento-muted transition-transform duration-200', aberto && 'rotate-180')} />
-                              <span className="min-w-0 flex-1">
-                                <span className="block truncate text-sm font-semibold tracking-tight text-bento-text">{grupo.titulo}</span>
-                                {atrasados > 0 && (
-                                  <span className="mt-1 inline-flex items-center gap-1 rounded-full border border-amber-500/30 bg-amber-500/10 px-1.5 py-0.5 font-tech text-[10px] text-amber-600 dark:text-amber-300">
-                                    {atrasados} com data vencida
-                                  </span>
-                                )}
-                              </span>
-                              <span className={cn('grid h-7 min-w-[28px] flex-none place-items-center rounded-full border px-2 font-tech text-[11px] tabular-nums transition-colors',
-                                aberto ? 'border-transparent bg-bento-text text-bento-panel' : 'border-bento-border bg-bento-bg text-bento-dim')}>
-                                {grupo.itens.length}
-                              </span>
-                            </button>
-
-                            {aberto && (
-                              <div className="relative border-t border-bento-border bg-bento-bg px-2.5 py-2.5">
-                                {/* Fio-guia: amarra visualmente os leads à fase de onde saíram */}
-                                <span aria-hidden className="absolute bottom-3 left-[14px] top-3 w-px rounded-full opacity-40"
-                                  style={{ backgroundColor: cor }} />
-                                <div className="space-y-1.5 pl-5">
-                                  {grupo.itens.map(({ lead, task }) => (
-                                    <LeadNaFase key={lead.id} lead={lead} task={task} today={today}
-                                      active={selectedLeadId === lead.id}
-                                      busy={!!task && busyTaskId === task.id}
-                                      onCheck={() => registrarSituacao(lead, task)}
-                                      onSelect={() => { selectLead(lead); if (task) setSelectedTaskId(task.id) }} />
-                                  ))}
-                                </div>
-                              </div>
-                            )}
-                          </div>
-                        )
-                      })}
-                    </div>
-                  ) : buscando ? (
-                    resultados.length === 0 ? (
-                      <p className="px-2 py-10 text-center text-sm text-bento-muted">
-                        Nenhum lead com “{busca.trim()}” no nome ou na empresa.
-                      </p>
-                    ) : resultados.map(lead => (
-                      <LeadRow key={lead.id} lead={lead} active={selectedLeadId === lead.id}
-                        mostrarEmpresa onSelect={() => selectLead(lead)} />
-                    ))
-                  ) : (
-                    <>
-                      {taskRows.map(task => (
-                        <TaskRowComDuplicadas key={task.id} task={task} active={selectedTaskId === task.id} today={today}
-                          busy={busyTaskId === task.id}
-                          antigas={filter === 'hoje' ? (ocultasPorTarefa.get(task.id) ?? 0) : 0}
-                          onResolver={() => resolverDuplicadas(task)}
-                          onSelect={() => selectTask(task)} onToggle={() => toggleTask(task)} onEdit={() => openEdit(task)} />
-                      ))}
-                      {leadRows.map(lead => (
-                        <LeadRow key={lead.id} lead={lead} active={selectedLeadId === lead.id}
-                          mostrarEmpresa onSelect={() => selectLead(lead)} />
-                      ))}
-                      {filter === 'hoje' && doneNoDia.length > 0 && (
-                        <div className="space-y-2 pt-1">
-                          <p className="px-1 font-tech text-[10px] uppercase tracking-label text-bento-muted">
-                            Concluídas neste dia
-                          </p>
-                          {doneNoDia.map(task => (
-                            <TaskRow key={task.id} task={task} active={selectedTaskId === task.id} today={today}
-                              busy={busyTaskId === task.id} onSelect={() => selectTask(task)}
-                              onToggle={() => toggleTask(task)} onEdit={() => openEdit(task)} />
-                          ))}
-                        </div>
-                      )}
-                      {taskRows.length === 0 && leadRows.length === 0 && doneNoDia.length === 0 && <EmptyFilter filter={filter} />}
-                    </>
-                  )}
-                </div>
-              </section>
-
-              <aside className="bento-fx xl:sticky xl:top-3 min-w-0">
-                {selectedLead ? (
-                  <LeadContext lead={selectedLead} task={selectedTask} interactions={interactions} loading={interactionsLoading}
-                    onNewTask={() => openNew(selectedLead)} onEditTask={selectedTask ? () => openEdit(selectedTask) : undefined}
-                    onSituation={() => setSituation({ lead: selectedLead, taskId: null })}
-                    onOpenLead={() => onOpenLead(selectedLead.id)} />
-                ) : selectedTask ? (
-                  <GenericTaskContext task={selectedTask} onEdit={() => openEdit(selectedTask)} />
-                ) : (
-                  <div className="p-8 text-center">
-                    <UserRound className="w-8 h-8 text-bento-muted mx-auto mb-3" />
-                    <p className="text-sm font-medium text-bento-text">Selecione um item</p>
-                    <p className="text-xs text-bento-muted mt-1">O contexto necessário para trabalhar aparecerá aqui.</p>
-                  </div>
-                )}
-              </aside>
+        <div className="grid grid-cols-1 xl:grid-cols-[184px_minmax(0,1fr)_360px] gap-3 items-start">
+          <nav className="bento-fx p-2 xl:sticky xl:top-3" aria-label="Organização da mesa">
+            <div className="flex xl:flex-col gap-1 overflow-x-auto scrollbar-none">
+              {filters.map(item => (
+                <button key={item.id} type="button"
+                  onClick={() => { setFilter(item.id); setGrupoAberto(null) }}
+                  className={cn('flex items-center gap-2.5 min-h-[42px] px-3 rounded-btn text-sm whitespace-nowrap transition-colors shrink-0 xl:w-full',
+                    filter === item.id ? 'bg-lime/12 text-lime-fg' : 'text-bento-muted hover:bg-bento-bg hover:text-bento-text')}>
+                  <item.Icon className="w-4 h-4 shrink-0" />
+                  <span className="xl:flex-1 text-left">{item.label}</span>
+                  <span className="font-tech text-[10px] tabular-nums text-current opacity-70">{item.count}</span>
+                </button>
+              ))}
             </div>
-          </>
-        )}
+          </nav>
+
+          <section className="bento-fx min-w-0 overflow-hidden">
+            <div className="flex items-center justify-between gap-3 px-4 py-3 border-b border-bento-border">
+              <div className="min-w-0">
+                <h2 className="font-display font-semibold text-bento-text truncate">
+                  {buscando ? 'Busca de leads'
+                    : filter === 'hoje' ? rotuloDia(diaRef, today)
+                    : filters.find(item => item.id === filter)?.label}
+                </h2>
+                <p className="text-xs text-bento-muted mt-0.5">
+                  {buscando
+                    ? `${resultados.length} ${resultados.length === 1 ? 'lead encontrado' : 'leads encontrados'}`
+                    : gruposDoFunil.length > 0
+                      ? `${gruposDoFunil.reduce((n, g) => n + g.itens.length, 0)} lead(s) em ${gruposDoFunil.length} fase(s)`
+                      : `${taskRows.length || leadRows.length} ${taskRows.length + leadRows.length === 1 ? 'item' : 'itens'}`}
+                  {filter === 'hoje' && dia && dia !== today && doneNoDia.length > 0 &&
+                    ` · ${doneNoDia.length} concluída(s)`}
+                  {/* Aviso de atraso: era um cartão no topo da Mesa; agora fica onde se resolve. */}
+                  {filter === 'acompanhando' && !buscando && vencidasNoFunil > 0 && (
+                    <span className="text-amber-600 dark:text-amber-300"> · {vencidasNoFunil} com data vencida</span>
+                  )}
+                </p>
+              </div>
+              <div className="flex items-center gap-1.5">
+                {/* Navegação por DIA, só na aba Hoje: rever ontem sem caçar no meio dos atrasados. */}
+                {filter === 'hoje' && !buscando && (
+                  <>
+                    <button type="button" onClick={() => setDia(shiftDia(diaRef, -1))} aria-label="Dia anterior"
+                      className="grid h-8 w-8 place-items-center rounded-btn border border-bento-border text-bento-muted transition-colors hover:border-lime hover:text-bento-text">
+                      <ChevronLeft className="h-4 w-4" />
+                    </button>
+                    <button type="button" onClick={() => setDia(shiftDia(diaRef, 1))} aria-label="Próximo dia"
+                      className="grid h-8 w-8 place-items-center rounded-btn border border-bento-border text-bento-muted transition-colors hover:border-lime hover:text-bento-text">
+                      <ChevronRight className="h-4 w-4" />
+                    </button>
+                    {diaRef !== today && (
+                      <button type="button" onClick={() => setDia(null)}
+                        className="rounded-btn border border-bento-border px-2.5 py-1.5 font-tech text-[11px] text-bento-muted transition-colors hover:border-lime hover:text-bento-text">
+                        Hoje
+                      </button>
+                    )}
+                    <input type="date" value={diaRef} onChange={e => setDia(e.target.value || null)}
+                      aria-label="Escolher dia"
+                      className="h-8 rounded-btn border border-bento-border bg-bento-bg px-2 font-tech text-[11px] text-bento-muted focus:border-lime focus:outline-none" />
+                  </>
+                )}
+                {filter === 'acompanhando' && overdueTasks.length > 0 && !buscando && (
+                  <button type="button" onClick={() => setLimpando(true)}
+                    className="rounded-btn border border-bento-border px-2.5 py-1.5 font-tech text-[11px] text-bento-muted transition-colors hover:border-lime hover:text-bento-text">
+                    Limpar vencidas
+                  </button>
+                )}
+                <button type="button" onClick={() => router.refresh()} aria-label="Atualizar" className="p-2 text-bento-muted hover:text-bento-text rounded-btn hover:bg-bento-bg">
+                  <RefreshCw className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+
+            {/* BUSCA DE LEAD (MESA-BUSCA-001). Procura em TODOS os leads carregados, por nome ou empresa,
+                sem acento e sem caixa. Enquanto há termo digitado, a lista mostra o resultado em vez do
+                filtro — o filtro continua escolhido e volta sozinho ao limpar a busca. */}
+            <div className="border-b border-bento-border px-3 py-2.5">
+              <div className="relative">
+                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-bento-muted" />
+                <input
+                  value={busca}
+                  onChange={event => setBusca(event.target.value)}
+                  onKeyDown={event => {
+                    if (event.key === 'Escape') setBusca('')
+                    // Enter abre o primeiro resultado: digitar o nome e apertar Enter é o caminho mais
+                    // curto entre "quero esse lead" e ter o contexto dele na tela.
+                    if (event.key === 'Enter' && resultados[0]) selectLead(resultados[0])
+                  }}
+                  placeholder="Buscar lead por nome ou empresa…"
+                  aria-label="Buscar lead por nome ou empresa"
+                  className="w-full rounded-btn border border-bento-border bg-bento-bg py-2.5 pl-9 pr-9 text-sm text-bento-text placeholder:text-bento-muted focus:border-lime focus:outline-none"
+                />
+                {busca && (
+                  <button type="button" onClick={() => setBusca('')} aria-label="Limpar busca"
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 text-bento-muted hover:text-bento-text">
+                    <X className="h-4 w-4" />
+                  </button>
+                )}
+              </div>
+            </div>
+
+            <div className="p-2 sm:p-3 space-y-2">
+              {gruposDoFunil.length > 0 && !buscando ? (
+                /* FUNIL (MESA-FUNIL-002). Três superfícies em profundidade decrescente para separar o
+                   que é fase do que é lead: o cartão da fase em `bento-panel`, o corpo aberto recuado
+                   em `bento-bg` (a cor da própria página, que vira um "poço"), e os leads de volta em
+                   `bento-panel` dentro dele. Card claro > poço > card claro: o lead destaca do grupo
+                   sem precisar de borda forte, e duas fases abertas nunca se confundem.
+                   A cor da fase entra como trilho à esquerda e como fio-guia vertical no poço — é a
+                   mesma cor do funil do Comercial, então a leitura é imediata. */
+                <div className="space-y-2.5">
+                  {gruposDoFunil.map((grupo, i) => {
+                    const aberto = grupoAberto ? grupoAberto === grupo.slug : i === 0
+                    const atrasados = grupo.itens.filter(x => x.task?.due_date && x.task.due_date < today).length
+                    const cor = grupo.cor ?? '#8A9182'
+                    return (
+                      <div key={grupo.slug}
+                        className={cn('relative overflow-hidden rounded-bento border bg-bento-panel transition-all duration-200',
+                          aberto ? 'border-bento-dim/40 shadow-card' : 'border-bento-border hover:border-bento-dim/40')}>
+                        {/* Trilho da fase, na cor do funil */}
+                        <span aria-hidden className="absolute left-0 top-0 h-full w-[3px]" style={{ backgroundColor: cor }} />
+
+                        <button type="button"
+                          onClick={() => setGrupoAberto(aberto ? '__nenhum__' : grupo.slug)}
+                          aria-expanded={aberto}
+                          className="flex w-full items-center gap-3 py-3.5 pl-4 pr-3.5 text-left">
+                          <ChevronDown className={cn('h-4 w-4 shrink-0 text-bento-muted transition-transform duration-200', aberto && 'rotate-180')} />
+                          <span className="min-w-0 flex-1">
+                            <span className="block truncate text-sm font-semibold tracking-tight text-bento-text">{grupo.titulo}</span>
+                            {atrasados > 0 && (
+                              <span className="mt-1 inline-flex items-center gap-1 rounded-full border border-amber-500/30 bg-amber-500/10 px-1.5 py-0.5 font-tech text-[10px] text-amber-600 dark:text-amber-300">
+                                {atrasados} com data vencida
+                              </span>
+                            )}
+                          </span>
+                          <span className={cn('grid h-7 min-w-[28px] flex-none place-items-center rounded-full border px-2 font-tech text-[11px] tabular-nums transition-colors',
+                            aberto ? 'border-transparent bg-bento-text text-bento-panel' : 'border-bento-border bg-bento-bg text-bento-dim')}>
+                            {grupo.itens.length}
+                          </span>
+                        </button>
+
+                        {aberto && (
+                          <div className="relative border-t border-bento-border bg-bento-bg px-2.5 py-2.5">
+                            {/* Fio-guia: amarra visualmente os leads à fase de onde saíram */}
+                            <span aria-hidden className="absolute bottom-3 left-[14px] top-3 w-px rounded-full opacity-40"
+                              style={{ backgroundColor: cor }} />
+                            <div className="space-y-1.5 pl-5">
+                              {grupo.itens.map(({ lead, task }) => (
+                                <LeadNaFase key={lead.id} lead={lead} task={task} today={today}
+                                  active={selectedLeadId === lead.id}
+                                  busy={!!task && busyTaskId === task.id}
+                                  onCheck={() => registrarSituacao(lead, task)}
+                                  onSelect={() => { selectLead(lead); if (task) setSelectedTaskId(task.id) }} />
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
+              ) : buscando ? (
+                resultados.length === 0 ? (
+                  <p className="px-2 py-10 text-center text-sm text-bento-muted">
+                    Nenhum lead com “{busca.trim()}” no nome ou na empresa.
+                  </p>
+                ) : resultados.map(lead => (
+                  <LeadRow key={lead.id} lead={lead} active={selectedLeadId === lead.id}
+                    mostrarEmpresa onSelect={() => selectLead(lead)} />
+                ))
+              ) : (
+                <>
+                  {taskRows.map(task => (
+                    <TaskRowComDuplicadas key={task.id} task={task} active={selectedTaskId === task.id} today={today}
+                      busy={busyTaskId === task.id}
+                      antigas={filter === 'hoje' ? (ocultasPorTarefa.get(task.id) ?? 0) : 0}
+                      onResolver={() => resolverDuplicadas(task)}
+                      onSelect={() => selectTask(task)} onToggle={() => toggleTask(task)} onEdit={() => openEdit(task)} />
+                  ))}
+                  {leadRows.map(lead => (
+                    <LeadRow key={lead.id} lead={lead} active={selectedLeadId === lead.id}
+                      mostrarEmpresa onSelect={() => selectLead(lead)} />
+                  ))}
+                  {filter === 'hoje' && doneNoDia.length > 0 && (
+                    <div className="space-y-2 pt-1">
+                      <p className="px-1 font-tech text-[10px] uppercase tracking-label text-bento-muted">
+                        Concluídas neste dia
+                      </p>
+                      {doneNoDia.map(task => (
+                        <TaskRow key={task.id} task={task} active={selectedTaskId === task.id} today={today}
+                          busy={busyTaskId === task.id} onSelect={() => selectTask(task)}
+                          onToggle={() => toggleTask(task)} onEdit={() => openEdit(task)} />
+                      ))}
+                    </div>
+                  )}
+                  {taskRows.length === 0 && leadRows.length === 0 && doneNoDia.length === 0 && <EmptyFilter filter={filter} />}
+                </>
+              )}
+            </div>
+          </section>
+
+          <aside className="bento-fx xl:sticky xl:top-3 min-w-0">
+            {selectedLead ? (
+              <LeadContext lead={selectedLead} task={selectedTask} interactions={interactions} loading={interactionsLoading}
+                onNewTask={() => openNew(selectedLead)} onEditTask={selectedTask ? () => openEdit(selectedTask) : undefined}
+                onSituation={() => setSituation({ lead: selectedLead, taskId: null })}
+                onOpenLead={() => onOpenLead(selectedLead.id)} />
+            ) : selectedTask ? (
+              <GenericTaskContext task={selectedTask} onEdit={() => openEdit(selectedTask)} />
+            ) : (
+              <div className="p-8 text-center">
+                <UserRound className="w-8 h-8 text-bento-muted mx-auto mb-3" />
+                <p className="text-sm font-medium text-bento-text">Selecione um item</p>
+                <p className="text-xs text-bento-muted mt-1">O contexto necessário para trabalhar aparecerá aqui.</p>
+              </div>
+            )}
+          </aside>
+        </div>
       </div>
 
       {limpando && (

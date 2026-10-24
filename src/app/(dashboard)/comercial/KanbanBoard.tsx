@@ -24,9 +24,8 @@ function TabLoading() { return <div className="h-full flex items-center justify-
 const LeadDiary     = dynamic(() => import('./LeadDiary').then(m => ({ default: m.LeadDiary })),             { ssr: false })
 const LeadModal     = dynamic(() => import('./LeadModal').then(m => ({ default: m.LeadModal })),             { ssr: false })
 const WonPlanModal  = dynamic(() => import('./WonPlanModal').then(m => ({ default: m.WonPlanModal })),       { ssr: false })
-const MetricasTab   = dynamic(() => import('./tabs/MetricasTab').then(m => ({ default: m.MetricasTab })),     { ssr: false, loading: TabLoading })
+const ResultadosTab = dynamic(() => import('./tabs/ResultadosTab').then(m => ({ default: m.ResultadosTab })), { ssr: false, loading: TabLoading })
 const ContatosTab   = dynamic(() => import('./tabs/ContatosTab').then(m => ({ default: m.ContatosTab })),     { ssr: false, loading: TabLoading })
-const VisaoGeralTab = dynamic(() => import('./tabs/VisaoGeralTab').then(m => ({ default: m.VisaoGeralTab })), { ssr: false, loading: TabLoading })
 import { moveLeadAction, addLeadInteractionAction } from './lead-write-actions'
 import { SEMANAL, type BillingCadence } from '@/lib/commission/billing'
 import { useRealtimeRows } from '@/lib/hooks/useRealtimeRows'
@@ -40,7 +39,7 @@ import { rangeFor, inPeriodByActivity, type Range } from '@/lib/period'
 import { funnelConversionLabel } from '@/lib/funnelMetrics'
 export type { LeadStatus, Lead } from './types'
 
-type Tab = 'funil' | 'followup' | 'visao_geral' | 'contatos' | 'metricas'
+type Tab = 'followup' | 'funil' | 'contatos' | 'resultados'
 
 interface CurrentUser { id: string; name: string }
 
@@ -167,8 +166,11 @@ export function KanbanBoard({ initialLeads, initialStages, initialClients, curre
     if (!tabHandled.current) {
       tabHandled.current = true
       const tabParam = params.get('tab')
-      const allowedTabs = ['funil', 'followup', 'visao_geral', 'contatos', 'metricas']
-      if (tabParam && allowedTabs.includes(tabParam)) setTab(tabParam as Tab)
+      // Visão Geral e Métricas viraram Resultados: links antigos (?tab=visao_geral|metricas) caem lá.
+      const legacy: Record<string, Tab> = { visao_geral: 'resultados', metricas: 'resultados' }
+      const allowedTabs = ['followup', 'funil', 'contatos', 'resultados']
+      const resolved = tabParam ? legacy[tabParam] ?? tabParam : null
+      if (resolved && allowedTabs.includes(resolved)) setTab(resolved as Tab)
     }
     // lead: precisa da LISTA carregada. M16: depende de `leads` → abre assim que o id existir (uma vez só).
     if (!leadHandled.current) {
@@ -184,11 +186,10 @@ export function KanbanBoard({ initialLeads, initialStages, initialClients, curre
   }, [leads])
 
   const TABS: { key: Tab; label: string }[] = [
-    { key: 'funil',        label: 'Funil' },
     { key: 'followup',     label: 'Follow-up' },
-    { key: 'visao_geral',  label: 'Visão Geral' },
+    { key: 'funil',        label: 'Funil' },
     { key: 'contatos',     label: 'Contatos' },
-    { key: 'metricas',     label: 'Métricas' },
+    { key: 'resultados',   label: 'Resultados' },
   ]
 
   // IPAD-FUNNEL-001 — drag consciente de TOUCH. Desktop (mouse): PointerSensor distance 8, INALTERADO.
@@ -295,7 +296,10 @@ export function KanbanBoard({ initialLeads, initialStages, initialClients, curre
         <div className="flex items-center justify-between gap-2 flex-wrap px-4 sm:px-6 pt-4 pb-3">
           <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
             <h1 className="font-display font-bold text-bento-text text-lg tracking-tight">Comercial</h1>
-            <span className="font-tech text-xs text-bento-muted font-medium tabular-nums">{(tab === 'funil' ? filteredLeads : leads).length} leads</span>
+            {/* Contagem só onde ela descreve a lista na tela (Funil filtrado pelo período). Contatos tem o seu. */}
+            {tab === 'funil' && (
+              <span className="font-tech text-xs text-bento-muted font-medium tabular-nums">{filteredLeads.length} leads</span>
+            )}
           </div>
 
           <div className="flex items-center gap-2 w-full sm:w-auto">
@@ -419,9 +423,8 @@ export function KanbanBoard({ initialLeads, initialStages, initialClients, curre
             }}
           />
         </div>
-        {tab === 'visao_geral'  && <VisaoGeralTab />}
         {tab === 'contatos'     && <ContatosTab leads={leads} clients={clients} onOpenLead={setSelectedLead} onClientUpdated={c => setClients(prev => prev.map(x => x.id === c.id ? c : x))} />}
-        {tab === 'metricas'     && <MetricasTab />}
+        {tab === 'resultados'   && <ResultadosTab />}
       </div>
 
       {/* Modals */}

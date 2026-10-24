@@ -2,6 +2,7 @@ import 'server-only'
 
 import type { RequestContext } from '@/server/context/request-context'
 import type { CommercialReport, ConversionStep, PeriodFunnelStep, PipelineMovement, ReportComparison, ReportInsight, ReportKpis, ReportPeriod, StageRanking } from '@/core/reporting/types'
+import { closedStageSlugs } from '@/lib/commercial/closed-stages'
 import { getCommercialRaw } from '@/server/repositories/CommercialMetricsRepository'
 import { getStages } from '@/lib/funnelStages.server'
 import { closedValue, closedCount, averageTicket, isCommercialSale } from '@/core/metrics/sales'
@@ -152,8 +153,11 @@ export async function buildCommercialReport(context: RequestContext, period: Rep
   // (fix N+1: O(etapas × leads) → O(leads)).
   const leadsByStatus = new Map<string, typeof baseLeads>()
   for (const l of baseLeads) { const k = l.status ?? ''; const arr = leadsByStatus.get(k); if (arr) arr.push(l); else leadsByStatus.set(k, [l]) }
+  // Só fases EM ANDAMENTO: as encerradas (Fechamento/Arquivo — a mesma régua do Funil e do Follow-up) ficam
+  // de fora, senão "Não Respondeu" ou "Achou Caro" viravam o "maior gargalo". Arquivadas também saem.
+  const closed = closedStageSlugs(stages)
   const funnel: StageRanking[] = stages
-    .filter(s => !s.is_won && !s.is_lost && !lixeiraSlugs.has(s.slug))
+    .filter(s => !s.arquivada && !s.is_won && !s.is_lost && !lixeiraSlugs.has(s.slug) && !closed.has(s.slug))
     .map(s => {
       const leadsHere = leadsByStatus.get(s.slug) ?? []
       return {

@@ -7,9 +7,10 @@ import { todaySP } from '@/lib/date'
 
 const inputCls = 'w-full bg-bento-bg border border-bento-border rounded-btn px-3 py-2 text-sm text-bento-text focus:outline-none focus:border-lime'
 
-// Form pequeno p/ lançar investimento em marketing (Aquisição). Insere via server action e reusa
-// router.refresh() (mesmo padrão de WorkspaceSwitcher/RoleEditor) p/ o Dashboard reler o VM já com o novo total.
-export function AcquisitionInvestmentForm() {
+// Form pequeno p/ lançar investimento em marketing (Aquisição). Insere via server action e avisa quem
+// mostra os números (`onSaved`) para reler já com o novo total — a aba Resultados busca os dados por conta
+// própria, então router.refresh() sozinho não atualizava o total na tela. Sem `onSaved`, cai no refresh.
+export function AcquisitionInvestmentForm({ onSaved }: { onSaved?: () => void } = {}) {
   const router = useRouter()
   const [spentOn, setSpentOn] = useState(todaySP())
   const [amount, setAmount] = useState('')
@@ -26,7 +27,8 @@ export function AcquisitionInvestmentForm() {
       const res = await createMarketingInvestmentAction({ spentOn, amountUsd: value, note: note.trim() || null })
       if (!res.ok) { setError(res.error); return }
       setAmount(''); setNote('')
-      router.refresh()
+      if (onSaved) onSaved()
+      else router.refresh()
     } finally {
       setSaving(false)
     }
