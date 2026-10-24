@@ -279,13 +279,15 @@ function whenLabel(when: WhenChoice | null, date: string, time: string): string 
   return hora ? `${dia} às ${hora}` : dia
 }
 
-export function SituationDrawer({ lead, sourceTaskId = null, taskContext, initial, onClose, onSaved, onSkip }: {
+export function SituationDrawer({ lead, sourceTaskId = null, taskContext, initial, contactAlreadyLogged = false, onClose, onSaved, onSkip }: {
   lead: { id: string; name: string; status?: string | null }
   sourceTaskId?: string | null
   taskContext?: { title: string; kind?: TaskKind | null; dueTime?: string | null } | null
   // Abre já com o tipo de contato (e, se souber, o resultado) marcados — usado depois de um toque rápido
   // (Atendeu/Mensagem/Não atendeu no funil): a pessoa só confirma e define o próximo passo.
   initial?: { contactAction: ContactAction; lastAction?: LastAction } | null
+  // O contato já foi gravado antes de abrir (toque rápido). Evita a 2ª linha no histórico sem observação.
+  contactAlreadyLogged?: boolean
   onClose: () => void
   onSaved?: (result: { nextTask: Record<string, unknown> | null; patch: Record<string, unknown> }) => void
   onSkip?: () => void
@@ -294,9 +296,14 @@ export function SituationDrawer({ lead, sourceTaskId = null, taskContext, initia
     initial?.lastAction ? RESULT_OPTIONS[initial.contactAction].find(o => o.key === initial.lastAction)?.response ?? null : null)
   const [contactAction, setContactAction] = useState<ContactAction | null>(() => initial?.contactAction ?? actionFromKind(taskContext?.kind))
   const [lastAction, setLastAction] = useState<LastAction | null>(() => initial?.lastAction ?? null)
-  const [temperature, setTemperature] = useState<Temperature | null>(null)
-  const [nextAction, setNextAction] = useState<NextAction>('nenhuma')
-  const [when, setWhen] = useState<WhenChoice | null>(null)
+  // Resultado pré-marcado (`initial`) aplica as MESMAS regras de selectResult: sem percepção quando o
+  // resultado não permite avaliar (senão o campo some mas o Salvar continua exigindo) + próximo passo padrão.
+  const [temperature, setTemperature] = useState<Temperature | null>(() =>
+    initial?.lastAction && AUTO_NO_PERCEPTION_RESULTS.has(initial.lastAction) ? 'nao_avaliado' : null)
+  const [nextAction, setNextAction] = useState<NextAction>(() =>
+    (initial?.lastAction && RESULT_DEFAULTS[initial.lastAction]?.next) || 'nenhuma')
+  const [when, setWhen] = useState<WhenChoice | null>(() =>
+    (initial?.lastAction && RESULT_DEFAULTS[initial.lastAction]?.when) || null)
   const [date, setDate] = useState('')
   // Pré-preenche com o horário que a tarefa JÁ tem: ao reagendar, o horário fica VISÍVEL e editável em vez de
   // ser arrastado em silêncio para a data nova (era o comportamento anterior — o patch nem tocava due_time).
@@ -363,6 +370,7 @@ export function SituationDrawer({ lead, sourceTaskId = null, taskContext, initia
       explicitTime: needsWhen ? normalizeDueTime(time) : null,
       temperature, response, note: note.trim() || null, currentSituation: note.trim() || LAST_ACTION_LABEL[lastAction],
       syncCalendar: needsWhen ? syncCalEfetivo : null,
+      contactAlreadyLogged,
     })
     setSaving(false)
     if (res.ok) {

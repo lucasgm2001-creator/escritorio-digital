@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useCallback, useEffect, useMemo, useRef } from 'react'
+import { useRouter } from 'next/navigation'
 import { sortByStageEntry } from '@/lib/commercial/funnel-order'
 import {
   DndContext, DragOverlay, PointerSensor, TouchSensor, useSensor, useSensors,
@@ -97,6 +98,7 @@ function SummaryLegend({ cls, t }: { cls: string; t: string }) {
 }
 
 export function KanbanBoard({ initialLeads, initialStages, initialClients, currentUser, followUp }: { initialLeads: Lead[], initialStages: FunnelStage[], initialClients: ClienteRow[], currentUser: CurrentUser, followUp: FollowUpData }) {
+  const router = useRouter()
   const [leads, setLeads] = useState<Lead[]>(initialLeads)
   // Reflete dados frescos do servidor após router.refresh() (revalidação ao focar a aba).
   useEffect(() => { setLeads(initialLeads) }, [initialLeads])
@@ -469,6 +471,7 @@ export function KanbanBoard({ initialLeads, initialStages, initialClients, curre
         <SituationDrawer
           lead={{ id: situationFor.lead.id, name: situationFor.lead.name, status: situationFor.lead.status }}
           initial={situationFor.initial}
+          contactAlreadyLogged
           onClose={() => setSituationFor(null)}
           onSkip={() => setSituationFor(null)}
           onSaved={({ nextTask, patch }) => {
@@ -483,6 +486,8 @@ export function KanbanBoard({ initialLeads, initialStages, initialClients, curre
             }
             showToast(nextTask ? 'Próxima ação organizada.' : 'Situação registrada.')
             setSituationFor(null)
+            // Igual ao Follow-up: relê do servidor (a tarefa nova entra no Follow-up mesmo se o realtime atrasar).
+            router.refresh()
           }}
         />
       )}

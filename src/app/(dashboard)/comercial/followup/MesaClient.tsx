@@ -22,7 +22,7 @@ import { SituationDrawer } from '../SituationDrawer'
 import { ALL_COLUMNS, type LeadStatus } from '../types'
 import { NEXT_ACTION_LABEL, TEMPERATURE_LABEL, isNextAction } from '@/lib/commercial/situation'
 import { inferTaskKind } from '@/lib/tasks/task-kind'
-import { GRUPOS_ENCERRADOS, closedStageSlugs } from '@/lib/commercial/closed-stages'
+import { closedStageSlugs } from '@/lib/commercial/closed-stages'
 import { ObservationsBox } from '@/components/observations/ObservationsBox'
 import { LimparAtrasados } from './LimparAtrasados'
 
@@ -49,7 +49,7 @@ export interface MesaLead {
   situation_updated_at?: string | null
 }
 
-export type FunnelStage = { slug: string; nome: string; posicao: number; cor: string | null; grupo: string | null }
+export type FunnelStage = { slug: string; nome: string; posicao: number; cor: string | null; grupo: string | null; is_won: boolean; is_lost: boolean }
 
 // QUATRO ABAS (MESA-ABAS-001). Eram nove — Hoje, Atrasado, Acompanhando, Reuniões, Leads, Aguardando,
 // Próximas, Sem plano e Concluídas —, várias medindo recortes da mesma coisa com números que não batiam.
@@ -63,8 +63,8 @@ export type FunnelStage = { slug: string; nome: string; posicao: number; cor: st
 // "é atrasado", ele está numa fase do funil — e é por fase que o trabalho acontece.
 type Filter = 'hoje' | 'acompanhando' | 'reunioes' | 'concluidas'
 
-// Fases que saem do fluxo de trabalho e vão para "Concluídas": as dos grupos Fechamento/Arquivo
-// (GRUPOS_ENCERRADOS, fonte única em lib/commercial/closed-stages — a mesma régua do rodapé do Funil).
+// Fases que saem do fluxo de trabalho e vão para "Concluídas": as encerradas (closedStageSlugs, fonte única
+// em lib/commercial/closed-stages — a mesma régua do rodapé do Funil).
 
 // Fases que não entram em Tarefas. "Sem dados" (incompleto) é onde o webhook do Magnetic deixa o lead que
 // chegou sem telefone: não há o que trabalhar ali — falta o dado para ligar. Ele continua no funil do
@@ -163,6 +163,7 @@ export function MesaClient({ initialTasks, initialLeads, stages, linkOptions, cu
   const [limpezaBusy, setLimpezaBusy] = useState(false)
 
   const today = ymd(new Date())
+  const closedSlugs = useMemo(() => closedStageSlugs(stages), [stages])
   const pending = useMemo(() => tasks.filter(task => !task.done).sort(taskSort), [tasks])
 
   // UMA LINHA POR LEAD, DENTRO DE CADA LISTA (MESA-DEDUP-002).
@@ -226,7 +227,6 @@ export function MesaClient({ initialTasks, initialLeads, stages, linkOptions, cu
   const ocultasPorTarefa = hoje.ocultasPor
 
   // Leads que chegaram no dia em foco e ainda não têm tarefa — trabalho do dia tanto quanto uma tarefa.
-  const closedSlugs = useMemo(() => closedStageSlugs(stages), [stages])
   const newLeadsToday = useMemo(() => {
     const jaNasTarefas = new Set(todayTasks.filter(t => t.linked_type === 'lead').map(t => t.linked_id))
     // received_at é a data de entrada (o webhook do Magnetic preenche), com created_at de reserva.
@@ -260,7 +260,7 @@ export function MesaClient({ initialTasks, initialLeads, stages, linkOptions, cu
     }
 
     const monta = (encerradas: boolean) => stages
-      .filter(st => GRUPOS_ENCERRADOS.has(st.grupo ?? '') === encerradas && !FASES_FORA_DAS_TAREFAS.has(st.slug))
+      .filter(st => closedSlugs.has(st.slug) === encerradas && !FASES_FORA_DAS_TAREFAS.has(st.slug))
       .map(st => ({
         slug: st.slug, titulo: st.nome, cor: st.cor, grupo: st.grupo,
         // ORDEM: quem entrou na fase por último fica no topo (MESA-FUNIL-004). É a mesma régua do funil
@@ -277,7 +277,7 @@ export function MesaClient({ initialTasks, initialLeads, stages, linkOptions, cu
       .filter(g => g.itens.length > 0)
 
     return { ativas: monta(false), encerradas: monta(true) }
-  }, [leads, pending, stages])
+  }, [leads, pending, stages, closedSlugs])
 
   const acompanhandoCount = useMemo(() => porFase.ativas.reduce((n, g) => n + g.itens.length, 0), [porFase])
   // Mesma contagem que os cabeçalhos dos grupos somam — derivada do que está NA TELA (a tarefa que

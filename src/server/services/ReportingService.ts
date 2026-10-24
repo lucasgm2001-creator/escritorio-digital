@@ -168,7 +168,9 @@ export async function buildCommercialReport(context: RequestContext, period: Rep
     })
     .sort((a, b) => b.count - a.count)
 
-  const stuckLeads = baseLeads.filter(l => l.status && !wonSlugs.has(l.status) && !lostSlugs.has(l.status) && daysSince(l.stage_changed_at ?? l.created_at) > 7).length
+  // Parado = em fase EM ANDAMENTO há mais de 7 dias. Fases encerradas (Negócio Futuro, Não Respondeu…)
+  // ficam paradas por natureza e inflavam o número — mesma régua do ranking acima.
+  const stuckLeads = baseLeads.filter(l => l.status && !wonSlugs.has(l.status) && !lostSlugs.has(l.status) && !closed.has(l.status) && daysSince(l.stage_changed_at ?? l.created_at) > 7).length
 
   // Insights automáticos (sem IA) — derivados das métricas.
   const insights: ReportInsight[] = []

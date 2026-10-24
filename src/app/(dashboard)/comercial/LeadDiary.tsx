@@ -198,11 +198,13 @@ export function LeadDiary({ lead, onClose, onUpdated, onMoveStage, onDeleted, cu
     const prev = currentLead.status
     const destLabel = phaseOptions.find(c => c.key === newStatus)?.label ?? ALL_COLUMNS.find(c => c.key === newStatus)?.label ?? newStatus
     setMovingPhase(true)
-    setCurrentLead(c => ({ ...c, status: newStatus }))
+    const prevChangedAt = currentLead.stage_changed_at
+    // stage_changed_at junto: o servidor grava "agora" ao mover, e o "Xd na fase" do cabeçalho lê daqui.
+    setCurrentLead(c => ({ ...c, status: newStatus, stage_changed_at: new Date().toISOString() }))
     // onMoveStage = MESMO fluxo do arrastar. Ao escolher "Venda Fechada" ele retorna false aqui e
     // abre o WonPlanModal (idêntico a soltar na coluna) — por isso o "Movido para" só dispara quando ok.
     const ok = await onMoveStage(newStatus)
-    if (!ok) setCurrentLead(c => ({ ...c, status: prev }))
+    if (!ok) setCurrentLead(c => ({ ...c, status: prev, stage_changed_at: prevChangedAt }))
     else toast({ type: 'success', message: `Movido para ${destLabel}` })
     setMovingPhase(false)
   }

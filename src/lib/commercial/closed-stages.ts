@@ -7,11 +7,13 @@
 // Desqualificado e Achou Caro como ativos — os totais das duas abas não batiam.
 export const GRUPOS_ENCERRADOS = new Set(['Fechamento', 'Arquivo'])
 
-// Desfechos de sistema: encerrados mesmo que alguém mova a fase para outro grupo.
-const SEMPRE_ENCERRADOS = ['fechado', 'perdido', 'lixeira']
-
-export function closedStageSlugs(stages: { slug: string; grupo: string | null }[]): Set<string> {
-  const closed = new Set(SEMPRE_ENCERRADOS)
-  for (const st of stages) if (GRUPOS_ENCERRADOS.has(st.grupo ?? '')) closed.add(st.slug)
+// Desfechos de sistema: encerrados mesmo que alguém mova a fase para outro grupo ou renomeie o grupo.
+// A fase de ganho/perda vale pelas FLAGS (is_won/is_lost), não pelo slug — slugs podem variar por equipe.
+// 'lixeira' não tem flag própria; fica pelo slug, igual ao resto do sistema.
+export function closedStageSlugs(stages: { slug: string; grupo: string | null; is_won?: boolean; is_lost?: boolean }[]): Set<string> {
+  const closed = new Set(['lixeira'])
+  for (const st of stages) {
+    if (st.is_won || st.is_lost || GRUPOS_ENCERRADOS.has(st.grupo ?? '')) closed.add(st.slug)
+  }
   return closed
 }

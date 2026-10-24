@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState, type ReactNode } from 'react'
 import { ChevronDown, Clock, Download, Trophy, TrendingUp, XCircle } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { rangeFor, type Mode, type Range } from '@/lib/period'
+import { ymd } from '@/lib/date'
 import { PeriodNavigator } from '@/components/ui/PeriodNavigator'
 import { MetricCard } from '@/components/ui/MetricCard'
 import { Panel } from '@/components/bento/Panel'
@@ -25,13 +26,13 @@ function rememberedMode(): Mode {
   try { const m = localStorage.getItem(PERIOD_KEY); return MODES.some(([v]) => v === m) ? (m as Mode) : 'mes' } catch { return 'mes' }
 }
 
+// Dólar inteiro (en-US): o MESMO formato do PDF executivo — tela e PDF lado a lado mostram igual.
 const usd = (n: number): string => `US$ ${Math.round(n).toLocaleString('en-US')}`
 const usdOrDash = (v: number | null): string => (v == null ? '—' : usd(v))   // sem denominador → "—", nunca "0"/"Infinity"
 const roiX = (v: number | null): string => (v == null ? '—' : `${v.toFixed(1)}x`)
 const pct = (n: number): string => `${Math.round(n * 100)}%`
 // Razão entre duas etapas do funil. Denominador zero → null (0% mentiria: não houve base para converter).
 const ratio = (num: number, den: number): string | null => (den > 0 ? pct(num / den) : null)
-const toYmd = (d: Date): string => { const p = (n: number) => String(n).padStart(2, '0'); return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}` }
 
 const INSIGHT_STYLE: Record<ReportInsight['kind'], { Icon: typeof Clock; cls: string }> = {
   gargalo: { Icon: Clock, cls: 'text-amber-400' },
@@ -86,7 +87,7 @@ export function ResultadosTab() {
     let active = true
     ;(async () => {
       setLoading(true); setError(null)
-      const r = await getExecutiveReportAction({ fromYMD: toYmd(range.start), toYMD: toYmd(range.end), label: range.label })
+      const r = await getExecutiveReportAction({ fromYMD: ymd(range.start), toYMD: ymd(range.end), label: range.label })
       if (!active) return
       if (!r.ok) { setError(r.error); setRes(null) } else setRes(r)
       setLoading(false)
@@ -117,11 +118,14 @@ export function ResultadosTab() {
   const funnel = (res?.report.funnel ?? []).filter(f => f.count > 0)
   const insights = res?.report.insights ?? []
   const maxFunnel = Math.max(1, ...funnel.map(f => f.count))
-  const dash = loading ? '—' : undefined
+  // Sem dados (carregando OU erro) → "—". Com erro, cair no `?? 0` mostraria US$ 0 / 0% como se fossem reais.
+  const semDados = loading || !res
+  const dash = semDados ? '—' : undefined
   // Comparativo com o período anterior de mesma duração — trend do MetricCard: "+N vs. anterior".
   const trend = (curV: number, prevV: number | null | undefined, suffix = ''): { value: number; suffix?: string; label: string } | undefined =>
-    (loading || prevV == null) ? undefined : { value: Math.round(curV) - Math.round(prevV), suffix, label: 'vs. anterior' }
+    (semDados || prevV == null) ? undefined : { value: Math.round(curV) - Math.round(prevV), suffix, label: 'vs. anterior' }
   const rate = (num: number, den: number, base: string): string | undefined => {
+    if (semDados) return undefined
     const r = ratio(num, den)
     return r ? `${r} ${base}` : undefined
   }

@@ -32,7 +32,7 @@ export default async function ComercialPage() {
         // Aba Follow-up (antiga Minha Mesa) — mesmas leituras que a /mesa fazia.
         supabase.from('tasks').select('*').eq('user_id', userId).eq('team_id', activeTeamId).order('due_date', { ascending: true }),
         // FASES DO FUNIL (MESA-FUNIL-001): só as não arquivadas da equipe, na ordem do funil.
-        supabase.from('funnel_stages').select('slug, nome, posicao, cor, grupo')
+        supabase.from('funnel_stages').select('slug, nome, posicao, cor, grupo, is_won, is_lost')
           .eq('team_id', activeTeamId).eq('arquivada', false).order('posicao'),
       ])
     : [{ data: [] }, { data: [] }, { data: [] }, { data: [] }]

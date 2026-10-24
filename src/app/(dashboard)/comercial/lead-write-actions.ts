@@ -268,6 +268,8 @@ export async function updateLeadSituationAction(input: {
   temperature?: Temperature | null
   response?: LeadResponse | null
   note?: string | null
+  /** O contato JÁ foi registrado (toque rápido no funil grava a interação). Sem observação, não duplica no histórico. */
+  contactAlreadyLogged?: boolean | null
 }): Promise<Res<{ nextTask: Record<string, unknown> | null }>> {
   const g = await guard('edit', DENY_EDIT)
   if (!g.context) return { ok: false, error: g.error }
@@ -335,8 +337,9 @@ export async function updateLeadSituationAction(input: {
     })
   }
 
-  // 2) histórico (reusa lead_interactions — sem duplicar timeline)
-  await supabase.from('lead_interactions').insert({
+  // 2) histórico (reusa lead_interactions — sem duplicar timeline). Se o toque rápido já registrou o contato
+  // e não há observação escrita, uma 2ª linha só repetiria o mesmo contato no Diário.
+  if (!(input.contactAlreadyLogged && !input.note?.trim())) await supabase.from('lead_interactions').insert({
     // A fase/resultado já vive nos campos estruturados do lead. Só grava como observação quando a pessoa
     // realmente escreveu contexto; assim a aba permanente não é poluída por rótulos automáticos.
     lead_id: input.leadId, type: 'situacao', note: input.note?.trim() || null, score_delta: 0,
