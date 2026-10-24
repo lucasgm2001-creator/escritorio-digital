@@ -19,7 +19,7 @@ import { useTasksState } from '../../tarefas/useTasksState'
 import { TaskModal, type TaskPrefill } from '../../tarefas/TaskModal'
 import type { LinkOption, Task } from '../../tarefas/types'
 import { SituationDrawer } from '../SituationDrawer'
-import { ALL_COLUMNS, type LeadStatus } from '../types'
+import { type LeadStatus } from '../types'
 import { NEXT_ACTION_LABEL, TEMPERATURE_LABEL, isNextAction } from '@/lib/commercial/situation'
 import { inferTaskKind } from '@/lib/tasks/task-kind'
 import { closedStageSlugs } from '@/lib/commercial/closed-stages'
@@ -74,7 +74,6 @@ type Interaction = { id: string; type: string; note: string | null; created_by_n
 
 const HOT = new Set(['muito_quente', 'quente', 'muito_interessado', 'interessado'])
 const COLD = new Set(['esfriando', 'frio', 'pouco_interessado'])
-const STATUS_LABEL = new Map(ALL_COLUMNS.map(column => [column.key, column.label]))
 
 
 // Busca sem acento e sem caixa: a base tem "Gouvêa", "André", "Mizael". Exigir o acento certo faria a
@@ -164,6 +163,10 @@ export function MesaClient({ initialTasks, initialLeads, stages, linkOptions, cu
 
   const today = ymd(new Date())
   const closedSlugs = useMemo(() => closedStageSlugs(stages), [stages])
+  // Nome da fase pelo funil REAL da equipe (antes uma lista fixa no código: fases novas como "Achou Caro"
+  // apareciam como o slug cru, e "Venda Concluída" como "Venda Fechada").
+  const stageName = useMemo(() => new Map(stages.map(st => [st.slug, st.nome])), [stages])
+  const nomeFase = (slug: string) => stageName.get(slug) ?? slug
   const pending = useMemo(() => tasks.filter(task => !task.done).sort(taskSort), [tasks])
 
   // UMA LINHA POR LEAD, DENTRO DE CADA LISTA (MESA-DEDUP-002).
@@ -613,7 +616,7 @@ export function MesaClient({ initialTasks, initialLeads, stages, linkOptions, cu
                     Nenhum lead com “{busca.trim()}” no nome ou na empresa.
                   </p>
                 ) : resultados.map(lead => (
-                  <LeadRow key={lead.id} lead={lead} active={selectedLeadId === lead.id}
+                  <LeadRow key={lead.id} lead={lead} estagio={nomeFase(lead.status)} active={selectedLeadId === lead.id}
                     mostrarEmpresa onSelect={() => selectLead(lead)} />
                 ))
               ) : (
@@ -626,7 +629,7 @@ export function MesaClient({ initialTasks, initialLeads, stages, linkOptions, cu
                       onSelect={() => selectTask(task)} onToggle={() => toggleTask(task)} onEdit={() => openEdit(task)} />
                   ))}
                   {leadRows.map(lead => (
-                    <LeadRow key={lead.id} lead={lead} active={selectedLeadId === lead.id}
+                    <LeadRow key={lead.id} lead={lead} estagio={nomeFase(lead.status)} active={selectedLeadId === lead.id}
                       mostrarEmpresa onSelect={() => selectLead(lead)} />
                   ))}
                   {filter === 'hoje' && doneNoDia.length > 0 && (
@@ -668,7 +671,7 @@ export function MesaClient({ initialTasks, initialLeads, stages, linkOptions, cu
               </div>
             )}
             {selectedLead ? (
-              <LeadContext lead={selectedLead} task={selectedTask} interactions={interactions} loading={interactionsLoading}
+              <LeadContext lead={selectedLead} estagio={nomeFase(selectedLead.status)} task={selectedTask} interactions={interactions} loading={interactionsLoading}
                 onNewTask={() => openNew(selectedLead)} onEditTask={selectedTask ? () => openEdit(selectedTask) : undefined}
                 onSituation={() => setSituation({ lead: selectedLead, taskId: null })}
                 onOpenLead={() => onOpenLead(selectedLead.id)} />
@@ -841,11 +844,10 @@ function LeadNaFase({ lead, task, today, active, busy, onCheck, onSelect }: {
 // `mostrarEmpresa`: nos resultados de busca a segunda linha passa a ser EMPRESA · ESTÁGIO em vez da
 // situação escrita. Quem busca por empresa precisa ver a empresa para confirmar que achou o lead certo —
 // e o estágio diz onde ele está, inclusive quando é um fechado ou perdido.
-function LeadRow({ lead, active, mostrarEmpresa, onSelect }: {
-  lead: MesaLead; active: boolean; mostrarEmpresa?: boolean; onSelect: () => void
+function LeadRow({ lead, estagio, active, mostrarEmpresa, onSelect }: {
+  lead: MesaLead; estagio: string; active: boolean; mostrarEmpresa?: boolean; onSelect: () => void
 }) {
   const temperature = lead.temperature ? TEMPERATURE_LABEL[lead.temperature as keyof typeof TEMPERATURE_LABEL] ?? lead.temperature : 'Sem avaliação'
-  const estagio = STATUS_LABEL.get(lead.status) || lead.status
   const segundaLinha = mostrarEmpresa
     ? [lead.company, estagio].filter(Boolean).join(' · ')
     : (lead.current_situation || estagio)
@@ -865,8 +867,8 @@ function LeadRow({ lead, active, mostrarEmpresa, onSelect }: {
   )
 }
 
-function LeadContext({ lead, task, interactions, loading, onNewTask, onEditTask, onSituation, onOpenLead }: {
-  lead: MesaLead; task: Task | null; interactions: Interaction[]; loading: boolean
+function LeadContext({ lead, estagio, task, interactions, loading, onNewTask, onEditTask, onSituation, onOpenLead }: {
+  lead: MesaLead; estagio: string; task: Task | null; interactions: Interaction[]; loading: boolean
   onNewTask: () => void; onEditTask?: () => void; onSituation: () => void; onOpenLead: () => void
 }) {
   const stopped = daysSince(lead.last_contact_at ?? lead.stage_changed_at ?? lead.created_at)
@@ -887,7 +889,7 @@ function LeadContext({ lead, task, interactions, loading, onNewTask, onEditTask,
           </button>
         </div>
         <div className="flex flex-wrap gap-1.5 mt-3">
-          <Badge>{STATUS_LABEL.get(lead.status) ?? lead.status}</Badge>
+          <Badge>{estagio}</Badge>
           <Badge tone={HOT.has(lead.temperature ?? '') ? 'hot' : COLD.has(lead.temperature ?? '') ? 'cold' : 'neutral'}>{temperature}</Badge>
           {stopped !== null && <Badge tone={stopped >= 5 ? 'warning' : 'neutral'}>{stopped}d sem contato</Badge>}
         </div>

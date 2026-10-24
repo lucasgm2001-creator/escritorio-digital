@@ -238,9 +238,16 @@ export function KanbanBoard({ initialLeads, initialStages, initialClients, curre
       return false
     }
     for (const n of res.notes) showToast(n.message, n.type)
+    // Mover para a Lixeira = EXCLUIR (soft delete: só deleted_at, a fase não muda no banco). Sem isto o card
+    // ficava parado na coluna Lixeira até recarregar e o Follow-up seguia mostrando o lead na fase antiga.
+    if (newStatus === 'lixeira') {
+      setLeads(prev => prev.filter(l => l.id !== lead.id))
+      setSelectedLead(cur => (cur?.id === lead.id ? null : cur))
+      router.refresh()
+    }
     return true
 
-  }, [])
+  }, [router])
 
   // Choke point de TODO movimento (drag, tap, diário). Ao FECHAR (is_won) pelo funil, intercepta
   // e pede o PLANO antes de criar a venda (Fase 2A). Demais fases movem direto. (Agente = caminho à parte.)
@@ -437,7 +444,7 @@ export function KanbanBoard({ initialLeads, initialStages, initialClients, curre
             }}
           />
         </div>
-        {tab === 'contatos'     && <ContatosTab leads={leads} clients={clients} onOpenLead={setSelectedLead} onClientUpdated={c => setClients(prev => prev.map(x => x.id === c.id ? c : x))} />}
+        {tab === 'contatos'     && <ContatosTab leads={leads} clients={clients} columns={cols} onOpenLead={setSelectedLead} onClientUpdated={c => setClients(prev => prev.map(x => x.id === c.id ? c : x))} />}
         {tab === 'resultados'   && <ResultadosTab />}
       </div>
 
@@ -461,7 +468,7 @@ export function KanbanBoard({ initialLeads, initialStages, initialClients, curre
             const fresh = leads.find(l => l.id === selectedLead.id) ?? selectedLead
             return moveLeadToStatus(fresh, newStatus)
           }}
-          onDeleted={(id) => { setLeads(prev => prev.filter(l => l.id !== id)); setSelectedLead(null) }}
+          onDeleted={(id) => { setLeads(prev => prev.filter(l => l.id !== id)); setSelectedLead(null); router.refresh() }}
           currentUser={currentUser}
           stages={initialStages}
         />

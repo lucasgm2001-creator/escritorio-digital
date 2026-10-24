@@ -4,7 +4,7 @@ import { useMemo, useState } from 'react'
 import { Search, ChevronDown, Check, SlidersHorizontal } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { CollapsibleSection } from '@/components/mobile/CollapsibleSection'
-import { ALL_COLUMNS, FUSO_LABELS, type Lead } from '../types'
+import { FUSO_LABELS, type ColumnConfig, type Lead } from '../types'
 import type { Client } from '../../clientes/types'
 import { ClienteModal } from '../../clientes/ClienteModal'
 
@@ -16,6 +16,7 @@ import { ClienteModal } from '../../clientes/ClienteModal'
 interface Props {
   leads: Lead[]
   clients: Client[]
+  columns: ColumnConfig[]   // fases REAIS da equipe (nome/ordem/estilo) — antes uma lista fixa no código
   onOpenLead: (lead: Lead) => void
   onClientUpdated: (c: Client) => void   // clique em cliente abre o ClienteModal aqui mesmo; salva e reflete no mapa
 }
@@ -40,7 +41,6 @@ type Row = {
 
 const onlyDigits = (s?: string | null) => (s ?? '').replace(/\D/g, '')
 const lower = (s?: string | null) => (s ?? '').trim().toLowerCase()
-const STATUS_STYLE = Object.fromEntries(ALL_COLUMNS.map(c => [c.key, c]))
 
 function fmtChegada(s: string): string {
   if (!s) return ''
@@ -84,7 +84,8 @@ function FilterDropdown({ label, options, selected, onToggle }: {
   )
 }
 
-export function ContatosTab({ leads, clients, onOpenLead, onClientUpdated }: Props) {
+export function ContatosTab({ leads, clients, columns, onOpenLead, onClientUpdated }: Props) {
+  const statusStyle = useMemo(() => new Map(columns.map(c => [c.key as string, c])), [columns])
   const [search, setSearch] = useState('')
   const [editClient, setEditClient] = useState<Client | null>(null)
   const [faseSel, setFaseSel] = useState<Set<string>>(new Set())
@@ -117,7 +118,7 @@ export function ContatosTab({ leads, clients, onOpenLead, onClientUpdated }: Pro
     for (const l of leads) {
       if (l.status === 'lixeira') continue   // na Lixeira: some da agenda (restaura pela Lixeira)
       const p = onlyDigits(l.phone), e = lower(l.email)
-      const st = STATUS_STYLE[l.status]
+      const st = statusStyle.get(l.status)
       if ((p && clientKeys.has('p:' + p)) || (e && clientKeys.has('e:' + e))) continue   // já é cliente
       out.push({
         id: l.id, origem: 'lead', name: l.name, company: l.company ?? '', phone: l.phone ?? '', email: l.email ?? '',
@@ -127,13 +128,14 @@ export function ContatosTab({ leads, clients, onOpenLead, onClientUpdated }: Pro
       })
     }
     return out.sort((a, b) => (b.chegada || '').localeCompare(a.chegada || ''))
-  }, [leads, clients])
+  }, [leads, clients, statusStyle])
 
   // Opções dos filtros.
+  // Fases reais da equipe, na ordem do funil (fases novas entram sem tocar aqui).
   const faseOptions = useMemo(() => [
-    ...ALL_COLUMNS.filter(c => c.key !== 'lixeira').map(c => ({ value: c.key, label: c.label })),
+    ...columns.filter(c => c.key !== 'lixeira').map(c => ({ value: c.key as string, label: c.label })),
     { value: 'cliente', label: 'Cliente' },
-  ], [])
+  ], [columns])
   const nichoOptions = useMemo(() => Array.from(new Set(rows.map(r => r.nicho).filter(Boolean)))
     .sort((a, b) => a.localeCompare(b)).map(n => ({ value: n, label: n })), [rows])
   const fusoOptions = [...Object.entries(FUSO_LABELS).map(([value, label]) => ({ value, label })), { value: '__none__', label: 'Sem fuso' }]

@@ -30,20 +30,6 @@ export async function getLeadById(leadId: string): Promise<LeadRecord | null> {
   return data as LeadRecord | null
 }
 
-export async function getLeadsByTeam(teamId: string): Promise<LeadRecord[]> {
-  const supabase = createClient()
-
-  const { data, error } = await supabase
-    .from('leads')
-    .select('*')
-    .eq('team_id', teamId)
-    .order('score', { ascending: false })
-
-  if (error) throw error
-
-  return (data ?? []) as LeadRecord[]
-}
-
 export async function createLead(input: LeadCreateInput): Promise<LeadRecord> {
   const supabase = createClient()
 

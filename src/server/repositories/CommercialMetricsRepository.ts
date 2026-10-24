@@ -40,20 +40,8 @@ export async function getCommercialRaw(teamId: string, opts?: { withPipeline?: b
   }
 }
 
-// ── Fontes ADICIONAIS da aba Métricas (marcos do ciclo + receita/vendedor). Escopadas por RLS (a MESMA
+// ── Fontes ADICIONAIS de receita/vendedor (eram da antiga aba Métricas). Escopadas por RLS (a MESMA
 //    leitura que a UI fazia antes); em erro degradam para vazio (a aba mostrava 0, nunca quebrava). ──
-export type MMilestone = { lead_id: string; marco: string; achieved_on: string }
-
-export async function getLeadMilestonesForMetrics(): Promise<MMilestone[]> {
-  const supabase = createClient()
-  const { data, error } = await supabase
-    .from('lead_milestones')
-    .select('lead_id, marco, achieved_on')
-    .in('marco', ['reuniao', 'fechou'])
-  if (error) return []
-  return (data ?? []) as MMilestone[]
-}
-
 export type MPayment = { client_id: string; valor_usd: number; paid_on: string; anulado?: boolean; numero_semana?: number; plano_id?: string | null }
 export type MClientSeller = { id: string; assigned_name: string | null }
 
