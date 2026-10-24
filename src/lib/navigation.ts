@@ -1,4 +1,4 @@
-import { Home, TrendingUp, Briefcase, Presentation, ShieldCheck, Settings, Monitor, type LucideIcon } from 'lucide-react'
+import { Home, TrendingUp, Briefcase, Presentation, ShieldCheck, Settings, type LucideIcon } from 'lucide-react'
 import type { ModuleLevel } from '@/lib/permissions/types'
 
 // FONTE ÚNICA da navegação de módulos (EXPERIENCE-005). Sidebar, Drawer (= Sidebar) e BottomNav derivam
@@ -13,13 +13,12 @@ export interface NavModule {
   shortLabel?: string      // rótulo curto (BottomNav)
   Icon: LucideIcon
   group: NavGroup
-  primary?: boolean        // acesso rápido na BottomNav (Minha Mesa › Hall › Comercial)
+  primary?: boolean        // acesso rápido na BottomNav (Hall › Comercial)
   moduleKey?: string        // chave em APP_MODULES → filtra por nível efetivo ("Sem acesso" oculta o item)
   requiresManage?: boolean  // área que exige gestão de equipe (Administração)
 }
 
 export const NAV_MODULES: NavModule[] = [
-  { href: '/mesa',          label: 'Minha Mesa',             Icon: Monitor,      group: 'main',   primary: true, moduleKey: 'hall' },
   { href: '/hall',          label: 'Hall',                   Icon: Home,         group: 'main',   primary: true, moduleKey: 'hall' },
   { href: '/comercial',     label: 'Comercial',              Icon: Briefcase,    group: 'main',   primary: true, moduleKey: 'comercial' },
   { href: '/trafego',       label: 'Tráfego',                Icon: TrendingUp,   group: 'main',   moduleKey: 'trafego' },

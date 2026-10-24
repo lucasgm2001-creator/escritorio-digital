@@ -265,10 +265,10 @@ export function HallClient({ initialActivities, initialTasks, initialCalendarEve
                   <div className="space-y-2">
                     {/* Atrasadas primeiro — protagonista (âmbar). Cap 4; excedente abre a aba Tarefas. */}
                     {tarefasAtrasadas.slice(0, 4).map(t => (
-                      <MuralTaskRow key={`late-${t.id}`} task={t} overdue onClick={() => router.push('/mesa')} />
+                      <MuralTaskRow key={`late-${t.id}`} task={t} overdue onClick={() => router.push('/comercial')} />
                     ))}
                     {tarefasAtrasadas.length > 4 && (
-                      <button type="button" onClick={() => router.push('/mesa')}
+                      <button type="button" onClick={() => router.push('/comercial')}
                         className="w-full text-left font-tech text-caption uppercase tracking-label text-amber-400 hover:text-amber-300 transition-colors py-1">
                         +{tarefasAtrasadas.length - 4} atrasadas — ver todas
                       </button>
@@ -278,7 +278,7 @@ export function HallClient({ initialActivities, initialTasks, initialCalendarEve
                       ? (tarefasAtrasadas.length === 0 && <p className="text-sm text-bento-muted py-6 text-center">Nada para hoje.</p>)
                       : <>
                           {eventosHoje.map(ev => <MuralAgendaRow key={`ev-${ev.id}`} ev={ev} onClick={() => setFocusEvent(ev)} />)}
-                          {tarefasHoje.map(t => <MuralTaskRow key={`tk-${t.id}`} task={t} onClick={() => router.push('/mesa')} />)}
+                          {tarefasHoje.map(t => <MuralTaskRow key={`tk-${t.id}`} task={t} onClick={() => router.push('/comercial')} />)}
                         </>}
                   </div>
                 </Panel>

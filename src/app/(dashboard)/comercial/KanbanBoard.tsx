@@ -13,6 +13,7 @@ import { DraggableTabs } from '@/components/DraggableTabs'
 import { KanbanColumn } from './KanbanColumn'
 import { PhaseSelectorMobile } from './PhaseSelectorMobile'
 import { LeadCard } from './LeadCard'
+import { MesaClient, type MesaLead, type FunnelStage as MesaStage } from './followup/MesaClient'
 import dynamic from 'next/dynamic'
 // Fallback discreto enquanto o chunk da aba carrega (DS-005).
 function TabLoading() { return <div className="h-full flex items-center justify-center text-sm text-bento-muted">Carregando…</div> }
@@ -23,13 +24,13 @@ const LeadModal     = dynamic(() => import('./LeadModal').then(m => ({ default: 
 const WonPlanModal  = dynamic(() => import('./WonPlanModal').then(m => ({ default: m.WonPlanModal })),       { ssr: false })
 const MetricasTab   = dynamic(() => import('./tabs/MetricasTab').then(m => ({ default: m.MetricasTab })),     { ssr: false, loading: TabLoading })
 const ContatosTab   = dynamic(() => import('./tabs/ContatosTab').then(m => ({ default: m.ContatosTab })),     { ssr: false, loading: TabLoading })
-const RadarTab      = dynamic(() => import('./tabs/RadarTab').then(m => ({ default: m.RadarTab })),           { ssr: false, loading: TabLoading })
 const VisaoGeralTab = dynamic(() => import('./tabs/VisaoGeralTab').then(m => ({ default: m.VisaoGeralTab })), { ssr: false, loading: TabLoading })
 import { moveLeadAction, addLeadInteractionAction } from './lead-write-actions'
 import { SEMANAL, type BillingCadence } from '@/lib/commission/billing'
 import { useRealtimeRows } from '@/lib/hooks/useRealtimeRows'
 import { usdCompact as fmtUSDc } from '@/lib/format'
 import type { Client as ClienteRow } from '../clientes/types'
+import type { Task, LinkOption } from '../tarefas/types'
 import type { Lead, LeadStatus } from './types'
 import { columnsFromStages, wonSlug, type FunnelStage } from '@/lib/funnelStages'
 import { PeriodChips } from './PeriodChips'
@@ -37,9 +38,18 @@ import { rangeFor, inPeriodByActivity, type Range } from '@/lib/period'
 import { funnelConversionLabel } from '@/lib/funnelMetrics'
 export type { LeadStatus, Lead } from './types'
 
-type Tab = 'funil' | 'radar' | 'visao_geral' | 'contatos' | 'metricas'
+type Tab = 'funil' | 'followup' | 'visao_geral' | 'contatos' | 'metricas'
 
 interface CurrentUser { id: string; name: string }
+
+// Dados da aba Follow-up (antiga Minha Mesa), lidos no servidor pela page do Comercial.
+interface FollowUpData {
+  initialTasks: Task[]
+  initialLeads: MesaLead[]
+  initialFocus: string[]
+  stages: MesaStage[]
+  linkOptions: LinkOption[]
+}
 
 // ── Barra de resumo do funil (rodapé) ──────────────────────────────────────────
 const isTerminal = (s: LeadStatus) => s === 'fechado' || s === 'perdido' || s === 'lixeira'
@@ -81,7 +91,7 @@ function SummaryLegend({ cls, t }: { cls: string; t: string }) {
   return <span className="flex items-center gap-1"><span className={cn('w-2 h-2 rounded-full', cls)} />{t}</span>
 }
 
-export function KanbanBoard({ initialLeads, initialStages, initialClients, currentUser }: { initialLeads: Lead[], initialStages: FunnelStage[], initialClients: ClienteRow[], currentUser: CurrentUser }) {
+export function KanbanBoard({ initialLeads, initialStages, initialClients, currentUser, followUp }: { initialLeads: Lead[], initialStages: FunnelStage[], initialClients: ClienteRow[], currentUser: CurrentUser, followUp: FollowUpData }) {
   const [leads, setLeads] = useState<Lead[]>(initialLeads)
   // Reflete dados frescos do servidor após router.refresh() (revalidação ao focar a aba).
   useEffect(() => { setLeads(initialLeads) }, [initialLeads])
@@ -96,7 +106,8 @@ export function KanbanBoard({ initialLeads, initialStages, initialClients, curre
   const [newLeadOpen, setNewLeadOpen] = useState(false)
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null)
   const [pendingWon, setPendingWon] = useState<Lead | null>(null)   // lead aguardando escolha de plano (fechamento)
-  const [tab, setTab] = useState<Tab>('funil')
+  // Follow-up é a aba inicial: é onde o trabalho do dia acontece (era a Minha Mesa, tela de entrada do app).
+  const [tab, setTab] = useState<Tab>('followup')
   // Filtro de período do FUNIL (em memória; reload volta pra "Tudo"). Métricas tem o seu próprio.
   const [funnelRange, setFunnelRange] = useState<Range>(() => rangeFor('tudo'))
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null)
@@ -149,7 +160,7 @@ export function KanbanBoard({ initialLeads, initialStages, initialClients, curre
     if (!tabHandled.current) {
       tabHandled.current = true
       const tabParam = params.get('tab')
-      const allowedTabs = ['funil', 'radar', 'visao_geral', 'contatos', 'metricas']
+      const allowedTabs = ['funil', 'followup', 'visao_geral', 'contatos', 'metricas']
       if (tabParam && allowedTabs.includes(tabParam)) setTab(tabParam as Tab)
     }
     // lead: precisa da LISTA carregada. M16: depende de `leads` → abre assim que o id existir (uma vez só).
@@ -167,7 +178,7 @@ export function KanbanBoard({ initialLeads, initialStages, initialClients, curre
 
   const TABS: { key: Tab; label: string }[] = [
     { key: 'funil',        label: 'Funil' },
-    { key: 'radar',        label: 'Radar' },
+    { key: 'followup',     label: 'Follow-up' },
     { key: 'visao_geral',  label: 'Visão Geral' },
     { key: 'contatos',     label: 'Contatos' },
     { key: 'metricas',     label: 'Métricas' },
@@ -386,12 +397,19 @@ export function KanbanBoard({ initialLeads, initialStages, initialClients, curre
           </div>
         )}
 
-        {/* Radar rola por conta própria — o pai é overflow-hidden (senão a lista fica cortada). PARTE EXTRA. */}
-        {tab === 'radar'        && (
-          <div className="h-full overflow-y-auto overscroll-contain bg-bento-bg">
-            <RadarTab leads={leads} stages={liveStages} />
-          </div>
-        )}
+        {/* Follow-up rola por conta própria — o pai é overflow-hidden (senão a lista fica cortada).
+            Fica SEMPRE montado (só escondido fora da aba) → ir ao Funil e voltar preserva filtro, busca e
+            lead aberto, em vez de recarregar a aba do zero. */}
+        <div hidden={tab !== 'followup'} className="h-full overflow-y-auto overscroll-contain bg-bento-bg">
+          <MesaClient
+            {...followUp}
+            currentUser={currentUser}
+            onOpenLead={(leadId) => {
+              const lead = leads.find(l => l.id === leadId)
+              if (lead) setSelectedLead(lead)
+            }}
+          />
+        </div>
         {tab === 'visao_geral'  && <VisaoGeralTab />}
         {tab === 'contatos'     && <ContatosTab leads={leads} clients={clients} onOpenLead={setSelectedLead} onClientUpdated={c => setClients(prev => prev.map(x => x.id === c.id ? c : x))} />}
         {tab === 'metricas'     && <MetricasTab />}

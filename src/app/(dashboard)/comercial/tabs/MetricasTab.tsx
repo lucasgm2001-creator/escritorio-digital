@@ -9,7 +9,7 @@ import { rangeFor, type Mode, type Range } from '@/lib/period'
 import { PeriodNavigator } from '@/components/ui/PeriodNavigator'
 import type { CommercialMetricsTabVM } from '@/core/metrics/types'
 import { getCommercialMetricsTabAction } from '../metrics-actions'
-import { getExecutiveReportAction } from '../../mesa/report-actions'
+import { getExecutiveReportAction } from '../followup/report-actions'
 
 // Aba Métricas — SÓ apresenta. Todos os KPIs/rankings/gráficos vêm do CommercialMetricsService (ARCH-001);
 // nenhum acesso a Supabase e nenhum cálculo de regra aqui (só formatação e largura de barra).

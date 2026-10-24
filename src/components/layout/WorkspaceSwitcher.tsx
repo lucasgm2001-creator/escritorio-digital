@@ -46,7 +46,7 @@ export function WorkspaceSwitcher({ userName, userEmail, avatarUrl, teams, varia
     startTransition(async () => {
       const res = await switchTeamAction(team.id)
       if (!res.ok) { setError(res.error); return }
-      close(); router.push('/mesa'); router.refresh()
+      close(); router.push('/comercial'); router.refresh()
     })
   }
 
@@ -57,7 +57,7 @@ export function WorkspaceSwitcher({ userName, userEmail, avatarUrl, teams, varia
     startTransition(async () => {
       const res = await createTeamAction(name)
       if (!res.ok) { setError(res.error); return }
-      close(); router.push('/mesa'); router.refresh()
+      close(); router.push('/comercial'); router.refresh()
     })
   }
 

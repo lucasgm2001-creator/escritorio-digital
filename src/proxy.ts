@@ -83,7 +83,7 @@ export async function proxy(request: NextRequest) {
   }
 
   if (user && path === '/login') {
-    return redirectTo('/mesa')
+    return redirectTo('/comercial')
   }
 
   return secure(response)

@@ -1,7 +1,6 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import {
   CalendarDays, Check, CheckCircle2, ChevronDown, ChevronLeft, ChevronRight, CircleDot, Star,
@@ -14,13 +13,13 @@ import { waNumber } from '@/lib/phone'
 import { createClient } from '@/lib/supabase/client'
 import { useRealtimeRows } from '@/lib/hooks/useRealtimeRows'
 import { useToast } from '@/components/ui/toast'
-import { updateTaskAction } from '../tarefas/task-write-actions'
+import { updateTaskAction } from '../../tarefas/task-write-actions'
 import { toggleLeadFocusAction, closeStaleLeadTasksAction, closeTasksBatchAction } from './focus-actions'
-import { useTasksState } from '../tarefas/useTasksState'
-import { TaskModal, type TaskPrefill } from '../tarefas/TaskModal'
-import type { LinkOption, Task } from '../tarefas/types'
-import { SituationDrawer } from '../comercial/SituationDrawer'
-import { ALL_COLUMNS, type LeadStatus } from '../comercial/types'
+import { useTasksState } from '../../tarefas/useTasksState'
+import { TaskModal, type TaskPrefill } from '../../tarefas/TaskModal'
+import type { LinkOption, Task } from '../../tarefas/types'
+import { SituationDrawer } from '../SituationDrawer'
+import { ALL_COLUMNS, type LeadStatus } from '../types'
 import { NEXT_ACTION_LABEL, TEMPERATURE_LABEL, isNextAction } from '@/lib/commercial/situation'
 import { inferTaskKind } from '@/lib/tasks/task-kind'
 import { ObservationsBox } from '@/components/observations/ObservationsBox'
@@ -125,13 +124,16 @@ function daysSince(value?: string | null): number | null {
 
 
 
-export function MesaClient({ initialTasks, initialLeads, initialFocus, stages, linkOptions, currentUser }: {
+export function MesaClient({ initialTasks, initialLeads, initialFocus, stages, linkOptions, currentUser, onOpenLead }: {
   initialTasks: Task[]
   initialLeads: MesaLead[]
   initialFocus: string[]
   stages: FunnelStage[]
   linkOptions: LinkOption[]
   currentUser: { id: string; name: string }
+  // Abre o diário completo do lead. A aba vive dentro do Comercial, que é dono do LeadDiary — antes era um
+  // link para /comercial?lead=, que agora seria a própria página e não reabriria nada.
+  onOpenLead: (leadId: string) => void
 }) {
   const router = useRouter()
   const { toast } = useToast()
@@ -705,7 +707,8 @@ export function MesaClient({ initialTasks, initialLeads, initialFocus, stages, l
                   <LeadContext lead={selectedLead} task={selectedTask} interactions={interactions} loading={interactionsLoading}
                     noRadar={focus.has(selectedLead.id)} onToggleFocus={() => toggleFocus(selectedLead.id)}
                     onNewTask={() => openNew(selectedLead)} onEditTask={selectedTask ? () => openEdit(selectedTask) : undefined}
-                    onSituation={() => setSituation({ lead: selectedLead, taskId: null })} />
+                    onSituation={() => setSituation({ lead: selectedLead, taskId: null })}
+                    onOpenLead={() => onOpenLead(selectedLead.id)} />
                 ) : selectedTask ? (
                   <GenericTaskContext task={selectedTask} onEdit={() => openEdit(selectedTask)} />
                 ) : (
@@ -932,10 +935,10 @@ function LeadRow({ lead, active, mostrarEmpresa, noRadar, onToggleFocus, onSelec
   )
 }
 
-function LeadContext({ lead, task, interactions, loading, noRadar, onToggleFocus, onNewTask, onEditTask, onSituation }: {
+function LeadContext({ lead, task, interactions, loading, noRadar, onToggleFocus, onNewTask, onEditTask, onSituation, onOpenLead }: {
   lead: MesaLead; task: Task | null; interactions: Interaction[]; loading: boolean
   noRadar: boolean; onToggleFocus: () => void
-  onNewTask: () => void; onEditTask?: () => void; onSituation: () => void
+  onNewTask: () => void; onEditTask?: () => void; onSituation: () => void; onOpenLead: () => void
 }) {
   const stopped = daysSince(lead.last_contact_at ?? lead.stage_changed_at ?? lead.created_at)
   const phone = lead.phone?.trim() ?? ''
@@ -958,9 +961,9 @@ function LeadContext({ lead, task, interactions, loading, noRadar, onToggleFocus
             className={cn('p-2 rounded-btn transition-colors', noRadar ? 'text-lime-fg hover:bg-lime/10' : 'text-bento-muted hover:text-lime-fg hover:bg-bento-bg')}>
             <Star className={cn('w-4 h-4', noRadar && 'fill-current')} />
           </button>
-          <Link href={`/comercial?lead=${encodeURIComponent(lead.id)}`} aria-label="Abrir lead completo" className="p-2 rounded-btn text-bento-muted hover:text-lime-fg hover:bg-bento-bg">
+          <button type="button" onClick={onOpenLead} aria-label="Abrir lead completo" title="Abrir lead completo" className="p-2 rounded-btn text-bento-muted hover:text-lime-fg hover:bg-bento-bg">
             <ExternalLink className="w-4 h-4" />
-          </Link>
+          </button>
         </div>
         <div className="flex flex-wrap gap-1.5 mt-3">
           <Badge>{STATUS_LABEL.get(lead.status) ?? lead.status}</Badge>

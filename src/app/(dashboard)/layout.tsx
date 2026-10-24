@@ -9,7 +9,6 @@ import { RoleProvider } from '@/components/auth/RoleProvider'
 import { ModuleAccessProvider } from '@/components/auth/ModuleAccessProvider'
 
 const PAGE_TITLES: Record<string, string> = {
-  '/mesa':           'Minha Mesa',
   '/hall':           'Hall',
   '/comercial':      'Comercial',
   '/studio':         'Studio de Apresentação',

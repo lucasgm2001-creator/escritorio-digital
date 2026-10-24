@@ -5,7 +5,7 @@ import { Portal } from '@/components/ui/Portal'
 import { useDialog } from '@/components/ui/useDialog'
 import { ChevronDown, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import type { Task } from '../tarefas/types'
+import type { Task } from '../../tarefas/types'
 
 // MUTIRÃO DE ATRASADOS (MESA-LIMPEZA-001). Eram 112 tarefas atrasadas: trabalhar uma a uma é o que
 // levou ao acúmulo, e encerrar tudo em bloco jogaria fora o que ainda vale.
