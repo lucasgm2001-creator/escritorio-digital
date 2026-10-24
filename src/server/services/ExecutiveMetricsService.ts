@@ -79,7 +79,7 @@ export async function getExecutiveMetrics(context: RequestContext, period: Execu
 
   const [raw, revenue, carteira, investmentUsd, meetings] = await Promise.all([
     getCommercialRaw(teamId),           // leads + deals (valor fechado / conversão)
-    getClientRevenueForMetrics(),       // client_payments (receita recebida / por vendedor / por plano)
+    getClientRevenueForMetrics(teamId),       // client_payments (receita recebida / por vendedor / por plano)
     getExecutiveClients(teamId),        // clients + plans (MRR/ARR / ativos / novos / previsão / dimensões)
     getMarketingInvestment(teamId, from, to),  // Σ marketing_investments no período (Aquisição)
     getMeetingsForMetrics(teamId),              // reuniões REALIZADAS (stage_events) — custo por reunião

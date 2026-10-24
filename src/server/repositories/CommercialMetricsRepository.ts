@@ -45,11 +45,13 @@ export async function getCommercialRaw(teamId: string, opts?: { withPipeline?: b
 export type MPayment = { client_id: string; valor_usd: number; paid_on: string; anulado?: boolean; numero_semana?: number; plano_id?: string | null }
 export type MClientSeller = { id: string; assigned_name: string | null }
 
-export async function getClientRevenueForMetrics(): Promise<{ payments: MPayment[]; clients: MClientSeller[] }> {
+// Team-scoped: a RLS devolve os pagamentos de TODAS as equipes do usuário — quem está em duas via a receita
+// (Hall, Resultados, PDF, Financeiro) somada com a da outra empresa.
+export async function getClientRevenueForMetrics(teamId: string): Promise<{ payments: MPayment[]; clients: MClientSeller[] }> {
   const supabase = createClient()
   const [pRes, cRes] = await Promise.all([
-    supabase.from('client_payments').select('client_id, valor_usd, paid_on, anulado, numero_semana, plano_id'),
-    supabase.from('clients').select('id, assigned_name'),
+    supabase.from('client_payments').select('client_id, valor_usd, paid_on, anulado, numero_semana, plano_id').eq('team_id', teamId),
+    supabase.from('clients').select('id, assigned_name').eq('team_id', teamId),
   ])
   return {
     payments: (pRes.data ?? []) as MPayment[],
@@ -70,7 +72,7 @@ export async function getExecutiveClients(teamId: string): Promise<{ clients: ME
   const supabase = createClient()
   const [cRes, pRes] = await Promise.all([
     supabase.from('clients').select('id, name, assigned_name, status, plan_weekly, plano_id, periodicidade, forma_pagamento, start_date, dia_pagamento_semana').eq('team_id', teamId),
-    supabase.from('plans').select('id, nome'),
+    supabase.from('plans').select('id, nome').eq('team_id', teamId),   // nomes de plano da equipe ativa
   ])
   return {
     clients: (cRes.data ?? []) as MExecClient[],

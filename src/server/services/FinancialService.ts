@@ -69,7 +69,7 @@ export async function getFinancialView(context: RequestContext): Promise<Financi
   const supabase = createClient()
   const [raw, revenue, carteira, ancoras, vencidas] = await Promise.all([
     getCommercialRaw(teamId),
-    getClientRevenueForMetrics(),          // client_payments (+ numero_semana, plano_id)
+    getClientRevenueForMetrics(teamId),          // client_payments (+ numero_semana, plano_id)
     getExecutiveClients(teamId),           // clients (+ forma_pagamento, name)
     // Âncora de cobrança (P1-ANCORA-001) e valor CONGELADO das semanas vencidas (P1-PENDENTE-001). Duas
     // leituras enxutas aqui em vez de engordar getExecutiveClients/getClientRevenueForMetrics, que são a

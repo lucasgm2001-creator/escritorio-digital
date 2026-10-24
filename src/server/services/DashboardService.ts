@@ -60,7 +60,7 @@ export async function getDashboardData(context: RequestContext): Promise<Dashboa
 
   const [raw, revenue, carteira, integrationsOffRes, invitesRes, report] = await Promise.all([
     getCommercialRaw(teamId),
-    getClientRevenueForMetrics(),
+    getClientRevenueForMetrics(teamId),
     getExecutiveClients(teamId),
     supabase.from('client_integrations').select('id', { count: 'exact', head: true }).eq('team_id', teamId).eq('ativo', false),
     canManage
