@@ -23,6 +23,7 @@ function TabLoading() { return <div className="h-full flex items-center justify-
 // 'funil') → saem do bundle inicial da rota SEM mudar a UI. Modais abrem via Portal (sem fallback, igual LeadDiary).
 const LeadDiary     = dynamic(() => import('./LeadDiary').then(m => ({ default: m.LeadDiary })),             { ssr: false })
 const LeadModal     = dynamic(() => import('./LeadModal').then(m => ({ default: m.LeadModal })),             { ssr: false })
+const SituationDrawer = dynamic(() => import('./SituationDrawer').then(m => ({ default: m.SituationDrawer })), { ssr: false })
 const WonPlanModal  = dynamic(() => import('./WonPlanModal').then(m => ({ default: m.WonPlanModal })),       { ssr: false })
 const ResultadosTab = dynamic(() => import('./tabs/ResultadosTab').then(m => ({ default: m.ResultadosTab })), { ssr: false, loading: TabLoading })
 const ContatosTab   = dynamic(() => import('./tabs/ContatosTab').then(m => ({ default: m.ContatosTab })),     { ssr: false, loading: TabLoading })
@@ -31,6 +32,8 @@ import { SEMANAL, type BillingCadence } from '@/lib/commission/billing'
 import { useRealtimeRows } from '@/lib/hooks/useRealtimeRows'
 import { usdCompact as fmtUSDc } from '@/lib/format'
 import type { Client as ClienteRow } from '../clientes/types'
+import type { ContactAction } from './SituationDrawer'
+import type { LastAction } from '@/lib/commercial/situation'
 import type { Task, LinkOption } from '../tarefas/types'
 import type { Lead, LeadStatus } from './types'
 import { columnsFromStages, wonSlug, type FunnelStage } from '@/lib/funnelStages'
@@ -108,6 +111,9 @@ export function KanbanBoard({ initialLeads, initialStages, initialClients, curre
   const [newLeadOpen, setNewLeadOpen] = useState(false)
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null)
   const [pendingWon, setPendingWon] = useState<Lead | null>(null)   // lead aguardando escolha de plano (fechamento)
+  // Depois de um toque rápido (Atendeu/Mensagem/Não atendeu) abre o MESMO "Registrar contato" do Follow-up,
+  // já preenchido, para definir o próximo passo. Fechar/pular não desfaz o contato já registrado.
+  const [situationFor, setSituationFor] = useState<{ lead: Lead; initial: { contactAction: ContactAction; lastAction?: LastAction } } | null>(null)
   // Follow-up é a aba inicial: é onde o trabalho do dia acontece (era a Minha Mesa, tela de entrada do app).
   const [tab, setTab] = useState<Tab>('followup')
   // Filtro de período do FUNIL (em memória; reload volta pra "Tudo"). Métricas tem o seu próprio.
@@ -263,7 +269,13 @@ export function KanbanBoard({ initialLeads, initialStages, initialClients, curre
     const nowIso = new Date().toISOString()
     setLeads(prev => prev.map(l => l.id === lead.id ? { ...l, score: res.newScore, last_contact_at: nowIso } : l))
     showToast(`Contato registrado: ${type === 'atendeu' ? 'Atendeu' : type === 'mensagem' ? 'Mensagem' : 'Não atendeu'}.`)
-
+    // O toque continua gravando como sempre (score + marco "interagiu"); o formulário só acrescenta o
+    // próximo passo. Mensagem não tem resultado conhecido ainda → abre só com WhatsApp marcado.
+    const initial: { contactAction: ContactAction; lastAction?: LastAction } =
+      type === 'atendeu' ? { contactAction: 'ligacao', lastAction: 'ligacao_conversou' }
+      : type === 'nao_atendeu' ? { contactAction: 'ligacao', lastAction: 'ligacao_nao_atendeu' }
+      : { contactAction: 'whatsapp' }
+    setSituationFor({ lead: { ...lead, score: res.newScore, last_contact_at: nowIso }, initial })
   }, [])
 
   const handleDragEnd = useCallback(async (e: DragEndEvent) => {
@@ -450,6 +462,28 @@ export function KanbanBoard({ initialLeads, initialStages, initialClients, curre
           onDeleted={(id) => { setLeads(prev => prev.filter(l => l.id !== id)); setSelectedLead(null) }}
           currentUser={currentUser}
           stages={initialStages}
+        />
+      )}
+
+      {situationFor && (
+        <SituationDrawer
+          lead={{ id: situationFor.lead.id, name: situationFor.lead.name, status: situationFor.lead.status }}
+          initial={situationFor.initial}
+          onClose={() => setSituationFor(null)}
+          onSkip={() => setSituationFor(null)}
+          onSaved={({ nextTask, patch }) => {
+            const id = situationFor.lead.id
+            setLeads(prev => prev.map(l => l.id === id ? { ...l, ...(patch as Partial<Lead>) } : l))
+            if (nextTask) {
+              // Mesmo comportamento do Follow-up: a tarefa nova tenta entrar no Google Agenda.
+              fetch('/api/tasks/calendar-sync', {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ taskId: (nextTask as { id?: string }).id }), keepalive: true,
+              }).catch(() => showToast('A ação foi salva, mas o Google Agenda não sincronizou.', 'error'))
+            }
+            showToast(nextTask ? 'Próxima ação organizada.' : 'Situação registrada.')
+            setSituationFor(null)
+          }}
         />
       )}
 
