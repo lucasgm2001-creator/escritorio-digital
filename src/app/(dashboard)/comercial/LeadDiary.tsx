@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef, useMemo, memo } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import { useActiveTeamId } from '@/components/auth/RoleProvider'
 import { useToast } from '@/components/ui/toast'
 import { updateLeadAction, deleteLeadAction, addLeadInteractionAction } from './lead-write-actions'
 import { getScoreInfo } from '@/lib/utils/score'
@@ -148,6 +149,7 @@ export function LeadDiary({ lead, onClose, onUpdated, onMoveStage, onDeleted, cu
   const [draft, setDraft] = useState(emptyDraft)
 
   const supabase = createClient()   // leituras (interações, vendedores). ESCRITAS de lead vão por server action.
+  const teamId = useActiveTeamId()
   const { toast } = useToast()
   const scoreInfo = getScoreInfo(currentLead.score)
   // Opções de fase = fases ATIVAS de funnel_stages (data-driven, igual ao board) → fase NOVA aparece aqui sem
@@ -363,10 +365,12 @@ export function LeadDiary({ lead, onClose, onUpdated, onMoveStage, onDeleted, cu
       .eq('lead_id', lead.id)
       .order('created_at', { ascending: false })
       .then(({ data }) => setInteractions(data ?? []))
-    supabase.from('sellers').select('id, name').eq('status', 'ativo').order('name')
-      .then(({ data }) => setSellers(data ?? []))
+    // Vendedores da EQUIPE ATIVA — a RLS devolve os de todas as equipes do usuário (o mesmo nome aparecia 2×).
+    let sellersQuery = supabase.from('sellers').select('id, name').eq('status', 'ativo')
+    if (teamId) sellersQuery = sellersQuery.eq('team_id', teamId)
+    sellersQuery.order('name').then(({ data }) => setSellers(data ?? []))
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [lead.id])
+  }, [lead.id, teamId])
 
   // delta é derivado no servidor (mesmos pesos: atendeu 80 · mensagem 20 · nao_atendeu -30 · nota 0).
   const handleInteraction = async (type: string) => {

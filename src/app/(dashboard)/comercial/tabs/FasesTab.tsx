@@ -11,6 +11,7 @@ import { SortableContext, useSortable, arrayMove, verticalListSortingStrategy } 
 import { CSS } from '@dnd-kit/utilities'
 import { ChevronUp, ChevronDown, ChevronRight, GripVertical, Plus, Lock, Trash2, X, Pencil, Check } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
+import { useActiveTeamId } from '@/components/auth/RoleProvider'
 import { updateStagesAction, renameStageGroupAction, createStageAction, deleteStageAction } from '../funnel-stage-actions'
 import { useToast } from '@/components/ui/toast'
 import { isStageProtected, stageRole, type FunnelStage, type StageRole } from '@/lib/funnelStages'
@@ -78,6 +79,9 @@ type StagePatch = Partial<Pick<FunnelStage, 'nome' | 'cor' | 'dias_esfriamento' 
 // tem ✓/Enter, excluir tem modal. (Reordenar/mover-de-grupo = o próprio gesto é a confirmação.)
 export function FasesTab() {
   const supabase = createClient()   // leitura das fases + contagem de leads. ESCRITAS vão por server action.
+  // Equipe ATIVA em toda leitura: a RLS devolve fases/leads de todas as equipes do usuário — o editor listava
+  // fases repetidas e a contagem "leads nesta fase" (que decide se a exclusão exige destino) somava as duas.
+  const teamId = useActiveTeamId()
   const { toast } = useToast()
   const router = useRouter()
   const [stages, setStages] = useState<FunnelStage[]>([])
@@ -93,10 +97,12 @@ export function FasesTab() {
   const delDialog = useDialog<HTMLDivElement>(() => setDelState(null), !!delState)
 
   const load = useCallback(async () => {
-    const { data } = await supabase.from('funnel_stages').select('*').order('posicao')
+    let q = supabase.from('funnel_stages').select('*')
+    if (teamId) q = q.eq('team_id', teamId)
+    const { data } = await q.order('posicao')
     setStages((data ?? []) as FunnelStage[])
     setLoading(false)
-  }, [supabase])
+  }, [supabase, teamId])
   useEffect(() => { load() }, [load])
 
   // Grupos exibidos = derivados das fases + grupos vazios criados agora (que ainda não têm fase).
@@ -275,7 +281,9 @@ export function FasesTab() {
 
   // Abre o modal de exclusão JÁ com a contagem de leads da fase (decide se exige destino).
   const askDelete = async (stage: FunnelStage) => {
-    const { count } = await supabase.from('leads').select('id', { count: 'exact', head: true }).eq('status', stage.slug)
+    let q = supabase.from('leads').select('id', { count: 'exact', head: true }).eq('status', stage.slug)
+    if (teamId) q = q.eq('team_id', teamId)
+    const { count } = await q
     setDelState({ stage, dest: '', count: count ?? 0 })
   }
 

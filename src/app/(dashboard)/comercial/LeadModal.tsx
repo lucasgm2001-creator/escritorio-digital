@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import { useActiveTeamId } from '@/components/auth/RoleProvider'
 import { FUSO_OPTIONS, type Lead } from './types'
 import { US_STATES, sanitizeAreaCode } from '@/lib/usStates'
 import { resolvePhoneGeo, type PhoneGeo } from '@/lib/geo/phone-geo'
@@ -104,13 +105,17 @@ export function LeadModal({ onClose, onCreated, currentUser, stages, clients }: 
   })()
 
   const supabase = createClient()   // leitura de vendedores (sellers). As ESCRITAS de lead vão por server action.
+  const teamId = useActiveTeamId()
 
   useEffect(() => {
-    supabase.from('sellers').select('id, name').eq('status', 'ativo').order('name').then(({ data }) => {
+    // Vendedores da EQUIPE ATIVA — a RLS devolve os de todas as equipes do usuário (o mesmo nome aparecia 2×).
+    let sellersQuery = supabase.from('sellers').select('id, name').eq('status', 'ativo')
+    if (teamId) sellersQuery = sellersQuery.eq('team_id', teamId)
+    sellersQuery.order('name').then(({ data }) => {
       setSellers(data ?? [])
     })
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [teamId])
 
   const set = (k: string, v: string) => setForm(prev => ({ ...prev, [k]: v }))
   // Telefone → SUGESTÃO de geografia (LEAD-GEO-001): REUSA resolvePhoneGeo (a MESMA inteligência do Cliente, EUA+

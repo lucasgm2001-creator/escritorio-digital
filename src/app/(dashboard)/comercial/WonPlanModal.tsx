@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { Trophy, Check } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
+import { useActiveTeamId } from '@/components/auth/RoleProvider'
 import { cn } from '@/lib/utils'
 import { usd } from '@/lib/format'
 import { Portal } from '@/components/ui/Portal'
@@ -25,6 +26,7 @@ export function WonPlanModal({ leadName, onConfirm, onCancel }: {
   onConfirm: (planoId: string | null, customWeeklyUsd: number | null, veioPorIndicacao: boolean, cadence: BillingCadence) => void
   onCancel: () => void
 }) {
+  const teamId = useActiveTeamId()
   const supabase = createClient()
   const [plans, setPlans] = useState<PlanRow[]>([])
   const [selected, setSelected] = useState<string | null>(null)
@@ -42,10 +44,12 @@ export function WonPlanModal({ leadName, onConfirm, onCancel }: {
     let alive = true
     ;(async () => {
       // Planos ativos + plano ATUAL do cliente (se já existe, por nome) p/ pré-selecionar.
-      const [{ data: pl }, { data: cli }] = await Promise.all([
-        supabase.from('plans').select('id, nome, valor_semanal, comissao_percentual').eq('ativo', true).order('ordem'),
-        supabase.from('clients').select('plano_id').ilike('name', leadName).limit(1),
-      ])
+      // Só a EQUIPE ATIVA: a RLS devolve planos de todas as equipes do usuário, e o servidor ignora (em silêncio)
+      // plano de outra equipe — a venda fecharia no plano padrão, com valor diferente do escolhido aqui.
+      let planQuery = supabase.from('plans').select('id, nome, valor_semanal, comissao_percentual').eq('ativo', true)
+      let clientQuery = supabase.from('clients').select('plano_id').ilike('name', leadName)
+      if (teamId) { planQuery = planQuery.eq('team_id', teamId); clientQuery = clientQuery.eq('team_id', teamId) }
+      const [{ data: pl }, { data: cli }] = await Promise.all([planQuery.order('ordem'), clientQuery.limit(1)])
       if (!alive) return
       const list = (pl ?? []) as PlanRow[]
       setPlans(list)
@@ -57,7 +61,7 @@ export function WonPlanModal({ leadName, onConfirm, onCancel }: {
       setLoading(false)
     })()
     return () => { alive = false }
-  }, [supabase, leadName])
+  }, [supabase, leadName, teamId])
 
   // Bloco 4 (a11y/UX): ESC fecha, foco preso + retornado ao abridor, scroll-lock — via useDialog
   // (substitui o listener de ESC manual). SÓ semântica/foco; nada da lógica de fechamento mudou.
