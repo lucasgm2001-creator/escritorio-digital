@@ -33,18 +33,19 @@ export function RevenueChart({ months }: { months: RevenueMonth[] }) {
     <div className="space-y-2">
       <div className="relative flex gap-2">
         {/* Eixo Y — 3 ticks compactos, texto muted. */}
-        <div className="flex h-44 flex-col justify-between pb-5 text-right font-tech text-[10px] tabular-nums text-bento-muted" aria-hidden>
+        {/* pt-6 = faixa no topo reservada ao balão e ao valor do mês corrente (nada sai do quadro); pb-5 = rótulos. */}
+        <div className="flex h-52 flex-col justify-between pt-6 pb-5 text-right font-tech text-[10px] tabular-nums text-bento-muted" aria-hidden>
           {ticks.map(t => <span key={t} className="leading-none">{compact(t)}</span>)}
         </div>
 
-        <div className="relative h-44 flex-1 min-w-0">
+        <div className="relative h-52 flex-1 min-w-0">
           {/* Grade hairline (1px, sólida, um passo fora da superfície). */}
-          <div className="pointer-events-none absolute inset-x-0 top-0 bottom-5 flex flex-col justify-between" aria-hidden>
+          <div className="pointer-events-none absolute inset-x-0 top-6 bottom-5 flex flex-col justify-between" aria-hidden>
             {ticks.map(t => <span key={t} className="h-px w-full bg-bento-border/70" />)}
           </div>
 
           <div className="absolute inset-x-0 top-0 bottom-0 flex">
-            {months.map(m => {
+            {months.map((m, i) => {
               const h = top > 0 ? (m.value / top) * 100 : 0
               const isActive = active === m.key
               return (
@@ -55,7 +56,7 @@ export function RevenueChart({ months }: { months: RevenueMonth[] }) {
                   aria-label={`${m.label} ${yearOf(m.key)}: ${usd(m.value)}${m.partial ? ' (parcial)' : ''}`}
                   className="group relative flex flex-1 min-w-0 flex-col items-center outline-none">
                   {/* Área da barra: o pb-5 reserva a faixa do rótulo do mês; % de altura vale sobre o resto. */}
-                  <div className="relative flex w-full flex-1 items-end justify-center pb-5">
+                  <div className="relative flex w-full flex-1 items-end justify-center pt-6 pb-5">
                     <div className="relative w-full max-w-[24px]" style={{ height: `${h}%`, minHeight: m.value > 0 ? 2 : 0 }}>
                       {/* Valor só no mês corrente (rótulo seletivo), preso ao topo da barra. */}
                       {m.partial && m.value > 0 && (
@@ -73,7 +74,10 @@ export function RevenueChart({ months }: { months: RevenueMonth[] }) {
 
                   {isActive && (
                     <div role="tooltip"
-                      className="pointer-events-none absolute bottom-full z-10 mb-1 whitespace-nowrap rounded-btn border border-bento-border bg-bento-panel px-2.5 py-1.5 shadow-card-hover">
+                      // Abre DENTRO do gráfico (topo reservado) e alinhado para nunca passar da borda do painel:
+                      // primeiros meses pela esquerda, últimos pela direita, os do meio centralizados.
+                      className={cn('pointer-events-none absolute top-0 z-10 whitespace-nowrap rounded-btn border border-bento-border bg-bento-panel px-2.5 py-1.5 shadow-card-hover',
+                        i < 3 ? 'left-0' : i >= months.length - 3 ? 'right-0' : 'left-1/2 -translate-x-1/2')}>
                       <p className="font-tech text-[10px] text-bento-muted">{m.label} {yearOf(m.key)}{m.partial ? ' · parcial' : ''}</p>
                       <p className="text-note font-semibold tabular-nums text-bento-text">{usd(m.value)}</p>
                     </div>
