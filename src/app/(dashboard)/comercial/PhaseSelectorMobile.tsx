@@ -1,6 +1,7 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useMemo } from 'react'
+import { useOpenPhases } from './useOpenPhases'
 import { ChevronDown } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { usdCompact } from '@/lib/format'
@@ -37,9 +38,8 @@ export function PhaseSelectorMobile({ columns, leads, onOpenDiary }: {
   leads: Lead[]
   onOpenDiary: (l: Lead) => void
 }) {
-  const [open, setOpen] = useState<Set<string>>(new Set())   // todas FECHADAS por padrão
-  const toggle = (k: string) =>
-    setOpen(prev => { const n = new Set(prev); if (n.has(k)) n.delete(k); else n.add(k); return n })
+  // Fechadas na 1ª vez; depois lembra as que ficaram abertas (chave própria do celular).
+  const { open, toggle } = useOpenPhases('ed:funil-abertas:mobile')
 
   // Faixas = valores DISTINTOS de `grupo` (ordem da menor posicao, pois columns já vem por posicao);
   // grupo null → "Sem grupo". Nada hardcoded → grupo novo ganha faixa automaticamente.

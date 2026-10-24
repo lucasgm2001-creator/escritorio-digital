@@ -12,6 +12,8 @@ import { cn } from '@/lib/utils'
 import { DraggableTabs } from '@/components/DraggableTabs'
 import { KanbanColumn } from './KanbanColumn'
 import { PhaseSelectorMobile } from './PhaseSelectorMobile'
+import { useOpenPhases } from './useOpenPhases'
+import { closedStageSlugs } from '@/lib/commercial/closed-stages'
 import { LeadCard } from './LeadCard'
 import { MesaClient, type MesaLead, type FunnelStage as MesaStage } from './followup/MesaClient'
 import dynamic from 'next/dynamic'
@@ -51,13 +53,13 @@ interface FollowUpData {
 }
 
 // ── Barra de resumo do funil (rodapé) ──────────────────────────────────────────
-const isTerminal = (s: LeadStatus) => s === 'fechado' || s === 'perdido' || s === 'lixeira'
 
 // `leads` = lista do período selecionado (Pipeline/Ativos/Fechados/Perdidos respeitam o chip de período).
 // `allLeads` = base CHEIA (todos os leads, ignora o período) — usada SÓ na Conversão GERAL p/ ela bater
 // SEMPRE com o Mapa (Hall), que também usa a base cheia. Mesma definição/util nos dois (fechados ÷ não-Lixeira).
-function FunnelSummary({ leads, allLeads }: { leads: Lead[]; allLeads: Lead[] }) {
-  const ativos = leads.filter(l => !isTerminal(l.status))
+// `closed` = fases encerradas (Fechamento/Arquivo) — mesma régua do Follow-up (lib/commercial/closed-stages).
+function FunnelSummary({ leads, allLeads, closed }: { leads: Lead[]; allLeads: Lead[]; closed: Set<string> }) {
+  const ativos = leads.filter(l => !closed.has(l.status))
   const fechados = leads.filter(l => l.status === 'fechado').length
   const perdidos = leads.filter(l => l.status === 'perdido').length
   const pipeline = ativos.reduce((s, l) => s + (l.value || 0), 0)
@@ -129,6 +131,10 @@ export function KanbanBoard({ initialLeads, initialStages, initialClients, curre
   const [liveStages, setLiveStages] = useState<FunnelStage[]>(initialStages)
   useEffect(() => { setLiveStages(initialStages) }, [initialStages])
   const cols = useMemo(() => columnsFromStages(liveStages), [liveStages])
+  const closedSlugs = useMemo(() => closedStageSlugs(liveStages), [liveStages])
+  // Fases abertas no desktop, lembradas entre visitas. Fica no board (não em cada coluna) para que uma
+  // coluna não sobrescreva a escolha da outra no armazenamento.
+  const { open: openPhases, toggle: togglePhase } = useOpenPhases('ed:funil-abertas:desktop')
   // Funil montado DINAMICAMENTE: faixas = valores DISTINTOS de `grupo` (ordem da menor posicao, pois
   // cols já vem ordenado por posicao); grupo null → "Sem grupo". Nada hardcoded → grupo novo ganha faixa.
   const funnelGroups = useMemo(() => {
@@ -369,6 +375,8 @@ export function KanbanBoard({ initialLeads, initialStages, initialClients, curre
                             key={col.key}
                             column={col}
                             leads={sortByStageEntry(filteredLeads.filter(l => l.status === col.key))}
+                            collapsed={!openPhases.has(col.key)}
+                            onToggle={() => togglePhase(col.key)}
                             moveTargets={moveTargets}
                             onMove={moveLeadToStatus}
                             onOpenDiary={setSelectedLead}
@@ -381,7 +389,7 @@ export function KanbanBoard({ initialLeads, initialStages, initialClients, curre
                   ))}
                 </div>
               </div>
-              <FunnelSummary leads={filteredLeads} allLeads={leads} />
+              <FunnelSummary leads={filteredLeads} allLeads={leads} closed={closedSlugs} />
             </div>
             <DragOverlay>
               {activeLead ? <LeadCard lead={activeLead} isDragging /> : null}

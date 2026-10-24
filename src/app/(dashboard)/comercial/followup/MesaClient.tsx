@@ -22,6 +22,7 @@ import { SituationDrawer } from '../SituationDrawer'
 import { ALL_COLUMNS, type LeadStatus } from '../types'
 import { NEXT_ACTION_LABEL, TEMPERATURE_LABEL, isNextAction } from '@/lib/commercial/situation'
 import { inferTaskKind } from '@/lib/tasks/task-kind'
+import { GRUPOS_ENCERRADOS, closedStageSlugs } from '@/lib/commercial/closed-stages'
 import { ObservationsBox } from '@/components/observations/ObservationsBox'
 import { RelatorioPanel } from './RelatorioPanel'
 import { LimparAtrasados } from './LimparAtrasados'
@@ -63,10 +64,8 @@ export type FunnelStage = { slug: string; nome: string; posicao: number; cor: st
 // "é atrasado", ele está numa fase do funil — e é por fase que o trabalho acontece.
 type Filter = 'hoje' | 'acompanhando' | 'reunioes' | 'concluidas'
 
-// Fases que saem do fluxo de trabalho e vão para "Concluídas". Usa o GRUPO da própria tabela de fases
-// (configuração do usuário), não uma lista fixa aqui: criar uma fase nova em Fechamento/Arquivo já entra
-// no lugar certo sem tocar neste arquivo.
-const GRUPOS_ENCERRADOS = new Set(['Fechamento', 'Arquivo'])
+// Fases que saem do fluxo de trabalho e vão para "Concluídas": as dos grupos Fechamento/Arquivo
+// (GRUPOS_ENCERRADOS, fonte única em lib/commercial/closed-stages — a mesma régua do rodapé do Funil).
 
 // Fases que não entram em Tarefas. "Sem dados" (incompleto) é onde o webhook do Magnetic deixa o lead que
 // chegou sem telefone: não há o que trabalhar ali — falta o dado para ligar. Ele continua no funil do
@@ -74,7 +73,6 @@ const GRUPOS_ENCERRADOS = new Set(['Fechamento', 'Arquivo'])
 const FASES_FORA_DAS_TAREFAS = new Set(['lixeira', 'incompleto'])
 type Interaction = { id: string; type: string; note: string | null; created_by_name: string | null; created_at: string }
 
-const TERMINAL = new Set<LeadStatus>(['fechado', 'perdido', 'negocio_futuro', 'lixeira'])
 const HOT = new Set(['muito_quente', 'quente', 'muito_interessado', 'interessado'])
 const COLD = new Set(['esfriando', 'frio', 'pouco_interessado'])
 const STATUS_LABEL = new Map(ALL_COLUMNS.map(column => [column.key, column.label]))
@@ -231,13 +229,14 @@ export function MesaClient({ initialTasks, initialLeads, stages, linkOptions, cu
   const ocultasPorTarefa = hoje.ocultasPor
 
   // Leads que chegaram no dia em foco e ainda não têm tarefa — trabalho do dia tanto quanto uma tarefa.
+  const closedSlugs = useMemo(() => closedStageSlugs(stages), [stages])
   const newLeadsToday = useMemo(() => {
     const jaNasTarefas = new Set(todayTasks.filter(t => t.linked_type === 'lead').map(t => t.linked_id))
     // received_at é a data de entrada (o webhook do Magnetic preenche), com created_at de reserva.
-    return leads.filter(lead => !TERMINAL.has(lead.status) &&
+    return leads.filter(lead => !closedSlugs.has(lead.status) &&
       (lead.received_at ?? lead.created_at ?? '').slice(0, 10) === diaRef &&
       !jaNasTarefas.has(lead.id))
-  }, [leads, diaRef, todayTasks])
+  }, [leads, diaRef, todayTasks, closedSlugs])
 
   // REUNIÕES: sem dedupe nenhuma. Compromisso marcado não é resíduo — se existem duas, as duas aparecem.
   const meetingTasks = useMemo(() => pending.filter(task => inferTaskKind(task.title, task.kind) === 'reuniao'), [pending])

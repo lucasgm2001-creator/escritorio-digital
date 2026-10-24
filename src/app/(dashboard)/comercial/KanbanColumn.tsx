@@ -1,6 +1,5 @@
 'use client'
 
-import { useState } from 'react'
 import { useDroppable } from '@dnd-kit/core'
 import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { ChevronRight, X } from 'lucide-react'
@@ -35,9 +34,11 @@ const NAME_COLOR: Record<ColumnTone, string> = {
   loss:    'text-[#EF4444]',
 }
 
-export function KanbanColumn({ column, leads, moveTargets, onMove, onOpenDiary, onLog, userId }: {
+export function KanbanColumn({ column, leads, collapsed, onToggle, moveTargets, onMove, onOpenDiary, onLog, userId }: {
   column: ColumnConfig
   leads: Lead[]
+  collapsed: boolean          // aberta/fechada vem do board (lembrada entre visitas — useOpenPhases)
+  onToggle: () => void
   moveTargets: { key: LeadStatus; label: string }[]
   onMove: (lead: Lead, status: LeadStatus) => void
   onOpenDiary: (lead: Lead) => void
@@ -45,7 +46,6 @@ export function KanbanColumn({ column, leads, moveTargets, onMove, onOpenDiary, 
   userId: string
 }) {
   const { isOver, setNodeRef } = useDroppable({ id: column.key })
-  const [collapsed, setCollapsed] = useState(true)
   const terminal = column.tone !== 'neutral' || column.key === 'lixeira'
   const accent = ACCENT[column.tone]
 
@@ -68,7 +68,7 @@ export function KanbanColumn({ column, leads, moveTargets, onMove, onOpenDiary, 
       )}
     >
       {collapsed ? (
-        <button onClick={() => setCollapsed(false)} className="w-full text-left p-3">
+        <button onClick={onToggle} className="w-full text-left p-3">
           <div className="flex items-center gap-2">
             <span className="w-[7px] h-[7px] rounded-full flex-none bg-bento-muted" style={dotStyle} />
             <span className={cn('text-xs font-semibold flex-1 truncate', NAME_COLOR[column.tone])}>{column.label}</span>
@@ -90,7 +90,7 @@ export function KanbanColumn({ column, leads, moveTargets, onMove, onOpenDiary, 
       ) : (
         <>
           {/* Header inteiro é o toggle (fecha a fase). O corpo abaixo fica independente. */}
-          <button type="button" onClick={() => setCollapsed(c => !c)} aria-label="Fechar fase"
+          <button type="button" onClick={onToggle} aria-label="Fechar fase"
             className="w-full flex items-center gap-2 px-3 py-2.5 border-b border-bento-border/60 text-left hover:bg-bento-bg/40 transition-colors">
             <span className="w-[7px] h-[7px] rounded-full flex-none bg-bento-muted" style={dotStyle} />
             <span className={cn('text-xs font-semibold flex-1 truncate', NAME_COLOR[column.tone])}>{column.label}</span>
