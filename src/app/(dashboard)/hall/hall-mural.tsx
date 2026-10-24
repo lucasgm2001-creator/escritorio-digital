@@ -4,6 +4,7 @@
 // (UI-POLISH-GIANTS-001). Componentes leaf/self-contained + consts de ícone/cor. Comportamento idêntico.
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import { useActiveTeamId } from '@/components/auth/RoleProvider'
 import { TimeAgo } from '@/components/system/TimeAgo'
 import { Portal } from '@/components/ui/Portal'
 import { useDialog } from '@/components/ui/useDialog'
@@ -41,6 +42,7 @@ export function computeGreeting(): string {
 // "Ver histórico", busca o histórico PERSISTIDO inteiro da tabela (activities/notices).
 export function HistoryModal({ onClose }: { onClose: () => void }) {
   const PAGE = 200
+  const teamId = useActiveTeamId()
   const [items, setItems] = useState<Activity[]>([])
   const [loading, setLoading] = useState(false)
   const [hasMore, setHasMore] = useState(true)
@@ -51,8 +53,10 @@ export function HistoryModal({ onClose }: { onClose: () => void }) {
     setLoading(true)
     const supabase = createClient()
     const from = items.length
-    const { data } = await supabase.from('activities').select('*')
-      .order('created_at', { ascending: false }).range(from, from + PAGE - 1)
+    // Equipe ativa (a RLS devolve as atividades de todas as equipes do usuário).
+    let q = supabase.from('activities').select('*')
+    if (teamId) q = q.eq('team_id', teamId)
+    const { data } = await q.order('created_at', { ascending: false }).range(from, from + PAGE - 1)
     const rows = (data ?? []) as Activity[]
     setItems(prev => [...prev, ...rows])
     setHasMore(rows.length === PAGE)

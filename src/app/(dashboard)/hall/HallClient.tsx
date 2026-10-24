@@ -122,10 +122,13 @@ export function HallClient({ initialActivities, initialMapLeads, initialMapClien
     const nowMs = Date.now()
     if (!force && nowMs - lastMapFetch.current < 30_000) return
     lastMapFetch.current = nowMs
+    if (!activeTeamId) return
     const supabase = createClient()
-    supabase.from('leads').select('id, name, status, state, area_code, created_at, origem').then(({ data }) => { if (data) setMapLeads(data as MapLead[]) })
-    supabase.from('clients').select('id, name, status, state, area_code').then(({ data }) => { if (data) setMapClients(data as MapClient[]) })
-  }, [])
+    // Equipe ATIVA, igual à carga do servidor — sem o filtro a RLS devolve as de todas as equipes do usuário e
+    // o mapa "crescia" na primeira revalidação.
+    supabase.from('leads').select('id, name, status, state, area_code, created_at, origem').eq('team_id', activeTeamId).then(({ data }) => { if (data) setMapLeads(data as MapLead[]) })
+    supabase.from('clients').select('id, name, status, state, area_code').eq('team_id', activeTeamId).then(({ data }) => { if (data) setMapClients(data as MapClient[]) })
+  }, [activeTeamId])
 
   useEffect(() => {
     // A carga inicial já veio do servidor. Ao voltar para a página, revalida com throttle.
@@ -141,7 +144,8 @@ export function HallClient({ initialActivities, initialMapLeads, initialMapClien
   useEffect(() => {
     const supabase = createClient()
     const dataChannel = supabase.channel('hall-realtime')
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'activities' },
+      // Só atividades da equipe ativa (a RLS entrega as de todas as equipes do usuário).
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'activities', ...(activeTeamId ? { filter: `team_id=eq.${activeTeamId}` } : {}) },
         p => setActivities(prev => [p.new as Activity, ...prev.slice(0, 19)]))
       .subscribe()
     return () => { dataChannel.unsubscribe().then(() => supabase.removeChannel(dataChannel)) }

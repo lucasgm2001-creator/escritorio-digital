@@ -11,9 +11,9 @@ import { createLeadAction, moveLeadAction, setLeadTaskDoneAction } from '../come
 import { updateClientAction } from '../clientes/client-write-actions'
 import { createAgentTaskAction } from './agent-actions'
 import { type LeadStatus } from '../comercial/types'
-import { loadStages } from '@/lib/funnelStages'
-import { payWeek, payWeekMessage, registerMeeting } from '@/lib/commission/actions'
-import { markMilestones } from '@/lib/leadMilestones'
+import type { FunnelStage } from '@/lib/funnelStages'
+import { payWeekMessage } from '@/lib/commission/actions'
+import { payWeekAction, registerMeetingAction } from '../comercial/compensation-write-actions'
 import { ymd } from '@/lib/date'
 import { DEFAULT_LEAD_OWNER_ID, DEFAULT_LEAD_OWNER_NAME } from '@/lib/commercial/default-lead-owner'
 
@@ -48,8 +48,7 @@ async function getFxRate(): Promise<number> {
 // só um guard de segurança no cliente — se sobrar uma ação pendente antiga, NÃO executa.
 const PHASE1_DISABLED = new Set(['editar_cliente', 'registrar_pagamento', 'registrar_reuniao'])
 
-export function AgentChat(_props: { userId: string; userName: string }) {
-  void _props
+export function AgentChat({ userId }: { userId: string; userName: string }) {
   const [messages, setMessages] = useState<Message[]>([])
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
@@ -117,8 +116,10 @@ export function AgentChat(_props: { userId: string; userName: string }) {
       const title = String(p.task_title ?? '').trim()
       if (!title) return 'Não consegui concluir: faltou o título da tarefa.'
       // Acha a tarefa PENDENTE por título (igual ao mover_lead por nome); trata "não achei"/ambiguidade.
-      const { data: matches, error: findErr } = await supabase
-        .from('tasks').select('id, title, done').ilike('title', `%${title}%`).eq('done', false)
+      // Só as tarefas PESSOAIS do usuário na equipe ativa (a RLS devolve as de todas as equipes dele).
+      let taskQuery = supabase.from('tasks').select('id, title, done').ilike('title', `%${title}%`).eq('done', false).eq('user_id', userId)
+      if (teamId) taskQuery = taskQuery.eq('team_id', teamId)
+      const { data: matches, error: findErr } = await taskQuery
       if (findErr) return `Não consegui buscar a tarefa: ${findErr.message}`
       if (!matches || matches.length === 0) return `Não achei nenhuma tarefa pendente com "${title}".`
       let task = matches[0]
@@ -136,14 +137,19 @@ export function AgentChat(_props: { userId: string; userName: string }) {
       const leadName = String(p.lead_name ?? '').trim()
       const destino = String(p.destino ?? '').trim()
       if (!leadName) return 'Não consegui mover: faltou o nome do lead.'
-      const stages = await loadStages(supabase)
+      // Fases DA EQUIPE ATIVA (a RLS devolve as de todas as equipes do usuário — slugs se repetem).
+      let stageQuery = supabase.from('funnel_stages').select('*').order('posicao')
+      if (teamId) stageQuery = stageQuery.eq('team_id', teamId)
+      const stages = ((await stageQuery).data ?? []) as FunnelStage[]
       const stage = stages.find(s => s.slug === destino && !s.arquivada)
       if (stages.length > 0 && !stage) return `Não consegui mover: estágio "${destino}" inválido.`
       // Busca por nome (igual ao vínculo de tarefa); trata "não achei" e ambiguidade.
-      const { data: matches, error: findErr } = await supabase
-        .from('leads')
+      // Busca na EQUIPE ATIVA: sem o filtro, um homônimo de outra equipe podia ser o lead movido.
+      let leadQuery = supabase.from('leads')
         .select('id, name, status, email, phone, company, assigned_to, assigned_name')
         .ilike('name', `%${leadName}%`)
+      if (teamId) leadQuery = leadQuery.eq('team_id', teamId)
+      const { data: matches, error: findErr } = await leadQuery
       if (findErr) return `Não consegui buscar o lead: ${findErr.message}`
       if (!matches || matches.length === 0) return `Não achei nenhum lead com "${leadName}".`
       let lead = matches[0]
@@ -187,7 +193,9 @@ export function AgentChat(_props: { userId: string; userName: string }) {
       const { data: wk } = await supabase.from('weekly_payments').select('numero_semana').eq('deal_id', dealId).is('deleted_at', null)
       const paidNums = (wk ?? []).map(w => Number(w.numero_semana))
       const rate = await getFxRate()
-      const res = await payWeek(supabase, { id: deal.id, valorPorSemanaUsd: Number(deal.valor_por_semana_usd), tetoSemanas: deal.teto_semanas, status: deal.status }, paidNums, numero, paidOn, rate, teamId)
+      // Pelo SERVIDOR (payWeekAction = mesma ação da Remuneração, com a checagem financeira). Antes gravava
+      // weekly_payments direto do navegador e pulava a permissão de quem pode lançar pagamento.
+      const res = await payWeekAction({ id: deal.id, valorPorSemanaUsd: Number(deal.valor_por_semana_usd), tetoSemanas: deal.teto_semanas, status: deal.status }, paidNums, numero, paidOn, rate)
       if (!res.ok) return `Não registrei o pagamento do ${clientName}: ${payWeekMessage(res.reason, res.message)}`
       return `Pronto! ${clientName}: semana ${numero} de ${teto} registrada (US$ ${Number(p.valorUsd)}).`
     }
@@ -200,10 +208,10 @@ export function AgentChat(_props: { userId: string; userName: string }) {
       const leadId = p.leadId ? String(p.leadId) : null
       if (!sellerId || !metOn) return 'Não consegui registrar a reunião: dados incompletos.'
       const rate = await getFxRate()
-      const { error } = await registerMeeting(supabase, sellerId, { metOn, valorUsd, clientId, clientName, leadId }, rate, teamId)
+      // Pelo SERVIDOR (registerMeetingAction = mesma ação da Remuneração: checagem financeira + marco
+      // "reuniao" do lead, idempotente). Antes gravava meetings direto do navegador.
+      const { error } = await registerMeetingAction({ sellerId, metOn, valorUsd, clientId, clientName, note: null, leadId, rate })
       if (error) return `Não consegui lançar a reunião: ${error.message}`
-      // Marco do relatório: reunião feita com o lead (separado da comissão). Idempotente.
-      if (leadId) await markMilestones(supabase, leadId, ['reuniao'], teamId)
       return `Pronto! Reunião${clientName ? ` com ${clientName}` : ''} lançada (US$ ${valorUsd}, ${metOn}).`
     }
     return 'Ação desconhecida.'

@@ -41,6 +41,7 @@ const SEV: Record<string, { label: string; cls: string }> = {
 }
 
 const REFRESH_AFTER_MS = 12 * 60 * 60 * 1000
+const ATTEMPT_KEY = 'ed:news-refresh-attempt'
 let kicked = false // evita disparar o fallback várias vezes na mesma sessão (remounts)
 
 export function NewsSection() {
@@ -58,8 +59,13 @@ export function NewsSection() {
         // Fallback: se a última atualização passou de 12h (ou não há nada), dispara o refresh
         // em background — fire-and-forget, não trava a tela. Realtime injeta quando chegar.
         const last = rows[0]?.fetched_at ? new Date(rows[0].fetched_at).getTime() : 0
-        if (!kicked && Date.now() - last > REFRESH_AFTER_MS) {
+        // Trava de TENTATIVA (por navegador): se a busca falha (sem crédito, nada novo), fetched_at não anda e,
+        // sem isto, CADA abertura do Hall disparava de novo uma busca com IA (paga, até 40s).
+        let lastAttempt = 0
+        try { lastAttempt = Number(localStorage.getItem(ATTEMPT_KEY) ?? 0) } catch { /* sem storage: só o kicked */ }
+        if (!kicked && Date.now() - last > REFRESH_AFTER_MS && Date.now() - lastAttempt > REFRESH_AFTER_MS) {
           kicked = true
+          try { localStorage.setItem(ATTEMPT_KEY, String(Date.now())) } catch { /* ignore */ }
           fetch('/api/news/refresh', { method: 'POST', headers: { 'Content-Type': 'application/json' } }).catch(() => {})
         }
       })

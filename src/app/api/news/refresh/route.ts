@@ -13,6 +13,7 @@ const CATEGORIAS = new Set([...NICHOS, 'clima']) // 'clima' = evento climático 
 const ESTADOS = ['MA', 'NJ', 'CA', 'NC', 'SC', 'US']
 const SEV = new Set(['critico', 'alta', 'media'])
 const MAX_AGE_DAYS = 10   // descarta no insert o que for mais antigo que isso
+const USER_REFRESH_MIN_MS = 12 * 60 * 60 * 1000   // usuário só dispara se a última atualização tem +12h
 const PURGE_AGE_DAYS = 30 // apaga do banco o que passar disso
 const AI_TIMEOUT_MS = 40_000 // guard: aborta a IA ANTES do limite estrutural de 60s da função (margem p/ retornar 504 controlado)
 // TENANCY: news é team-scoped (RLS). Sem sessão (cron/service-role) o trigger não resolve a equipe no multi-tenant
@@ -73,6 +74,11 @@ export async function POST(req: Request) {
   if (!authorizedByToken(req)) {
     const auth = await requireAuth(req)
     if ('error' in auth) return auth.error
+    // Disparo de USUÁRIO (fallback do Hall) só quando as notícias estão velhas: qualquer logado chamando em
+    // sequência rodaria uma busca com IA paga a cada vez. O agendador (token) sempre pode forçar.
+    const { data: latest } = await createServiceClient().from('news').select('fetched_at').order('fetched_at', { ascending: false }).limit(1)
+    const lastMs = latest?.[0]?.fetched_at ? Date.parse(latest[0].fetched_at as string) : 0
+    if (Date.now() - lastMs < USER_REFRESH_MIN_MS) return NextResponse.json({ ok: true, skipped: 'recente' })
   }
 
   try {

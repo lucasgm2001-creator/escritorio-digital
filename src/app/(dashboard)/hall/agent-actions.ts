@@ -30,7 +30,10 @@ export async function createAgentTaskAction(input: {
   // Vínculo opcional: casa por nome com um lead existente (mesma regra da UI, agora no servidor).
   let link: { linked_type: string; linked_id: string; linked_name: string } | null = null
   if (input.linkedLeadName) {
-    const { data } = await supabase.from('leads').select('id, name').ilike('name', `%${input.linkedLeadName}%`).limit(1)
+    // Só leads da EQUIPE ATIVA — sem o filtro, a tarefa podia nascer ligada a um homônimo de outra equipe.
+    let q = supabase.from('leads').select('id, name').ilike('name', `%${input.linkedLeadName}%`)
+    if (teamId) q = q.eq('team_id', teamId)
+    const { data } = await q.limit(1)
     if (data && data[0]) link = { linked_type: 'lead', linked_id: data[0].id as string, linked_name: data[0].name as string }
   }
 
