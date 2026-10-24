@@ -23,7 +23,7 @@ export default async function ComercialPage() {
   const activeTeamId = context?.activeTeamId ?? null
   const userId = context?.user.id ?? ''
 
-  const [{ data: leads }, { data: clients }, { data: tasks }, { data: focus }, { data: mesaStages }] = activeTeamId
+  const [{ data: leads }, { data: clients }, { data: tasks }, { data: mesaStages }] = activeTeamId
     ? await Promise.all([
         // O payload bruto pode ser grande e só é necessário ao abrir um lead. O LeadDiary o busca sob demanda.
         supabase.from('leads').select(LEAD_LIST_COLUMNS).eq('team_id', activeTeamId).order('score', { ascending: false }),
@@ -31,13 +31,11 @@ export default async function ComercialPage() {
         supabase.from('clients').select(CLIENT_LIST_COLUMNS).eq('team_id', activeTeamId).order('created_at', { ascending: false }),
         // Aba Follow-up (antiga Minha Mesa) — mesmas leituras que a /mesa fazia.
         supabase.from('tasks').select('*').eq('user_id', userId).eq('team_id', activeTeamId).order('due_date', { ascending: true }),
-        // Radar pessoal (MESA-FOCO-001). RLS já restringe a auth.uid(); o filtro explícito é defesa em profundidade.
-        supabase.from('lead_focus').select('lead_id').eq('user_id', userId).eq('team_id', activeTeamId),
         // FASES DO FUNIL (MESA-FUNIL-001): só as não arquivadas da equipe, na ordem do funil.
         supabase.from('funnel_stages').select('slug, nome, posicao, cor, grupo')
           .eq('team_id', activeTeamId).eq('arquivada', false).order('posicao'),
       ])
-    : [{ data: [] }, { data: [] }, { data: [] }, { data: [] }, { data: [] }]
+    : [{ data: [] }, { data: [] }, { data: [] }, { data: [] }]
 
   // Derivados no servidor → referências estáveis entre renders do cliente (o Follow-up re-sincroniza
   // quando a prop muda, então não pode receber um array novo a cada render).
@@ -55,7 +53,6 @@ export default async function ComercialPage() {
       followUp={{
         initialTasks: (tasks ?? []) as Task[],
         initialLeads: mesaLeads,
-        initialFocus: ((focus ?? []) as { lead_id: string }[]).map(row => row.lead_id),
         stages: (mesaStages ?? []) as MesaStage[],
         linkOptions,
       }}

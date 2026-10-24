@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import {
-  CalendarDays, Check, CheckCircle2, ChevronDown, ChevronLeft, ChevronRight, CircleDot, Star,
+  CalendarDays, Check, CheckCircle2, ChevronDown, ChevronLeft, ChevronRight, CircleDot,
   ExternalLink, FileText, Mail, MessageCircle, Phone, Plus, RefreshCw, Search, UserRound, Video, X,
   type LucideIcon,
 } from 'lucide-react'
@@ -14,7 +14,7 @@ import { createClient } from '@/lib/supabase/client'
 import { useRealtimeRows } from '@/lib/hooks/useRealtimeRows'
 import { useToast } from '@/components/ui/toast'
 import { updateTaskAction } from '../../tarefas/task-write-actions'
-import { toggleLeadFocusAction, closeStaleLeadTasksAction, closeTasksBatchAction } from './focus-actions'
+import { closeStaleLeadTasksAction, closeTasksBatchAction } from './focus-actions'
 import { useTasksState } from '../../tarefas/useTasksState'
 import { TaskModal, type TaskPrefill } from '../../tarefas/TaskModal'
 import type { LinkOption, Task } from '../../tarefas/types'
@@ -124,10 +124,9 @@ function daysSince(value?: string | null): number | null {
 
 
 
-export function MesaClient({ initialTasks, initialLeads, initialFocus, stages, linkOptions, currentUser, onOpenLead }: {
+export function MesaClient({ initialTasks, initialLeads, stages, linkOptions, currentUser, onOpenLead }: {
   initialTasks: Task[]
   initialLeads: MesaLead[]
-  initialFocus: string[]
   stages: FunnelStage[]
   linkOptions: LinkOption[]
   currentUser: { id: string; name: string }
@@ -167,8 +166,6 @@ export function MesaClient({ initialTasks, initialLeads, initialFocus, stages, l
   const [grupoAberto, setGrupoAberto] = useState<string | null>(null)
   const [limpando, setLimpando] = useState(false)
   const [limpezaBusy, setLimpezaBusy] = useState(false)
-  const [focus, setFocus] = useState<Set<string>>(() => new Set(initialFocus))
-  useEffect(() => setFocus(new Set(initialFocus)), [initialFocus])
 
   const today = ymd(new Date())
   const pending = useMemo(() => tasks.filter(task => !task.done).sort(taskSort), [tasks])
@@ -274,10 +271,9 @@ export function MesaClient({ initialTasks, initialLeads, initialFocus, stages, l
         // do Comercial — mover um lead de fase o torna o mais recente dela. `stage_changed_at` é a data
         // dessa entrada; `created_at` só cobre o lead que nunca mudou de fase desde que chegou.
         //
-        // Nada mais reordena: nem o radar, nem a data vencida. Numa lista cuja posição significa "ordem
-        // de chegada", qualquer critério por cima tiraria o sentido de olhar para o topo — o que estava
-        // ali deixaria de ser o que acabou de entrar. Radar e atraso continuam visíveis na própria linha
-        // (estrela preenchida e etiqueta âmbar), que é onde eles informam sem mexer na posição.
+        // Nada mais reordena, nem a data vencida. Numa lista cuja posição significa "ordem de chegada",
+        // qualquer critério por cima tiraria o sentido de olhar para o topo. O atraso continua visível na
+        // própria linha (etiqueta âmbar), que é onde ele informa sem mexer na posição.
         itens: (porSlug.get(st.slug) ?? []).sort((a, b) =>
           (b.lead.stage_changed_at ?? b.lead.created_at ?? '')
             .localeCompare(a.lead.stage_changed_at ?? a.lead.created_at ?? '')),
@@ -350,17 +346,6 @@ export function MesaClient({ initialTasks, initialLeads, initialFocus, stages, l
   function selectTask(task: Task) {
     setSelectedTaskId(task.id)
     setSelectedLeadId(task.linked_type === 'lead' ? task.linked_id ?? null : null)
-  }
-
-  // Radar: otimista, com rollback. Marcar um lead no meio de uma ligação não pode esperar round-trip.
-  async function toggleFocus(leadId: string) {
-    const ligar = !focus.has(leadId)
-    setFocus(atual => { const proximo = new Set(atual); if (ligar) proximo.add(leadId); else proximo.delete(leadId); return proximo })
-    const r = await toggleLeadFocusAction(leadId, ligar)
-    if (!r.ok) {
-      setFocus(atual => { const proximo = new Set(atual); if (ligar) proximo.delete(leadId); else proximo.add(leadId); return proximo })
-      toast({ type: 'error', message: r.error })
-    }
   }
 
   // Encerra as tarefas antigas do lead, mantendo a atual. É a saída para o resíduo que a dedupe revela.
@@ -452,16 +437,12 @@ export function MesaClient({ initialTasks, initialLeads, initialFocus, stages, l
     router.refresh()
   }
 
-  const greeting = new Date().getHours() < 12 ? 'Bom dia' : new Date().getHours() < 18 ? 'Boa tarde' : 'Boa noite'
-
   return (
     <div className="min-h-full bg-bento-bg font-body">
       <div className="max-w-[1600px] mx-auto p-4 sm:p-6 space-y-4">
-        <header className="flex items-start justify-between gap-4 flex-wrap">
-          <div>
-            <h1 className="font-display text-xl sm:text-2xl font-bold text-bento-text tracking-tight">{greeting}, {currentUser.name}</h1>
-            <p className="text-sm text-bento-muted mt-1">Tudo o que você precisa para conduzir o trabalho comercial de hoje.</p>
-          </div>
+        {/* Barra compacta: a aba vive dentro do Comercial, que já tem título — saudação aqui seria um
+            segundo cabeçalho empurrando a lista para baixo. */}
+        <header className="flex items-center justify-end gap-2 flex-wrap">
           <div className="flex items-center gap-2 flex-wrap">
             <div className="inline-flex bg-bento-bg border border-bento-border rounded-btn p-1 gap-1">
               <button type="button" onClick={() => setPanel('tarefas')}
@@ -487,18 +468,6 @@ export function MesaClient({ initialTasks, initialLeads, initialFocus, stages, l
           <RelatorioPanel />
         ) : (
           <>
-            <section className="grid grid-cols-2 lg:grid-cols-4 gap-2.5" aria-label="Resumo do dia">
-              {/* O topo passou a separar HOJE de ATRASADO. Antes "Para hoje" somava as atrasadas e marcava
-                  133 — um número que assusta e não diz o que fazer. Agora o dia é o dia, e o passivo tem
-                  o próprio lugar. "Acompanhando" entra no lugar de "Precisam de ação": é a lista curta
-                  que a pessoa mantém, não a contagem de 200 que ninguém consegue atacar. */}
-              <SummaryCard label="Para hoje" value={todayTasks.length + newLeadsToday.length}
-                hint={newLeadsToday.length ? `${newLeadsToday.length} lead(s) novo(s)` : 'tarefas de hoje'} tone="default" />
-              <SummaryCard label="Acompanhando" value={acompanhandoCount} hint="leads no funil" tone="default" />
-              <SummaryCard label="Reuniões" value={meetingTasks.length} hint="marcadas" tone="default" />
-              <SummaryCard label="Com data vencida" value={vencidasNoFunil} hint="dentro das fases"
-                tone={vencidasNoFunil ? 'warning' : 'muted'} />
-            </section>
 
             <div className="grid grid-cols-1 xl:grid-cols-[184px_minmax(0,1fr)_360px] gap-3 items-start">
               <nav className="bento-fx p-2 xl:sticky xl:top-3" aria-label="Organização da mesa">
@@ -532,6 +501,10 @@ export function MesaClient({ initialTasks, initialLeads, initialFocus, stages, l
                           : `${taskRows.length || leadRows.length} ${taskRows.length + leadRows.length === 1 ? 'item' : 'itens'}`}
                       {filter === 'hoje' && dia && dia !== today && doneNoDia.length > 0 &&
                         ` · ${doneNoDia.length} concluída(s)`}
+                      {/* Aviso de atraso: era um cartão no topo da Mesa; agora fica onde se resolve. */}
+                      {filter === 'acompanhando' && !buscando && vencidasNoFunil > 0 && (
+                        <span className="text-amber-600 dark:text-amber-300"> · {vencidasNoFunil} com data vencida</span>
+                      )}
                     </p>
                   </div>
                   <div className="flex items-center gap-1.5">
@@ -647,9 +620,7 @@ export function MesaClient({ initialTasks, initialLeads, initialFocus, stages, l
                                     <LeadNaFase key={lead.id} lead={lead} task={task} today={today}
                                       active={selectedLeadId === lead.id}
                                       busy={!!task && busyTaskId === task.id}
-                                      noRadar={focus.has(lead.id)}
                                       onCheck={() => registrarSituacao(lead, task)}
-                                      onToggleFocus={() => toggleFocus(lead.id)}
                                       onSelect={() => { selectLead(lead); if (task) setSelectedTaskId(task.id) }} />
                                   ))}
                                 </div>
@@ -666,8 +637,7 @@ export function MesaClient({ initialTasks, initialLeads, initialFocus, stages, l
                       </p>
                     ) : resultados.map(lead => (
                       <LeadRow key={lead.id} lead={lead} active={selectedLeadId === lead.id}
-                        mostrarEmpresa noRadar={focus.has(lead.id)} onToggleFocus={() => toggleFocus(lead.id)}
-                        onSelect={() => selectLead(lead)} />
+                        mostrarEmpresa onSelect={() => selectLead(lead)} />
                     ))
                   ) : (
                     <>
@@ -680,9 +650,7 @@ export function MesaClient({ initialTasks, initialLeads, initialFocus, stages, l
                       ))}
                       {leadRows.map(lead => (
                         <LeadRow key={lead.id} lead={lead} active={selectedLeadId === lead.id}
-                          mostrarEmpresa
-                          noRadar={focus.has(lead.id)} onToggleFocus={() => toggleFocus(lead.id)}
-                          onSelect={() => selectLead(lead)} />
+                          mostrarEmpresa onSelect={() => selectLead(lead)} />
                       ))}
                       {filter === 'hoje' && doneNoDia.length > 0 && (
                         <div className="space-y-2 pt-1">
@@ -705,7 +673,6 @@ export function MesaClient({ initialTasks, initialLeads, initialFocus, stages, l
               <aside className="bento-fx xl:sticky xl:top-3 min-w-0">
                 {selectedLead ? (
                   <LeadContext lead={selectedLead} task={selectedTask} interactions={interactions} loading={interactionsLoading}
-                    noRadar={focus.has(selectedLead.id)} onToggleFocus={() => toggleFocus(selectedLead.id)}
                     onNewTask={() => openNew(selectedLead)} onEditTask={selectedTask ? () => openEdit(selectedTask) : undefined}
                     onSituation={() => setSituation({ lead: selectedLead, taskId: null })}
                     onOpenLead={() => onOpenLead(selectedLead.id)} />
@@ -757,18 +724,6 @@ export function MesaClient({ initialTasks, initialLeads, initialFocus, stages, l
             setSituation(null); router.refresh()
           }} />
       )}
-    </div>
-  )
-}
-
-function SummaryCard({ label, value, hint, tone }: { label: string; value: number; hint: string; tone: 'default' | 'warning' | 'muted' }) {
-  return (
-    <div className="bento-fx px-4 py-3 min-w-0">
-      <p className="font-tech text-[10px] uppercase tracking-label text-bento-muted truncate">{label}</p>
-      <div className="flex items-baseline gap-2 mt-1">
-        <strong className={cn('font-display text-2xl tabular-nums', tone === 'warning' ? 'text-amber-400' : tone === 'muted' ? 'text-bento-dim' : 'text-bento-text')}>{value}</strong>
-        <span className="text-[11px] text-bento-muted truncate">{hint}</span>
-      </div>
     </div>
   )
 }
@@ -839,9 +794,9 @@ function TaskRowComDuplicadas({ antigas = 0, onResolver, ...props }: TaskRowProp
 // Mostra a SITUAÇÃO escrita (current_situation) em vez do título da tarefa: na hora de decidir o que
 // fazer, "pediu para ligar entre terça e quarta" vale mais que "Ligar novamente: Fulano". O próximo passo
 // aparece como data à direita, em âmbar quando já venceu — atraso virou atributo da linha, não uma aba.
-function LeadNaFase({ lead, task, today, active, busy, noRadar, onCheck, onToggleFocus, onSelect }: {
+function LeadNaFase({ lead, task, today, active, busy, onCheck, onSelect }: {
   lead: MesaLead; task: Task | null; today: string; active: boolean; busy: boolean
-  noRadar: boolean; onCheck: () => void; onToggleFocus: () => void; onSelect: () => void
+  onCheck: () => void; onSelect: () => void
 }) {
   const vencida = !!task?.due_date && task.due_date < today
   const semPlano = !task
@@ -849,7 +804,7 @@ function LeadNaFase({ lead, task, today, active, busy, noRadar, onCheck, onToggl
   return (
     <div className={cn(
       // Cartão CLARO sobre o poço escuro/acinzentado do grupo — é essa inversão que separa o lead da fase.
-      'group flex items-center gap-2 rounded-btn border bg-bento-panel pr-1.5 transition-all duration-150',
+      'group flex items-center gap-2 rounded-btn border bg-bento-panel pr-2.5 transition-all duration-150',
       active
         ? 'border-lime/60 shadow-card ring-1 ring-lime/20'
         : 'border-bento-border/80 hover:border-bento-dim/50 hover:shadow-card')}>
@@ -885,13 +840,6 @@ function LeadNaFase({ lead, task, today, active, busy, noRadar, onCheck, onToggl
           </span>
         )}
       </button>
-      <button type="button" onClick={onToggleFocus} aria-pressed={noRadar}
-        aria-label={noRadar ? `Tirar ${lead.name} do radar` : `Acompanhar ${lead.name}`}
-        title={noRadar ? 'No radar — clique para tirar' : 'Marcar no radar'}
-        className={cn('grid h-8 w-8 flex-none place-items-center rounded-btn transition-colors',
-          noRadar ? 'text-lime-fg' : 'text-bento-border hover:text-lime-fg group-hover:text-bento-muted')}>
-        <Star className={cn('h-3.5 w-3.5', noRadar && 'fill-current')} />
-      </button>
     </div>
   )
 }
@@ -899,17 +847,14 @@ function LeadNaFase({ lead, task, today, active, busy, noRadar, onCheck, onToggl
 // `mostrarEmpresa`: nos resultados de busca a segunda linha passa a ser EMPRESA · ESTÁGIO em vez da
 // situação escrita. Quem busca por empresa precisa ver a empresa para confirmar que achou o lead certo —
 // e o estágio diz onde ele está, inclusive quando é um fechado ou perdido.
-function LeadRow({ lead, active, mostrarEmpresa, noRadar, onToggleFocus, onSelect }: {
-  lead: MesaLead; active: boolean; mostrarEmpresa?: boolean; noRadar?: boolean
-  onToggleFocus?: () => void; onSelect: () => void
+function LeadRow({ lead, active, mostrarEmpresa, onSelect }: {
+  lead: MesaLead; active: boolean; mostrarEmpresa?: boolean; onSelect: () => void
 }) {
   const temperature = lead.temperature ? TEMPERATURE_LABEL[lead.temperature as keyof typeof TEMPERATURE_LABEL] ?? lead.temperature : 'Sem avaliação'
   const estagio = STATUS_LABEL.get(lead.status) || lead.status
   const segundaLinha = mostrarEmpresa
     ? [lead.company, estagio].filter(Boolean).join(' · ')
     : (lead.current_situation || estagio)
-  // A estrela é irmã do botão da linha, não filha: <button> dentro de <button> é HTML inválido e o
-  // clique de dentro viraria seleção do lead.
   return (
     <div className={cn('flex items-center gap-2 rounded-bento border pr-2 transition-colors',
       active ? 'border-lime/50 bg-lime/[0.07]' : 'border-bento-border bg-bento-bg/35 hover:border-bento-dim/60')}>
@@ -921,23 +866,13 @@ function LeadRow({ lead, active, mostrarEmpresa, noRadar, onToggleFocus, onSelec
         </span>
         <span className="text-[10px] text-bento-muted shrink-0">{temperature}</span>
       </button>
-      {onToggleFocus && (
-        <button type="button" onClick={onToggleFocus} aria-pressed={!!noRadar}
-          aria-label={noRadar ? `Tirar ${lead.name} do radar` : `Acompanhar ${lead.name}`}
-          title={noRadar ? 'Tirar do radar' : 'Acompanhar este lead'}
-          className={cn('grid h-8 w-8 flex-none place-items-center rounded-btn transition-colors',
-            noRadar ? 'text-lime-fg hover:bg-lime/10' : 'text-bento-muted hover:text-lime-fg hover:bg-bento-bg')}>
-          <Star className={cn('h-4 w-4', noRadar && 'fill-current')} />
-        </button>
-      )}
       <ChevronRight className="w-4 h-4 text-bento-muted flex-none" />
     </div>
   )
 }
 
-function LeadContext({ lead, task, interactions, loading, noRadar, onToggleFocus, onNewTask, onEditTask, onSituation, onOpenLead }: {
+function LeadContext({ lead, task, interactions, loading, onNewTask, onEditTask, onSituation, onOpenLead }: {
   lead: MesaLead; task: Task | null; interactions: Interaction[]; loading: boolean
-  noRadar: boolean; onToggleFocus: () => void
   onNewTask: () => void; onEditTask?: () => void; onSituation: () => void; onOpenLead: () => void
 }) {
   const stopped = daysSince(lead.last_contact_at ?? lead.stage_changed_at ?? lead.created_at)
@@ -953,14 +888,6 @@ function LeadContext({ lead, task, interactions, loading, noRadar, onToggleFocus
             <h2 className="font-display font-semibold text-bento-text truncate">{lead.name}</h2>
             <p className="text-xs text-bento-muted truncate">{lead.company || 'Sem empresa informada'}</p>
           </div>
-          {/* A estrela fica AQUI, no painel aberto: é o momento em que se decide acompanhar — logo depois
-              de falar com a pessoa. Ter que voltar para a lista para marcar seria a hora de desistir. */}
-          <button type="button" onClick={onToggleFocus} aria-pressed={noRadar}
-            aria-label={noRadar ? 'Tirar do radar' : 'Acompanhar este lead'}
-            title={noRadar ? 'Acompanhando — clique para tirar do radar' : 'Acompanhar este lead'}
-            className={cn('p-2 rounded-btn transition-colors', noRadar ? 'text-lime-fg hover:bg-lime/10' : 'text-bento-muted hover:text-lime-fg hover:bg-bento-bg')}>
-            <Star className={cn('w-4 h-4', noRadar && 'fill-current')} />
-          </button>
           <button type="button" onClick={onOpenLead} aria-label="Abrir lead completo" title="Abrir lead completo" className="p-2 rounded-btn text-bento-muted hover:text-lime-fg hover:bg-bento-bg">
             <ExternalLink className="w-4 h-4" />
           </button>

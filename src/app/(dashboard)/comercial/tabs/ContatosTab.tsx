@@ -1,22 +1,17 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import Link from 'next/link'
-import { Search, ChevronDown, Check, Trash2, SlidersHorizontal, ArrowRight } from 'lucide-react'
+import { Search, ChevronDown, Check, SlidersHorizontal } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { deleteLeadsAction } from '../lead-write-actions'
-import { useToast } from '@/components/ui/toast'
 import { CollapsibleSection } from '@/components/mobile/CollapsibleSection'
-import { PeriodChips } from '../PeriodChips'
-import { rangeFor, inPeriodByActivity, type Range } from '@/lib/period'
 import { ALL_COLUMNS, FUSO_LABELS, type Lead } from '../types'
 import type { Client } from '../../clientes/types'
 import { ClienteModal } from '../../clientes/ClienteModal'
-import { Portal } from '@/components/ui/Portal'
-import { useDialog } from '@/components/ui/useDialog'
 
 // Lista UNIFICADA de contatos (leads + clientes), deduplicada por telefone/email. Cliente prevalece.
-// Só leitura/navegação — clicar abre o perfil existente (LeadDiary p/ lead, aba Clientes p/ cliente).
+// Só leitura/navegação — clicar abre o perfil existente (LeadDiary p/ lead, ClienteModal p/ cliente).
+// É a agenda de contatos: mostra todos, sem filtro de período, e não exclui ninguém — excluir é pelo
+// caminho oficial (mover para a Lixeira, restaurável). Leads na Lixeira não aparecem aqui.
 
 interface Props {
   leads: Lead[]
@@ -92,15 +87,9 @@ function FilterDropdown({ label, options, selected, onToggle }: {
 export function ContatosTab({ leads, clients, onOpenLead, onClientUpdated }: Props) {
   const [search, setSearch] = useState('')
   const [editClient, setEditClient] = useState<Client | null>(null)
-  const [range, setRange] = useState<Range>(() => rangeFor('tudo'))   // período (em memória; reload = "Tudo")
   const [faseSel, setFaseSel] = useState<Set<string>>(new Set())
   const [nichoSel, setNichoSel] = useState<Set<string>>(new Set())
   const [fusoSel, setFusoSel] = useState<Set<string>>(new Set())
-  const [removedIds, setRemovedIds] = useState<Set<string>>(new Set())   // exclusão otimista (ids de lead apagados)
-  const [confirm, setConfirm] = useState<Row | null>(null)               // linha aguardando confirmação de exclusão
-  const [deleting, setDeleting] = useState(false)
-  const confirmDialog = useDialog<HTMLDivElement>(() => { if (!deleting) setConfirm(null) }, !!confirm)
-  const { toast } = useToast()
 
   const toggle = (set: Set<string>, setSet: (s: Set<string>) => void) => (v: string) => {
     const next = new Set(set)
@@ -111,17 +100,13 @@ export function ContatosTab({ leads, clients, onOpenLead, onClientUpdated }: Pro
 
   // Lista unificada + dedup (cliente prevalece sobre lead com mesmo phone/email).
   const rows = useMemo<Row[]>(() => {
-    // Filtro de período: leads por updated_at||created_at; clientes por start_date||created_at.
-    // "Tudo" não filtra. A dedup (clientKeys) usa TODOS os clientes p/ não duplicar lead que é cliente.
-    const periodLeads = leads.filter(l => inPeriodByActivity(range, l.updated_at, l.created_at))
-    const periodClients = clients.filter(c => inPeriodByActivity(range, undefined, c.start_date ?? c.created_at))
     const clientKeys = new Set<string>()
     for (const c of clients) {
       const p = onlyDigits(c.phone); if (p) clientKeys.add('p:' + p)
       const e = lower(c.email); if (e) clientKeys.add('e:' + e)
     }
     const out: Row[] = []
-    for (const c of periodClients) {
+    for (const c of clients) {
       out.push({
         id: c.id, origem: 'client', name: c.name, company: c.company ?? '', phone: c.phone ?? '', email: c.email ?? '',
         city: c.city ?? '', state: c.state ?? '', area_code: c.area_code ?? '',
@@ -129,20 +114,10 @@ export function ContatosTab({ leads, clients, onOpenLead, onClientUpdated }: Pro
         nicho: (c.nicho ?? '').trim(), fuso: (c.fuso ?? '') || '', chegada: c.start_date ?? '',
       })
     }
-    for (const l of periodLeads) {
+    for (const l of leads) {
+      if (l.status === 'lixeira') continue   // na Lixeira: some da agenda (restaura pela Lixeira)
       const p = onlyDigits(l.phone), e = lower(l.email)
       const st = STATUS_STYLE[l.status]
-      if (l.status === 'lixeira') {
-        // Lixeira = GRUPO À PARTE: não funde com lead ativo nem com cliente; cada lixo é sua própria
-        // linha. Só fica VISÍVEL quando o filtro "Lixeira" está ligado (ver `visible`).
-        out.push({
-          id: l.id, origem: 'lead', name: l.name, company: l.company ?? '', phone: l.phone ?? '', email: l.email ?? '',
-          city: l.city ?? '', state: l.state ?? '', area_code: l.area_code ?? '',
-          faseKey: 'lixeira', faseLabel: st?.label ?? 'Lixeira', faseDot: st?.dotColor ?? 'bg-bento-muted',
-          nicho: (l.nicho ?? '').trim(), fuso: (l.fuso ?? '') || '', chegada: l.received_at ?? '',
-        })
-        continue
-      }
       if ((p && clientKeys.has('p:' + p)) || (e && clientKeys.has('e:' + e))) continue   // já é cliente
       out.push({
         id: l.id, origem: 'lead', name: l.name, company: l.company ?? '', phone: l.phone ?? '', email: l.email ?? '',
@@ -151,10 +126,8 @@ export function ContatosTab({ leads, clients, onOpenLead, onClientUpdated }: Pro
         nicho: (l.nicho ?? '').trim(), fuso: (l.fuso ?? '') || '', chegada: l.received_at ?? '',
       })
     }
-    return out
-      .filter(r => !removedIds.has(r.id))
-      .sort((a, b) => (b.chegada || '').localeCompare(a.chegada || ''))
-  }, [leads, clients, removedIds, range])
+    return out.sort((a, b) => (b.chegada || '').localeCompare(a.chegada || ''))
+  }, [leads, clients])
 
   // Opções dos filtros.
   const faseOptions = useMemo(() => [
@@ -165,84 +138,29 @@ export function ContatosTab({ leads, clients, onOpenLead, onClientUpdated }: Pro
     .sort((a, b) => a.localeCompare(b)).map(n => ({ value: n, label: n })), [rows])
   const fusoOptions = [...Object.entries(FUSO_LABELS).map(([value, label]) => ({ value, label })), { value: '__none__', label: 'Sem fuso' }]
 
-  // Lixeira é SEMPRE mostrada, como GRUPO À PARTE (abaixo), independente do filtro de Fase.
-  // Os demais (ativos/cliente) seguem com busca + Fase + Nicho + Fuso (e a dedup de hoje).
-  const { visibleMain, visibleLixeira } = useMemo(() => {
+  // Busca + Fase + Nicho + Fuso.
+  const visible = useMemo(() => {
     const q = search.trim().toLowerCase()
     // Busca por texto: nome, empresa, telefone, e-mail + GEOGRAFIA (cidade, estado, DDD) — LEAD-GEO-001.
     const matchText = (r: Row) => !q || [r.name, r.company, r.phone, r.email, r.city, r.state, r.area_code].some(v => v.toLowerCase().includes(q))
     const matchNichoFuso = (r: Row) =>
       (!nichoSel.size || nichoSel.has(r.nicho)) && (!fusoSel.size || fusoSel.has(r.fuso || '__none__'))
-    const main: Row[] = []
-    const lix: Row[] = []
-    for (const r of rows) {
-      if (!matchText(r) || !matchNichoFuso(r)) continue
-      if (r.faseKey === 'lixeira') { lix.push(r); continue }     // grupo separado; NÃO usa filtro de Fase
-      if (faseSel.size && !faseSel.has(r.faseKey)) continue
-      main.push(r)
-    }
-    return { visibleMain: main, visibleLixeira: lix }
+    return rows.filter(r => matchText(r) && matchNichoFuso(r) && (!faseSel.size || faseSel.has(r.faseKey)))
   }, [rows, search, faseSel, nichoSel, fusoSel])
-  const totalVisible = visibleMain.length + visibleLixeira.length
+  const totalVisible = visible.length
 
   const open = (r: Row) => {
     if (r.origem === 'lead') { const l = leads.find(x => x.id === r.id); if (l) onOpenLead(l) }
     else { const c = clients.find(x => x.id === r.id); if (c) setEditClient(c) }   // cliente → modal editável
   }
 
-  // Exclusão PERMANENTE — só leads. Junta o lead da linha + duplicados (mesmo phone/email
-  // normalizado). GUARDA anti-cliente roda ANTES do delete (mesmo se a UI falhar). O banco tem
-  // ON DELETE CASCADE em lead_interactions/lead_milestones → o histórico some junto. NÃO toca em
-  // nenhuma tabela de cliente/dinheiro (clients/client_payments/weekly_payments/deals/meetings/presentations).
-  const doDelete = async (r: Row) => {
-    const p = onlyDigits(r.phone), e = lower(r.email)
-
-    // GUARDA: reconfirma que o contato NÃO casa com nenhum cliente (mesmo phone/email normalizado).
-    const clientKeys = new Set<string>()
-    for (const c of clients) {
-      const cp = onlyDigits(c.phone); if (cp) clientKeys.add('p:' + cp)
-      const ce = lower(c.email); if (ce) clientKeys.add('e:' + ce)
-    }
-    if ((p && clientKeys.has('p:' + p)) || (e && clientKeys.has('e:' + e))) {
-      toast({ type: 'error', message: 'Esse contato é cliente — desative em vez de excluir.' })
-      setConfirm(null)
-      return
-    }
-
-    // Ids a apagar: o da linha + leads duplicados (mesmo phone/email). Sem contato → só o da linha.
-    // SEGURANÇA por grupo de status: lixo só apaga lixo; ativo só apaga ativo (não-lixeira).
-    // Assim, excluir um lixo nunca apaga um lead ativo sem querer — e vice-versa.
-    const isLixeira = r.faseKey === 'lixeira'
-    const ids = new Set<string>([r.id])
-    if (p || e) {
-      for (const l of leads) {
-        const sameGroup = isLixeira ? l.status === 'lixeira' : l.status !== 'lixeira'
-        if (!sameGroup) continue
-        if ((p && onlyDigits(l.phone) === p) || (e && lower(l.email) === e)) ids.add(l.id)
-      }
-    }
-    const idArr = Array.from(ids)
-
-    setDeleting(true)
-    const res = await deleteLeadsAction(idArr)   // servidor: can(commercial,delete)
-    setDeleting(false)
-    if (!res.ok) {
-      toast({ type: 'error', message: `Não foi possível excluir: ${res.error}` })
-      return
-    }
-    setRemovedIds(prev => { const n = new Set(prev); for (const id of idArr) n.add(id); return n })   // otimista: somem da lista
-    setConfirm(null)
-    toast({ type: 'success', message: 'Contato excluído' })
-  }
-
-  // Card de contato (reusado nos dois grupos: principais + lixeira). Lixeira = apagado (opacity).
+  // Card de contato.
   const renderRow = (r: Row) => (
     <div key={`${r.origem}-${r.id}`}
       onClick={() => open(r)}
       role="button" tabIndex={0}
       onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); open(r) } }}
-      className={cn('w-full text-left bento-fx p-3 hover:border-lime/40 hover:bg-bento-surface transition-colors cursor-pointer',
-        r.faseKey === 'lixeira' && 'opacity-70')}>
+      className="w-full text-left bento-fx p-3 hover:border-lime/40 hover:bg-bento-surface transition-colors cursor-pointer">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <p className="text-sm font-semibold text-bento-text truncate">{r.name || 'Sem nome'}</p>
@@ -250,22 +168,6 @@ export function ContatosTab({ leads, clients, onOpenLead, onClientUpdated }: Pro
         </div>
         <div className="flex items-center gap-1 shrink-0">
           {r.chegada && <span className="font-tech text-label text-bento-muted tabular-nums">{fmtChegada(r.chegada)}</span>}
-          {/* Abrir o Hub do lead (só leads). stopPropagation p/ não abrir o modal da linha. */}
-          {r.origem === 'lead' && (
-            <Link href={`/comercial/lead/${r.id}`} aria-label="Abrir perfil" title="Abrir perfil"
-              onClick={e => e.stopPropagation()}
-              className="p-1 rounded-btn text-bento-muted/60 hover:text-lime-fg hover:bg-lime/10 transition-colors">
-              <ArrowRight className="w-3.5 h-3.5" />
-            </Link>
-          )}
-          {/* Excluir de vez — SÓ leads. Cliente nunca é excluído (só desativado). */}
-          {r.origem === 'lead' && (
-            <button type="button" aria-label="Excluir de vez" title="Excluir de vez"
-              onClick={e => { e.stopPropagation(); setConfirm(r) }}
-              className="p-1 -mr-1 rounded-btn text-bento-muted/50 hover:text-destructive hover:bg-destructive/10 transition-colors">
-              <Trash2 className="w-3.5 h-3.5" />
-            </button>
-          )}
         </div>
       </div>
       {/* Meta: a FASE é o único selo (âncora de escaneabilidade); nicho/fuso recuam a texto — menos borda, mesmo dado, mesma altura. */}
@@ -289,9 +191,6 @@ export function ContatosTab({ leads, clients, onOpenLead, onClientUpdated }: Pro
           <span className="font-tech text-xs text-bento-muted tabular-nums">{totalVisible} contato{totalVisible === 1 ? '' : 's'}</span>
         </div>
 
-        {/* Período (padrão "Tudo") — filtra leads por updated_at||created_at e clientes por start_date. */}
-        <PeriodChips range={range} onChange={setRange} />
-
         {/* Busca + filtros */}
         <div className="flex flex-wrap items-center gap-2">
           <div className="relative flex-1 min-w-[180px] max-w-xs">
@@ -311,64 +210,15 @@ export function ContatosTab({ leads, clients, onOpenLead, onClientUpdated }: Pro
           </CollapsibleSection>
         </div>
 
-        {/* Lista (cards empilhados; sem scroll horizontal). Lixeira = grupo separado abaixo. */}
+        {/* Lista (cards empilhados; sem scroll horizontal). */}
         {totalVisible === 0 ? (
           <p className="text-sm text-bento-muted text-center py-10">Nenhum contato encontrado.</p>
         ) : (
           <div className="space-y-1.5">
-            {visibleMain.map(renderRow)}
-            {visibleLixeira.length > 0 && (
-              <>
-                <div className="flex items-center gap-2 pt-4 pb-1">
-                  <span className="font-tech text-label uppercase tracking-label text-bento-muted">Lixeira</span>
-                  <span className="font-tech text-label text-bento-muted/70 tabular-nums">{visibleLixeira.length}</span>
-                  <div className="flex-1 border-t border-bento-border/60" />
-                </div>
-                {visibleLixeira.map(renderRow)}
-              </>
-            )}
+            {visible.map(renderRow)}
           </div>
         )}
       </div>
-
-      {/* Confirmação de exclusão PERMANENTE — só leads */}
-      {confirm && (
-        <Portal>
-        <div className="fixed inset-0 z-[300] flex items-end sm:items-center justify-center p-0 sm:p-4">
-          <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={() => { if (!deleting) setConfirm(null) }} />
-          <div ref={confirmDialog.ref} {...confirmDialog.dialogProps} aria-labelledby="contato-del-title" className="relative bento-fx rounded-t-frame sm:rounded-frame shadow-card-hover w-full sm:max-w-md max-h-[92dvh] overflow-y-auto overscroll-contain animate-slide-up">
-            <div className="p-4 sm:p-5 space-y-4">
-              <div className="flex items-center gap-3">
-                <span className="w-9 h-9 rounded-full bg-destructive/15 flex items-center justify-center flex-none">
-                  <Trash2 className="w-4 h-4 text-destructive" />
-                </span>
-                <div className="min-w-0">
-                  <h2 id="contato-del-title" className="font-display font-bold text-bento-text leading-tight">Excluir de vez</h2>
-                  <p className="text-sm text-bento-dim truncate">{confirm.name || 'Sem nome'}</p>
-                </div>
-              </div>
-
-              <div className="rounded-btn border border-destructive/40 bg-destructive/15 p-3">
-                <p className="text-sm text-destructive">
-                  Isso apaga o lead e todo o histórico dele (transcrições, briefings, notas) <span className="font-bold">PARA SEMPRE</span>. Não dá pra desfazer.
-                </p>
-              </div>
-
-              <div className="flex flex-col gap-2 pt-1">
-                <button type="button" onClick={() => setConfirm(null)} disabled={deleting}
-                  className="w-full border border-bento-border text-bento-dim py-2.5 rounded-btn text-sm font-medium hover:border-lime hover:text-bento-text transition-colors disabled:opacity-50 min-h-control">
-                  Cancelar
-                </button>
-                <button type="button" onClick={() => doDelete(confirm)} disabled={deleting}
-                  className="w-full mt-1 bg-destructive text-destructive-foreground py-2.5 rounded-btn text-sm font-semibold hover:bg-destructive/90 transition-colors disabled:opacity-50 min-h-control">
-                  {deleting ? 'Excluindo…' : 'Excluir de vez'}
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-        </Portal>
-      )}
 
       {/* Edição de cliente na própria aba Contatos (modal compartilhado). Salva e reflete no mapa. */}
       {editClient && (

@@ -189,19 +189,6 @@ export async function deleteLeadAction(leadId: string): Promise<Res> {
   return { ok: true }
 }
 
-// Exclusão em lote (ex.: contatos duplicados) → soft delete de cada um (owner-only).
-export async function deleteLeadsAction(ids: string[]): Promise<Res> {
-  const g = await guard('delete', DENY_DELETE)
-  if (!g.context) return { ok: false, error: g.error }
-  if (ids.length === 0) return { ok: true }
-  const supabase = createClient()
-  for (const id of ids) {
-    const { error } = await supabase.rpc('soft_delete_lead', { p_lead_id: id })
-    if (error) return { ok: false, error: /owner/i.test(error.message) ? 'Apenas o owner da equipe pode excluir.' : error.message }
-  }
-  return { ok: true }
-}
-
 // Registra uma interação (contato) + aplica o score/marco. Mesma regra do funil/diário, agora no servidor.
 export async function addLeadInteractionAction(input: {
   leadId: string

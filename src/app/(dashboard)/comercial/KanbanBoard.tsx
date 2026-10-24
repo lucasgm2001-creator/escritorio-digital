@@ -46,7 +46,6 @@ interface CurrentUser { id: string; name: string }
 interface FollowUpData {
   initialTasks: Task[]
   initialLeads: MesaLead[]
-  initialFocus: string[]
   stages: MesaStage[]
   linkOptions: LinkOption[]
 }
@@ -72,9 +71,11 @@ function FunnelSummary({ leads, allLeads }: { leads: Lead[]; allLeads: Lead[] })
       <SummaryStat label="Fechados" value={String(fechados)} accent="text-green-500" />
       <SummaryStat label="Perdidos" value={String(perdidos)} accent="text-red-400" />
       <div className="ml-auto flex items-center gap-3 font-tech text-[10px] text-bento-muted">
-        <SummaryLegend cls="bg-lime" t="Quente" />
+        {/* Pontos das fases = dias sem contato (heatLevel), não temperatura do lead — por isso não usa
+            "Quente/Frio", que no resto do app é a temperatura avaliada. */}
+        <SummaryLegend cls="bg-lime" t="Em dia" />
         <SummaryLegend cls="bg-amber-500" t="Atenção" />
-        <SummaryLegend cls="bg-red-500" t="Esfriando" />
+        <SummaryLegend cls="bg-red-500" t="Parado" />
       </div>
     </div>
   )
