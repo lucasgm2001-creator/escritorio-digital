@@ -289,6 +289,8 @@ export function MesaClient({ initialTasks, initialLeads, stages, linkOptions, cu
 
   const selectedTask = selectedTaskId ? tasks.find(task => task.id === selectedTaskId) ?? null : null
   const selectedLead = selectedLeadId ? leads.find(lead => lead.id === selectedLeadId) ?? null : null
+  const temSelecao = !!selectedLead || !!selectedTask
+  function fecharPainel() { setSelectedLeadId(null); setSelectedTaskId(null) }
 
   // A Mesa abre SEM nada selecionado (MESA-BUSCA-001). Antes um efeito escolhia a primeira tarefa de hoje
   // ligada a lead — ou o primeiro que precisava de atenção — e o painel da direita já abria no contexto de
@@ -645,7 +647,26 @@ export function MesaClient({ initialTasks, initialLeads, stages, linkOptions, cu
             </div>
           </section>
 
-          <aside className="bento-fx xl:sticky xl:top-3 min-w-0">
+          {/* PAINEL DO ITEM. Desktop largo (xl): terceira coluna fixa ao lado da lista, como sempre foi.
+              Celular/iPad: abria EMBAIXO da lista inteira e era preciso rolar até ele; agora sobe POR CIMA
+              (folha), com fundo escurecido e botão de fechar. z-190: acima da lista, abaixo dos avisos (200) e
+              dos formulários que o próprio painel abre (300). */}
+          {temSelecao && (
+            <button type="button" aria-label="Fechar painel" onClick={fecharPainel}
+              className="fixed inset-0 z-[185] bg-black/60 backdrop-blur-sm xl:hidden" />
+          )}
+          <aside className={cn('bento-fx min-w-0 xl:block xl:sticky xl:top-3',
+            temSelecao
+              ? 'fixed inset-x-0 bottom-0 top-[max(3rem,env(safe-area-inset-top))] z-[190] overflow-y-auto overscroll-contain animate-slide-up pb-[env(safe-area-inset-bottom)] xl:inset-auto xl:top-3 xl:z-auto xl:overflow-visible xl:animate-none xl:pb-0'
+              : 'hidden')}>
+            {temSelecao && (
+              <div className="xl:hidden sticky top-0 z-10 flex justify-end border-b border-bento-border bg-bento-panel px-2 py-1.5">
+                <button type="button" onClick={fecharPainel}
+                  className="inline-flex items-center gap-1.5 rounded-btn px-3 min-h-[44px] text-sm text-bento-muted hover:text-bento-text">
+                  <X className="h-4 w-4" /> Fechar
+                </button>
+              </div>
+            )}
             {selectedLead ? (
               <LeadContext lead={selectedLead} task={selectedTask} interactions={interactions} loading={interactionsLoading}
                 onNewTask={() => openNew(selectedLead)} onEditTask={selectedTask ? () => openEdit(selectedTask) : undefined}
