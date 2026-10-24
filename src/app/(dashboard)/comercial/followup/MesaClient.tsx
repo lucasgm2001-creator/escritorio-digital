@@ -55,13 +55,15 @@ export type FunnelStage = { slug: string; nome: string; posicao: number; cor: st
 // Próximas, Sem plano e Concluídas —, várias medindo recortes da mesma coisa com números que não batiam.
 //
 //   hoje        → o que vence no dia (com navegação por data)
+//   semana      → as tarefas dos próximos 7 dias, agrupadas por dia (o que vem pela frente — era o único uso
+//                 real da Agenda do Hall, que saiu)
 //   acompanhando→ TODOS os leads em jogo, agrupados pela fase REAL do funil
 //   reunioes    → só compromisso marcado
 //   concluidas  → quem chegou ao fim: virou cliente ou disse não
 //
 // Atrasado deixou de ser aba: atraso virou um atributo da linha dentro da fase, não um lugar. Um lead não
 // "é atrasado", ele está numa fase do funil — e é por fase que o trabalho acontece.
-type Filter = 'hoje' | 'acompanhando' | 'reunioes' | 'concluidas'
+type Filter = 'hoje' | 'semana' | 'acompanhando' | 'reunioes' | 'concluidas'
 
 // Fases que saem do fluxo de trabalho e vão para "Concluídas": as encerradas (closedStageSlugs, fonte única
 // em lib/commercial/closed-stages — a mesma régua do rodapé do Funil).
@@ -90,6 +92,15 @@ const rotuloDia = (alvo: string, hoje: string): string => {
   if (alvo === shiftDia(hoje, 1)) return 'Amanhã'
   const [y, m, d] = alvo.split('-')
   return `${d}/${m}/${y}`
+}
+
+const DIA_SEMANA = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb']
+// Cabeçalho do dia na visão Semana: Hoje / Amanhã / "Sex · 31/10".
+const rotuloSemana = (alvo: string, hoje: string): string => {
+  if (alvo === hoje) return 'Hoje'
+  if (alvo === shiftDia(hoje, 1)) return 'Amanhã'
+  const [y, m, d] = alvo.split('-').map(Number)
+  return `${DIA_SEMANA[new Date(Date.UTC(y, m - 1, d)).getUTCDay()]} · ${String(d).padStart(2, '0')}/${String(m).padStart(2, '0')}`
 }
 
 const normalizar = (v: string): string =>
@@ -238,6 +249,16 @@ export function MesaClient({ initialTasks, initialLeads, stages, linkOptions, cu
       !jaNasTarefas.has(lead.id))
   }, [leads, diaRef, todayTasks, closedSlugs])
 
+  // SEMANA: tarefas abertas de hoje até +6 dias, por dia e por horário. Sem dedupe por lead — é a visão de
+  // agenda: duas coisas marcadas no mesmo dia aparecem as duas (igual ao Google Agenda, que recebe as mesmas).
+  const semanaDias = useMemo(() => Array.from({ length: 7 }, (_, i) => {
+    const dia = shiftDia(today, i)
+    const itens = pending.filter(t => t.due_date === dia)
+      .sort((a, b) => (a.due_time ?? '99:99').localeCompare(b.due_time ?? '99:99'))
+    return { dia, itens }
+  }), [pending, today])
+  const semanaCount = semanaDias.reduce((n, d) => n + d.itens.length, 0)
+
   // REUNIÕES: sem dedupe nenhuma. Compromisso marcado não é resíduo — se existem duas, as duas aparecem.
   const meetingTasks = useMemo(() => pending.filter(task => inferTaskKind(task.title, task.kind) === 'reuniao'), [pending])
 
@@ -315,6 +336,7 @@ export function MesaClient({ initialTasks, initialLeads, stages, linkOptions, cu
 
   const filters: { id: Filter; label: string; Icon: LucideIcon; count: number }[] = [
     { id: 'hoje', label: 'Hoje', Icon: CircleDot, count: tarefasDeHojeCount + newLeadsToday.length },
+    { id: 'semana', label: 'Semana', Icon: CalendarDays, count: semanaCount },
     { id: 'acompanhando', label: 'Acompanhando', Icon: UserRound, count: acompanhandoCount },
     { id: 'reunioes', label: 'Reuniões', Icon: Video, count: meetingTasks.length },
     { id: 'concluidas', label: 'Concluídas', Icon: CheckCircle2, count: concluidasCount },
@@ -476,6 +498,8 @@ export function MesaClient({ initialTasks, initialLeads, stages, linkOptions, cu
                 <p className="text-xs text-bento-muted mt-0.5">
                   {buscando
                     ? `${resultados.length} ${resultados.length === 1 ? 'lead encontrado' : 'leads encontrados'}`
+                    : filter === 'semana'
+                      ? `${semanaCount} ${semanaCount === 1 ? 'tarefa' : 'tarefas'} nos próximos 7 dias`
                     : gruposDoFunil.length > 0
                       ? `${gruposDoFunil.reduce((n, g) => n + g.itens.length, 0)} lead(s) em ${gruposDoFunil.length} fase(s)`
                       : `${taskRows.length || leadRows.length} ${taskRows.length + leadRows.length === 1 ? 'item' : 'itens'}`}
@@ -551,7 +575,26 @@ export function MesaClient({ initialTasks, initialLeads, stages, linkOptions, cu
             </div>
 
             <div className="p-2 sm:p-3 space-y-2">
-              {gruposDoFunil.length > 0 && !buscando ? (
+              {filter === 'semana' && !buscando ? (
+                semanaCount === 0 ? <EmptyFilter filter="semana" /> : (
+                  <div className="space-y-4">
+                    {semanaDias.filter(d => d.itens.length > 0).map(({ dia, itens }) => (
+                      <div key={dia} className="space-y-2">
+                        <p className="flex items-center gap-2 px-1 font-tech text-[10px] uppercase tracking-label text-bento-muted">
+                          <span className={cn(dia === today && 'text-lime-fg')}>{rotuloSemana(dia, today)}</span>
+                          <span className="tabular-nums opacity-70">{itens.length}</span>
+                          <span className="h-px flex-1 bg-bento-border/60" aria-hidden />
+                        </p>
+                        {itens.map(task => (
+                          <TaskRow key={task.id} task={task} active={selectedTaskId === task.id} today={today}
+                            busy={busyTaskId === task.id} onSelect={() => selectTask(task)}
+                            onToggle={() => toggleTask(task)} onEdit={() => openEdit(task)} />
+                        ))}
+                      </div>
+                    ))}
+                  </div>
+                )
+              ) : gruposDoFunil.length > 0 && !buscando ? (
                 /* FUNIL (MESA-FUNIL-002). Três superfícies em profundidade decrescente para separar o
                    que é fase do que é lead: o cartão da fase em `bento-panel`, o corpo aberto recuado
                    em `bento-bg` (a cor da própria página, que vira um "poço"), e os leads de volta em
@@ -983,6 +1026,7 @@ function ContextBlock({ label, value }: { label: string; value: string }) {
 function EmptyFilter({ filter }: { filter: Filter }) {
   const messages: Record<Filter, string> = {
     hoje: 'Nada para hoje: nenhuma tarefa vence hoje e nenhum lead novo chegou.',
+    semana: 'Nenhuma tarefa marcada para os próximos 7 dias.',
     acompanhando: 'Nenhum lead em jogo no funil.',
     reunioes: 'Nenhuma reunião marcada.',
     concluidas: 'Ninguém chegou ao fim do funil ainda.',
