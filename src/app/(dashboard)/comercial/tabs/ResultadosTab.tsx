@@ -87,7 +87,7 @@ export function ResultadosTab() {
     let active = true
     ;(async () => {
       setLoading(true); setError(null)
-      const r = await getExecutiveReportAction({ fromYMD: ymd(range.start), toYMD: ymd(range.end), label: range.label })
+      const r = await getExecutiveReportAction({ fromYMD: ymd(range.start), toYMD: ymd(range.end), label: range.label, mode: range.mode })
       if (!active) return
       if (!r.ok) { setError(r.error); setRes(null) } else setRes(r)
       setLoading(false)

@@ -3,20 +3,21 @@ import 'server-only'
 import { createClient } from '@/lib/supabase/server'
 import type { RequestContext } from '@/server/context/request-context'
 import { can } from '@/lib/permissions/can'
+import { canAccessAdmin } from '@/lib/permissions/admin-access'
 import { composeExecutiveMetrics } from '@/server/services/ExecutiveMetricsService'
 import { buildCommercialReport } from '@/server/services/ReportingService'
 import { getCommercialRaw, getClientRevenueForMetrics, getExecutiveClients } from '@/server/repositories/CommercialMetricsRepository'
 import { clientsWithLatePay, receivedRevenueBetween, type PaymentRowWithClient } from '@/core/metrics/revenue'
 import { rangeFor } from '@/lib/period'
-import { ymd, previousWindowYmd } from '@/lib/date'
+import { ymd, previousWindowYmd, todaySP } from '@/lib/date'
 import type { MetricTrend } from '@/components/ui/MetricCard'
 
 // Painel da EMPRESA no Hall (HALL-EMPRESA-001). O Hall deixou de ser o lugar do trabalho do dia (tarefas e
 // agenda moram no Follow-up do Comercial) e virou a visão geral da companhia: alertas, dinheiro, comercial do
 // mês, carteira e receita dos últimos 12 meses.
 //
-// Mesmas fontes e a mesma régua de Resultados — mês corrente comparado com a janela anterior de mesma duração
-// (previousWindowYmd) —, então clicar num cartão do Hall leva a Resultados com o mesmo número e a mesma
+// Mesmas fontes e a mesma régua de Resultados — comparação pelo previousWindowYmd (mês em andamento × mesmo
+// trecho do mês anterior) —, então clicar num cartão do Hall leva a Resultados com o mesmo número e a mesma
 // comparação. KPIs executivos: composeExecutiveMetrics sobre UMA carga (raw/revenue/carteira). Funil do mês:
 // buildCommercialReport (mesma fonte dos cartões de funil de Resultados). Team-scoped (TEAM-001).
 
@@ -46,12 +47,16 @@ export async function getDashboardData(context: RequestContext): Promise<Dashboa
   if (!teamId) return EMPTY_DASHBOARD
   const supabase = createClient()
   const now = new Date()
+  // "Hoje" e o mês são de BRASÍLIA, não do servidor (UTC na Vercel): entre 21h e 0h do último dia o servidor já
+  // está no mês seguinte e o Hall mostrava o mês errado, divergindo de Resultados. Meio-dia evita virada de data.
+  const today = todaySP()
+  const nowSP = new Date(`${today}T12:00:00`)
   const staleDay = new Date(now.getTime() - 9 * 86_400_000).toISOString().slice(0, 10)   // pagamento semanal: gap > 9 dias
   const canManage = can(context, 'teams', 'manage')
 
-  const mRange = rangeFor('mes')
+  const mRange = rangeFor('mes', nowSP)
   const from = ymd(mRange.start), to = ymd(mRange.end)
-  const prev = previousWindowYmd(from, to)
+  const prev = previousWindowYmd(from, to, { mode: 'mes', todayYMD: today })
 
   const [raw, revenue, carteira, integrationsOffRes, invitesRes, report] = await Promise.all([
     getCommercialRaw(teamId),
@@ -77,17 +82,23 @@ export async function getDashboardData(context: RequestContext): Promise<Dashboa
   const invites = (invitesRes.data ?? []) as { used_at: string | null; expires_at: string | null }[]
   const expiredInvites = invites.filter(i => !i.used_at && (i.expires_at ?? '') <= now.toISOString()).length
 
+  // Destinos só para quem consegue abrir: Financeiro é owner/dev (requireAdminManage); Clientes (onde vivem as
+  // integrações de cliente) também abre para quem tem o módulo. Sem acesso → cartão sem link, não um beco.
+  const isAdmin = canAccessAdmin(context)
+  const financeiroHref = isAdmin ? '/admin/financeiro' : undefined
+  const clientesHref = isAdmin || (context.moduleAccess.clientes ?? 'none') !== 'none' ? '/admin/clientes' : undefined
+
   // ── Alertas da EMPRESA (só quando há). Tarefa atrasada não entra: é trabalho pessoal, mora no Follow-up. ──
   const alerts: DashAlert[] = []
-  if (clientesEmAtraso > 0) alerts.push({ message: `${clientesEmAtraso} cliente(s) ativo(s) sem pagamento recente.`, href: '/admin/financeiro' })
-  if (integrationsOff > 0) alerts.push({ message: `${integrationsOff} integração(ões) desligada(s).`, href: '/admin/integracoes' })
+  if (clientesEmAtraso > 0) alerts.push({ message: `${clientesEmAtraso} cliente(s) ativo(s) sem pagamento recente.`, href: financeiroHref })
+  if (integrationsOff > 0) alerts.push({ message: `${integrationsOff} integração(ões) desligada(s).`, href: clientesHref })
   if (canManage && expiredInvites > 0) alerts.push({ message: `${expiredInvites} convite(s) expirado(s).`, href: '/admin/equipe' })
 
   // ── Receita recebida mês a mês (12 meses, o corrente parcial) — mesma primitiva da Receita Recebida ──
   const revenue12m: DashMonth[] = []
   for (let i = 11; i >= 0; i--) {
-    const start = new Date(now.getFullYear(), now.getMonth() - i, 1)
-    const end = new Date(now.getFullYear(), now.getMonth() - i + 1, 0)
+    const start = new Date(nowSP.getFullYear(), nowSP.getMonth() - i, 1)
+    const end = new Date(nowSP.getFullYear(), nowSP.getMonth() - i + 1, 0)
     revenue12m.push({
       key: ymd(start).slice(0, 7),
       label: MONTH_ABBR[start.getMonth()],
@@ -104,9 +115,9 @@ export async function getDashboardData(context: RequestContext): Promise<Dashboa
         title: 'Dinheiro',
         kpis: [
           { label: 'Receita recebida', value: usd(exec.receitaRecebida), href: RESULTADOS, trend: vs(exec.receitaRecebida, execPrev.receitaRecebida) },
-          { label: 'Receita prevista', value: usd(exec.receitaPrevista), href: '/admin/financeiro', subtitle: 'a receber no mês' },
-          { label: 'MRR', value: usd(exec.mrr), href: '/admin/financeiro', subtitle: 'receita mensal recorrente' },
-          { label: 'ARR', value: usd(exec.arr), href: '/admin/financeiro', subtitle: 'MRR × 12' },
+          { label: 'Receita prevista', value: usd(exec.receitaPrevista), href: financeiroHref, subtitle: 'a receber no mês' },
+          { label: 'MRR', value: usd(exec.mrr), href: financeiroHref, subtitle: 'receita mensal recorrente' },
+          { label: 'ARR', value: usd(exec.arr), href: financeiroHref, subtitle: 'MRR × 12' },
         ],
       },
       {
@@ -122,9 +133,9 @@ export async function getDashboardData(context: RequestContext): Promise<Dashboa
       {
         title: 'Carteira',
         kpis: [
-          { label: 'Clientes ativos', value: exec.clientesAtivos, href: '/admin/clientes' },
-          { label: 'Clientes novos', value: exec.clientesNovos, href: '/admin/clientes', trend: vs(exec.clientesNovos, execPrev.clientesNovos) },
-          { label: 'Clientes em atraso', value: clientesEmAtraso, href: '/admin/financeiro', subtitle: 'sem pagamento há +9 dias' },
+          { label: 'Clientes ativos', value: exec.clientesAtivos, href: clientesHref },
+          { label: 'Clientes novos', value: exec.clientesNovos, href: clientesHref, trend: vs(exec.clientesNovos, execPrev.clientesNovos) },
+          { label: 'Clientes em atraso', value: clientesEmAtraso, href: financeiroHref, subtitle: 'sem pagamento há +9 dias' },
         ],
       },
     ],

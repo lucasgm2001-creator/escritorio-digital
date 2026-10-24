@@ -6,7 +6,7 @@ import { buildCommercialReport } from '@/server/services/ReportingService'
 import { getExecutiveMetrics } from '@/server/services/ExecutiveMetricsService'
 import type { CommercialReport, ReportPeriod } from '@/core/reporting/types'
 import type { ExecutiveMetricsVM } from '@/core/metrics/types'
-import { previousWindowYmd } from '@/lib/date'
+import { previousWindowYmd, todaySP } from '@/lib/date'
 
 // Server Action ÚNICA do relatório (EXECUTIVE-METRICS-004). A TELA e o PDF consomem EXATAMENTE o mesmo
 // { exec, report } → batem 1:1 por construção. exec = ExecutiveMetricsService (fonte única executiva:
@@ -16,7 +16,7 @@ export type ExecReportResult =
   | { ok: true; exec: ExecutiveMetricsVM; execPrev: ExecutiveMetricsVM; report: CommercialReport; workspace: string | null; user: string | null }
   | { ok: false; error: string }
 
-export async function getExecutiveReportAction(input: { fromYMD: string; toYMD: string; label: string }): Promise<ExecReportResult> {
+export async function getExecutiveReportAction(input: { fromYMD: string; toYMD: string; label: string; mode?: string }): Promise<ExecReportResult> {
   const context = await getRequestContext()
   if (!context) return { ok: false, error: 'Sessão expirada. Entre novamente.' }
   // Autoridade (PERMISSIONS-002): o relatório comercial exige nível ≥ Somente leitura no Comercial.
@@ -24,7 +24,7 @@ export async function getExecutiveReportAction(input: { fromYMD: string; toYMD: 
   try {
     // Janela ANTERIOR de mesma duração, imediatamente antes (semanal→semana anterior; mensal→mês anterior;
     // personalizado→janela anterior do mesmo tamanho). Comparativo (Parte 4). Mesma janela p/ exec e report → 1:1.
-    const { from: prevFromYMD, to: prevToYMD } = previousWindowYmd(input.fromYMD, input.toYMD)
+    const { from: prevFromYMD, to: prevToYMD } = previousWindowYmd(input.fromYMD, input.toYMD, { mode: input.mode, todayYMD: todaySP() })
     const period: ReportPeriod = { from: `${input.fromYMD}T00:00:00`, to: `${input.toYMD}T23:59:59.999`, label: input.label }
     const prevPeriod: ReportPeriod = { from: `${prevFromYMD}T00:00:00`, to: `${prevToYMD}T23:59:59.999`, label: 'período anterior' }
     const [exec, execPrev, report] = await Promise.all([

@@ -12,7 +12,9 @@ export type RevenueMonth = { key: string; label: string; value: number; partial:
 // HTML/CSS (não SVG com viewBox) para a largura da barra valer em pixels reais em qualquer tela.
 
 const usd = (n: number): string => `US$ ${Math.round(n).toLocaleString('en-US')}`
-const compact = (n: number): string => (n >= 1000 ? `${Math.round(n / 100) / 10}K`.replace('.0K', 'K') : String(Math.round(n)))
+// Até 2 casas, sem zeros sobrando: 1250 → 1.25K (não "1.3K", que não é o valor da linha), 5000 → 5K.
+const trim = (n: number): string => String(Math.round(n * 100) / 100)
+const compact = (n: number): string => (n >= 1000 ? `${trim(n / 1000)}K` : trim(n))
 
 // Teto "redondo" do eixo (1 / 2 / 2,5 / 5 × 10^n) — ticks limpos (0 / 2,5K / 5K…).
 function niceMax(v: number): number {

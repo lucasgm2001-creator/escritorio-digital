@@ -8,7 +8,7 @@ import {
   type LucideIcon,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { ymd } from '@/lib/date'
+import { ymd, addDaysYmd, dowOfYmd } from '@/lib/date'
 import { waNumber } from '@/lib/phone'
 import { createClient } from '@/lib/supabase/client'
 import { useRealtimeRows } from '@/lib/hooks/useRealtimeRows'
@@ -81,11 +81,7 @@ const COLD = new Set(['esfriando', 'frio', 'pouco_interessado'])
 // Busca sem acento e sem caixa: a base tem "Gouvêa", "André", "Mizael". Exigir o acento certo faria a
 // busca falhar justamente nos nomes que mais precisam dela.
 // Anda dias numa chave 'YYYY-MM-DD' sem Date local — aritmética de fuso é a origem clássica do dia que pula.
-const shiftDia = (ymdStr: string, delta: number): string => {
-  const d = new Date(`${ymdStr}T12:00:00Z`)
-  d.setUTCDate(d.getUTCDate() + delta)
-  return d.toISOString().slice(0, 10)
-}
+const shiftDia = (ymdStr: string, delta: number): string => addDaysYmd(ymdStr, delta)
 const rotuloDia = (alvo: string, hoje: string): string => {
   if (alvo === hoje) return 'Hoje'
   if (alvo === shiftDia(hoje, -1)) return 'Ontem'
@@ -99,8 +95,8 @@ const DIA_SEMANA = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb']
 const rotuloSemana = (alvo: string, hoje: string): string => {
   if (alvo === hoje) return 'Hoje'
   if (alvo === shiftDia(hoje, 1)) return 'Amanhã'
-  const [y, m, d] = alvo.split('-').map(Number)
-  return `${DIA_SEMANA[new Date(Date.UTC(y, m - 1, d)).getUTCDay()]} · ${String(d).padStart(2, '0')}/${String(m).padStart(2, '0')}`
+  const [, m, d] = alvo.split('-')
+  return `${DIA_SEMANA[dowOfYmd(alvo)]} · ${d}/${m}`
 }
 
 const normalizar = (v: string): string =>

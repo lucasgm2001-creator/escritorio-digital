@@ -32,18 +32,18 @@ function HallSectionLoading() {
 
 // Seções pesadas abaixo da dobra só montam quando estão perto da viewport. Em mobile, uma seção fechada
 // não intersecta e não baixa o chunk; em desktop, o preload acontece pouco antes de o usuário chegar nela.
-function LazyVisible({ children, force = false }: { children: React.ReactNode; force?: boolean }) {
+function LazyVisible({ children }: { children: React.ReactNode }) {
   const ref = useRef<HTMLDivElement>(null)
   const [ready, setReady] = useState(false)
   useEffect(() => {
-    if (force || ready || !ref.current || typeof IntersectionObserver === 'undefined') return
+    if (ready || !ref.current || typeof IntersectionObserver === 'undefined') return
     const observer = new IntersectionObserver(([entry]) => {
       if (entry.isIntersecting) { setReady(true); observer.disconnect() }
     }, { rootMargin: '320px 0px' })
     observer.observe(ref.current)
     return () => observer.disconnect()
-  }, [force, ready])
-  return <div ref={ref}>{ready || force ? children : <div className="min-h-20" aria-hidden />}</div>
+  }, [ready])
+  return <div ref={ref}>{ready ? children : <div className="min-h-20" aria-hidden />}</div>
 }
 // Componente pesado EXCLUSIVO da aba nao-default (agent) — fora do bundle inicial da /hall. So baixa ao
 // abrir a aba; nao aparece no first paint da Visao Geral (PERF-003). (AgentChat arrasta react-markdown/remark-gfm.)
@@ -242,7 +242,8 @@ export function HallClient({ initialActivities, initialMapLeads, initialMapClien
                     </div>
                   </div>
                   {/* Receita dos últimos 12 meses logo abaixo do Dinheiro — a tendência que os cartões não mostram. */}
-                  {primary && dashboard.revenue12m.length > 0 && (
+                  {/* Sem nenhum pagamento nos 12 meses o gráfico seria só um eixo vazio — não mostra. */}
+                  {primary && dashboard.revenue12m.some(m => m.value > 0) && (
                     <div className="flex flex-col gap-2">
                       <SectionLabel>Receita recebida · 12 meses</SectionLabel>
                       <Panel className="max-lg:p-3">

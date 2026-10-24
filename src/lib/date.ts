@@ -29,11 +29,33 @@ export const addDaysYmd = (s: string, days: number): string => {
   return new Date(Date.UTC(y, m - 1, d) + days * 86_400_000).toISOString().slice(0, 10)
 }
 
-/** Janela ANTERIOR de mesma duração, imediatamente antes de [from, to] (YMD inclusivos). Régua ÚNICA do
- *  comparativo "vs. anterior" — Resultados, PDF e Hall usam esta, então os números batem entre as telas. */
-export const previousWindowYmd = (fromYMD: string, toYMD: string): { from: string; to: string } => {
-  const sizeDays = Math.round((Date.parse(toYMD) - Date.parse(fromYMD)) / 86_400_000) + 1
-  return { from: addDaysYmd(fromYMD, -sizeDays), to: addDaysYmd(fromYMD, -1) }
+/** Janela de COMPARAÇÃO ("vs. anterior") de [from, to] — régua ÚNICA de Resultados, PDF e Hall, então os
+ *  números batem entre as telas.
+ *  - Período em ANDAMENTO (contém hoje): compara só o que já passou com o MESMO trecho do período anterior
+ *    (1–24/out × 1–24/set). Antes comparava 24 dias com dados contra 31 dias cheios e a seta ficava negativa
+ *    quase o mês todo.
+ *  - Período FECHADO: compara com o período anterior inteiro (setembro × agosto inteiro).
+ *  `mode` é a unidade do seletor (semana/mes/trimestre/semestre/ano); sem unidade (personalizado), usa a
+ *  janela imediatamente anterior de mesma duração. Datas YMD inclusivas. */
+export const previousWindowYmd = (
+  fromYMD: string, toYMD: string, opts: { mode?: string; todayYMD?: string } = {},
+): { from: string; to: string } => {
+  const today = opts.todayYMD
+  const emAndamento = !!today && fromYMD <= today && toYMD > today
+  const ateHoje = emAndamento ? today! : toYMD
+  const dayBefore = addDaysYmd(fromYMD, -1)
+  const meses = ({ mes: 1, trimestre: 3, semestre: 6, ano: 12 } as Record<string, number>)[opts.mode ?? '']
+  if (meses) {
+    const prevFrom = addMonthsYmd(fromYMD, -meses)
+    if (!emAndamento) return { from: prevFrom, to: dayBefore }
+    const prevTo = addMonthsYmd(ateHoje, -meses)
+    return { from: prevFrom, to: prevTo < dayBefore ? prevTo : dayBefore }
+  }
+  if (opts.mode === 'semana') {
+    return { from: addDaysYmd(fromYMD, -7), to: emAndamento ? addDaysYmd(ateHoje, -7) : dayBefore }
+  }
+  const sizeDays = Math.round((Date.parse(ateHoje) - Date.parse(fromYMD)) / 86_400_000) + 1
+  return { from: addDaysYmd(fromYMD, -sizeDays), to: dayBefore }
 }
 
 /** YMD + N meses → YMD, preso ao último dia quando o mês destino é mais curto (31/01 +1 mês = 28/02). */
