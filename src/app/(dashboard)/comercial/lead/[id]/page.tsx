@@ -1,14 +1,7 @@
-import { notFound } from 'next/navigation'
-import { getRequestContext } from '@/server/context/request-context'
-import { getLeadHub } from '@/server/services/LeadHubService'
-import { LeadHub } from '@/components/lead/LeadHub'
+import { redirect } from 'next/navigation'
 
-// Hub do Lead (Master → Detail). Escopado por equipe no LeadHubService (lead de outra equipe → notFound).
+// O Hub do Lead saiu: o perfil único é o Diário. /comercial?lead=<id> abre o Diário desse lead no Comercial.
 export default async function LeadHubPage(props: { params: Promise<{ id: string }> }) {
-  const params = await props.params;
-  const context = await getRequestContext()
-  const vm = context ? await getLeadHub(context, params.id) : null
-  if (!vm) notFound()
-
-  return <LeadHub vm={vm} embedded />
+  const { id } = await props.params
+  redirect(`/comercial?lead=${encodeURIComponent(id)}`)
 }

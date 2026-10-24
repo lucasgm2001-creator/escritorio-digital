@@ -1,7 +1,6 @@
 'use client'
 
 import { useState } from 'react'
-import Link from 'next/link'
 import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { Phone, MessageCircle, FileText, ArrowRight, ChevronDown, Check } from 'lucide-react'
@@ -72,15 +71,16 @@ export function FunnelLeadCard({ lead, moveTargets, onMove, onOpenDiary, onLog, 
       {/* Expandido */}
       {open && (
         <div className="mt-2.5 pt-2.5 border-t border-bento-border/60 space-y-2.5" onClick={stop}>
-          {/* Abrir o Hub do lead. onClick+onPointerDown param o clique/press ANTES do DnD (sortable no root). */}
-          <Link
-            href={`/comercial/lead/${lead.id}`}
-            onClick={stop}
+          {/* Abre o Diário (perfil único do lead). onClick+onPointerDown param o clique/press ANTES do DnD
+              (sortable no root). */}
+          <button
+            type="button"
+            onClick={(e) => { stop(e); onOpenDiary() }}
             onPointerDown={e => e.stopPropagation()}
-            className="flex items-center justify-center gap-1.5 py-1.5 rounded-md border border-lime/40 bg-lime/10 text-lime-fg hover:bg-lime/20 font-tech text-[10px] transition-colors"
+            className="w-full flex items-center justify-center gap-1.5 py-1.5 rounded-md border border-lime/40 bg-lime/10 text-lime-fg hover:bg-lime/20 font-tech text-[10px] transition-colors"
           >
             <ArrowRight className="w-3 h-3" /> Abrir perfil completo
-          </Link>
+          </button>
           <div className="grid grid-cols-2 gap-x-3 gap-y-1.5 font-tech text-[10px]">
             <Info label="Empresa" value={lead.company || '—'} />
             {/* Telefone legível: país, DDD e número separados. O href continua com o número cru (discar). */}

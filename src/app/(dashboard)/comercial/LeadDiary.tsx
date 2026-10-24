@@ -107,6 +107,12 @@ function EditField({ label, children }: { label: string; children: React.ReactNo
 }
 
 
+// Dias inteiros desde uma data ISO (0 se ausente ou inválida). Só exibição.
+function daysAgo(iso?: string | null): number {
+  const t = iso ? new Date(iso).getTime() : NaN
+  return Number.isNaN(t) ? 0 : Math.max(0, Math.floor((Date.now() - t) / 86_400_000))
+}
+
 export function LeadDiary({ lead, onClose, onUpdated, onMoveStage, onDeleted, currentUser, stages }: Props) {
   const [interactions, setInteractions] = useState<Interaction[]>([])
   const [currentLead, setCurrentLead] = useState<Lead>(lead)
@@ -450,6 +456,15 @@ export function LeadDiary({ lead, onClose, onUpdated, onMoveStage, onDeleted, cu
               )}
             </div>
             {currentLead.company && <p className="text-sm text-muted-foreground break-words">{currentLead.company}</p>}
+            {/* Tempo na fase + último contato — o que o Hub do Lead mostrava de útil, numa linha (o Hub saiu:
+                o Diário é o perfil único). */}
+            <p className="font-tech text-[11px] text-bento-muted mt-1 tabular-nums">
+              {daysAgo(currentLead.stage_changed_at ?? currentLead.created_at)}d na fase
+              {' · '}
+              {currentLead.last_contact_at
+                ? `último contato ${new Date(currentLead.last_contact_at).toLocaleDateString('pt-BR')}`
+                : 'sem contato registrado'}
+            </p>
           </div>
           <button onClick={onClose} aria-label="Fechar" className="text-muted-foreground hover:text-foreground mt-0.5 p-1 -m-1">
             <X className="w-5 h-5" />
