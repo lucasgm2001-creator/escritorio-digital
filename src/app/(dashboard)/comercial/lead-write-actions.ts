@@ -339,13 +339,20 @@ export async function updateLeadSituationAction(input: {
 
   // 2) histórico (reusa lead_interactions — sem duplicar timeline). Se o toque rápido já registrou o contato
   // e não há observação escrita, uma 2ª linha só repetiria o mesmo contato no Diário.
-  if (!(input.contactAlreadyLogged && !input.note?.trim())) await supabase.from('lead_interactions').insert({
-    // A fase/resultado já vive nos campos estruturados do lead. Só grava como observação quando a pessoa
-    // realmente escreveu contexto; assim a aba permanente não é poluída por rótulos automáticos.
-    lead_id: input.leadId, type: 'situacao', note: input.note?.trim() || null, score_delta: 0,
-    created_by: g.context.user.id, created_by_name: g.context.profile?.name ?? null,
-    ...(teamId ? { team_id: teamId } : {}),
-  })
+  // Cada registro vira UMA linha nova → o gatilho sync_lead_interaction_observation copia o texto para as
+  // Observações do lead (e do cliente, que lê as do lead) — o histórico ACUMULA; current_situation é só "a atual".
+  if (!(input.contactAlreadyLogged && !input.note?.trim())) {
+    const { error: histError } = await supabase.from('lead_interactions').insert({
+      // A fase/resultado já vive nos campos estruturados do lead. Só grava como observação quando a pessoa
+      // realmente escreveu contexto; assim a aba permanente não é poluída por rótulos automáticos.
+      lead_id: input.leadId, type: 'situacao', note: input.note?.trim() || null, score_delta: 0,
+      created_by: g.context.user.id, created_by_name: g.context.profile?.name ?? null,
+      ...(teamId ? { team_id: teamId } : {}),
+    })
+    // Não derruba o registro (a situação do lead já foi salva acima), mas NUNCA mais em silêncio: foi um CHECK de
+    // tipos sem 'situacao' que fez as observações sumirem por meses (migration 20261026120000).
+    if (histError) console.error('[updateLeadSituationAction] histórico/observação não gravado:', histError.message)
+  }
 
   // 3) próxima tarefa. Quando a interação nasceu de uma tarefa, REUTILIZA a mesma linha em vez de
   // criar cópias a cada tentativa. Assim "não atendeu" registra trabalho realizado e só volta à fila
