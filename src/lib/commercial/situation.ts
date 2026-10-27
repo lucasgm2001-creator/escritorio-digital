@@ -91,7 +91,15 @@ export function deriveFollowupState(lastAction: LastAction, nextAction: NextActi
 
 // A situação influencia o funil sem permitir que este fluxo rápido feche uma venda e gere efeitos
 // financeiros por acidente. Fechamento continua no fluxo próprio, com plano e confirmação.
-export function suggestedStageFromSituation(lastAction: LastAction, currentStatus: string, nextAction?: NextAction): string | null {
+const PEDIU_PROPOSTA = new Set<LastAction>(['ligacao_pediu_proposta', 'whatsapp_pediu_proposta', 'cliente_pediu_proposta', 'reuniao_pediu_proposta'])
+
+export function suggestedStageFromSituation(lastAction: LastAction, currentStatus: string, nextAction?: NextAction, temperature?: Temperature | null): string | null {
+  // "Não quer seguir" encerra a oportunidade: vai direto para Venda Perdida, seja qual for o resultado ou a
+  // próxima ação — é a resposta mais forte do formulário. Venda já fechada não volta para perdida por aqui.
+  if (temperature === 'nao_interessado') return currentStatus === 'fechado' ? null : 'perdido'
+  // "Pediu proposta" (em qualquer canal) leva direto para a fase de proposta, inclusive se a próxima ação
+  // marcada for uma reunião — o pedido de proposta é o marco que importa no funil.
+  if (PEDIU_PROPOSTA.has(lastAction)) return 'proposta'
   // Marcar a reunião move o lead para a fase de reunião, venha de onde vier a conversa — antes só o
   // resultado 'agendamento_confirmado' fazia isso, então marcar reunião numa ligação não movia o card.
   if (nextAction === 'reuniao_marcada') return 'reuniao'

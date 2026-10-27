@@ -293,7 +293,7 @@ export async function updateLeadSituationAction(input: {
   if (teamId) ownedQuery = ownedQuery.eq('team_id', teamId)
   const { data: currentLead } = await ownedQuery.maybeSingle()
   if (!currentLead) return { ok: false, error: 'Lead não encontrado nesta equipe.' }
-  const suggestedStage = suggestedStageFromSituation(input.lastAction, currentLead.status, input.nextAction)
+  const suggestedStage = suggestedStageFromSituation(input.lastAction, currentLead.status, input.nextAction, input.temperature)
 
   // next_contact (= data da próxima ação): 'nenhuma' limpa; com "quando" define; senão não mexe.
   let nextContact: string | null | undefined = undefined

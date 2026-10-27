@@ -328,7 +328,7 @@ export function SituationDrawer({ lead, sourceTaskId = null, taskContext, initia
   const summaryResult = contactAction && lastAction ? RESULT_OPTIONS[contactAction].find(o => o.key === lastAction)?.label ?? LAST_ACTION_LABEL[lastAction] : null
   const summaryWhen = needsWhen ? whenLabel(when, date, time) : null
   const hasSummary = !!contactAction || !!summaryResult || !!temperature || nextAction !== 'nenhuma' || !!summaryWhen
-  const suggestedStage = lastAction ? suggestedStageFromSituation(lastAction, lead.status ?? '', nextAction) : null
+  const suggestedStage = lastAction ? suggestedStageFromSituation(lastAction, lead.status ?? '', nextAction, temperature) : null
   const suggestedStageLabel = suggestedStage ? ALL_COLUMNS.find(column => column.key === suggestedStage)?.label ?? suggestedStage : null
 
   function selectContactAction(action: ContactAction) {
@@ -473,7 +473,7 @@ export function SituationDrawer({ lead, sourceTaskId = null, taskContext, initia
                 <p className="text-caption font-tech uppercase tracking-label text-lime-fg">O que será atualizado</p>
                 <div className="mt-2 space-y-1.5 text-note text-bento-dim">
                   <SummaryLine>Situação: <strong className="text-bento-text">{LAST_ACTION_LABEL[lastAction]}</strong></SummaryLine>
-                  {suggestedStageLabel && <SummaryLine>Funil e Radar: <strong className="text-bento-text">{suggestedStageLabel}</strong></SummaryLine>}
+                  {suggestedStageLabel && <SummaryLine>Fase do funil: <strong className="text-bento-text">{suggestedStageLabel}</strong></SummaryLine>}
                   <SummaryLine>Próxima ação: <strong className="text-bento-text">{NEXT_ACTION_LABEL[nextAction]}{summaryWhen ? ` · ${summaryWhen}` : ''}</strong></SummaryLine>
                 </div>
               </div>
@@ -482,8 +482,8 @@ export function SituationDrawer({ lead, sourceTaskId = null, taskContext, initia
             {nextAction === 'reuniao_marcada' && (
               <p className="rounded-btn border border-purple-500/25 bg-purple-500/[0.07] px-3 py-2 text-caption leading-relaxed text-purple-200/85">
                 <strong className="font-semibold text-purple-200">Reunião:</strong>{' '}
-                entra na agenda como reunião (roxo), com link do Google Meet criado automaticamente, e o lead
-                vai para a fase Reunião Agendada.
+                entra na agenda como reunião (roxo), com link do Google Meet criado automaticamente
+                {suggestedStage === 'reuniao' ? ', e o lead vai para a fase Reunião Agendada.' : '.'}
               </p>
             )}
 
