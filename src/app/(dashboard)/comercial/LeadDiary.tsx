@@ -15,6 +15,7 @@ import { waNumber } from '@/lib/phone'
 import { LeadTasks } from './LeadTasks'
 import { ObservationsBox } from '@/components/observations/ObservationsBox'
 import { Portal } from '@/components/ui/Portal'
+import { useBackToClose } from '@/components/ui/useBackToClose'
 import { copyText } from '@/lib/clipboard'
 import { ChevronDown, Copy, MessageCircle, MessageSquare, PhoneCall, PhoneMissed, Sparkles, StickyNote, X } from 'lucide-react'
 import { usefulPayloadEntries } from './leaddiary-payload'
@@ -156,6 +157,9 @@ export function LeadDiary({ lead, onClose, onUpdated, onMoveStage, onDeleted, cu
   // rebuild. Fallback a ALL_COLUMNS só se as stages não vierem. (Vale mobile E desktop — o seletor é o mesmo.)
   const phaseOptions = useMemo(() => columnsFromStages(stages ?? []), [stages])
   const currentPhase = phaseOptions.find(c => c.key === currentLead.status) ?? ALL_COLUMNS.find(c => c.key === currentLead.status)
+
+  // Voltar (gesto do iPhone / botão do Android) fecha o perfil em vez de sair do Comercial.
+  useBackToClose(onClose)
 
   // Trava o scroll do fundo (body) enquanto o perfil está aberto; restaura ao fechar (preserva posição).
   useEffect(() => {
@@ -453,7 +457,7 @@ export function LeadDiary({ lead, onClose, onUpdated, onMoveStage, onDeleted, cu
       <div className="w-full h-[100dvh] bg-bento-panel border-l border-bento-border flex flex-col shadow-card-hover overflow-hidden sm:max-w-[min(100vw,42rem)] lg:max-w-[min(100vw,72rem)] 2xl:max-w-[min(100vw,96rem)]">
         {/* Header — FIXO no topo (fora do scroll); swipe-pra-baixo fecha no celular. */}
         <div onTouchStart={onHeaderTouchStart} onTouchEnd={onHeaderTouchEnd}
-          className="shrink-0 flex items-start justify-between px-5 pb-5 pt-[max(1.25rem,env(safe-area-inset-top))] border-b border-border">
+          className="shrink-0 flex items-start justify-between gap-3 px-5 pb-5 pt-[calc(env(safe-area-inset-top)+1rem)] border-b border-border">
           <div className="min-w-0">
             <div className="flex items-center gap-2 flex-wrap min-w-0">
               <h2 className="font-bold text-foreground text-base sm:text-lg leading-tight break-words min-w-0">{currentLead.name}</h2>
@@ -472,7 +476,10 @@ export function LeadDiary({ lead, onClose, onUpdated, onMoveStage, onDeleted, cu
                 : 'sem contato registrado'}
             </p>
           </div>
-          <button onClick={onClose} aria-label="Fechar" className="text-muted-foreground hover:text-foreground mt-0.5 p-1 -m-1">
+          {/* Alvo de toque de 44px (era ~28px) e abaixo da barra de status — no iPhone o X ficava na faixa do
+              relógio, onde o toque vira "rolar para o topo" e o perfil não fechava. */}
+          <button onClick={onClose} aria-label="Fechar"
+            className="-mr-2 -mt-1.5 grid h-11 w-11 flex-none place-items-center rounded-btn text-muted-foreground hover:text-foreground hover:bg-bento-bg">
             <X className="w-5 h-5" />
           </button>
         </div>

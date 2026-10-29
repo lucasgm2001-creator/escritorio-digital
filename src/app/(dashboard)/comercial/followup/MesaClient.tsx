@@ -26,6 +26,7 @@ import { closedStageSlugs } from '@/lib/commercial/closed-stages'
 import { hotLead, HOT_REASON_LABEL, HOT_REASON_ORDER, HOT_VALIDITY_DAYS, type HotReason } from '@/lib/commercial/hot-leads'
 import { ObservationsBox } from '@/components/observations/ObservationsBox'
 import { LimparAtrasados } from './LimparAtrasados'
+import { useBackToClose } from '@/components/ui/useBackToClose'
 
 export interface MesaLead {
   id: string
@@ -337,6 +338,17 @@ export function MesaClient({ initialTasks, initialLeads, stages, linkOptions, cu
   const selectedLead = selectedLeadId ? leads.find(lead => lead.id === selectedLeadId) ?? null : null
   const temSelecao = !!selectedLead || !!selectedTask
   function fecharPainel() { setSelectedLeadId(null); setSelectedTaskId(null) }
+  // Abaixo de xl o painel é uma FOLHA por cima da lista: voltar (gesto do iPhone / botão do Android) a fecha,
+  // em vez de sair do Comercial. No desktop largo ele é a 3ª coluna fixa — não há o que "voltar".
+  const [painelEmFolha, setPainelEmFolha] = useState(false)
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 1279px)')
+    const sync = () => setPainelEmFolha(mq.matches)
+    sync()
+    mq.addEventListener('change', sync)
+    return () => mq.removeEventListener('change', sync)
+  }, [])
+  useBackToClose(fecharPainel, temSelecao && painelEmFolha)
 
   // A Mesa abre SEM nada selecionado (MESA-BUSCA-001). Antes um efeito escolhia a primeira tarefa de hoje
   // ligada a lead — ou o primeiro que precisava de atenção — e o painel da direita já abria no contexto de
@@ -759,12 +771,12 @@ export function MesaClient({ initialTasks, initialLeads, stages, linkOptions, cu
           )}
           <aside className={cn('bento-fx min-w-0 xl:block xl:sticky xl:top-3',
             temSelecao
-              ? 'fixed inset-x-0 bottom-0 top-[max(3rem,env(safe-area-inset-top))] z-[190] overflow-y-auto overscroll-contain animate-slide-up pb-[env(safe-area-inset-bottom)] xl:inset-auto xl:top-3 xl:z-auto xl:overflow-visible xl:animate-none xl:pb-0'
+              ? 'fixed inset-x-0 bottom-0 top-[calc(env(safe-area-inset-top)+3.5rem)] z-[190] overflow-y-auto overscroll-contain animate-slide-up pb-[env(safe-area-inset-bottom)] xl:inset-auto xl:top-3 xl:z-auto xl:overflow-visible xl:animate-none xl:pb-0'
               : 'hidden')}>
             {temSelecao && (
               <div className="xl:hidden sticky top-0 z-10 flex justify-end border-b border-bento-border bg-bento-panel px-2 py-1.5">
                 <button type="button" onClick={fecharPainel}
-                  className="inline-flex items-center gap-1.5 rounded-btn px-3 min-h-[44px] text-sm text-bento-muted hover:text-bento-text">
+                  className="inline-flex items-center gap-1.5 rounded-btn px-3 min-h-[44px] text-sm font-medium text-bento-text hover:bg-bento-bg">
                   <X className="h-4 w-4" /> Fechar
                 </button>
               </div>

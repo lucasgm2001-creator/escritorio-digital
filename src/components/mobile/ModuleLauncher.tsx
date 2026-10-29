@@ -6,6 +6,7 @@ import { X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { NAV_MODULES, visibleNavModules } from '@/lib/navigation'
 import { useModuleAccess } from '@/components/auth/ModuleAccessProvider'
+import { useBackToClose } from '@/components/ui/useBackToClose'
 
 // Launcher de MÓDULOS — só mobile (<1024px). O "Mais" da BottomNav abre ISTO (grid de andares), não mais o
 // drawer lateral antigo (rail no celular era anti-padrão). FONTE ÚNICA de navegação (@/lib/navigation): mostra
@@ -14,6 +15,7 @@ export function ModuleLauncher({ open, onClose }: { open: boolean; onClose: () =
   const pathname = usePathname()
   const ma = useModuleAccess()   // sem provider = mostra tudo (fail-open); com provider, "Sem acesso" some
   const modules = ma ? visibleNavModules(NAV_MODULES, ma.access, ma.canManageTeam) : NAV_MODULES
+  useBackToClose(onClose, open)   // voltar fecha o menu em vez de sair da página
   if (!open) return null
 
   return (

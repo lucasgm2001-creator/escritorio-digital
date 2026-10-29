@@ -1,11 +1,13 @@
 'use client'
 import { useEffect, useRef } from 'react'
+import { useBackToClose } from './useBackToClose'
 
 // Comportamento padrão de DIÁLOGO acessível, reutilizável em todos os overlays (menos WonPlanModal, à parte):
 //  • ESC fecha (só o diálogo do TOPO da pilha — modais aninhados não fecham todos juntos).
 //  • Focus-trap: Tab / Shift+Tab circulam SÓ dentro do diálogo.
 //  • Foco inicial no 1º focável (respeita autoFocus já aplicado) e RETORNA ao abridor ao fechar.
 //  • Scroll-lock do body enquanto aberto (fundo não rola atrás no mobile) — M12.
+//  • VOLTAR (gesto do iPhone, botão do Android, navegador) fecha o diálogo do topo — useBackToClose.
 // Uso (componente montado só quando aberto): const { ref, dialogProps } = useDialog(onClose)
 // Uso (overlay INLINE condicional no pai): const d = useDialog(onClose, isOpen)  // enabled = quando aberto
 //      <div ref={ref} {...dialogProps} aria-labelledby="id-do-titulo"> … </div>
@@ -22,6 +24,7 @@ export function useDialog<T extends HTMLElement = HTMLDivElement>(onClose: () =>
   const ref = useRef<T>(null)
   const onCloseRef = useRef(onClose)
   onCloseRef.current = onClose
+  useBackToClose(onClose, enabled)
 
   useEffect(() => {
     if (!enabled) return

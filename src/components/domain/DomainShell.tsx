@@ -5,6 +5,7 @@ import { usePathname } from 'next/navigation'
 import Link from 'next/link'
 import { Menu, ChevronLeft, X } from 'lucide-react'
 import { DomainNav } from './DomainNav'
+import { useBackToClose } from '@/components/ui/useBackToClose'
 import { Sidebar } from '@/components/layout/Sidebar'
 import { WorkspaceSwitcher, type SwitcherTeam } from '@/components/layout/WorkspaceSwitcher'
 import { DOMAIN_CONFIGS } from '@/lib/domain/registry'
@@ -26,6 +27,7 @@ export function DomainShell({ configKey, config: configProp, visibleSectionKeys,
   children: React.ReactNode
 }) {
   const [sheetOpen, setSheetOpen] = useState(false)
+  useBackToClose(() => setSheetOpen(false), sheetOpen)   // voltar fecha o menu do celular
   const pathname = usePathname()
   const resolved = configProp ?? DOMAIN_CONFIGS[configKey!]
   // Filtro de seções por PERMISSÃO (HOTFIX-ADMIN-001): recebe só as CHAVES (serializável) e resolve/filtra AQUI, no

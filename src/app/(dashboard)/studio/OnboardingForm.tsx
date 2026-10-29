@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, useTransition, type Dispatch, type SetStat
 import { AlertTriangle, Check, ChevronLeft, Clock3, CloudUpload, FileDown, Minimize2, RotateCcw } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Portal } from '@/components/ui/Portal'
+import { useBackToClose } from '@/components/ui/useBackToClose'
 import {
   onboardingProgress, proximaEtapaAberta, numeracao, flattenTopics,
   type OnboardingStatus, type OnboardingTopic,
@@ -38,6 +39,8 @@ export function OnboardingForm({ clientId, clientName, topicos, rows, onVoltar, 
   reuniao?: boolean
   onSairReuniao?: () => void
 }) {
+  // Modo reunião é tela cheia por cima do app: voltar (gesto do iPhone / botão do Android) sai dele.
+  useBackToClose(() => onSairReuniao?.(), reuniao && !!onSairReuniao)
   // Ordem da reunião: tópico → seus subtópicos → próximo tópico. A numeração (1, 2, 3.1) sai da posição.
   const ordem = flattenTopics(topicos)
   const num = numeracao(topicos)
