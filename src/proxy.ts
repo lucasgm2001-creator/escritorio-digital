@@ -61,7 +61,11 @@ export async function proxy(request: NextRequest) {
     }
   )
 
-  const { data: { user } } = await supabase.auth.getUser()
+  // getClaims valida o JWT LOCALMENTE (chaves ES256 publicadas no JWKS, em cache) e só vai à rede para renovar
+  // o token vencido. getUser ia ao servidor de autenticação em TODA requisição — inclusive prefetch e RSC —, uns
+  // 130–150 ms por navegação, e o layout repete a checagem de autoridade (getUser) de qualquer jeito.
+  const { data: claimsData } = await supabase.auth.getClaims()
+  const user = claimsData?.claims?.sub ? claimsData.claims : null
   const path = request.nextUrl.pathname
 
   // APIs validam a própria autenticação e devem responder JSON, nunca redirecionar para HTML.
@@ -82,7 +86,9 @@ export async function proxy(request: NextRequest) {
     return redirectTo('/login')
   }
 
-  if (user && path === '/login') {
+  // Raiz (start_url do app instalado) e /login de quem já entrou vão DIRETO ao Comercial — antes "/" ia para
+  // /login e só então para /comercial: dois redirecionamentos (e duas checagens de sessão) ao abrir o app.
+  if (user && (path === '/' || path === '/login')) {
     return redirectTo('/comercial')
   }
 
@@ -90,5 +96,7 @@ export async function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)'],
+  // manifest/sw/offline ficam FORA do login: sem isso o navegador recebia a página de login no lugar do
+  // manifest ("Manifest: Syntax error") e o registro do service worker caía num redirecionamento.
+  matcher: ['/((?!_next/static|_next/image|favicon.ico|manifest.webmanifest|sw.js|offline.html|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)'],
 }

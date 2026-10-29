@@ -1,27 +1,15 @@
 import type { Metadata, Viewport } from 'next'
-import localFont from 'next/font/local'
 import { Space_Grotesk, JetBrains_Mono, Inter } from 'next/font/google'
 import './globals.css'
 import { ServiceWorkerRegister } from '@/components/system/ServiceWorkerRegister'
 import { NoPinchZoom } from '@/components/system/NoPinchZoom'
 import { headers } from 'next/headers'
 
-const geistSans = localFont({
-  src: './fonts/GeistVF.woff',
-  variable: '--font-geist-sans',
-  weight: '100 900',
-})
-const geistMono = localFont({
-  src: './fonts/GeistMonoVF.woff',
-  variable: '--font-geist-mono',
-  weight: '100 900',
-})
-
 // ── Design System "Bento Compacto" ──────────────────────────────────────────
 // Space Grotesk → títulos e números de métrica.  JetBrains Mono → valores
 // técnicos / labels uppercase / timestamps.  Inter → corpo de leitura.
-// Expostas como CSS vars; usadas via font-display/font-tech/font-body. NÃO
-// trocam a font-sans global (rollout escopado ao Hall por ora).
+// Expostas como CSS vars; usadas via font-display/font-tech/font-body. São também a font-sans (Inter) e a
+// font-mono (JetBrains) globais — a Geist local saiu (131 KB a menos em cada primeira visita).
 const spaceGrotesk = Space_Grotesk({ subsets: ['latin'], variable: '--font-display', display: 'swap' })
 const jetbrainsMono = JetBrains_Mono({ subsets: ['latin'], variable: '--font-tech', display: 'swap' })
 const inter = Inter({ subsets: ['latin'], variable: '--font-body', display: 'swap' })
@@ -79,7 +67,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
 }catch(e){}}())
         `}} />
       </head>
-      <body className={`${geistSans.variable} ${geistMono.variable} ${spaceGrotesk.variable} ${jetbrainsMono.variable} ${inter.variable} font-sans antialiased`}>
+      <body className={`${spaceGrotesk.variable} ${jetbrainsMono.variable} ${inter.variable} font-sans antialiased`}>
         {children}
         <NoPinchZoom />
         <ServiceWorkerRegister />

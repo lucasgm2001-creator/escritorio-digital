@@ -131,7 +131,7 @@ export function ResultadosTab() {
   }
 
   return (
-    <div className="h-full overflow-y-auto overscroll-contain bg-bento-bg">
+    <div className="lg:h-full lg:overflow-y-auto lg:overscroll-contain bg-bento-bg">
       <div className="max-w-[1400px] mx-auto p-4 sm:p-6 space-y-6 pb-[max(1.5rem,env(safe-area-inset-bottom))]">
         {/* Período navegável + o ÚNICO botão de PDF (mesma fonte da tela). */}
         <div className="flex flex-wrap items-start justify-between gap-3">

@@ -1,5 +1,6 @@
 import 'server-only'
 
+import { cache } from 'react'
 import { createClient } from '@/lib/supabase/server'
 
 // FONTE ÚNICA de dados comerciais para métricas/relatórios (ARCH-001). Team-scoped. Tudo que é KPI
@@ -21,9 +22,16 @@ export type CommercialRaw = {
 // (perf, SPRINT-FINAL-002 Parte 4). Números idênticos: o caminho executivo nunca leu stageEvents.
 // A tabela `meetings` saiu daqui: o relatório passou a contar reunião pela transição do funil (stage_events),
 // então varrê-la era custo puro. Quem precisa dela é a COMISSÃO, que lê direto.
-export async function getCommercialRaw(teamId: string, opts?: { withPipeline?: boolean }): Promise<CommercialRaw> {
+//
+// Memorizado POR REQUISIÇÃO (React cache, chave = teamId + withPipeline): o Hall pede os mesmos dados para os
+// cartões executivos e para o funil do mês (buildCommercialReport) — eram duas leituras completas de leads e
+// deals a cada abertura. Agora a segunda chamada reaproveita a primeira.
+export function getCommercialRaw(teamId: string, opts?: { withPipeline?: boolean }): Promise<CommercialRaw> {
+  return loadCommercialRaw(teamId, opts?.withPipeline ?? false)
+}
+
+const loadCommercialRaw = cache(async (teamId: string, withPipeline: boolean): Promise<CommercialRaw> => {
   const supabase = createClient()
-  const withPipeline = opts?.withPipeline ?? false
   const emptyRes = <T>() => Promise.resolve({ data: [] as T[], error: null })
   const [leads, deals, stageEvents] = await Promise.all([
     supabase.from('leads').select('id, status, value, received_at, created_at, stage_changed_at, score, origem').eq('team_id', teamId),
@@ -38,7 +46,7 @@ export async function getCommercialRaw(teamId: string, opts?: { withPipeline?: b
     stageEvents: (stageEvents.data ?? []) as MStage[],
     deals: (deals.data ?? []) as MDeal[],
   }
-}
+})
 
 // ── Fontes ADICIONAIS de receita/vendedor (eram da antiga aba Métricas). Escopadas por RLS (a MESMA
 //    leitura que a UI fazia antes); em erro degradam para vazio (a aba mostrava 0, nunca quebrava). ──

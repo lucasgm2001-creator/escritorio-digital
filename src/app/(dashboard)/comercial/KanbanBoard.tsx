@@ -47,12 +47,20 @@ type Tab = 'followup' | 'funil' | 'contatos' | 'resultados'
 
 interface CurrentUser { id: string; name: string }
 
+// Constante de módulo: o DraggableTabs relê a ordem salva quando `tabs` muda — um array novo a cada render
+// do Comercial (realtime, toast, qualquer estado) fazia essa leitura e dois setState em toda atualização.
+const TABS: { key: Tab; label: string }[] = [
+  { key: 'followup',     label: 'Follow-up' },
+  { key: 'funil',        label: 'Funil' },
+  { key: 'contatos',     label: 'Contatos' },
+  { key: 'resultados',   label: 'Resultados' },
+]
+
 // Dados da aba Follow-up (antiga Minha Mesa), lidos no servidor pela page do Comercial.
 interface FollowUpData {
   initialTasks: Task[]
   initialLeads: MesaLead[]
   stages: MesaStage[]
-  linkOptions: LinkOption[]
 }
 
 // ── Barra de resumo do funil (rodapé) ──────────────────────────────────────────
@@ -193,13 +201,6 @@ export function KanbanBoard({ initialLeads, initialStages, initialClients, curre
 
   }, [leads])
 
-  const TABS: { key: Tab; label: string }[] = [
-    { key: 'followup',     label: 'Follow-up' },
-    { key: 'funil',        label: 'Funil' },
-    { key: 'contatos',     label: 'Contatos' },
-    { key: 'resultados',   label: 'Resultados' },
-  ]
-
   // IPAD-FUNNEL-001 — drag consciente de TOUCH. Desktop (mouse): PointerSensor distance 8, INALTERADO.
   // Touch/iPad: só arrasta no "Modo Organizar" e, mesmo assim, com delay (segurar) — escorregar o dedo ROLA,
   // nunca move um lead por acidente. useSensor é sempre chamado (regra de hooks); a ativação é condicional
@@ -310,11 +311,23 @@ export function KanbanBoard({ initialLeads, initialStages, initialClients, curre
 
   const activeLead = activeId ? leads.find(l => l.id === activeId) : null
 
+  // Vínculos da tarefa (leads fora da lixeira + clientes) montados AQUI, a partir do estado vivo — antes vinham
+  // prontos do servidor, repetindo nome/telefone de todo lead no HTML da página (e envelheciam até recarregar).
+  const linkOptions = useMemo<LinkOption[]>(() => [
+    ...leads.filter(l => l.status !== 'lixeira')
+      .map(l => ({ type: 'lead' as const, id: l.id, name: l.name, phone: l.phone, detail: l.company })),
+    ...clients.map(c => ({ type: 'client' as const, id: c.id, name: c.name, phone: c.phone, detail: c.company })),
+  ], [leads, clients])
+
   return (
-    <div className="flex flex-col h-full bg-bento-bg relative font-body">
+    // CELULAR (MOBILE-COMERCIAL-001): a página inteira rola no <main> — título e "Novo Lead" saem de cena e as
+    // abas ficam presas no topo. Antes o cabeçalho era fixo e cada aba rolava por dentro: título + botão de
+    // largura total + abas + barra da aba comiam ~2/3 da tela e a lista ficava espremida no terço de baixo.
+    // DESKTOP (lg+) segue igual: altura cheia, cabeçalho fixo e cada aba com rolagem própria.
+    <div className="flex flex-col min-h-full lg:h-full bg-bento-bg relative font-body">
       {/* Header */}
-      <div className="flex-none bg-bento-bg border-b border-bento-border">
-        <div className="flex items-center justify-between gap-2 flex-wrap px-4 sm:px-6 pt-4 pb-3">
+      <div className="flex-none bg-bento-bg">
+        <div className="flex items-center justify-between gap-2 px-4 sm:px-6 pt-3 sm:pt-4 pb-2 sm:pb-3">
           <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
             <h1 className="font-display font-bold text-bento-text text-lg tracking-tight">Comercial</h1>
             {/* Contagem só onde ela descreve a lista na tela (Funil filtrado pelo período). Contatos tem o seu. */}
@@ -323,10 +336,10 @@ export function KanbanBoard({ initialLeads, initialStages, initialClients, curre
             )}
           </div>
 
-          <div className="flex items-center gap-2 w-full sm:w-auto">
+          <div className="flex items-center gap-2">
             <button
               onClick={() => setNewLeadOpen(true)}
-              className="bento-btn flex items-center justify-center gap-2 px-4 py-2 min-h-[44px] rounded-btn text-sm font-semibold flex-1 sm:flex-none"
+              className="bento-btn flex items-center justify-center gap-2 px-3.5 sm:px-4 py-2 min-h-[40px] sm:min-h-[44px] rounded-btn text-sm font-semibold"
             >
               <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -336,10 +349,18 @@ export function KanbanBoard({ initialLeads, initialStages, initialClients, curre
           </div>
         </div>
 
+      </div>
+
+      {/* Abas: no celular ficam presas no topo enquanto a lista rola por baixo. Só elas — os filtros do Funil
+          rolam junto com a lista (presos, somavam ~230 px fixos na tela). */}
+      <div className="sticky top-0 z-20 lg:static flex-none bg-bento-bg">
         {/* Tabs - Draggable */}
-        <div className="px-6">
+        <div className="px-2 sm:px-6">
           <DraggableTabs tabs={TABS} activeTab={tab} onTabChange={(key) => setTab(key as Tab)} sectionKey="comercial" />
         </div>
+      </div>
+
+      <div className="flex-none bg-bento-bg border-b border-bento-border">
 
         {/* Filtro de período do Funil (só nesta aba). Padrão "Tudo". Mobile: chips rolam, sem overflow. */}
         {tab === 'funil' && (
@@ -379,7 +400,7 @@ export function KanbanBoard({ initialLeads, initialStages, initialClients, curre
       </div>
 
       {/* Content */}
-      <div className="flex-1 overflow-hidden">
+      <div className="flex-1 lg:overflow-hidden">
         {/* Funil — DESKTOP: tiers horizontais (esq→dir) com caixas colapsáveis */}
         {tab === 'funil' && isDesktop && (
           <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
@@ -426,7 +447,7 @@ export function KanbanBoard({ initialLeads, initialStages, initialClients, curre
             card abre o LeadDiary, que move pela MESMA função (e dispara a comissão igual ao desktop). */}
         {tab === 'funil' && !isDesktop && (
           /* Rola ATÉ O FIM: scroll vertical explícito + folga inferior (clear da BottomNav/safe-area). */
-          <div className="h-full overflow-y-auto overscroll-contain p-3 pb-[max(2rem,env(safe-area-inset-bottom))] bg-bento-bg">
+          <div className="p-3 pb-[max(2rem,env(safe-area-inset-bottom))] bg-bento-bg">
             <PhaseSelectorMobile columns={cols} leads={filteredLeads} onOpenDiary={setSelectedLead} />
           </div>
         )}
@@ -434,9 +455,10 @@ export function KanbanBoard({ initialLeads, initialStages, initialClients, curre
         {/* Follow-up rola por conta própria — o pai é overflow-hidden (senão a lista fica cortada).
             Fica SEMPRE montado (só escondido fora da aba) → ir ao Funil e voltar preserva filtro, busca e
             lead aberto, em vez de recarregar a aba do zero. */}
-        <div hidden={tab !== 'followup'} className="h-full overflow-y-auto overscroll-contain bg-bento-bg">
+        <div hidden={tab !== 'followup'} className="lg:h-full lg:overflow-y-auto lg:overscroll-contain bg-bento-bg">
           <MesaClient
             {...followUp}
+            linkOptions={linkOptions}
             currentUser={currentUser}
             onOpenLead={(leadId) => {
               const lead = leads.find(l => l.id === leadId)

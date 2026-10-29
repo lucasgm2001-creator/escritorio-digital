@@ -32,7 +32,9 @@ function SortableTab({ tab, isActive, onTabChange }: { tab: TabConfig; isActive:
       {...attributes}
       {...listeners}
       onClick={onTabChange}
-      className={`px-4 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap shrink-0 snap-start cursor-grab active:cursor-grabbing ${
+      // Celular: as abas dividem a largura (cabem as quatro, sem "Resu…" cortado nem rolagem lateral, que no
+      // toque se confundia com arrastar a aba). Desktop: largura natural, como sempre.
+      className={`flex-1 sm:flex-none px-2 sm:px-4 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap shrink-0 snap-start cursor-grab active:cursor-grabbing ${
         isActive
           ? 'border-lime text-lime-fg'
           : 'border-transparent text-bento-muted hover:text-bento-text'
@@ -120,7 +122,7 @@ export function DraggableTabs({ tabs, activeTab, onTabChange, sectionKey }: Drag
       {tabOrder.length > 0 && (
         <button
           onClick={handleResetOrder}
-          className="ml-2 px-2 py-2 text-bento-muted hover:text-bento-text transition-colors flex-shrink-0"
+          className="hidden sm:block ml-2 px-2 py-2 text-bento-muted hover:text-bento-text transition-colors flex-shrink-0"
           title="Resetar ordem das abas"
         >
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">

@@ -485,10 +485,11 @@ export function MesaClient({ initialTasks, initialLeads, stages, linkOptions, cu
 
   return (
     <div className="min-h-full bg-bento-bg font-body">
-      <div className="max-w-[1600px] mx-auto p-4 sm:p-6 space-y-4">
+      <div className="max-w-[1600px] mx-auto p-3 sm:p-6 space-y-3 sm:space-y-4">
         {/* Barra compacta: a aba vive dentro do Comercial, que já tem título — saudação aqui seria um
             segundo cabeçalho empurrando a lista para baixo. O Relatório saiu daqui: mora em Resultados. */}
-        <header className="flex items-center justify-end gap-2 flex-wrap">
+        {/* Celular: sem esta linha — o "Nova tarefa" vira o "+" no cabeçalho da lista (uma linha a menos). */}
+        <header className="hidden sm:flex items-center justify-end gap-2 flex-wrap">
           <button type="button" onClick={() => openNew()} className="bento-btn inline-flex items-center gap-2 px-4 min-h-[42px] rounded-btn text-sm font-semibold">
             <Plus className="w-4 h-4" /> Nova tarefa
           </button>
@@ -511,8 +512,10 @@ export function MesaClient({ initialTasks, initialLeads, stages, linkOptions, cu
           </nav>
 
           <section className="bento-fx min-w-0 overflow-hidden">
-            <div className="flex items-center justify-between gap-3 px-4 py-3 border-b border-bento-border">
-              <div className="min-w-0">
+            {/* Quebra em duas linhas quando não cabe (celular na aba Hoje): antes o título virava "H…" e o
+                "3 itens" quebrava palavra por palavra, espremidos pelas setas e pelo campo de data. */}
+            <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 px-3 sm:px-4 py-3 border-b border-bento-border">
+              <div className="min-w-0 flex-1 basis-40">
                 <h2 className="font-display font-semibold text-bento-text truncate">
                   {buscando ? 'Busca de leads'
                     : filter === 'hoje' ? rotuloDia(diaRef, today)
@@ -536,7 +539,7 @@ export function MesaClient({ initialTasks, initialLeads, stages, linkOptions, cu
                   )}
                 </p>
               </div>
-              <div className="flex items-center gap-1.5">
+              <div className="flex flex-wrap items-center justify-end gap-1.5">
                 {/* Navegação por DIA, só na aba Hoje: rever ontem sem caçar no meio dos atrasados. */}
                 {filter === 'hoje' && !buscando && (
                   <>
@@ -567,6 +570,10 @@ export function MesaClient({ initialTasks, initialLeads, stages, linkOptions, cu
                 )}
                 <button type="button" onClick={() => router.refresh()} aria-label="Atualizar" className="p-2 text-bento-muted hover:text-bento-text rounded-btn hover:bg-bento-bg">
                   <RefreshCw className="w-4 h-4" />
+                </button>
+                <button type="button" onClick={() => openNew()} aria-label="Nova tarefa" title="Nova tarefa"
+                  className="sm:hidden bento-btn grid h-9 w-9 place-items-center rounded-btn">
+                  <Plus className="h-4 w-4" />
                 </button>
               </div>
             </div>

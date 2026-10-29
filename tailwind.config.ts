@@ -82,12 +82,14 @@ const config: Config = {
         },
       },
       fontFamily: {
-        sans: ['var(--font-geist-sans)', 'system-ui', 'sans-serif'],
-        mono: ['var(--font-geist-mono)', 'monospace'],
+        // Geist saiu (MOBILE-PERF-001): eram 131 KB de .woff sem compressão pré-carregados em toda página, para a
+        // mesma função que Inter (texto) e JetBrains Mono (números) já cumprem. sans = Inter, mono = JetBrains.
+        sans: ['var(--font-body)', 'system-ui', 'sans-serif'],
+        mono: ['var(--font-tech)', 'ui-monospace', 'monospace'],
         // Bento Compacto
-        display: ['var(--font-display)', 'var(--font-geist-sans)', 'system-ui', 'sans-serif'],
-        tech:    ['var(--font-tech)', 'var(--font-geist-mono)', 'monospace'],
-        body:    ['var(--font-body)', 'var(--font-geist-sans)', 'system-ui', 'sans-serif'],
+        display: ['var(--font-display)', 'var(--font-body)', 'system-ui', 'sans-serif'],
+        tech:    ['var(--font-tech)', 'ui-monospace', 'monospace'],
+        body:    ['var(--font-body)', 'system-ui', 'sans-serif'],
       },
       borderRadius: {
         lg: '0.75rem', md: '0.5rem', sm: '0.375rem',

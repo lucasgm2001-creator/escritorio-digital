@@ -59,7 +59,8 @@ export async function getDashboardData(context: RequestContext): Promise<Dashboa
   const prev = previousWindowYmd(from, to, { mode: 'mes', todayYMD: today })
 
   const [raw, revenue, carteira, integrationsOffRes, invitesRes, report] = await Promise.all([
-    getCommercialRaw(teamId),
+    // withPipeline: mesma chave do buildCommercialReport abaixo → uma leitura só (getCommercialRaw é memorizado).
+    getCommercialRaw(teamId, { withPipeline: true }),
     getClientRevenueForMetrics(teamId),
     getExecutiveClients(teamId),
     supabase.from('client_integrations').select('id', { count: 'exact', head: true }).eq('team_id', teamId).eq('ativo', false),
