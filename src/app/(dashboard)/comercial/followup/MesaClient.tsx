@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   CalendarDays, Check, CheckCircle2, ChevronDown, ChevronLeft, ChevronRight, CircleDot,
-  ExternalLink, FileText, Mail, MessageCircle, Phone, Plus, RefreshCw, Search, UserRound, Video, X,
+  ExternalLink, FileText, Flame, Mail, MessageCircle, Phone, Plus, RefreshCw, Search, UserRound, Video, X,
   type LucideIcon,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -23,6 +23,7 @@ import { type LeadStatus } from '../types'
 import { NEXT_ACTION_LABEL, TEMPERATURE_LABEL, isNextAction } from '@/lib/commercial/situation'
 import { inferTaskKind } from '@/lib/tasks/task-kind'
 import { closedStageSlugs } from '@/lib/commercial/closed-stages'
+import { hotLead, HOT_REASON_LABEL, HOT_REASON_ORDER, HOT_VALIDITY_DAYS, type HotReason } from '@/lib/commercial/hot-leads'
 import { ObservationsBox } from '@/components/observations/ObservationsBox'
 import { LimparAtrasados } from './LimparAtrasados'
 
@@ -55,6 +56,8 @@ export type FunnelStage = { slug: string; nome: string; posicao: number; cor: st
 // Próximas, Sem plano e Concluídas —, várias medindo recortes da mesma coisa com números que não batiam.
 //
 //   hoje        → o que vence no dia (com navegação por data)
+//   quentes     → as oportunidades: "Quer fechar", "Bem interessado" e "Proposta em análise" dos últimos 30 dias
+//                 (regra em lib/commercial/hot-leads) — o lugar de olhar para não deixar nenhuma esfriar
 //   semana      → as tarefas dos próximos 7 dias, agrupadas por dia (o que vem pela frente — era o único uso
 //                 real da Agenda do Hall, que saiu)
 //   acompanhando→ TODOS os leads em jogo, agrupados pela fase REAL do funil
@@ -63,7 +66,7 @@ export type FunnelStage = { slug: string; nome: string; posicao: number; cor: st
 //
 // Atrasado deixou de ser aba: atraso virou um atributo da linha dentro da fase, não um lugar. Um lead não
 // "é atrasado", ele está numa fase do funil — e é por fase que o trabalho acontece.
-type Filter = 'hoje' | 'semana' | 'acompanhando' | 'reunioes' | 'concluidas'
+type Filter = 'hoje' | 'quentes' | 'semana' | 'acompanhando' | 'reunioes' | 'concluidas'
 
 // Fases que saem do fluxo de trabalho e vão para "Concluídas": as encerradas (closedStageSlugs, fonte única
 // em lib/commercial/closed-stages — a mesma régua do rodapé do Funil).
@@ -262,14 +265,18 @@ export function MesaClient({ initialTasks, initialLeads, stages, linkOptions, cu
   // Uma linha por LEAD, dentro da fase em que ele está. Mudou de fase no Comercial? Muda de grupo aqui.
   // A ordem e os nomes saem de funnel_stages — a mesma tabela que desenha o funil —, então fase criada
   // lá aparece aqui sem tocar neste arquivo.
-  const porFase = useMemo(() => {
-    const tarefaDoLead = new Map<string, Task>()
+  // A tarefa que representa o lead é a de data mais próxima — é o próximo passo dele (Acompanhando e Quentes).
+  const tarefaDoLead = useMemo(() => {
+    const porLead = new Map<string, Task>()
     for (const task of pending) {
       if (task.linked_type !== 'lead' || !task.linked_id) continue
-      const atual = tarefaDoLead.get(task.linked_id)
-      // A tarefa que representa o lead é a de data mais próxima — é o próximo passo dele.
-      if (!atual || (task.due_date ?? '9999') < (atual.due_date ?? '9999')) tarefaDoLead.set(task.linked_id, task)
+      const atual = porLead.get(task.linked_id)
+      if (!atual || (task.due_date ?? '9999') < (atual.due_date ?? '9999')) porLead.set(task.linked_id, task)
     }
+    return porLead
+  }, [pending])
+
+  const porFase = useMemo(() => {
 
     const porSlug = new Map<string, { lead: MesaLead; task: Task | null }[]>()
     for (const lead of leads) {
@@ -297,7 +304,26 @@ export function MesaClient({ initialTasks, initialLeads, stages, linkOptions, cu
       .filter(g => g.itens.length > 0)
 
     return { ativas: monta(false), encerradas: monta(true) }
-  }, [leads, pending, stages, closedSlugs])
+  }, [leads, tarefaDoLead, stages, closedSlugs])
+
+  // QUENTES: por motivo (Quer fechar → Proposta → Bem interessado) e, dentro de cada um, quem expira antes
+  // no topo — é quem está mais perto de sair da lista sem ter sido trabalhado.
+  const quentes = useMemo(() => {
+    const now = Date.now()
+    const porMotivo = new Map<HotReason, { lead: MesaLead; task: Task | null; daysLeft: number }[]>()
+    for (const lead of leads) {
+      if (FASES_FORA_DAS_TAREFAS.has(lead.status)) continue
+      const hot = hotLead(lead, closedSlugs, now)
+      if (!hot) continue
+      const lista = porMotivo.get(hot.reason) ?? []
+      lista.push({ lead, task: tarefaDoLead.get(lead.id) ?? null, daysLeft: hot.daysLeft })
+      porMotivo.set(hot.reason, lista)
+    }
+    return HOT_REASON_ORDER
+      .map(reason => ({ reason, itens: (porMotivo.get(reason) ?? []).sort((a, b) => a.daysLeft - b.daysLeft) }))
+      .filter(g => g.itens.length > 0)
+  }, [leads, tarefaDoLead, closedSlugs])
+  const quentesCount = quentes.reduce((n, g) => n + g.itens.length, 0)
 
   const acompanhandoCount = useMemo(() => porFase.ativas.reduce((n, g) => n + g.itens.length, 0), [porFase])
   // Mesma contagem que os cabeçalhos dos grupos somam — derivada do que está NA TELA (a tarefa que
@@ -332,6 +358,7 @@ export function MesaClient({ initialTasks, initialLeads, stages, linkOptions, cu
 
   const filters: { id: Filter; label: string; Icon: LucideIcon; count: number }[] = [
     { id: 'hoje', label: 'Hoje', Icon: CircleDot, count: tarefasDeHojeCount + newLeadsToday.length },
+    { id: 'quentes', label: 'Quentes', Icon: Flame, count: quentesCount },
     { id: 'semana', label: 'Semana', Icon: CalendarDays, count: semanaCount },
     { id: 'acompanhando', label: 'Acompanhando', Icon: UserRound, count: acompanhandoCount },
     { id: 'reunioes', label: 'Reuniões', Icon: Video, count: meetingTasks.length },
@@ -494,6 +521,8 @@ export function MesaClient({ initialTasks, initialLeads, stages, linkOptions, cu
                 <p className="text-xs text-bento-muted mt-0.5">
                   {buscando
                     ? `${resultados.length} ${resultados.length === 1 ? 'lead encontrado' : 'leads encontrados'}`
+                    : filter === 'quentes'
+                      ? `${quentesCount} ${quentesCount === 1 ? 'oportunidade' : 'oportunidades'} · ficam ${HOT_VALIDITY_DAYS} dias sem nova atualização`
                     : filter === 'semana'
                       ? `${semanaCount} ${semanaCount === 1 ? 'tarefa' : 'tarefas'} nos próximos 7 dias`
                     : gruposDoFunil.length > 0
@@ -571,7 +600,31 @@ export function MesaClient({ initialTasks, initialLeads, stages, linkOptions, cu
             </div>
 
             <div className="p-2 sm:p-3 space-y-2">
-              {filter === 'semana' && !buscando ? (
+              {filter === 'quentes' && !buscando ? (
+                quentesCount === 0 ? <EmptyFilter filter="quentes" /> : (
+                  <div className="space-y-4">
+                    {quentes.map(({ reason, itens }) => (
+                      <div key={reason} className="space-y-1.5">
+                        <p className="flex items-center gap-2 px-1 font-tech text-[10px] uppercase tracking-label text-bento-muted">
+                          <span className={cn(reason === 'quer_fechar' && 'text-orange-500 dark:text-orange-300')}>{HOT_REASON_LABEL[reason]}</span>
+                          <span className="tabular-nums opacity-70">{itens.length}</span>
+                          <span className="h-px flex-1 bg-bento-border/60" aria-hidden />
+                        </p>
+                        {itens.map(({ lead, task, daysLeft }) => (
+                          <LeadNaFase key={lead.id} lead={lead} task={task} today={today}
+                            // Fora da seção de proposta, a fase diz onde a conversa está ("Interagiu", "Reunião").
+                            fase={reason === 'proposta' ? undefined : nomeFase(lead.status)}
+                            extra={<ValidadeQuente daysLeft={daysLeft} />}
+                            active={selectedLeadId === lead.id}
+                            busy={!!task && busyTaskId === task.id}
+                            onCheck={() => registrarSituacao(lead, task)}
+                            onSelect={() => { selectLead(lead); if (task) setSelectedTaskId(task.id) }} />
+                        ))}
+                      </div>
+                    ))}
+                  </div>
+                )
+              ) : filter === 'semana' && !buscando ? (
                 semanaCount === 0 ? <EmptyFilter filter="semana" /> : (
                   <div className="space-y-4">
                     {semanaDias.filter(d => d.itens.length > 0).map(({ dia, itens }) => (
@@ -830,13 +883,16 @@ function TaskRowComDuplicadas({ antigas = 0, onResolver, ...props }: TaskRowProp
 // Mostra a SITUAÇÃO escrita (current_situation) em vez do título da tarefa: na hora de decidir o que
 // fazer, "pediu para ligar entre terça e quarta" vale mais que "Ligar novamente: Fulano". O próximo passo
 // aparece como data à direita, em âmbar quando já venceu — atraso virou atributo da linha, não uma aba.
-function LeadNaFase({ lead, task, today, active, busy, onCheck, onSelect }: {
+function LeadNaFase({ lead, task, today, active, busy, fase, extra, onCheck, onSelect }: {
   lead: MesaLead; task: Task | null; today: string; active: boolean; busy: boolean
+  // Quentes: a lista não é agrupada por fase, então a fase vai na frente da situação; `extra` = validade.
+  fase?: string; extra?: React.ReactNode
   onCheck: () => void; onSelect: () => void
 }) {
   const vencida = !!task?.due_date && task.due_date < today
   const semPlano = !task
-  const situacao = lead.current_situation?.trim() || lead.company?.trim() || 'Sem situação registrada'
+  const situacaoTexto = lead.current_situation?.trim() || lead.company?.trim() || 'Sem situação registrada'
+  const situacao = fase ? `${fase} · ${situacaoTexto}` : situacaoTexto
   return (
     <div className={cn(
       // Cartão CLARO sobre o poço escuro/acinzentado do grupo — é essa inversão que separa o lead da fase.
@@ -861,6 +917,7 @@ function LeadNaFase({ lead, task, today, active, busy, onCheck, onSelect }: {
           <span className="block truncate text-sm font-medium leading-tight text-bento-text">{lead.name}</span>
           <span className="mt-0.5 block truncate text-[11px] leading-tight text-bento-muted">{situacao}</span>
         </span>
+        {extra}
         {/* Próximo passo como etiqueta: vencido em âmbar, "sem próximo passo" com contorno tracejado —
             a ausência de plano precisa parecer uma lacuna, não um estado normal. */}
         {semPlano ? (
@@ -877,6 +934,22 @@ function LeadNaFase({ lead, task, today, active, busy, onCheck, onSelect }: {
         )}
       </button>
     </div>
+  )
+}
+
+// Validade do lead quente: discreta enquanto há folga, âmbar na última semana — é o aviso de que a
+// oportunidade vai sair da lista se ninguém atualizar a situação.
+function ValidadeQuente({ daysLeft }: { daysLeft: number }) {
+  const label = daysLeft === 0 ? 'último dia' : `${daysLeft}d`
+  return (
+    <span title={`Sai dos Quentes em ${daysLeft} dia(s), se não houver nova atualização`}
+      // No celular a linha é estreita: a validade só aparece quando vira aviso (última semana).
+      className={cn('flex-none whitespace-nowrap rounded-full border px-2 py-0.5 font-tech text-[10px] tabular-nums',
+        daysLeft <= 7
+          ? 'border-amber-500/40 bg-amber-500/10 text-amber-600 dark:text-amber-300'
+          : 'hidden sm:inline border-bento-border text-bento-muted')}>
+      {daysLeft <= 7 ? `expira · ${label}` : `válido · ${label}`}
+    </span>
   )
 }
 
@@ -1022,6 +1095,7 @@ function ContextBlock({ label, value }: { label: string; value: string }) {
 function EmptyFilter({ filter }: { filter: Filter }) {
   const messages: Record<Filter, string> = {
     hoje: 'Nada para hoje: nenhuma tarefa vence hoje e nenhum lead novo chegou.',
+    quentes: 'Nenhum lead quente nos últimos 30 dias. Ao marcar “Quer fechar” ou “Bem interessado”, ou mover para Proposta em Análise, ele aparece aqui.',
     semana: 'Nenhuma tarefa marcada para os próximos 7 dias.',
     acompanhando: 'Nenhum lead em jogo no funil.',
     reunioes: 'Nenhuma reunião marcada.',
